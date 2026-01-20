@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ourstuff Auth Test</title>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js"></script>
+
+<!-- reCAPTCHA v3 -->
+<script src="https://www.google.com/recaptcha/api.js?render=6LdVslAsAAAAAAwyU1wyjAxIG_K187E82ID2C7Re"></script>
+
+<style>
+body {
+  font-family: system-ui, sans-serif;
+  padding: 30px;
+  max-width: 600px;
+  margin: auto;
+}
+
+.topbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 20px;
+}
+
+.hidden {
+  display: none;
+}
+
+input {
+  padding: 10px;
+  width: 100%;
+  margin: 6px 0;
+}
+
+button {
+  padding: 10px;
+  width: 100%;
+  cursor: pointer;
+}
+
+hr {
+  margin: 30px 0;
+}
+</style>
+</head>
+
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div id="userControls" class="hidden">
+    <span id="userEmail"></span> |
+    <a href="#" onclick="signOut()">Sign Out</a>
+  </div>
+</div>
+
+<h2>Ourstuff Authentication Test</h2>
+
+<!-- SIGN UP -->
+<div id="signupBox">
+  <h3>Sign Up</h3>
+  <input id="signupEmail" type="email" placeholder="Email">
+  <input id="signupPassword" type="password" placeholder="Password">
+  <button onclick="signUp()">Create Account</button>
+</div>
+
+<hr>
+
+<!-- SIGN IN -->
+<div id="signinBox">
+  <h3>Sign In</h3>
+  <input id="signinEmail" type="email" placeholder="Email">
+  <input id="signinPassword" type="password" placeholder="Password">
+  <button onclick="signIn()">Sign In</button>
+  <br><br>
+  <a href="#" onclick="forgotPassword()">Forgot Password?</a>
+</div>
+
+<hr>
+
+<!-- ACCOUNT -->
+<div id="accountBox" class="hidden">
+  <h3>Account Settings</h3>
+  <button onclick="deleteAccount()" style="color:red">
+    Delete My Account
+  </button>
+</div>
+
+<script type="module">
+
+// -----------------------------------
+// 🔥 FIREBASE CONFIG (YOUR PROJECT)
+// -----------------------------------
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAbGQLNf5DaihauUnZhVA03TAQUO_6PwZk",
+  authDomain: "ourstuff-firebase.firebaseapp.com",
+  projectId: "ourstuff-firebase",
+  storageBucket: "ourstuff-firebase.firebasestorage.app",
+  messagingSenderId: "450756988196",
+  appId: "1:450756988196:web:89ee37877b306bbb1277b1",
+  measurementId: "G-JR0JC5Z47E"
+};
+
+// -----------------------------------
+// FIREBASE IMPORTS
+// -----------------------------------
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
+
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail,
+  onAuthStateChanged,
+  signOut as firebaseSignOut,
+  deleteUser
+} from "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js";
+
+// -----------------------------------
+// INIT FIREBASE
+// -----------------------------------
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+
+// -----------------------------------
+// UI HELPERS
+// -----------------------------------
+
+function showLoggedIn(user) {
+  signupBox.classList.add("hidden");
+  signinBox.classList.add("hidden");
+  accountBox.classList.remove("hidden");
+  userControls.classList.remove("hidden");
+  userEmail.innerText = user.email;
+}
+
+function showLoggedOut() {
+  signupBox.classList.remove("hidden");
+  signinBox.classList.remove("hidden");
+  accountBox.classList.add("hidden");
+  userControls.classList.add("hidden");
+}
+
+// -----------------------------------
+// RECAPTCHA VERIFY
+// -----------------------------------
+
+async function verifyHuman() {
+
+  const token = await grecaptcha.execute(
+    "6LdVslAsAAAAAAwyU1wyjAxIG_K187E82ID2C7Re",
+    { action: "signup" }
+  );
+
+  const res = await fetch(
+    "https://us-central1-ourstuff-firebase.cloudfunctions.net/verifyRecaptcha",
+    {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ token })
+    }
+  );
+
+  const result = await res.json();
+
+  if (!result.ok) {
+    throw new Error("Bot verification failed");
+  }
+
+}
+
+// -----------------------------------
+// SIGN UP
+// -----------------------------------
+
+window.signUp = async () => {
+
+  try {
+
+    await verifyHuman();
+
+    const email = signupEmail.value.trim();
+    const password = signupPassword.value.trim();
+
+    await createUserWithEmailAndPassword(auth, email, password);
+
+    alert("Account created successfully!");
+
+  } catch (err) {
+
+    console.error(err);
+    alert(err.message);
+
+  }
+
+};
+
+// -----------------------------------
+// SIGN IN
+// -----------------------------------
+
+window.signIn = async () => {
+
+  try {
+
+    const email = signinEmail.value.trim();
+    const password = signinPassword.value.trim();
+
+    await signInWithEmailAndPassword(auth, email, password);
+
+    alert("Signed in!");
+
+  } catch (err) {
+
+    console.error(err);
+    alert(err.message);
+
+  }
+
+};
+
+// -----------------------------------
+// FORGOT PASSWORD
+// -----------------------------------
+
+window.forgotPassword = async () => {
+
+  const email = prompt("Enter your email address:");
+
+  if (!email) return;
+
+  try {
+
+    await sendPasswordResetEmail(auth, email);
+    alert("Password reset email sent.");
+
+  } catch (err) {
+
+    console.error(err);
+    alert(err.message);
+
+  }
+
+};
+
+// -----------------------------------
+// SIGN OUT
+// -----------------------------------
+
+window.signOut = async () => {
+
+  await firebaseSignOut(auth);
+  alert("Signed out");
+
+};
+
+// -----------------------------------
+// DELETE ACCOUNT
+// -----------------------------------
+
+window.deleteAccount = async () => {
+
+  const confirmDelete = confirm("This permanently deletes your account. Continue?");
+
+  if (!confirmDelete) return;
+
+  try {
+
+    const user = auth.currentUser;
+
+    await deleteUser(user);
+
+    alert("Account deleted");
+
+  } catch (err) {
+
+    console.error(err);
+    alert("Re-login required before deletion (Firebase security rule)");
+
+  }
+
+};
+
+// -----------------------------------
+// AUTH STATE LISTENER
+// -----------------------------------
+
+onAuthStateChanged(auth, user => {
+
+  if (user) {
+    showLoggedIn(user);
+  } else {
+    showLoggedOut();
+  }
+
+});
+
+</script>
+
+</body>
+</html>
