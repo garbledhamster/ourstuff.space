@@ -2,306 +2,264 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Ourstuff Auth Test</title>
-
-<!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js"></script>
-
-<!-- reCAPTCHA v3 -->
-<script src="https://www.google.com/recaptcha/api.js?render=6LdVslAsAAAAAAwyU1wyjAxIG_K187E82ID2C7Re"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ourstuff.space - Dashboard</title>
 
 <style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
 body {
-  font-family: system-ui, sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  padding: 40px 20px;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 50px;
+  color: white;
+}
+
+h1 {
+  font-size: 3rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.subtitle {
+  font-size: 1.2rem;
+  opacity: 0.9;
+}
+
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 25px;
+  margin-bottom: 40px;
+}
+
+.card {
+  background: white;
+  border-radius: 12px;
   padding: 30px;
-  max-width: 600px;
-  margin: auto;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
 }
 
-.topbar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 20px;
-}
-
-.hidden {
-  display: none;
-}
-
-input {
-  padding: 10px;
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
-  margin: 6px 0;
+  height: 4px;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  transform: scaleX(0);
+  transition: transform 0.3s ease;
 }
 
-button {
-  padding: 10px;
-  width: 100%;
-  cursor: pointer;
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.15);
 }
 
-hr {
-  margin: 30px 0;
+.card:hover::before {
+  transform: scaleX(1);
+}
+
+.card-icon {
+  font-size: 2.5rem;
+  margin-bottom: 15px;
+  display: block;
+}
+
+.card-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.card-domain {
+  font-size: 0.9rem;
+  color: #667eea;
+  font-weight: 500;
+  margin-bottom: 15px;
+}
+
+.card-description {
+  font-size: 0.95rem;
+  color: #666;
+  line-height: 1.5;
+}
+
+.card.coming-soon {
+  opacity: 0.7;
+  background: #f8f9fa;
+}
+
+.card.coming-soon .card-title::after {
+  content: ' (Coming Soon)';
+  font-size: 0.8rem;
+  color: #999;
+  font-weight: 400;
+}
+
+footer {
+  text-align: center;
+  color: white;
+  opacity: 0.8;
+  padding: 20px 0;
+}
+
+@media (max-width: 768px) {
+  h1 {
+    font-size: 2rem;
+  }
+  
+  .subtitle {
+    font-size: 1rem;
+  }
+  
+  .cards-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
 </head>
 
 <body>
+  <div class="container">
+    <header>
+      <h1>Ourstuff.space</h1>
+      <p class="subtitle">Your personal knowledge ecosystem</p>
+    </header>
 
-<!-- TOP BAR -->
-<div class="topbar">
-  <div id="userControls" class="hidden">
-    <span id="userEmail"></span> |
-    <a href="#" onclick="signOut()">Sign Out</a>
+    <div class="cards-grid">
+      <a href="https://school.ourstuff.space" class="card">
+        <span class="card-icon">🎓</span>
+        <h2 class="card-title">School</h2>
+        <p class="card-domain">school.ourstuff.space</p>
+        <p class="card-description">Academic resources, courses, and learning materials organized for your educational journey.</p>
+      </a>
+
+      <a href="https://notes.ourstuff.space" class="card">
+        <span class="card-icon">📝</span>
+        <h2 class="card-title">Notes</h2>
+        <p class="card-domain">notes.ourstuff.space</p>
+        <p class="card-description">Personal note-taking system for capturing ideas, thoughts, and quick references.</p>
+      </a>
+
+      <a href="https://research.ourstuff.space" class="card">
+        <span class="card-icon">🔬</span>
+        <h2 class="card-title">Research</h2>
+        <p class="card-domain">research.ourstuff.space</p>
+        <p class="card-description">Deep dives into topics, research papers, and scholarly explorations.</p>
+      </a>
+
+      <a href="https://compendium.ourstuff.space" class="card">
+        <span class="card-icon">📚</span>
+        <h2 class="card-title">Compendium</h2>
+        <p class="card-domain">compendium.ourstuff.space</p>
+        <p class="card-description">Comprehensive collection of curated knowledge and reference materials.</p>
+      </a>
+
+      <a href="https://classics.ourstuff.space" class="card">
+        <span class="card-icon">📖</span>
+        <h2 class="card-title">Classics</h2>
+        <p class="card-domain">classics.ourstuff.space</p>
+        <p class="card-description">Timeless literature, philosophy, and classical texts worth revisiting.</p>
+      </a>
+
+      <a href="https://essays.ourstuff.space" class="card coming-soon">
+        <span class="card-icon">✍️</span>
+        <h2 class="card-title">Essays</h2>
+        <p class="card-domain">essays.ourstuff.space</p>
+        <p class="card-description">Long-form writing, personal essays, and thoughtful reflections.</p>
+      </a>
+
+      <a href="https://books.ourstuff.space" class="card coming-soon">
+        <span class="card-icon">📚</span>
+        <h2 class="card-title">Books</h2>
+        <p class="card-domain">books.ourstuff.space</p>
+        <p class="card-description">Reading lists, book reviews, and literary explorations.</p>
+      </a>
+
+      <a href="https://time.ourstuff.space" class="card">
+        <span class="card-icon">⏰</span>
+        <h2 class="card-title">Time</h2>
+        <p class="card-domain">time.ourstuff.space</p>
+        <p class="card-description">Time tracking, productivity tools, and schedule management.</p>
+      </a>
+
+      <a href="https://blog.ourstuff.space" class="card">
+        <span class="card-icon">✨</span>
+        <h2 class="card-title">Blog</h2>
+        <p class="card-domain">blog.ourstuff.space</p>
+        <p class="card-description">Regular updates, thoughts, and musings on various topics.</p>
+      </a>
+
+      <a href="https://newsletter.ourstuff.space" class="card">
+        <span class="card-icon">📬</span>
+        <h2 class="card-title">Newsletter</h2>
+        <p class="card-domain">newsletter.ourstuff.space</p>
+        <p class="card-description">Subscribe to periodic updates and curated content delivered to your inbox.</p>
+      </a>
+
+      <a href="https://greatworks.ourstuff.space" class="card">
+        <span class="card-icon">🌟</span>
+        <h2 class="card-title">Great Works</h2>
+        <p class="card-domain">greatworks.ourstuff.space</p>
+        <p class="card-description">Masterpieces and significant works across various disciplines.</p>
+      </a>
+
+      <a href="https://compose.ourstuff.space" class="card">
+        <span class="card-icon">🎵</span>
+        <h2 class="card-title">Compose</h2>
+        <p class="card-domain">compose.ourstuff.space</p>
+        <p class="card-description">Creative writing and composition workspace for your projects.</p>
+      </a>
+
+      <a href="https://fasttrack.ourstuff.space" class="card">
+        <span class="card-icon">⚡</span>
+        <h2 class="card-title">Fast Track</h2>
+        <p class="card-domain">fasttrack.ourstuff.space</p>
+        <p class="card-description">Quick access to frequently used tools and shortcuts.</p>
+      </a>
+
+      <a href="https://trimmer.ourstuff.space" class="card">
+        <span class="card-icon">✂️</span>
+        <h2 class="card-title">Trimmer</h2>
+        <p class="card-domain">trimmer.ourstuff.space</p>
+        <p class="card-description">Utilities for trimming, editing, and optimizing content.</p>
+      </a>
+
+      <a href="https://myip.ourstuff.space" class="card">
+        <span class="card-icon">🌐</span>
+        <h2 class="card-title">My IP</h2>
+        <p class="card-domain">myip.ourstuff.space</p>
+        <p class="card-description">Network utilities and IP information tools.</p>
+      </a>
+    </div>
+
+    <footer>
+      <p>&copy; 2026 Ourstuff.space - All rights reserved</p>
+    </footer>
   </div>
-</div>
-
-<h2>Ourstuff Authentication Test</h2>
-
-<!-- SIGN UP -->
-<div id="signupBox">
-  <h3>Sign Up</h3>
-  <input id="signupEmail" type="email" placeholder="Email">
-  <input id="signupPassword" type="password" placeholder="Password">
-  <button onclick="signUp()">Create Account</button>
-</div>
-
-<hr>
-
-<!-- SIGN IN -->
-<div id="signinBox">
-  <h3>Sign In</h3>
-  <input id="signinEmail" type="email" placeholder="Email">
-  <input id="signinPassword" type="password" placeholder="Password">
-  <button onclick="signIn()">Sign In</button>
-  <br><br>
-  <a href="#" onclick="forgotPassword()">Forgot Password?</a>
-</div>
-
-<hr>
-
-<!-- ACCOUNT -->
-<div id="accountBox" class="hidden">
-  <h3>Account Settings</h3>
-  <button onclick="deleteAccount()" style="color:red">
-    Delete My Account
-  </button>
-</div>
-
-<script type="module">
-
-// -----------------------------------
-// 🔥 FIREBASE CONFIG (YOUR PROJECT)
-// -----------------------------------
-
-const firebaseConfig = {
-  apiKey: "AIzaSyAbGQLNf5DaihauUnZhVA03TAQUO_6PwZk",
-  authDomain: "ourstuff-firebase.firebaseapp.com",
-  projectId: "ourstuff-firebase",
-  storageBucket: "ourstuff-firebase.firebasestorage.app",
-  messagingSenderId: "450756988196",
-  appId: "1:450756988196:web:89ee37877b306bbb1277b1",
-  measurementId: "G-JR0JC5Z47E"
-};
-
-// -----------------------------------
-// FIREBASE IMPORTS
-// -----------------------------------
-
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
-
-import {
-  getAuth,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  sendPasswordResetEmail,
-  onAuthStateChanged,
-  signOut as firebaseSignOut,
-  deleteUser
-} from "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js";
-
-// -----------------------------------
-// INIT FIREBASE
-// -----------------------------------
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-
-// -----------------------------------
-// UI HELPERS
-// -----------------------------------
-
-function showLoggedIn(user) {
-  signupBox.classList.add("hidden");
-  signinBox.classList.add("hidden");
-  accountBox.classList.remove("hidden");
-  userControls.classList.remove("hidden");
-  userEmail.innerText = user.email;
-}
-
-function showLoggedOut() {
-  signupBox.classList.remove("hidden");
-  signinBox.classList.remove("hidden");
-  accountBox.classList.add("hidden");
-  userControls.classList.add("hidden");
-}
-
-// -----------------------------------
-// RECAPTCHA VERIFY
-// -----------------------------------
-
-async function verifyHuman() {
-
-  const token = await grecaptcha.execute(
-    "6LdVslAsAAAAAAwyU1wyjAxIG_K187E82ID2C7Re",
-    { action: "signup" }
-  );
-
-  const res = await fetch(
-    "https://us-central1-ourstuff-firebase.cloudfunctions.net/verifyRecaptcha",
-    {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ token })
-    }
-  );
-
-  const result = await res.json();
-
-  if (!result.ok) {
-    throw new Error("Bot verification failed");
-  }
-
-}
-
-// -----------------------------------
-// SIGN UP
-// -----------------------------------
-
-window.signUp = async () => {
-
-  try {
-
-    await verifyHuman();
-
-    const email = signupEmail.value.trim();
-    const password = signupPassword.value.trim();
-
-    await createUserWithEmailAndPassword(auth, email, password);
-
-    alert("Account created successfully!");
-
-  } catch (err) {
-
-    console.error(err);
-    alert(err.message);
-
-  }
-
-};
-
-// -----------------------------------
-// SIGN IN
-// -----------------------------------
-
-window.signIn = async () => {
-
-  try {
-
-    const email = signinEmail.value.trim();
-    const password = signinPassword.value.trim();
-
-    await signInWithEmailAndPassword(auth, email, password);
-
-    alert("Signed in!");
-
-  } catch (err) {
-
-    console.error(err);
-    alert(err.message);
-
-  }
-
-};
-
-// -----------------------------------
-// FORGOT PASSWORD
-// -----------------------------------
-
-window.forgotPassword = async () => {
-
-  const email = prompt("Enter your email address:");
-
-  if (!email) return;
-
-  try {
-
-    await sendPasswordResetEmail(auth, email);
-    alert("Password reset email sent.");
-
-  } catch (err) {
-
-    console.error(err);
-    alert(err.message);
-
-  }
-
-};
-
-// -----------------------------------
-// SIGN OUT
-// -----------------------------------
-
-window.signOut = async () => {
-
-  await firebaseSignOut(auth);
-  alert("Signed out");
-
-};
-
-// -----------------------------------
-// DELETE ACCOUNT
-// -----------------------------------
-
-window.deleteAccount = async () => {
-
-  const confirmDelete = confirm("This permanently deletes your account. Continue?");
-
-  if (!confirmDelete) return;
-
-  try {
-
-    const user = auth.currentUser;
-
-    await deleteUser(user);
-
-    alert("Account deleted");
-
-  } catch (err) {
-
-    console.error(err);
-    alert("Re-login required before deletion (Firebase security rule)");
-
-  }
-
-};
-
-// -----------------------------------
-// AUTH STATE LISTENER
-// -----------------------------------
-
-onAuthStateChanged(auth, user => {
-
-  if (user) {
-    showLoggedIn(user);
-  } else {
-    showLoggedOut();
-  }
-
-});
-
-</script>
-
 </body>
 </html>
