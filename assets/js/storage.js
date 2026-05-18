@@ -1,69 +1,44 @@
-import { demoCompendiums } from "./data.js";
-
 export const STORAGE_KEY = "ourstuff.artifactStore.v1";
 export const SCHEMA_VERSION = 1;
+export const SEED_DATA_URL = "/assets/data/artifacts.json";
 
-export function createSeedStore() {
-  const artifacts = [];
-
-  demoCompendiums.forEach((compendium) => {
-    artifacts.push({
-      id: compendium.id,
-      type: "compendium",
-      dashboard: "Mind",
-      parentId: null,
-      title: compendium.title,
-      body: compendium.body,
-      created: compendium.created,
-      edited: compendium.edited,
-      childIds: compendium.blocks.map((block) => block.id),
-      properties: {
-        source: "preview.jsx",
-        status: "active"
-      },
-      analysis: {}
-    });
-
-    compendium.blocks.forEach((block) => {
-      artifacts.push({
-        id: block.id,
-        type: "note",
-        dashboard: "Mind",
-        parentId: compendium.id,
-        title: block.title,
-        body: block.body,
-        created: block.created,
-        edited: block.edited,
-        childIds: [],
-        properties: {
-          role: "compendium-section",
-          status: "active"
-        },
-        analysis: {}
-      });
-    });
-  });
-
+export function createEmptyStore() {
   return {
     schemaVersion: SCHEMA_VERSION,
     rootId: "ourstuff-root",
-    artifacts
+    artifacts: []
   };
 }
 
-export function loadArtifactStore() {
+export async function loadSeedStore() {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return createSeedStore();
+    const response = await fetch(SEED_DATA_URL, { cache: "no-store" });
+    if (!response.ok) return createEmptyStore();
 
-    const parsed = JSON.parse(raw);
+    const parsed = await response.json();
     if (parsed?.schemaVersion !== SCHEMA_VERSION || !Array.isArray(parsed.artifacts)) {
-      return createSeedStore();
+      return createEmptyStore();
     }
 
     return parsed;
   } catch {
-    return createSeedStore();
+    return createEmptyStore();
+  }
+}
+
+export async function loadArtifactStore() {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return await loadSeedStore();
+
+    const parsed = JSON.parse(raw);
+    if (parsed?.schemaVersion !== SCHEMA_VERSION || !Array.isArray(parsed.artifacts)) {
+      return await loadSeedStore();
+    }
+
+    return parsed;
+  } catch {
+    return await loadSeedStore();
   }
 }
 
@@ -157,5 +132,14 @@ export function upsertArtifact(store, artifact) {
     artifacts: exists
       ? store.artifacts.map((item) => (item.id === artifact.id ? artifact : item))
       : [...store.artifacts, artifact]
+  };
+}
+
+export function removeArtifact(store, artifactId) {
+  return {
+    ...store,
+    artifacts: store.artifacts.filter(
+      (artifact) => artifact.id !== artifactId && artifact.parentId !== artifactId
+    )
   };
 }

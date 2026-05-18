@@ -7,8 +7,24 @@ export function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+function imageHtml(alt, src) {
+  const cleanAlt = String(alt || "");
+  const cleanSrc = String(src || "").trim();
+  if (/^ourstuff-asset:[a-z0-9-]+$/i.test(cleanSrc)) {
+    return `<img data-local-asset="${cleanSrc.replace("ourstuff-asset:", "")}" alt="${cleanAlt}" loading="lazy">`;
+  }
+  if (/^https?:\/\/[^"'<>]+$/i.test(cleanSrc)) {
+    return `<img src="${cleanSrc}" alt="${cleanAlt}" loading="lazy">`;
+  }
+  return escapeHtml(`![${alt}](${src})`);
+}
+
 function renderInlineMarkdown(text) {
   let output = escapeHtml(text);
+  output = output.replace(
+    /!\[([^\]]*)\]\(([^)\s]+)\)/g,
+    (_, alt, src) => imageHtml(alt, src)
+  );
   output = output.replace(/`([^`]+)`/g, "<code>$1</code>");
   output = output.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   output = output.replace(/\*([^*]+)\*/g, "<em>$1</em>");

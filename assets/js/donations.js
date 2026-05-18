@@ -2,6 +2,10 @@ const DONATION_WORKER_URL = "https://stripe-worker-api.jrice.workers.dev";
 const DONATION_SITE = "ourstuff";
 let escapeListenerBound = false;
 
+function iconHtml(name) {
+  return `<iconify-icon class="button-icon" icon="${name}" aria-hidden="true"></iconify-icon>`;
+}
+
 export function donationModalHtml() {
   return `
     <section class="donation-modal" id="donation-modal" role="dialog" aria-modal="true" aria-labelledby="donation-title" hidden>
@@ -11,7 +15,7 @@ export function donationModalHtml() {
             <h2 id="donation-title">Send Thanks</h2>
             <p>Choose an amount and continue to secure Stripe checkout.</p>
           </div>
-          <button class="icon-button donation-close" id="donation-close" type="button" aria-label="Close donation form">x</button>
+          <button class="icon-button donation-close" id="donation-close" type="button" aria-label="Close donation form">${iconHtml("tabler:x")}</button>
         </div>
         <div class="amount-grid" aria-label="Donation amount">
           ${[5, 10, 15, 20, 25, 50, 100]
@@ -22,7 +26,7 @@ export function donationModalHtml() {
           Custom amount
           <input id="custom-donation-amount" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="$1 to $500">
         </label>
-        <button class="primary-button full-width" id="donation-submit" type="button">Continue to Checkout</button>
+        <button class="primary-button full-width" id="donation-submit" type="button">${iconHtml("tabler:heart-handshake")}<span class="button-label">Continue to Checkout</span></button>
         <p class="donation-status" id="donation-status" aria-live="polite"></p>
       </div>
     </section>
@@ -45,7 +49,7 @@ export function bindDonationFlow(root = document) {
     modal.hidden = false;
     status.textContent = "";
     submitButton.disabled = false;
-    submitButton.textContent = "Continue to Checkout";
+    submitButton.innerHTML = `${iconHtml("tabler:heart-handshake")}<span class="button-label">Continue to Checkout</span>`;
     customAmountInput.focus();
   }
 
@@ -106,12 +110,12 @@ export function bindDonationFlow(root = document) {
     try {
       status.textContent = "";
       submitButton.disabled = true;
-      submitButton.textContent = "Creating checkout...";
+      submitButton.innerHTML = `${iconHtml("tabler:loader-2")}<span class="button-label">Creating checkout...</span>`;
       await startDonation(getDonationAmount());
     } catch (error) {
       status.textContent = error instanceof Error ? error.message : "Donation checkout failed.";
       submitButton.disabled = false;
-      submitButton.textContent = "Continue to Checkout";
+      submitButton.innerHTML = `${iconHtml("tabler:heart-handshake")}<span class="button-label">Continue to Checkout</span>`;
     }
   });
 }
