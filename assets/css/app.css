@@ -1445,19 +1445,25 @@ button {
   bottom: 22px;
   z-index: 25;
   display: grid;
-  grid-template-columns: minmax(140px, 0.9fr) minmax(210px, 1.2fr) minmax(104px, 0.48fr) auto auto auto;
-  align-items: center;
-  gap: 10px;
-  width: min(820px, calc(100vw - 44px));
+  grid-template-columns: minmax(170px, 0.9fr) minmax(290px, 1.35fr) minmax(112px, 0.48fr) auto auto auto;
+  align-items: stretch;
+  gap: 12px;
+  width: min(860px, calc(100vw - 44px));
   border: 1px solid var(--border);
   border-radius: 16px;
   background: #0f172a;
   color: var(--text);
-  padding: 14px;
+  padding: 12px 14px;
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.36);
   opacity: 1;
   transform: translateX(-50%) translateY(0);
   transition: opacity 2s ease, transform 2s ease;
+}
+
+.thought-toast-summary {
+  display: grid;
+  align-content: center;
+  min-width: 0;
 }
 
 .thought-toast.is-fading {
@@ -1503,6 +1509,11 @@ button {
   min-width: 0;
 }
 
+.thought-toast-input-label {
+  grid-template-rows: auto minmax(52px, 1fr);
+  align-self: stretch;
+}
+
 .thought-toast-input-label span,
 .thought-toast-time-fields span {
   color: var(--faint);
@@ -1517,6 +1528,7 @@ button {
   display: grid;
   grid-template-columns: 1fr;
   gap: 5px;
+  align-self: center;
   min-width: 0;
 }
 
@@ -1532,11 +1544,18 @@ button {
   outline: none;
 }
 
+.thought-toast-input-label .thought-toast-input {
+  height: 100%;
+  min-height: 52px;
+  padding: 0 13px;
+  font-size: 0.98rem;
+}
+
 .thought-toast-time-fields .thought-toast-input {
-  height: 24px;
+  height: 26px;
   border-radius: 7px;
-  padding: 3px 6px;
-  font-size: 0.66rem;
+  padding: 3px 7px;
+  font-size: 0.68rem;
 }
 
 .thought-toast-input:focus {
@@ -1546,6 +1565,10 @@ button {
 .thought-toast-delete {
   border-color: rgba(248, 113, 113, 0.55);
   color: #fecaca;
+}
+
+.thought-toast > .icon-button {
+  align-self: center;
 }
 
 .gallery-page {
@@ -2868,7 +2891,7 @@ button {
 
 .life-event-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.2fr) auto;
+  grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1.2fr) auto;
   gap: 10px;
   align-items: center;
   width: 100%;
@@ -2879,6 +2902,22 @@ button {
   color: var(--text);
   padding: 10px;
   text-align: left;
+}
+
+.life-event-row > span:first-child {
+  display: inline-grid;
+  place-items: center;
+  align-self: center;
+  justify-self: center;
+  width: 22px;
+  height: 22px;
+  line-height: 1;
+}
+
+.life-event-row > span:first-child .button-icon {
+  width: 1rem;
+  height: 1rem;
+  font-size: 1rem;
 }
 
 button.life-event-row:hover {
@@ -2909,7 +2948,7 @@ button.life-event-row:hover {
 }
 
 .life-event-row--week {
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: 22px minmax(0, 1fr);
   grid-template-areas:
     "icon title"
     "icon meta"
@@ -2922,7 +2961,7 @@ button.life-event-row:hover {
 
 .life-event-row--week > span {
   grid-area: icon;
-  padding-top: 1px;
+  padding-top: 0;
 }
 
 .life-event-row--week strong {
@@ -3359,8 +3398,20 @@ button.life-event-row:hover {
   max-width: 850px;
 }
 
+.reader-topbar {
+  display: flex;
+  justify-content: flex-end;
+  height: 48px;
+  padding: 4px 4px 8px;
+}
+
 .reader-book {
   height: calc(100% - 136px);
+}
+
+.reader-book--compendium {
+  height: calc(100% - 48px);
+  padding-top: 34px;
 }
 
 .reader-book-inner {
@@ -3378,6 +3429,18 @@ button.life-event-row:hover {
 .reader-section:last-child {
   border-bottom: 0;
   padding-bottom: 0;
+}
+
+.reader-section--cover {
+  padding-bottom: 30px;
+}
+
+.reader-compendium-title {
+  margin: 0 0 18px;
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 2rem;
+  line-height: 1.1;
 }
 
 .reader-section-title {

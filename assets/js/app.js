@@ -944,7 +944,7 @@ function thoughtNoteWithTimestamp(note, timestamp) {
   if (!note || Number.isNaN(date.getTime())) return note;
   const label = note.properties?.thoughtLabel || state.thoughtToast?.label || note.title;
   const dateKey = dateKeyFromDate(date);
-  const title = `${label} Thought ${formatEventTime(timestamp) || thoughtTimestampLabel(timestamp)}`;
+  const title = `${label} ${formatEventTime(timestamp) || thoughtTimestampLabel(timestamp)}`;
   const body = String(note.body || "").replace(/Logged: .*/, `Logged: ${thoughtTimestampLabel(timestamp)}`);
   const audit = Array.isArray(note.properties?.audit) ? note.properties.audit : [];
   return {
@@ -1088,7 +1088,7 @@ function quickThought(area, id) {
     [cooldownKey]: true
   };
   const now = nowIso();
-  const title = `${tracker.label} Thought ${formatEventTime(now) || thoughtTimestampLabel(now)}`;
+  const title = `${tracker.label} ${formatEventTime(now) || thoughtTimestampLabel(now)}`;
   const note = {
     id: makeId("thought"),
     type: "note",
@@ -1099,8 +1099,6 @@ function quickThought(area, id) {
       `## ${tracker.label}`,
       "",
       `Logged: ${thoughtTimestampLabel(now)}`,
-      "",
-      "### Thought",
       ""
     ].join("\n"),
     created: now,
@@ -2160,6 +2158,22 @@ function openMindSection(parentId, blockId) {
     selectedArtifactId: null,
     mindMode: "block-viewer"
   });
+}
+
+function openActivityArtifact(id) {
+  const artifact = findArtifact(state.artifactStore, id);
+  if (!artifact) return;
+  if (artifact.dashboard === "Mind" && artifact.type === "compendium") {
+    openCompendium(id);
+    return;
+  }
+  if (artifact.dashboard === "Mind" && artifact.type === "note" && artifact.parentId) {
+    openMindSection(artifact.parentId, id);
+    return;
+  }
+  if (artifact.type === "note" && !artifact.parentId) {
+    openArtifactNote(id, "Life");
+  }
 }
 
 function openArtifactNote(id, returnActive = "") {
@@ -3435,17 +3449,18 @@ function dashboardAnalyticsHtml() {
 }
 
 function settingsHtml() {
-  const tab = ["getting-started", "thoughts", "goals", "dashboard"].includes(state.settingsTab)
-    ? state.settingsTab
+  const requestedTab = state.settingsTab === "dashboard" ? "interface" : state.settingsTab;
+  const tab = ["getting-started", "thoughts", "goals", "interface"].includes(requestedTab)
+    ? requestedTab
     : "getting-started";
   const panels = {
     "getting-started": settingsGettingStartedHtml(),
     thoughts: settingsThoughtsHtml(),
     goals: settingsComingSoonHtml("Goals"),
-    dashboard: settingsComingSoonHtml("Dashboard")
+    interface: settingsComingSoonHtml("Interface")
   };
   return panelHtml(`
-    ${headerHtml("Settings", "Getting started, Thoughts, Goals, and Dashboard setup.", `
+    ${headerHtml("Settings", "Getting started, Thoughts, Goals, and Interface setup.", `
       <button class="icon-button close-viewer-button" data-action="close-settings" type="button" aria-label="Close settings" title="Close">${iconHtml("tabler:x")}</button>
     `)}
     <div class="settings-page">
@@ -3460,7 +3475,7 @@ function settingsTabsHtml(activeTab) {
     ["getting-started", "Getting Started", "tabler:sparkles"],
     ["thoughts", "Thoughts", "tabler:message-circle"],
     ["goals", "Goals", "tabler:target-arrow"],
-    ["dashboard", "Dashboard", "tabler:layout-dashboard"]
+    ["interface", "Interface", "tabler:layout-dashboard"]
   ];
   return `
     <nav class="settings-tabs" aria-label="Settings tabs">
@@ -3918,7 +3933,8 @@ function lifeEvents() {
       title
     ].join("|");
     if (events.some((existing) => existing.eventKey === eventKey)) return;
-    events.push({ ...event, eventKey });
+    const artifact = findArtifact(state.artifactStore, event.artifactId);
+    events.push({ ...event, eventKey, parentId: artifact?.parentId || "" });
   };
   state.artifactStore.artifacts.forEach((artifact) => {
     if (artifact.properties?.role === "spirit-reading-plan-item") return;
@@ -4007,6 +4023,7 @@ function lifeCalendarEvents() {
     allDay: false,
     extendedProps: {
       artifactId: event.artifactId,
+      parentId: event.parentId || "",
       dashboard: event.dashboard,
       action: event.action,
       fullTitle: event.title,
@@ -4035,7 +4052,7 @@ function renderLifeMonthCalendar() {
     events: lifeCalendarEvents(),
     eventClick(info) {
       const artifactId = info.event.extendedProps.artifactId;
-      if (artifactId) openArtifactNote(artifactId, "Life");
+      if (artifactId) openActivityArtifact(artifactId);
     },
     eventContent(info) {
       const timeText = info.timeText || formatEventTime(info.event.start);
@@ -4080,10 +4097,11 @@ function lifeEventRowHtml(event, variant = "") {
     <small>${escapeHtml([time, meta].filter(Boolean).join(" / "))}</small>
     <em>${escapeHtml(label)}</em>
   `;
-  const canOpen = event.type === "note" && !findArtifact(state.artifactStore, event.artifactId)?.parentId;
+  const artifact = findArtifact(state.artifactStore, event.artifactId);
+  const canOpen = artifact?.type === "compendium" || (artifact?.type === "note" && (!artifact.parentId || artifact.dashboard === "Mind"));
   const className = `life-event-row${variant ? ` life-event-row--${variant}` : ""}`;
   return canOpen
-    ? `<button class="${className}" data-action="open-artifact-note" data-id="${event.artifactId}" data-return-active="Life" type="button">${inner}</button>`
+    ? `<button class="${className}" data-action="open-life-activity" data-id="${event.artifactId}" type="button">${inner}</button>`
     : `<div class="${className}">${inner}</div>`;
 }
 
@@ -4760,7 +4778,7 @@ function mindHtml(compendium, block) {
 function mindGridHtml() {
   const mindNotes = rootNotesForDashboard(state.artifactStore, "Mind");
   return panelHtml(`
-    ${headerHtml("Knowledge", "Organize your knowledge and share with the world.", `<button class="secondary-button" data-action="new-compendium">${buttonContent("tabler:plus", "New")}</button>`)}
+    ${headerHtml("Mind", "Organize your knowledge and share with the world.", `<button class="secondary-button" data-action="new-compendium">${buttonContent("tabler:plus", "New")}</button>`)}
     ${trackerStripHtml("Mind")}
     <div class="scroll-area">
       <div class="compendium-grid">
@@ -4829,15 +4847,15 @@ function sectionListHtml(compendium) {
 
 function compendiumReaderHtml(compendium) {
   return panelHtml(`
-    <div class="reader-heading">
-      <div>
-        <h2>${escapeHtml(compendium.title)}</h2>
-        <div class="markdown-body">${readerBodyHtml(compendium.title, compendium.body, "")}</div>
-      </div>
-      <button class="icon-button close-viewer-button" data-action="manager" type="button" aria-label="Close reader" title="Close">${iconHtml("tabler:x")}</button>
+    <div class="reader-topbar">
+      <button class="icon-button" data-action="manager" type="button" aria-label="Close reader" title="Close">${iconHtml("tabler:x")}</button>
     </div>
-    <section class="reader-book">
+    <section class="reader-book reader-book--compendium">
       <div class="reader-book-inner">
+        <section class="reader-section reader-section--cover">
+          <h2 class="reader-compendium-title">${escapeHtml(compendium.title)}</h2>
+          <div class="markdown-body">${readerBodyHtml(compendium.title, compendium.body, "")}</div>
+        </section>
         ${compendium.blocks.map((section) => `
           <section class="reader-section">
             <button class="reader-section-title" data-action="open-block" data-id="${section.id}">${escapeHtml(section.title)}</button>
@@ -5360,6 +5378,7 @@ function handleAction(element) {
   if (action === "open-compendium") openCompendium(element.dataset.id);
   if (action === "open-mind-section") openMindSection(element.dataset.parentId, element.dataset.id);
   if (action === "open-artifact-note") openArtifactNote(element.dataset.id, element.dataset.returnActive || "");
+  if (action === "open-life-activity") openActivityArtifact(element.dataset.id);
   if (action === "export-artifacts") exportArtifacts();
   if (action === "import-artifacts") importArtifacts();
   if (action === "clear-app-data") clearAppData();
@@ -5383,7 +5402,7 @@ function handleAction(element) {
     });
   }
   if (action === "close-settings") goHome();
-  if (action === "set-settings-tab") setState({ settingsTab: element.dataset.tab || "getting-started", trackerAddArea: "", trackerEditKey: "", trackerDeleteKey: "" });
+  if (action === "set-settings-tab") setState({ settingsTab: element.dataset.tab === "dashboard" ? "interface" : element.dataset.tab || "getting-started", trackerAddArea: "", trackerEditKey: "", trackerDeleteKey: "" });
   if (action === "start-add-tracker") setState({ trackerAddArea: element.dataset.area || "", trackerEditKey: "", trackerDeleteKey: "" });
   if (action === "cancel-add-tracker") setState({ trackerAddArea: "" });
   if (action === "start-edit-tracker") {
