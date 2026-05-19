@@ -98,5 +98,32 @@
       },
       "analysis": {}
     }
-  ]
+  ],
+  "appState": {
+    "bodyTracker": {
+      "fast": {
+        "active": false,
+        "label": "Manual fast",
+        "targetHours": 16,
+        "startTimestamp": null,
+        "lastCompletedHours": 0
+      },
+      "nutrition": {
+        "dateKey": "2026-05-17",
+        "targetCalories": 2000,
+        "calories": 0,
+        "protein": 0,
+        "carbs": 0,
+        "fat": 0
+      },
+      "workouts": []
+    },
+    "spiritProgress": {},
+    "lifePlanner": {
+      "schemaVersion": 1,
+      "todos": [],
+      "projects": []
+    },
+    "localFiles": []
+  }
 }

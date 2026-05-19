@@ -70,7 +70,15 @@ export function artifactStoreToCompendiums(store) {
 
 export function compendiumsToArtifactStore(compendiums, previousStore) {
   const previousById = new Map(previousStore.artifacts.map((artifact) => [artifact.id, artifact]));
-  const artifacts = previousStore.artifacts.filter((artifact) => artifact.dashboard !== "Mind");
+  const previousCompendiumIds = new Set(
+    previousStore.artifacts
+      .filter((artifact) => artifact.type === "compendium" && artifact.dashboard === "Mind")
+      .map((artifact) => artifact.id)
+  );
+  const artifacts = previousStore.artifacts.filter((artifact) =>
+    !(artifact.type === "compendium" && artifact.dashboard === "Mind")
+    && !previousCompendiumIds.has(artifact.parentId)
+  );
 
   compendiums.forEach((compendium) => {
     const previous = previousById.get(compendium.id);

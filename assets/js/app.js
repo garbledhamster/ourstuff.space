@@ -1,6 +1,6 @@
 import { dashboardCards, today } from "./data.js";
 import { donationModalHtml, bindDonationFlow } from "./donations.js";
-import { deleteLocalImages, listLocalImages, resolveLocalImageUrl, storeLocalImage } from "./localMedia.js";
+import { clearLocalFiles, deleteLocalImages, exportLocalFiles, importLocalFiles, listLocalImages, resolveLocalFileUrl, resolveLocalImageUrl, storeLocalFile, storeLocalImage } from "./localMedia.js";
 import { escapeHtml, renderMarkdown } from "./markdown.js";
 import {
   artifactStoreToCompendiums,
@@ -9,18 +9,97 @@ import {
   loadArtifactStore,
   removeArtifact,
   rootNotesForDashboard,
+  SCHEMA_VERSION,
   saveArtifactStore,
+  STORAGE_KEY,
   upsertArtifact
 } from "./storage.js";
 
 const app = document.getElementById("app");
 const BODY_TRACKER_KEY = "ourstuff.bodyTracker.v1";
 const SPIRIT_PROGRESS_KEY = "ourstuff.spiritPlanProgress.v1";
+const LIFE_PLANNER_KEY = "ourstuff.lifePlanner.v1";
+const TRACKER_SETTINGS_KEY = "ourstuff.thoughts.v1";
+const SIDEBAR_WIDTH_KEY = "ourstuff.sidebarWidth.v1";
+const ICONIFY_SEARCH_CACHE_KEY = "ourstuff.iconifySearchCache.v1";
+const ICONIFY_SEARCH_URL = "https://api.iconify.design/search";
+const ICONIFY_PREFIXES = "tabler,lucide,ph,mdi,material-symbols";
+const ICONIFY_DOCS_URL = "https://iconify.design/";
 const RING_CIRCUMFERENCE = 502.6548245743669;
 const SIDEBAR_DEFAULT_WIDTH = 270;
 const SIDEBAR_MIN_WIDTH = 220;
 const SIDEBAR_MAX_WIDTH = 540;
+const THOUGHT_COOLDOWN_MS = 7000;
 const MOBILE_MENU_QUERY = "(max-width: 860px)";
+const DASHBOARD_LABELS = ["Mind", "Body", "Spirit", "Life"];
+const BODY_TIMER_MODES = [
+  {
+    key: "fasting",
+    stateKey: "fast",
+    label: "Fasting",
+    shortLabel: "Fast",
+    icon: "tabler:clock-hour-4",
+    defaultLabel: "Manual fast",
+    defaultTargetHours: 16,
+    targetLabel: "Target hours",
+    targetUnit: "hours",
+    activeText: "Active fast",
+    idleText: "No active fast",
+    startText: "Start Fast",
+    stopText: "Stop Fast",
+    emptyText: "Start a fast to track elapsed time against your target."
+  },
+  {
+    key: "sleep",
+    stateKey: "sleep",
+    label: "Sleep",
+    shortLabel: "Sleep",
+    icon: "tabler:moon",
+    defaultLabel: "Sleep session",
+    defaultTargetHours: 8,
+    targetLabel: "Target hours",
+    targetUnit: "hours",
+    activeText: "Sleeping",
+    idleText: "No active sleep",
+    startText: "Start Sleep",
+    stopText: "Stop Sleep",
+    emptyText: "Start a sleep timer to track your rest window."
+  },
+  {
+    key: "exercise",
+    stateKey: "exercise",
+    label: "Exercise",
+    shortLabel: "Exercise",
+    icon: "tabler:barbell",
+    defaultLabel: "Exercise session",
+    defaultTargetHours: 1,
+    targetLabel: "Target minutes",
+    targetUnit: "minutes",
+    activeText: "Exercising",
+    idleText: "No active exercise",
+    startText: "Start Exercise",
+    stopText: "Stop Exercise",
+    emptyText: "Start an exercise timer for strength, mobility, or focused movement."
+  },
+  {
+    key: "cardio",
+    stateKey: "cardio",
+    label: "Cardio",
+    shortLabel: "Cardio",
+    icon: "tabler:run",
+    defaultLabel: "Cardio session",
+    defaultTargetHours: 0.5,
+    targetLabel: "Target minutes",
+    targetUnit: "minutes",
+    activeText: "Cardio active",
+    idleText: "No active cardio",
+    startText: "Start Cardio",
+    stopText: "Stop Cardio",
+    emptyText: "Start a cardio timer for walks, runs, bike rides, or conditioning."
+  }
+];
+let thoughtToastFadeTimer = null;
+let thoughtToastHideTimer = null;
 const SPIRIT_PLANS = [
   {
     id: "ten-year",
@@ -34,25 +113,208 @@ const DASHBOARD_COLORS = {
   Spirit: "#f59e0b",
   Life: "#f472b6"
 };
+const ICON_ALIASES = {
+  "tabler:lotus": "tabler:yoga",
+  "tabler:hands-pray": "tabler:pray"
+};
+const DEFAULT_TRACKERS = {
+  Mind: [
+    { id: "mind-note-taking", label: "Note Making", icon: "tabler:notes" },
+    { id: "mind-lesson-learning", label: "Lesson", icon: "tabler:school" },
+    { id: "mind-idea", label: "Idea", icon: "tabler:bulb" },
+    { id: "mind-question", label: "Question", icon: "tabler:question-mark" }
+  ],
+  Body: [
+    { id: "body-exercised", label: "Workout", icon: "tabler:barbell" },
+    { id: "body-ate-healthy", label: "Ate Healthy", icon: "tabler:salad" },
+    { id: "body-drank-water", label: "Drank Water", icon: "tabler:droplet" },
+    { id: "body-slept-well", label: "Sleep", icon: "tabler:moon" }
+  ],
+  Spirit: [
+    { id: "spirit-studied", label: "Studied", icon: "tabler:book" },
+    { id: "spirit-meditated", label: "Meditated", icon: "tabler:yoga" },
+    { id: "spirit-reflection", label: "Reflection", icon: "tabler:message-circle" },
+    { id: "spirit-prayer", label: "Prayer", icon: "tabler:pray" }
+  ],
+  Life: [
+    { id: "life-family", label: "Family", icon: "tabler:users" },
+    { id: "life-friends", label: "Friends", icon: "tabler:friends" },
+    { id: "life-work", label: "Work", icon: "tabler:briefcase" },
+    { id: "life-home", label: "Clean", icon: "tabler:sparkles" }
+  ]
+};
+const TRACKER_LABEL_MIGRATIONS = {
+  "mind-note-taking": {
+    from: ["Note Taking"],
+    to: "Note Making"
+  },
+  "mind-lesson-learning": {
+    from: ["Lesson/Learning"],
+    to: "Lesson"
+  },
+  "body-exercised": {
+    from: ["Exercised"],
+    to: "Workout"
+  },
+  "body-slept-well": {
+    from: ["Slept Well"],
+    to: "Sleep"
+  },
+  "life-home": {
+    from: ["Home"],
+    to: "Clean"
+  }
+};
+
+function cloneDefaultTrackers() {
+  return Object.fromEntries(DASHBOARD_LABELS.map((label) => [
+    label,
+    DEFAULT_TRACKERS[label].map((tracker) => ({ ...tracker }))
+  ]));
+}
+
+function normalizeIconSource(value) {
+  const source = String(value || "").trim();
+  return ICON_ALIASES[source] || source;
+}
+
+function normalizeTracker(tracker, dashboard, index) {
+  const id = String(tracker?.id || `${dashboard.toLowerCase()}-tracker-${index}-${makeId("tracker")}`);
+  const rawLabel = String(tracker?.label || "").trim() || `Thought ${index + 1}`;
+  const migration = TRACKER_LABEL_MIGRATIONS[id];
+  const label = migration?.from.includes(rawLabel) ? migration.to : rawLabel;
+  const icon = normalizeIconSource(tracker?.icon || tracker?.source || tracker?.url || "tabler:circle") || "tabler:circle";
+  return {
+    id,
+    label,
+    icon
+  };
+}
+
+function normalizeTrackerSettings(value) {
+  const defaults = cloneDefaultTrackers();
+  return Object.fromEntries(DASHBOARD_LABELS.map((dashboard) => {
+    const trackers = Array.isArray(value?.[dashboard])
+      ? value[dashboard].map((tracker, index) => normalizeTracker(tracker, dashboard, index))
+      : defaults[dashboard];
+    return [dashboard, trackers];
+  }));
+}
+
+function loadTrackerSettings() {
+  try {
+    const raw = window.localStorage.getItem(TRACKER_SETTINGS_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    const normalized = parsed ? normalizeTrackerSettings(parsed) : cloneDefaultTrackers();
+    if (raw && JSON.stringify(parsed) !== JSON.stringify(normalized)) {
+      window.localStorage.setItem(TRACKER_SETTINGS_KEY, JSON.stringify(normalized));
+    }
+    return normalized;
+  } catch {
+    return cloneDefaultTrackers();
+  }
+}
+
+function saveTrackerSettings() {
+  window.localStorage.setItem(TRACKER_SETTINGS_KEY, JSON.stringify(state.trackerSettings));
+}
+
+function loadSidebarWidth() {
+  try {
+    return clampSidebarWidth(window.localStorage.getItem(SIDEBAR_WIDTH_KEY));
+  } catch {
+    return SIDEBAR_DEFAULT_WIDTH;
+  }
+}
+
+function saveSidebarWidth(width) {
+  try {
+    window.localStorage.setItem(SIDEBAR_WIDTH_KEY, String(clampSidebarWidth(width)));
+  } catch {
+    // Width persistence is a convenience; resizing should keep working if storage is blocked.
+  }
+}
+
+function loadIconifySearchCache() {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(ICONIFY_SEARCH_CACHE_KEY));
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveIconifySearchCache(cache) {
+  try {
+    window.localStorage.setItem(ICONIFY_SEARCH_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // Icon search should still work without persistence.
+  }
+}
+
+function createDefaultBodyTimer(config) {
+  return {
+    active: false,
+    label: config.defaultLabel,
+    targetHours: config.defaultTargetHours,
+    startTimestamp: null,
+    lastCompletedHours: 0
+  };
+}
 
 function createDefaultBodyTracker() {
+  const timers = Object.fromEntries(
+    BODY_TIMER_MODES
+      .filter((config) => config.stateKey !== "fast")
+      .map((config) => [config.stateKey, createDefaultBodyTimer(config)])
+  );
   return {
-    fast: {
-      active: false,
-      label: "Manual fast",
-      targetHours: 16,
-      startTimestamp: null,
-      lastCompletedHours: 0
-    },
+    fast: createDefaultBodyTimer(BODY_TIMER_MODES[0]),
+    timers,
     nutrition: {
       dateKey: todayDateKey(),
       targetCalories: 2000,
+      targetProtein: 120,
+      targetCarbs: 200,
+      targetFat: 70,
       calories: 0,
       protein: 0,
       carbs: 0,
-      fat: 0
+      fat: 0,
+      note: ""
     },
     workouts: []
+  };
+}
+
+function normalizeBodyTimer(value, config) {
+  const defaults = createDefaultBodyTimer(config);
+  return {
+    ...defaults,
+    ...(value || {}),
+    label: String(value?.label || defaults.label),
+    targetHours: Math.max(1 / 60, Number(value?.targetHours ?? defaults.targetHours) || defaults.targetHours),
+    active: Boolean(value?.active),
+    startTimestamp: value?.startTimestamp || null,
+    lastCompletedHours: Math.max(0, Number(value?.lastCompletedHours) || 0)
+  };
+}
+
+function normalizeBodyTracker(value) {
+  const defaults = createDefaultBodyTracker();
+  const timers = { ...defaults.timers };
+  BODY_TIMER_MODES
+    .filter((config) => config.stateKey !== "fast")
+    .forEach((config) => {
+      timers[config.stateKey] = normalizeBodyTimer(value?.timers?.[config.stateKey], config);
+    });
+  return {
+    ...defaults,
+    ...(value || {}),
+    fast: normalizeBodyTimer(value?.fast, BODY_TIMER_MODES[0]),
+    timers,
+    nutrition: { ...defaults.nutrition, ...(value?.nutrition || {}) },
+    workouts: Array.isArray(value?.workouts) ? value.workouts : []
   };
 }
 
@@ -60,13 +322,11 @@ function loadBodyTracker() {
   try {
     const parsed = JSON.parse(window.localStorage.getItem(BODY_TRACKER_KEY));
     if (!parsed?.fast || !parsed?.nutrition) return createDefaultBodyTracker();
-    return {
-      ...createDefaultBodyTracker(),
-      ...parsed,
-      fast: { ...createDefaultBodyTracker().fast, ...parsed.fast },
-      nutrition: { ...createDefaultBodyTracker().nutrition, ...parsed.nutrition },
-      workouts: Array.isArray(parsed.workouts) ? parsed.workouts : []
-    };
+    const normalized = normalizeBodyTracker(parsed);
+    if (JSON.stringify(parsed) !== JSON.stringify(normalized)) {
+      window.localStorage.setItem(BODY_TRACKER_KEY, JSON.stringify(normalized));
+    }
+    return normalized;
   } catch {
     return createDefaultBodyTracker();
   }
@@ -101,6 +361,165 @@ function initialMenuOpen() {
   return false;
 }
 
+function createDefaultLifePlanner() {
+  return {
+    schemaVersion: 1,
+    todos: [],
+    projects: []
+  };
+}
+
+function normalizeLifeAttachments(attachments) {
+  return Array.isArray(attachments)
+    ? attachments.filter((item) => item?.id).map((item) => ({
+        id: item.id,
+        name: item.name || item.id,
+        type: item.type || "application/octet-stream",
+        size: Number(item.size) || 0,
+        created: item.created || nowIso(),
+        storage: item.storage || "indexeddb",
+        futureStoragePath: item.futureStoragePath || `life-attachments/${item.id}`
+      }))
+    : [];
+}
+
+function normalizeLifeAssignment(dateKey, status) {
+  const value = dateKey ? dateKeyFromValue(dateKey) : "";
+  if (!value || status === "complete") return value;
+  return value < todayDateKey() ? "" : value;
+}
+
+function normalizeLifeTodo(todo) {
+  const status = todo?.status === "complete" ? "complete" : "todo";
+  const created = todo?.created || nowIso();
+  return {
+    id: todo?.id || makeId("todo"),
+    title: todo?.title || "Untitled task",
+    notes: todo?.notes || "",
+    status,
+    assignedDate: normalizeLifeAssignment(todo?.assignedDate, status),
+    created,
+    edited: todo?.edited || created
+  };
+}
+
+function normalizeLifeTask(task) {
+  const status = ["todo", "active", "waiting", "complete"].includes(task?.status) ? task.status : "todo";
+  const created = task?.created || nowIso();
+  return {
+    id: task?.id || makeId("task"),
+    title: task?.title || "Untitled task",
+    status,
+    assignedTo: task?.assignedTo || "",
+    assignedDate: normalizeLifeAssignment(task?.assignedDate, status),
+    notes: task?.notes || "",
+    attachments: normalizeLifeAttachments(task?.attachments),
+    created,
+    edited: task?.edited || created
+  };
+}
+
+function normalizeLifePhase(phase) {
+  const status = ["planned", "active", "waiting", "complete"].includes(phase?.status) ? phase.status : "planned";
+  const created = phase?.created || nowIso();
+  return {
+    id: phase?.id || makeId("phase"),
+    title: phase?.title || "Untitled phase",
+    status,
+    assignedTo: phase?.assignedTo || "",
+    assignedDate: normalizeLifeAssignment(phase?.assignedDate, status),
+    notes: phase?.notes || "",
+    attachments: normalizeLifeAttachments(phase?.attachments),
+    tasks: Array.isArray(phase?.tasks) ? phase.tasks.map(normalizeLifeTask) : [],
+    created,
+    edited: phase?.edited || created
+  };
+}
+
+function normalizeLifeProject(project) {
+  const status = ["planned", "active", "waiting", "complete"].includes(project?.status) ? project.status : "planned";
+  const created = project?.created || nowIso();
+  return {
+    id: project?.id || makeId("project"),
+    title: project?.title || "Untitled project",
+    status,
+    assignedTo: project?.assignedTo || "",
+    assignedDate: normalizeLifeAssignment(project?.assignedDate, status),
+    notes: project?.notes || "",
+    attachments: normalizeLifeAttachments(project?.attachments),
+    phases: Array.isArray(project?.phases) ? project.phases.map(normalizeLifePhase) : [],
+    created,
+    edited: project?.edited || created
+  };
+}
+
+function normalizeLifePlanner(planner) {
+  return {
+    schemaVersion: 1,
+    todos: Array.isArray(planner?.todos) ? planner.todos.map(normalizeLifeTodo) : [],
+    projects: Array.isArray(planner?.projects) ? planner.projects.map(normalizeLifeProject) : []
+  };
+}
+
+function saveLifePlannerStore(planner) {
+  window.localStorage.setItem(LIFE_PLANNER_KEY, JSON.stringify(planner));
+}
+
+function loadLifePlanner() {
+  try {
+    const raw = window.localStorage.getItem(LIFE_PLANNER_KEY);
+    const parsed = raw ? JSON.parse(raw) : createDefaultLifePlanner();
+    const normalized = normalizeLifePlanner(parsed);
+    if (raw && JSON.stringify(parsed) !== JSON.stringify(normalized)) saveLifePlannerStore(normalized);
+    return normalized;
+  } catch {
+    return createDefaultLifePlanner();
+  }
+}
+
+async function exportAppState() {
+  return {
+    bodyTracker: state.bodyTracker || createDefaultBodyTracker(),
+    spiritProgress: state.spiritProgress || {},
+    lifePlanner: normalizeLifePlanner(state.lifePlanner || createDefaultLifePlanner()),
+    thoughtSettings: normalizeTrackerSettings(state.trackerSettings || cloneDefaultTrackers()),
+    localFiles: await exportLocalFiles().catch(() => [])
+  };
+}
+
+async function restoreImportedAppState(appState) {
+  if (!appState) return;
+  const bodyTracker = appState?.bodyTracker
+    ? normalizeBodyTracker(appState.bodyTracker)
+    : createDefaultBodyTracker();
+  const spiritProgress = appState?.spiritProgress && typeof appState.spiritProgress === "object"
+    ? appState.spiritProgress
+    : {};
+  const lifePlanner = normalizeLifePlanner(appState?.lifePlanner || createDefaultLifePlanner());
+  const trackerSettings = normalizeTrackerSettings(appState?.thoughtSettings || appState?.trackerSettings || cloneDefaultTrackers());
+
+  state.bodyTracker = bodyTracker;
+  state.spiritProgress = spiritProgress;
+  state.lifePlanner = lifePlanner;
+  state.trackerSettings = trackerSettings;
+  saveBodyTracker();
+  saveSpiritProgress();
+  saveLifePlannerStore(lifePlanner);
+  saveTrackerSettings();
+  if (Array.isArray(appState.localFiles)) {
+    await importLocalFiles(appState.localFiles);
+  }
+}
+
+function hasStoredAppState() {
+  return Boolean(
+    window.localStorage.getItem(BODY_TRACKER_KEY)
+    || window.localStorage.getItem(SPIRIT_PROGRESS_KEY)
+    || window.localStorage.getItem(LIFE_PLANNER_KEY)
+    || window.localStorage.getItem(TRACKER_SETTINGS_KEY)
+  );
+}
+
 const state = {
   active: "Dashboard",
   flipped: null,
@@ -112,21 +531,39 @@ const state = {
   artifactReturnActive: "",
   mindMode: "grid",
   artifactMode: "grid",
-  bodyMode: "fasting",
+  bodyMode: "timers",
+  bodyTimerMode: "fasting",
+  bodyNutritionMode: "daily",
+  lifeTool: "",
   lifeMode: "month",
+  settingsTab: "getting-started",
+  trackerAddArea: "",
+  trackerEditKey: "",
+  trackerDeleteKey: "",
+  suppressNextTrackerEditClick: false,
+  iconSearchCache: loadIconifySearchCache(),
+  iconSearchInFlight: {},
+  thoughtToast: null,
+  thoughtCooldowns: {},
+  thoughtCreateLocks: {},
   dashboardPeriod: "week",
   bodyTracker: loadBodyTracker(),
+  trackerSettings: loadTrackerSettings(),
   spiritPlan: null,
   spiritPlanError: "",
   spiritPlanId: "ten-year",
   spiritYear: 1,
   selectedSpiritBookKey: null,
   spiritProgress: loadSpiritProgress(),
+  lifePlanner: loadLifePlanner(),
+  selectedLifeProjectId: null,
+  selectedLifePhaseId: null,
+  selectedLifeTaskId: null,
   galleryImages: null,
   gallerySelectedIds: [],
   galleryThumbSize: 180,
   mobileMenuOpen: initialMenuOpen(),
-  sidebarWidth: SIDEBAR_DEFAULT_WIDTH,
+  sidebarWidth: loadSidebarWidth(),
   suppressNextMenuToggle: false,
   sidebarExpanded: {
     Mind: true,
@@ -203,11 +640,511 @@ function eventIsInPeriod(event, period) {
 }
 
 function iconHtml(name) {
-  return `<iconify-icon class="button-icon" icon="${name}" aria-hidden="true"></iconify-icon>`;
+  const icon = normalizeIconSource(name) || "tabler:circle";
+  return `<iconify-icon class="button-icon" icon="${escapeHtml(icon)}" aria-hidden="true"></iconify-icon>`;
 }
 
 function buttonContent(icon, label, labelClass = "button-label") {
   return `${iconHtml(icon)}<span class="${labelClass}">${label}</span>`;
+}
+
+function isImageIconSource(value) {
+  return /^(https?:\/\/|data:image\/|blob:|\/|\.\.?\/)[^"'<>]+$/i.test(String(value || "").trim());
+}
+
+function sanitizeSvgText(value) {
+  const source = String(value || "").trim();
+  if (!/^<svg[\s>]/i.test(source) || source.length > 16000) return "";
+  try {
+    const doc = new DOMParser().parseFromString(source, "image/svg+xml");
+    if (doc.querySelector("parsererror") || doc.documentElement?.tagName?.toLowerCase() !== "svg") return "";
+    doc.querySelectorAll("script, foreignObject, iframe, object, embed").forEach((element) => element.remove());
+    doc.querySelectorAll("*").forEach((element) => {
+      Array.from(element.attributes).forEach((attribute) => {
+        const name = attribute.name.toLowerCase();
+        const rawValue = String(attribute.value || "");
+        if (name.startsWith("on") || /javascript:/i.test(rawValue)) {
+          element.removeAttribute(attribute.name);
+        }
+      });
+    });
+    return new XMLSerializer().serializeToString(doc.documentElement);
+  } catch {
+    return "";
+  }
+}
+
+function svgIconDataUrl(value) {
+  const sanitized = sanitizeSvgText(value);
+  return sanitized ? `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(sanitized)}` : "";
+}
+
+function trackerIconHtml(source) {
+  const value = String(source || "").trim();
+  if (/^<svg[\s>]/i.test(value)) {
+    const dataUrl = svgIconDataUrl(value);
+    if (dataUrl) return `<img class="tracker-orb-image" src="${escapeHtml(dataUrl)}" alt="">`;
+  }
+  if (isImageIconSource(value)) {
+    return `<img class="tracker-orb-image" src="${escapeHtml(value)}" alt="">`;
+  }
+  return iconHtml(value || "tabler:circle");
+}
+
+function trackerEditKey(area, id) {
+  return `${area}:${id}`;
+}
+
+function iconifySearchKey(query, limit = 7) {
+  return `${String(query || "").trim().toLowerCase()}|${limit}|${ICONIFY_PREFIXES}`;
+}
+
+function normalizeIconifyIcon(value) {
+  return normalizeIconSource(String(value || "").trim());
+}
+
+function iconifyIconLabel(icon) {
+  return normalizeIconifyIcon(icon).replace(/^[^:]+:/, "");
+}
+
+function iconSuggestionsForLabel(label, limit = 7) {
+  const query = String(label || "").trim();
+  if (query.length < 3) return [];
+  return (state.iconSearchCache?.[iconifySearchKey(query, limit)] || [])
+    .slice(0, limit)
+    .map((icon) => ({ icon: normalizeIconifyIcon(icon) }));
+}
+
+function firstIconSuggestion(label, fallback = "tabler:circle") {
+  return iconSuggestionsForLabel(label, 1)[0]?.icon || fallback;
+}
+
+async function searchIconifyIcons(label, limit = 7) {
+  const query = String(label || "").trim();
+  if (query.length < 3) return [];
+  const cacheKey = iconifySearchKey(query, limit);
+  if (Array.isArray(state.iconSearchCache?.[cacheKey])) return state.iconSearchCache[cacheKey];
+  if (state.iconSearchInFlight[cacheKey]) return state.iconSearchInFlight[cacheKey];
+
+  const params = new URLSearchParams({
+    query,
+    limit: String(Math.max(32, limit)),
+    prefixes: ICONIFY_PREFIXES
+  });
+  state.iconSearchInFlight[cacheKey] = fetch(`${ICONIFY_SEARCH_URL}?${params.toString()}`)
+    .then((response) => {
+      if (!response.ok) throw new Error(`Iconify search failed (${response.status}).`);
+      return response.json();
+    })
+    .then((payload) => {
+      const icons = Array.isArray(payload.icons)
+        ? payload.icons.map(normalizeIconifyIcon).filter(Boolean).slice(0, Math.max(32, limit))
+        : [];
+      state.iconSearchCache = {
+        ...(state.iconSearchCache || {}),
+        [cacheKey]: icons
+      };
+      saveIconifySearchCache(state.iconSearchCache);
+      return icons;
+    })
+    .catch(() => [])
+    .finally(() => {
+      const { [cacheKey]: _done, ...rest } = state.iconSearchInFlight;
+      state.iconSearchInFlight = rest;
+    });
+  return state.iconSearchInFlight[cacheKey];
+}
+
+function trackerIconSuggestionsHtml(label, area, target, selectedIcon = "") {
+  const suggestions = iconSuggestionsForLabel(label);
+  if (!suggestions.length) {
+    return `<div class="tracker-icon-suggestions is-empty">${String(label || "").trim().length >= 3 ? "Searching Iconify..." : "Type 3+ letters to search Iconify."}</div>`;
+  }
+  return `
+    <div class="tracker-icon-suggestions" aria-label="Suggested icons">
+      ${suggestions.map((suggestion) => `
+        <button class="tracker-icon-suggestion${normalizeIconSource(selectedIcon) === suggestion.icon ? " is-selected" : ""}" data-icon="${escapeHtml(suggestion.icon)}" data-area="${escapeHtml(area)}" data-target="${escapeHtml(target)}" type="button" title="${escapeHtml(suggestion.icon)}">
+          ${iconHtml(suggestion.icon)}
+          <span>${escapeHtml(iconifyIconLabel(suggestion.icon))}</span>
+        </button>
+      `).join("")}
+    </div>
+  `;
+}
+
+function trackerStripHtml(dashboard, options = {}) {
+  const trackers = state.trackerSettings?.[dashboard] || [];
+  const editable = Boolean(options.editable);
+  const compact = Boolean(options.compact);
+  return `
+    <section class="tracker-strip${compact ? " tracker-strip--compact" : ""}${editable ? " is-editable" : ""}" aria-label="${escapeHtml(dashboard)} thoughts" style="--thought-color: ${DASHBOARD_COLORS[dashboard] || DASHBOARD_COLORS.Mind};">
+      <div class="tracker-orb-row"${editable ? ` data-tracker-reorder-row data-area="${escapeHtml(dashboard)}"` : ""}>
+        ${trackers.map((tracker) => trackerOrbHtml(dashboard, tracker, editable)).join("")}
+        ${editable ? `
+          <button class="tracker-orb tracker-orb--add" data-action="start-add-tracker" data-area="${escapeHtml(dashboard)}" type="button" aria-label="Add ${escapeHtml(dashboard)} thought" title="Add thought">
+            ${iconHtml("tabler:plus")}
+            <span>Add</span>
+          </button>
+        ` : ""}
+      </div>
+    </section>
+  `;
+}
+
+function trackerOrbHtml(dashboard, tracker, editable = false) {
+  const cooldownRemaining = editable ? 0 : thoughtCooldownRemaining(dashboard, tracker.id);
+  const isCooling = cooldownRemaining > 0;
+  const isEditing = state.trackerEditKey === trackerEditKey(dashboard, tracker.id);
+  const actionAttrs = editable
+    ? ` data-action="start-edit-tracker" data-area="${escapeHtml(dashboard)}" data-id="${escapeHtml(tracker.id)}"`
+    : ` data-action="quick-thought" data-area="${escapeHtml(dashboard)}" data-id="${escapeHtml(tracker.id)}"`;
+  return `
+    <span class="tracker-orb-wrap"${editable ? ` data-tracker-orb-wrap data-area="${escapeHtml(dashboard)}" data-id="${escapeHtml(tracker.id)}"` : ""}>
+      <button class="tracker-orb${isCooling ? " is-cooling" : ""}${isEditing ? " is-editing" : ""}" type="button"${actionAttrs} title="${escapeHtml(tracker.label)}" aria-label="${escapeHtml(`${dashboard} thought: ${tracker.label}`)}"${isCooling ? " disabled" : ""}>
+        ${isCooling ? `<span class="tracker-cooldown-pie" aria-hidden="true"${thoughtCooldownPieStyle(cooldownRemaining)}></span>` : ""}
+        <span class="tracker-orb-icon">${trackerIconHtml(tracker.icon)}</span>
+        <span class="tracker-orb-label">${escapeHtml(tracker.label)}</span>
+      </button>
+    </span>
+  `;
+}
+
+function trackerFieldId(area, field) {
+  return `tracker-${String(area).toLowerCase()}-${field}`;
+}
+
+function addTracker(area) {
+  if (!DASHBOARD_LABELS.includes(area)) return;
+  const label = document.getElementById(trackerFieldId(area, "label"))?.value.trim();
+  const iconInput = document.getElementById(trackerFieldId(area, "icon"))?.value.trim();
+  const icon = iconInput || firstIconSuggestion(label);
+  if (!label) {
+    window.alert("Add a thought name.");
+    return;
+  }
+  const next = {
+    ...state.trackerSettings,
+    [area]: [
+      ...(state.trackerSettings?.[area] || []),
+      { id: makeId(`${area.toLowerCase()}-tracker`), label, icon }
+    ]
+  };
+  state.trackerSettings = normalizeTrackerSettings(next);
+  saveTrackerSettings();
+  setState({ trackerAddArea: "", trackerEditKey: "", trackerDeleteKey: "" });
+}
+
+function updateTracker(area, id) {
+  if (!DASHBOARD_LABELS.includes(area) || !id) return;
+  const label = document.getElementById(trackerFieldId(`${area}-${id}`, "label"))?.value.trim();
+  const iconInput = document.getElementById(trackerFieldId(`${area}-${id}`, "icon"))?.value.trim();
+  const current = (state.trackerSettings?.[area] || []).find((tracker) => tracker.id === id);
+  if (!current || !label) {
+    window.alert("Add a thought name.");
+    return;
+  }
+  const icon = iconInput || firstIconSuggestion(label, current.icon || "tabler:circle");
+  const next = {
+    ...state.trackerSettings,
+    [area]: (state.trackerSettings?.[area] || []).map((tracker) => (
+      tracker.id === id ? { ...tracker, label, icon } : tracker
+    ))
+  };
+  state.trackerSettings = normalizeTrackerSettings(next);
+  saveTrackerSettings();
+  setState({ trackerEditKey: "", trackerDeleteKey: "" });
+}
+
+function reorderTracker(area, trackerId, targetIndex) {
+  if (!DASHBOARD_LABELS.includes(area)) return false;
+  const trackers = state.trackerSettings?.[area] || [];
+  const fromIndex = trackers.findIndex((tracker) => tracker.id === trackerId);
+  if (fromIndex < 0) return false;
+
+  const nextTrackers = [...trackers];
+  const [movedTracker] = nextTrackers.splice(fromIndex, 1);
+  const nextIndex = Math.min(Math.max(targetIndex, 0), nextTrackers.length);
+  nextTrackers.splice(nextIndex, 0, movedTracker);
+  if (nextTrackers.map((tracker) => tracker.id).join("|") === trackers.map((tracker) => tracker.id).join("|")) return false;
+
+  state.trackerSettings = normalizeTrackerSettings({
+    ...state.trackerSettings,
+    [area]: nextTrackers
+  });
+  saveTrackerSettings();
+  setState({ trackerEditKey: "", trackerDeleteKey: "", trackerAddArea: "" });
+  return true;
+}
+
+function removeTracker(area, id) {
+  if (!DASHBOARD_LABELS.includes(area) || !id) return;
+  const next = {
+    ...state.trackerSettings,
+    [area]: (state.trackerSettings?.[area] || []).filter((tracker) => tracker.id !== id)
+  };
+  state.trackerSettings = normalizeTrackerSettings(next);
+  saveTrackerSettings();
+  setState({
+    trackerAddArea: state.trackerAddArea === area ? "" : state.trackerAddArea,
+    trackerEditKey: state.trackerEditKey === trackerEditKey(area, id) ? "" : state.trackerEditKey,
+    trackerDeleteKey: state.trackerDeleteKey === trackerEditKey(area, id) ? "" : state.trackerDeleteKey
+  });
+}
+
+function thoughtCooldownKey(area, id) {
+  return `${area}:${id}`;
+}
+
+function thoughtCooldownRemaining(area, id) {
+  const endTime = state.thoughtCooldowns?.[thoughtCooldownKey(area, id)] || 0;
+  return Math.max(0, endTime - Date.now());
+}
+
+function thoughtCooldownPieStyle(remaining) {
+  const remainingMs = Math.max(0, Math.ceil(Number(remaining) || 0));
+  const angle = Math.max(0, Math.min(360, (remainingMs / THOUGHT_COOLDOWN_MS) * 360));
+  return ` style="--cooldown-start-angle: ${angle.toFixed(3)}deg; --cooldown-duration: ${remainingMs}ms;"`;
+}
+
+function thoughtTimestampLabel(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return currentTimestampLabel();
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(date);
+}
+
+function thoughtDateInputValue(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return todayDateKey();
+  return dateKeyFromDate(date);
+}
+
+function thoughtTimeInputValue(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    const now = new Date();
+    return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  }
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function thoughtTimestampFromToastControls() {
+  const dateValue = document.getElementById("thought-toast-date")?.value || thoughtDateInputValue(state.thoughtToast?.timestamp);
+  const timeValue = document.getElementById("thought-toast-time")?.value || thoughtTimeInputValue(state.thoughtToast?.timestamp);
+  const date = new Date(`${dateValue}T${timeValue}`);
+  return Number.isNaN(date.getTime()) ? state.thoughtToast?.timestamp || nowIso() : date.toISOString();
+}
+
+function thoughtNoteWithTimestamp(note, timestamp) {
+  const date = new Date(timestamp);
+  if (!note || Number.isNaN(date.getTime())) return note;
+  const label = note.properties?.thoughtLabel || state.thoughtToast?.label || note.title;
+  const dateKey = dateKeyFromDate(date);
+  const title = `${label} Thought ${formatEventTime(timestamp) || thoughtTimestampLabel(timestamp)}`;
+  const body = String(note.body || "").replace(/Logged: .*/, `Logged: ${thoughtTimestampLabel(timestamp)}`);
+  const audit = Array.isArray(note.properties?.audit) ? note.properties.audit : [];
+  return {
+    ...note,
+    title,
+    body,
+    created: timestamp,
+    properties: {
+      ...(note.properties || {}),
+      dateKey,
+      thoughtLoggedAt: timestamp,
+      audit: audit.map((entry) => entry.action === "created"
+        ? { ...entry, at: timestamp, title, dateKey }
+        : entry)
+    }
+  };
+}
+
+function scheduleThoughtToastFade(toast = state.thoughtToast, delay = 3500) {
+  window.clearTimeout(thoughtToastFadeTimer);
+  window.clearTimeout(thoughtToastHideTimer);
+  if (!toast) return;
+  thoughtToastFadeTimer = window.setTimeout(() => {
+    const element = app.querySelector(".thought-toast");
+    element?.classList.remove("is-held");
+    element?.classList.add("is-fading");
+  }, delay);
+  thoughtToastHideTimer = window.setTimeout(() => {
+    if (state.thoughtToast?.noteId === toast.noteId) {
+      state.thoughtToast = null;
+      render();
+    }
+  }, delay + 2000);
+}
+
+function pauseThoughtToastFade() {
+  window.clearTimeout(thoughtToastFadeTimer);
+  window.clearTimeout(thoughtToastHideTimer);
+  const toast = app.querySelector(".thought-toast");
+  toast?.classList.add("is-held");
+  toast?.classList.remove("is-fading");
+}
+
+function isThoughtToastHeldOpen() {
+  const toast = app.querySelector(".thought-toast");
+  return Boolean(toast && (toast.contains(document.activeElement) || toast.matches(":hover")));
+}
+
+function resumeThoughtToastFade(delay = 0) {
+  if (isThoughtToastHeldOpen()) {
+    pauseThoughtToastFade();
+    return;
+  }
+  app.querySelector(".thought-toast")?.classList.remove("is-held");
+  scheduleThoughtToastFade(state.thoughtToast, delay);
+}
+
+function showThoughtToast(toast) {
+  state.thoughtToast = toast;
+  render();
+  scheduleThoughtToastFade(toast);
+}
+
+function clearThoughtToast() {
+  window.clearTimeout(thoughtToastFadeTimer);
+  window.clearTimeout(thoughtToastHideTimer);
+  state.thoughtToast = null;
+  render();
+}
+
+function submitThoughtToastNote(noteId, text) {
+  const body = String(text || "").trim();
+  if (!body || !noteId || !state.artifactStore) return;
+  const current = findArtifact(state.artifactStore, noteId);
+  if (!current) return;
+  const now = nowIso();
+  const timestamp = thoughtTimestampFromToastControls();
+  const adjusted = thoughtNoteWithTimestamp(current, timestamp);
+  const entry = `- ${thoughtTimestampLabel(timestamp)}: ${body}`;
+  persistArtifactStore(upsertArtifact(state.artifactStore, {
+    ...adjusted,
+    body: `${String(adjusted.body || "").trimEnd()}\n\n${entry}`.trim(),
+    edited: now,
+    properties: {
+      ...(adjusted.properties || {}),
+      quickNotes: [
+        ...((adjusted.properties?.quickNotes || []).slice(-20)),
+        { at: timestamp, body }
+      ],
+      audit: [
+        ...((adjusted.properties?.audit || []).slice(-20)),
+        {
+          at: timestamp,
+          action: "quick-note",
+          title: adjusted.title,
+          dateKey: dateKeyFromValue(timestamp),
+          thoughtLabel: adjusted.properties?.thoughtLabel || ""
+        }
+      ]
+    }
+  }));
+  clearThoughtToast();
+}
+
+function applyThoughtToastTimestamp(noteId) {
+  if (!noteId || !state.artifactStore) return;
+  const current = findArtifact(state.artifactStore, noteId);
+  if (!current) return;
+  persistArtifactStore(upsertArtifact(state.artifactStore, {
+    ...thoughtNoteWithTimestamp(current, thoughtTimestampFromToastControls()),
+    edited: nowIso()
+  }));
+}
+
+function deleteThoughtToastNote(noteId) {
+  if (!noteId || !state.artifactStore) return;
+  const note = findArtifact(state.artifactStore, noteId);
+  if (!note) {
+    clearThoughtToast();
+    return;
+  }
+  persistArtifactStore(removeArtifact(state.artifactStore, noteId));
+  window.clearTimeout(thoughtToastFadeTimer);
+  window.clearTimeout(thoughtToastHideTimer);
+  setState({
+    thoughtToast: null,
+    selectedArtifactId: state.selectedArtifactId === noteId ? null : state.selectedArtifactId,
+    artifactMode: state.selectedArtifactId === noteId ? "grid" : state.artifactMode,
+    artifactReturnActive: state.selectedArtifactId === noteId ? "" : state.artifactReturnActive
+  });
+}
+
+function quickThought(area, id) {
+  if (!state.artifactStore || !DASHBOARD_LABELS.includes(area)) return;
+  const cooldownKey = thoughtCooldownKey(area, id);
+  if (thoughtCooldownRemaining(area, id) > 0 || state.thoughtCreateLocks[cooldownKey]) return;
+  const tracker = (state.trackerSettings?.[area] || []).find((item) => item.id === id);
+  if (!tracker) return;
+  state.thoughtCreateLocks = {
+    ...state.thoughtCreateLocks,
+    [cooldownKey]: true
+  };
+  const now = nowIso();
+  const title = `${tracker.label} Thought ${formatEventTime(now) || thoughtTimestampLabel(now)}`;
+  const note = {
+    id: makeId("thought"),
+    type: "note",
+    dashboard: area,
+    parentId: null,
+    title,
+    body: [
+      `## ${tracker.label}`,
+      "",
+      `Logged: ${thoughtTimestampLabel(now)}`,
+      "",
+      "### Thought",
+      ""
+    ].join("\n"),
+    created: now,
+    edited: now,
+    childIds: [],
+    properties: {
+      role: "thought",
+      status: "active",
+      dateKey: todayDateKey(),
+      thoughtLabel: tracker.label,
+      thoughtIcon: tracker.icon,
+      thoughtLoggedAt: now,
+      audit: [
+        {
+          at: now,
+          action: "created",
+          title,
+          dateKey: todayDateKey(),
+          thoughtLabel: tracker.label
+        }
+      ]
+    },
+    analysis: {}
+  };
+  state.thoughtCooldowns = {
+    ...state.thoughtCooldowns,
+    [cooldownKey]: Date.now() + THOUGHT_COOLDOWN_MS
+  };
+  persistArtifactStore(upsertArtifact(state.artifactStore, note));
+  const { [cooldownKey]: _created, ...nextCreateLocks } = state.thoughtCreateLocks;
+  state.thoughtCreateLocks = nextCreateLocks;
+  showThoughtToast({
+    noteId: note.id,
+    dashboard: area,
+    label: tracker.label,
+    timestamp: now
+  });
+  window.setTimeout(() => {
+    if (state.thoughtCooldowns[cooldownKey] <= Date.now()) {
+      const { [cooldownKey]: _expired, ...nextCooldowns } = state.thoughtCooldowns;
+      state.thoughtCooldowns = nextCooldowns;
+      render();
+    }
+  }, THOUGHT_COOLDOWN_MS + 50);
 }
 
 function duckDuckGoUrl(query, options = "") {
@@ -284,6 +1221,31 @@ function activityTime(item) {
     return new Date(`${timestamp}T12:00:00`).getTime() || 0;
   }
   return Date.parse(timestamp) || 0;
+}
+
+function createdTime(item) {
+  const timestamp = item?.created || item?.properties?.createdAt || "";
+  if (!timestamp) return 0;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(timestamp))) {
+    return new Date(`${timestamp}T12:00:00`).getTime() || 0;
+  }
+  return Date.parse(timestamp) || 0;
+}
+
+function newestCreatedFirst(items) {
+  return [...items].sort((a, b) => {
+    const timeDiff = createdTime(b) - createdTime(a);
+    if (timeDiff) return timeDiff;
+    return String(b.id || "").localeCompare(String(a.id || ""));
+  });
+}
+
+function newestActivityFirst(items) {
+  return [...items].sort((a, b) => {
+    const timeDiff = activityTime(b) - activityTime(a);
+    if (timeDiff) return timeDiff;
+    return String(b.id || "").localeCompare(String(a.id || ""));
+  });
 }
 
 function latestByActivity(items) {
@@ -369,6 +1331,185 @@ function dashboardCardBackHtml(label) {
   `;
 }
 
+function noteWordCount(body) {
+  return (cleanSummaryText(body).match(/\b[\w']+\b/g) || []).length;
+}
+
+function noteSentences(body) {
+  return String(body || "").split(/[.!?]+/).map((item) => item.trim()).filter(Boolean);
+}
+
+function repeatedSentenceStarterCount(body) {
+  const starts = noteSentences(body)
+    .map((sentence) => sentence.match(/\b[\w']+\b/)?.[0]?.toLowerCase())
+    .filter(Boolean);
+  const counts = new Map();
+  starts.forEach((word) => counts.set(word, (counts.get(word) || 0) + 1));
+  return Array.from(counts.values()).filter((count) => count > 1).reduce((sum, count) => sum + count, 0);
+}
+
+function noteCommaCount(body) {
+  return (String(body || "").match(/,/g) || []).length;
+}
+
+function noteDateLabel(note) {
+  const value = note.properties?.dateKey || activityTimestamp(note);
+  return value ? formatDateLabel(dateKeyFromValue(value), { year: true }) : "No date";
+}
+
+function noteSizeLabel(note) {
+  const words = noteWordCount(note.body);
+  return words >= 1000 ? `${Math.round(words / 100) / 10}k` : String(words);
+}
+
+function bodyMetaItems(note) {
+  const body = String(note.body || "");
+  const readValue = (label) => body.match(new RegExp(`- ${label}:\\s*([^\\n]+)`, "i"))?.[1]?.trim() || "";
+  const minutes = readValue("Minutes");
+  const effort = readValue("Effort");
+  const type = readValue("Type");
+  const calories = readValue("Calories");
+  const protein = readValue("Protein");
+  if (/workout/i.test(note.title) || minutes || effort || type) {
+    return [
+      ["Type", type || "Workout"],
+      ["Min", minutes || "0"],
+      ["Effort", effort || "-"],
+      ["Words", noteSizeLabel(note)]
+    ];
+  }
+  return [
+    ["Cal", calories || "-"],
+    ["Protein", protein || "-"],
+    ["Words", noteSizeLabel(note)],
+    ["Commas", String(noteCommaCount(note.body))]
+  ];
+}
+
+function spiritMetaItems(note) {
+  const planItemKey = note.properties?.planItemKey;
+  const work = planItemKey ? spiritWorks().find((item) => item.key === planItemKey) : null;
+  const year = note.properties?.year || work?.year || "-";
+  const sameYear = work ? spiritWorks().filter((item) => item.year === work.year) : [];
+  const sequence = note.properties?.order || (work ? sameYear.findIndex((item) => item.key === work.key) + 1 : "");
+  const complete = planItemKey ? isSpiritComplete(planItemKey) : note.properties?.status === "complete";
+  return [
+    ["Year", String(year)],
+    ["Seq", sequence ? String(sequence) : "-"],
+    ["Status", complete ? "\u2713" : "\u25cb"],
+    ["Words", noteSizeLabel(note)]
+  ];
+}
+
+function lifeMetaItems(note) {
+  const habits = Array.isArray(note.properties?.habits) ? note.properties.habits : [];
+  const mood = note.properties?.mood || "";
+  const energy = note.properties?.energy || "";
+  const habitEmoji = {
+    Move: "\ud83d\udeb6",
+    Read: "\ud83d\udcd6",
+    Create: "\ud83c\udfa8",
+    Clean: "\u2728",
+    Budget: "$",
+    Connect: "\u2661",
+    Pray: "\ud83d\ude4f",
+    Sleep: "\u263e"
+  };
+  const moodEmoji = {
+    great: "\ud83d\ude00",
+    good: "\ud83d\ude42",
+    steady: "\ud83d\ude10",
+    low: "\ud83d\ude41",
+    hard: "!"
+  };
+  return [
+    ["Habit", habitEmoji[habits[0]] || "\u2022"],
+    ["Mood", moodEmoji[mood] || "\u2022"],
+    ["Energy", energy ? energy.slice(0, 1).toUpperCase() : "-"],
+    ["Words", noteSizeLabel(note)]
+  ];
+}
+
+function noteMetaItems(note) {
+  if (note.dashboard === "Mind") {
+    return [
+      ["Words", String(noteWordCount(note.body))],
+      ["Sent", String(noteSentences(note.body).length)],
+      ["Starts", String(repeatedSentenceStarterCount(note.body))],
+      ["Commas", String(noteCommaCount(note.body))]
+    ];
+  }
+  if (note.dashboard === "Body") return bodyMetaItems(note);
+  if (note.dashboard === "Spirit") return spiritMetaItems(note);
+  if (note.dashboard === "Life") return lifeMetaItems(note);
+  return [
+    ["Words", noteSizeLabel(note)],
+    ["Sent", String(noteSentences(note.body).length)],
+    ["Commas", String(noteCommaCount(note.body))],
+    ["Type", note.type || "-"]
+  ];
+}
+
+function compendiumSidebarArtifact(compendium) {
+  const blockBodies = Array.isArray(compendium.blocks)
+    ? compendium.blocks.map((block) => block?.body || block?.content || "").filter(Boolean)
+    : [];
+  return {
+    ...compendium,
+    dashboard: "Mind",
+    type: "compendium",
+    body: [compendium.body, ...blockBodies].filter(Boolean).join("\n\n"),
+    properties: compendium.properties || {}
+  };
+}
+
+function mindSidebarItems() {
+  const thoughts = rootNotesForDashboard(state.artifactStore, "Mind")
+    .filter((note) => note.properties?.role === "thought");
+  const sections = state.compendiums.flatMap((compendium) =>
+    (compendium.blocks || []).map((block) => ({
+      ...block,
+      dashboard: "Mind",
+      type: "mind-section",
+      parentId: compendium.id,
+      compendiumTitle: compendium.title,
+      properties: {
+        ...(block.properties || {}),
+        role: "compendium-section"
+      }
+    }))
+  );
+  return newestActivityFirst([...thoughts, ...sections]);
+}
+
+function sidebarOrganizerHtml(item) {
+  const metaItems = noteMetaItems(item).slice(0, 4);
+  return `
+    <span class="sidebar-item-organizer" aria-hidden="true">
+      <span class="sidebar-item-date">${escapeHtml(noteDateLabel(item))}</span>
+      <span class="sidebar-item-meta-grid">
+        ${metaItems.map(([label, value]) => `
+            <span class="sidebar-item-meta-cell">
+              <em>${escapeHtml(label)}</em>
+              <b>${escapeHtml(value)}</b>
+            </span>
+          `).join("")}
+      </span>
+    </span>
+  `;
+}
+
+function sidebarItemHtml(item, options) {
+  const number = Number(options.number) || 1;
+  return `
+    <button class="sidebar-item${options.active ? " is-active" : ""}" data-action="${options.action}" data-id="${item.id}"${options.parentId ? ` data-parent-id="${escapeHtml(options.parentId)}"` : ""}>
+      <span class="sidebar-item-number">${escapeHtml(String(number).padStart(2, "0"))}</span>
+      <span class="sidebar-item-label">${escapeHtml(item.title)}</span>
+      ${sidebarOrganizerHtml(item)}
+    </button>
+  `;
+}
+
 function numberFromInput(id, fallback = 0) {
   const value = Number(document.getElementById(id)?.value);
   return Number.isFinite(value) ? value : fallback;
@@ -383,19 +1524,67 @@ function formatDuration(ms) {
 }
 
 function getFastElapsedMs() {
-  const start = state.bodyTracker.fast.startTimestamp;
-  if (!state.bodyTracker.fast.active || !start) return 0;
-  return Math.max(0, Date.now() - start);
+  return getBodyTimerElapsedMs("fasting");
 }
 
 function getFastProgress() {
-  const targetMs = Math.max(1, state.bodyTracker.fast.targetHours) * 60 * 60 * 1000;
-  return Math.min(1, getFastElapsedMs() / targetMs);
+  return getBodyTimerProgress("fasting");
 }
 
 function getNutritionProgress() {
   const target = Math.max(1, Number(state.bodyTracker.nutrition.targetCalories) || 1);
   return Math.min(1, (Number(state.bodyTracker.nutrition.calories) || 0) / target);
+}
+
+function bodyTimerConfig(key = state.bodyTimerMode) {
+  return BODY_TIMER_MODES.find((config) => config.key === key) || BODY_TIMER_MODES[0];
+}
+
+function bodyTimerState(key = state.bodyTimerMode) {
+  const config = bodyTimerConfig(key);
+  return config.stateKey === "fast"
+    ? state.bodyTracker.fast
+    : state.bodyTracker.timers?.[config.stateKey] || createDefaultBodyTimer(config);
+}
+
+function setBodyTimerState(key, timer) {
+  const config = bodyTimerConfig(key);
+  if (config.stateKey === "fast") {
+    state.bodyTracker.fast = timer;
+    return;
+  }
+  state.bodyTracker.timers = {
+    ...(state.bodyTracker.timers || {}),
+    [config.stateKey]: timer
+  };
+}
+
+function getBodyTimerElapsedMs(key = state.bodyTimerMode) {
+  const timer = bodyTimerState(key);
+  const start = timer.startTimestamp;
+  if (!timer.active || !start) return 0;
+  return Math.max(0, Date.now() - start);
+}
+
+function getBodyTimerProgress(key = state.bodyTimerMode) {
+  const timer = bodyTimerState(key);
+  const targetMs = Math.max(1 / 60, Number(timer.targetHours) || 1) * 60 * 60 * 1000;
+  return Math.min(1, getBodyTimerElapsedMs(key) / targetMs);
+}
+
+function bodyTimerTargetInputValue(key, timer = bodyTimerState(key)) {
+  const config = bodyTimerConfig(key);
+  return config.targetUnit === "minutes"
+    ? Math.round((Number(timer.targetHours) || config.defaultTargetHours) * 60)
+    : Number(timer.targetHours) || config.defaultTargetHours;
+}
+
+function bodyTimerTargetHoursFromInput(key, fallback) {
+  const config = bodyTimerConfig(key);
+  const inputValue = numberFromInput(`body-timer-${key}-target`, bodyTimerTargetInputValue(key, fallback));
+  return config.targetUnit === "minutes"
+    ? Math.max(1, inputValue) / 60
+    : Math.max(1, inputValue);
 }
 
 function selectedCompendium() {
@@ -462,6 +1651,7 @@ function spiritArtifactForKey(key) {
 }
 
 function isSpiritComplete(key) {
+  if (Object.prototype.hasOwnProperty.call(state.spiritProgress, key)) return Boolean(state.spiritProgress[key]);
   const artifact = spiritArtifactForKey(key);
   if (artifact) return Boolean(artifact.properties?.completed);
   return Boolean(state.spiritProgress[key]);
@@ -474,8 +1664,7 @@ function spiritPlanLabel() {
 function spiritNotes() {
   return state.artifactStore?.artifacts.filter((artifact) =>
     artifact.type === "note" &&
-    artifact.dashboard === "Spirit" &&
-    artifact.properties?.role === "spirit-book-note"
+    artifact.dashboard === "Spirit"
   ) || [];
 }
 
@@ -580,12 +1769,18 @@ function clampSidebarWidth(value) {
 function setSidebarWidth(width, options = {}) {
   const nextWidth = clampSidebarWidth(width);
   state.sidebarWidth = nextWidth;
+  saveSidebarWidth(nextWidth);
   const workspace = app.querySelector(".workspace");
   if (workspace) workspace.style.setProperty("--sidebar-width", `${nextWidth}px`);
+  const toggle = app.querySelector(".mobile-menu-toggle");
+  if (toggle && workspace?.classList.contains("is-resizing")) {
+    toggle.style.transform = `translateX(${nextWidth}px)`;
+  } else if (toggle) {
+    toggle.style.transform = "";
+  }
   if (options.open) {
     state.mobileMenuOpen = true;
     if (workspace) workspace.classList.add("has-mobile-menu");
-    const toggle = app.querySelector(".mobile-menu-toggle");
     if (toggle) {
       toggle.setAttribute("aria-expanded", "true");
       toggle.textContent = ">>> COLLAPSE MENU >>>";
@@ -609,10 +1804,79 @@ function persistArtifactStore(nextStore) {
   saveArtifactStore(nextStore);
 }
 
-function exportArtifacts() {
+function persistLifePlanner(nextPlanner, nextState = {}) {
+  const normalized = normalizeLifePlanner(nextPlanner);
+  state.lifePlanner = normalized;
+  saveLifePlannerStore(normalized);
+  setState(nextState);
+}
+
+function lifeProjects() {
+  return state.lifePlanner?.projects || [];
+}
+
+function lifeTodos() {
+  return state.lifePlanner?.todos || [];
+}
+
+function selectedLifeProject() {
+  return lifeProjects().find((project) => project.id === state.selectedLifeProjectId) || null;
+}
+
+function selectedLifePhase(project = selectedLifeProject()) {
+  return project?.phases?.find((phase) => phase.id === state.selectedLifePhaseId) || null;
+}
+
+function selectedLifeTask(phase = selectedLifePhase()) {
+  return phase?.tasks?.find((task) => task.id === state.selectedLifeTaskId) || null;
+}
+
+function lifeProjectTaskItems() {
+  return lifeProjects().flatMap((project) =>
+    (project.phases || []).flatMap((phase) =>
+      (phase.tasks || []).map((task) => ({
+        ...task,
+        source: "project-task",
+        projectId: project.id,
+        phaseId: phase.id,
+        taskId: task.id,
+        projectTitle: project.title,
+        phaseTitle: phase.title
+      }))
+    )
+  );
+}
+
+function lifeTodoTaskItems() {
+  return lifeTodos().map((todo) => ({
+    ...todo,
+    source: "todo",
+    todoId: todo.id,
+    projectTitle: "",
+    phaseTitle: ""
+  }));
+}
+
+function lifeTaskItems() {
+  return [...lifeTodoTaskItems(), ...lifeProjectTaskItems()];
+}
+
+function setLifeTool(tool) {
+  const nextTool = ["todo", "projects", "calendar", "notes"].includes(tool) ? tool : "";
+  setState({
+    lifeTool: nextTool,
+    artifactMode: "grid",
+    selectedArtifactId: null
+  });
+}
+
+async function exportArtifacts() {
   if (!state.artifactStore) return;
   const dateKey = todayDateKey();
-  const payload = JSON.stringify(state.artifactStore, null, 2);
+  const payload = JSON.stringify({
+    ...state.artifactStore,
+    appState: await exportAppState()
+  }, null, 2);
   const blob = new Blob([payload], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -622,6 +1886,81 @@ function exportArtifacts() {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+function importArtifacts() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "application/json,.json";
+  input.addEventListener("change", async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text());
+      if (parsed?.schemaVersion !== SCHEMA_VERSION || !Array.isArray(parsed.artifacts)) {
+        throw new Error("Import file must be an Ourstuff artifact export.");
+      }
+      const importedStore = {
+        schemaVersion: parsed.schemaVersion,
+        rootId: parsed.rootId || "ourstuff-root",
+        artifacts: parsed.artifacts
+      };
+      persistArtifactStore(importedStore);
+      await restoreImportedAppState(parsed.appState);
+      setState({
+        active: "Dashboard",
+        flipped: null,
+        mindMode: "grid",
+        artifactMode: "grid",
+        selectedCompendiumId: null,
+        selectedBlockId: null,
+        selectedArtifactId: null,
+        selectedSpiritBookKey: null
+      });
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Could not import data.");
+    }
+  });
+  input.click();
+}
+
+async function clearAppData() {
+  const confirmed = window.confirm("Clear all local app data from this browser? This cannot be undone unless you have an export.");
+  if (!confirmed) return;
+  window.localStorage.removeItem(STORAGE_KEY);
+  window.localStorage.removeItem(BODY_TRACKER_KEY);
+  window.localStorage.removeItem(SPIRIT_PROGRESS_KEY);
+  window.localStorage.removeItem(LIFE_PLANNER_KEY);
+  window.localStorage.removeItem(TRACKER_SETTINGS_KEY);
+  window.localStorage.removeItem(SIDEBAR_WIDTH_KEY);
+  window.localStorage.removeItem(ICONIFY_SEARCH_CACHE_KEY);
+  await clearLocalFiles().catch(() => {});
+  state.artifactStore = null;
+  state.compendiums = [];
+  state.bodyTracker = createDefaultBodyTracker();
+  state.spiritProgress = {};
+  state.lifePlanner = createDefaultLifePlanner();
+  state.trackerSettings = cloneDefaultTrackers();
+  state.settingsTab = "getting-started";
+  state.trackerAddArea = "";
+  state.trackerEditKey = "";
+  state.trackerDeleteKey = "";
+  state.lifeTool = "";
+  state.selectedLifeProjectId = null;
+  state.selectedLifePhaseId = null;
+  state.selectedLifeTaskId = null;
+  state.galleryImages = null;
+  state.gallerySelectedIds = [];
+  goHome();
+  loadArtifactStore().then(async (artifactStore) => {
+    if (artifactStore.appState && !hasStoredAppState()) {
+      await restoreImportedAppState(artifactStore.appState);
+    }
+    setState({
+      artifactStore,
+      compendiums: artifactStoreToCompendiums(artifactStore)
+    });
+  });
 }
 
 async function refreshGalleryImages() {
@@ -707,20 +2046,17 @@ function exitSpiritBook() {
 
 function toggleSpiritComplete(key) {
   const work = spiritWorks().find((entry) => entry.key === key);
-  if (!work || !state.artifactStore) return;
-  const current = spiritArtifactForKey(key);
+  if (!work) return;
   const completed = !isSpiritComplete(key);
 
   state.spiritProgress = { ...state.spiritProgress, [key]: completed };
   saveSpiritProgress();
-  persistArtifactStore(upsertArtifact(state.artifactStore, spiritReadingArtifactPayload(work, completed, current)));
   render();
 }
 
 function addSpiritBookNote(key) {
   const work = spiritWorks().find((entry) => entry.key === key);
   if (!work || !state.artifactStore) return;
-  const readingArtifact = ensureSpiritReadingArtifact(work);
   const noteId = makeId("spirit-note");
   const focus = Array.isArray(work.blackBox?.outputs) ? work.blackBox.outputs : [];
   const now = nowIso();
@@ -728,7 +2064,7 @@ function addSpiritBookNote(key) {
     id: noteId,
     type: "note",
     dashboard: "Spirit",
-    parentId: readingArtifact.id,
+    parentId: null,
     title: `${work.title} Note`,
     body: [
       `## ${work.title} Note`,
@@ -757,7 +2093,6 @@ function addSpiritBookNote(key) {
       planId: state.spiritPlanId,
       planLabel: spiritPlanLabel(),
       planItemKey: work.key,
-      readingArtifactId: readingArtifact.id,
       year: work.year,
       order: work.order,
       tier: work.tier,
@@ -773,12 +2108,7 @@ function addSpiritBookNote(key) {
       focus
     }
   };
-  const readingWithChild = {
-    ...readingArtifact,
-    childIds: Array.from(new Set([...(readingArtifact.childIds || []), noteId])),
-    edited: now
-  };
-  persistArtifactStore(upsertArtifact(upsertArtifact(state.artifactStore, readingWithChild), note));
+  persistArtifactStore(upsertArtifact(state.artifactStore, note));
   setState({ selectedArtifactId: noteId, artifactMode: "editor" });
 }
 
@@ -816,6 +2146,19 @@ function openCompendium(id) {
     selectedBlockId: null,
     selectedArtifactId: null,
     mindMode: "manager"
+  });
+}
+
+function openMindSection(parentId, blockId) {
+  if (!parentId || !blockId) return;
+  const compendium = state.compendiums.find((item) => item.id === parentId);
+  if (!compendium?.blocks?.some((block) => block.id === blockId)) return;
+  setState({
+    active: "Mind",
+    selectedCompendiumId: parentId,
+    selectedBlockId: blockId,
+    selectedArtifactId: null,
+    mindMode: "block-viewer"
   });
 }
 
@@ -945,6 +2288,32 @@ function deleteBlock(id) {
     selectedBlockId: null,
     mindMode: "manager"
   });
+}
+
+function reorderCompendiumBlock(compendiumId, blockId, targetIndex) {
+  let changed = false;
+  state.compendiums = state.compendiums.map((compendium) => {
+    if (compendium.id !== compendiumId) return compendium;
+    const fromIndex = compendium.blocks.findIndex((block) => block.id === blockId);
+    if (fromIndex < 0) return compendium;
+
+    const blocks = [...compendium.blocks];
+    const [movedBlock] = blocks.splice(fromIndex, 1);
+    const nextIndex = Math.min(Math.max(targetIndex, 0), blocks.length);
+    if (nextIndex === fromIndex) return compendium;
+
+    blocks.splice(nextIndex, 0, movedBlock);
+    changed = true;
+    return { ...compendium, blocks };
+  });
+  return changed;
+}
+
+function touchCompendium(compendiumId) {
+  const edited = nowIso();
+  state.compendiums = state.compendiums.map((compendium) =>
+    compendium.id === compendiumId ? { ...compendium, edited } : compendium
+  );
 }
 
 function addDashboardNote(dashboard) {
@@ -1094,65 +2463,88 @@ function appendBodyLogNote(title, body, properties = {}) {
   }));
 }
 
-function saveBodyFastSettings() {
-  state.bodyTracker.fast = {
-    ...state.bodyTracker.fast,
-    label: document.getElementById("body-fast-label")?.value.trim() || "Manual fast",
-    targetHours: Math.max(1, numberFromInput("body-fast-target", 16))
+function saveBodyTimerSettings(key = state.bodyTimerMode) {
+  const config = bodyTimerConfig(key);
+  const timer = bodyTimerState(key);
+  const nextTimer = {
+    ...timer,
+    label: document.getElementById(`body-timer-${key}-label`)?.value.trim() || timer.label || config.defaultLabel,
+    targetHours: bodyTimerTargetHoursFromInput(key, timer)
   };
+  setBodyTimerState(key, nextTimer);
   saveBodyTracker();
   appendBodyLogNote(
-    "Fasting settings saved",
-    `## Fasting settings\n\nSaved: ${currentTimestampLabel()}\n\n- Label: ${state.bodyTracker.fast.label}\n- Target hours: ${state.bodyTracker.fast.targetHours}`
+    `${config.label} settings saved`,
+    `## ${config.label} settings\n\nSaved: ${currentTimestampLabel()}\n\n- Label: ${nextTimer.label}\n- Target: ${bodyTimerTargetInputValue(key, nextTimer)} ${config.targetUnit}`
   );
   render();
 }
 
-function startBodyFast() {
-  state.bodyTracker.fast = {
-    ...state.bodyTracker.fast,
-    label: document.getElementById("body-fast-label")?.value.trim() || state.bodyTracker.fast.label,
-    targetHours: Math.max(1, numberFromInput("body-fast-target", state.bodyTracker.fast.targetHours)),
+function startBodyTimer(key = state.bodyTimerMode) {
+  const config = bodyTimerConfig(key);
+  const timer = bodyTimerState(key);
+  const nextTimer = {
+    ...timer,
+    label: document.getElementById(`body-timer-${key}-label`)?.value.trim() || timer.label || config.defaultLabel,
+    targetHours: bodyTimerTargetHoursFromInput(key, timer),
     active: true,
     startTimestamp: Date.now()
   };
+  setBodyTimerState(key, nextTimer);
   saveBodyTracker();
   appendBodyLogNote(
-    "Fast started",
-    `## Fast started\n\nStarted: ${currentTimestampLabel()}\n\n- Label: ${state.bodyTracker.fast.label}\n- Target hours: ${state.bodyTracker.fast.targetHours}`
+    `${config.shortLabel} started`,
+    `## ${config.label} started\n\nStarted: ${currentTimestampLabel()}\n\n- Label: ${nextTimer.label}\n- Target: ${bodyTimerTargetInputValue(key, nextTimer)} ${config.targetUnit}`
   );
   render();
 }
 
-function stopBodyFast() {
-  const completedHours = getFastElapsedMs() / 3600000;
-  state.bodyTracker.fast = {
-    ...state.bodyTracker.fast,
+function stopBodyTimer(key = state.bodyTimerMode) {
+  const config = bodyTimerConfig(key);
+  const timer = bodyTimerState(key);
+  const completedHours = getBodyTimerElapsedMs(key) / 3600000;
+  const nextTimer = {
+    ...timer,
     active: false,
     startTimestamp: null,
     lastCompletedHours: completedHours
   };
+  setBodyTimerState(key, nextTimer);
   saveBodyTracker();
   appendBodyLogNote(
-    "Fast stopped",
-    `## Fast stopped\n\nStopped: ${currentTimestampLabel()}\n\n- Label: ${state.bodyTracker.fast.label}\n- Completed hours: ${completedHours.toFixed(1)}\n- Target hours: ${state.bodyTracker.fast.targetHours}`
+    `${config.shortLabel} stopped`,
+    `## ${config.label} stopped\n\nStopped: ${currentTimestampLabel()}\n\n- Label: ${nextTimer.label}\n- Completed hours: ${completedHours.toFixed(1)}\n- Target: ${bodyTimerTargetInputValue(key, nextTimer)} ${config.targetUnit}`
   );
   render();
 }
 
+function saveBodyFastSettings() {
+  saveBodyTimerSettings("fasting");
+}
+
+function startBodyFast() {
+  startBodyTimer("fasting");
+}
+
+function stopBodyFast() {
+  stopBodyTimer("fasting");
+}
+
 function saveBodyNutrition() {
+  const note = document.getElementById("body-nutrition-note")?.value.trim() || "";
   state.bodyTracker.nutrition = {
+    ...state.bodyTracker.nutrition,
     dateKey: todayDateKey(),
-    targetCalories: Math.max(1, numberFromInput("body-target-calories", 2000)),
     calories: Math.max(0, numberFromInput("body-calories", 0)),
     protein: Math.max(0, numberFromInput("body-protein", 0)),
     carbs: Math.max(0, numberFromInput("body-carbs", 0)),
-    fat: Math.max(0, numberFromInput("body-fat", 0))
+    fat: Math.max(0, numberFromInput("body-fat", 0)),
+    note
   };
   saveBodyTracker();
   appendBodyLogNote(
     "Nutrition logged",
-    `## Nutrition log\n\nSaved: ${currentTimestampLabel()}\n\n- Target calories: ${state.bodyTracker.nutrition.targetCalories}\n- Calories: ${state.bodyTracker.nutrition.calories}\n- Protein: ${state.bodyTracker.nutrition.protein}g\n- Carbs: ${state.bodyTracker.nutrition.carbs}g\n- Fat: ${state.bodyTracker.nutrition.fat}g`
+    `## Nutrition log\n\nSaved: ${currentTimestampLabel()}\n\n- Calories: ${state.bodyTracker.nutrition.calories} / ${state.bodyTracker.nutrition.targetCalories}\n- Protein: ${state.bodyTracker.nutrition.protein}g / ${state.bodyTracker.nutrition.targetProtein}g\n- Carbs: ${state.bodyTracker.nutrition.carbs}g / ${state.bodyTracker.nutrition.targetCarbs}g\n- Fat: ${state.bodyTracker.nutrition.fat}g / ${state.bodyTracker.nutrition.targetFat}g${note ? `\n- Note: ${note}` : ""}`
   );
   render();
 }
@@ -1160,12 +2552,31 @@ function saveBodyNutrition() {
 function resetBodyNutrition() {
   state.bodyTracker.nutrition = {
     ...createDefaultBodyTracker().nutrition,
-    targetCalories: state.bodyTracker.nutrition.targetCalories
+    targetCalories: state.bodyTracker.nutrition.targetCalories,
+    targetProtein: state.bodyTracker.nutrition.targetProtein,
+    targetCarbs: state.bodyTracker.nutrition.targetCarbs,
+    targetFat: state.bodyTracker.nutrition.targetFat
   };
   saveBodyTracker();
   appendBodyLogNote(
     "Nutrition reset",
     `## Nutrition reset\n\nSaved: ${currentTimestampLabel()}\n\n- Target calories: ${state.bodyTracker.nutrition.targetCalories}\n- Calories: ${state.bodyTracker.nutrition.calories}\n- Protein: ${state.bodyTracker.nutrition.protein}g\n- Carbs: ${state.bodyTracker.nutrition.carbs}g\n- Fat: ${state.bodyTracker.nutrition.fat}g`
+  );
+  render();
+}
+
+function saveBodyNutritionGoals() {
+  state.bodyTracker.nutrition = {
+    ...state.bodyTracker.nutrition,
+    targetCalories: Math.max(1, numberFromInput("body-target-calories", state.bodyTracker.nutrition.targetCalories || 2000)),
+    targetProtein: Math.max(0, numberFromInput("body-target-protein", state.bodyTracker.nutrition.targetProtein || 120)),
+    targetCarbs: Math.max(0, numberFromInput("body-target-carbs", state.bodyTracker.nutrition.targetCarbs || 200)),
+    targetFat: Math.max(0, numberFromInput("body-target-fat", state.bodyTracker.nutrition.targetFat || 70))
+  };
+  saveBodyTracker();
+  appendBodyLogNote(
+    "Nutrition goals saved",
+    `## Nutrition goals\n\nSaved: ${currentTimestampLabel()}\n\n- Calories: ${state.bodyTracker.nutrition.targetCalories}\n- Protein: ${state.bodyTracker.nutrition.targetProtein}g\n- Carbs: ${state.bodyTracker.nutrition.targetCarbs}g\n- Fat: ${state.bodyTracker.nutrition.targetFat}g`
   );
   render();
 }
@@ -1213,19 +2624,338 @@ function deleteBodyWorkout(id) {
 }
 
 function setBodyMode(mode) {
+  const nextMode = mode === "fasting" ? "timers" : mode;
   setState({
-    bodyMode: mode,
+    bodyMode: ["timers", "nutrition", "workout", "notes"].includes(nextMode) ? nextMode : "timers",
+    artifactMode: "grid",
+    selectedArtifactId: null
+  });
+}
+
+function setBodyTimerMode(mode) {
+  setState({
+    bodyMode: "timers",
+    bodyTimerMode: BODY_TIMER_MODES.some((config) => config.key === mode) ? mode : "fasting",
+    artifactMode: "grid",
+    selectedArtifactId: null
+  });
+}
+
+function setBodyNutritionMode(mode) {
+  setState({
+    bodyMode: "nutrition",
+    bodyNutritionMode: mode === "goals" ? "goals" : "daily",
     artifactMode: "grid",
     selectedArtifactId: null
   });
 }
 
 function setLifeMode(mode) {
+  const nextMode = ["day", "week", "month", "list"].includes(mode) ? mode : "month";
   setState({
-    lifeMode: mode,
+    lifeTool: "calendar",
+    lifeMode: nextMode,
     artifactMode: "grid",
     selectedArtifactId: null
   });
+}
+
+function addLifeTodo() {
+  const title = document.getElementById("life-todo-title")?.value.trim();
+  if (!title) return;
+  const now = nowIso();
+  const todo = {
+    id: makeId("todo"),
+    title,
+    notes: "",
+    status: "todo",
+    assignedDate: "",
+    created: now,
+    edited: now
+  };
+  persistLifePlanner({
+    ...state.lifePlanner,
+    todos: [todo, ...lifeTodos()]
+  }, { lifeTool: "todo" });
+}
+
+function updateLifeTodo(id, updater) {
+  const now = nowIso();
+  persistLifePlanner({
+    ...state.lifePlanner,
+    todos: lifeTodos().map((todo) => todo.id === id ? { ...updater(todo), edited: now } : todo)
+  }, { lifeTool: "todo" });
+}
+
+function updateLifeTaskById(projectId, phaseId, taskId, updater, nextState = {}) {
+  const now = nowIso();
+  persistLifePlanner({
+    ...state.lifePlanner,
+    projects: lifeProjects().map((project) => project.id === projectId
+      ? {
+          ...project,
+          edited: now,
+          phases: (project.phases || []).map((phase) => phase.id === phaseId
+            ? {
+                ...phase,
+                edited: now,
+                tasks: (phase.tasks || []).map((task) => task.id === taskId ? { ...updater(task), edited: now } : task)
+              }
+            : phase)
+        }
+      : project)
+  }, { lifeTool: "todo", ...nextState });
+}
+
+function updateLifeTaskItem(task, updater, nextState = {}) {
+  if (task.source === "todo") {
+    updateLifeTodo(task.todoId, updater);
+    return;
+  }
+  updateLifeTaskById(task.projectId, task.phaseId, task.taskId, updater, nextState);
+}
+
+function toggleLifeTodo(id) {
+  updateLifeTodo(id, (todo) => ({
+    ...todo,
+    status: todo.status === "complete" ? "todo" : "complete"
+  }));
+}
+
+function toggleLifeTaskItem(source, id, projectId = "", phaseId = "") {
+  const task = source === "todo"
+    ? lifeTodoTaskItems().find((item) => item.todoId === id)
+    : lifeProjectTaskItems().find((item) => item.projectId === projectId && item.phaseId === phaseId && item.taskId === id);
+  if (!task) return;
+  updateLifeTaskItem(task, (item) => ({
+    ...item,
+    status: item.status === "complete" ? "todo" : "complete"
+  }));
+}
+
+function deleteLifeTodo(id) {
+  const todo = lifeTodos().find((item) => item.id === id);
+  if (!todo) return;
+  if (!window.confirm(`Delete todo "${todo.title}"?`)) return;
+  persistLifePlanner({
+    ...state.lifePlanner,
+    todos: lifeTodos().filter((item) => item.id !== id)
+  }, { lifeTool: "todo" });
+}
+
+function editLifeTaskNotes(source, id, projectId = "", phaseId = "") {
+  const task = source === "todo"
+    ? lifeTodoTaskItems().find((item) => item.todoId === id)
+    : lifeProjectTaskItems().find((item) => item.projectId === projectId && item.phaseId === phaseId && item.taskId === id);
+  if (!task) return;
+  const notes = window.prompt(`Notes for "${task.title}"`, task.notes || "");
+  if (notes === null) return;
+  updateLifeTaskItem(task, (item) => ({ ...item, notes }));
+}
+
+function openLifeProjectTask(projectId, phaseId, taskId) {
+  setState({
+    lifeTool: "projects",
+    selectedLifeProjectId: projectId,
+    selectedLifePhaseId: phaseId,
+    selectedLifeTaskId: taskId
+  });
+}
+
+function openLifeTaskItem(source, id, projectId = "", phaseId = "") {
+  if (source === "project-task") {
+    openLifeProjectTask(projectId, phaseId, id);
+    return;
+  }
+  editLifeTaskNotes(source, id, projectId, phaseId);
+}
+
+function addLifeProject() {
+  const title = document.getElementById("life-project-title")?.value.trim();
+  if (!title) return;
+  const now = nowIso();
+  const project = {
+    id: makeId("project"),
+    title,
+    status: "planned",
+    assignedTo: "",
+    assignedDate: "",
+    notes: "",
+    attachments: [],
+    phases: [],
+    created: now,
+    edited: now
+  };
+  persistLifePlanner({
+    ...state.lifePlanner,
+    projects: [project, ...lifeProjects()]
+  }, {
+    lifeTool: "projects",
+    selectedLifeProjectId: project.id,
+    selectedLifePhaseId: null,
+    selectedLifeTaskId: null
+  });
+}
+
+function selectLifeProject(id) {
+  setState({
+    lifeTool: "projects",
+    selectedLifeProjectId: id,
+    selectedLifePhaseId: null,
+    selectedLifeTaskId: null
+  });
+}
+
+function selectLifePhase(id) {
+  setState({
+    lifeTool: "projects",
+    selectedLifePhaseId: id,
+    selectedLifeTaskId: null
+  });
+}
+
+function selectLifeTask(id) {
+  setState({
+    lifeTool: "projects",
+    selectedLifeTaskId: id
+  });
+}
+
+function addLifePhase(projectId) {
+  const title = document.getElementById("life-phase-title")?.value.trim();
+  if (!title) return;
+  const now = nowIso();
+  const phase = {
+    id: makeId("phase"),
+    title,
+    status: "planned",
+    assignedTo: "",
+    assignedDate: "",
+    notes: "",
+    attachments: [],
+    tasks: [],
+    created: now,
+    edited: now
+  };
+  persistLifePlanner({
+    ...state.lifePlanner,
+    projects: lifeProjects().map((project) => project.id === projectId
+      ? { ...project, phases: [phase, ...(project.phases || [])], edited: now }
+      : project)
+  }, {
+    lifeTool: "projects",
+    selectedLifeProjectId: projectId,
+    selectedLifePhaseId: phase.id,
+    selectedLifeTaskId: null
+  });
+}
+
+function addLifeProjectTask(projectId, phaseId) {
+  const title = document.getElementById("life-task-title")?.value.trim();
+  if (!title) return;
+  const now = nowIso();
+  const task = {
+    id: makeId("task"),
+    title,
+    status: "todo",
+    assignedTo: "",
+    assignedDate: "",
+    notes: "",
+    attachments: [],
+    created: now,
+    edited: now
+  };
+  persistLifePlanner({
+    ...state.lifePlanner,
+    projects: lifeProjects().map((project) => project.id === projectId
+      ? {
+          ...project,
+          edited: now,
+          phases: (project.phases || []).map((phase) => phase.id === phaseId
+            ? { ...phase, tasks: [task, ...(phase.tasks || [])], edited: now }
+            : phase)
+        }
+      : project)
+  }, {
+    lifeTool: "projects",
+    selectedLifeProjectId: projectId,
+    selectedLifePhaseId: phaseId,
+    selectedLifeTaskId: task.id
+  });
+}
+
+function updateLifeProjectEntity(level, updater, nextState = {}) {
+  const now = nowIso();
+  const projectId = state.selectedLifeProjectId;
+  const phaseId = state.selectedLifePhaseId;
+  const taskId = state.selectedLifeTaskId;
+  persistLifePlanner({
+    ...state.lifePlanner,
+    projects: lifeProjects().map((project) => {
+      if (project.id !== projectId) return project;
+      if (level === "project") return { ...updater(project), edited: now };
+      return {
+        ...project,
+        edited: now,
+        phases: (project.phases || []).map((phase) => {
+          if (phase.id !== phaseId) return phase;
+          if (level === "phase") return { ...updater(phase), edited: now };
+          return {
+            ...phase,
+            edited: now,
+            tasks: (phase.tasks || []).map((task) => task.id === taskId ? { ...updater(task), edited: now } : task)
+          };
+        })
+      };
+    })
+  }, { lifeTool: "projects", ...nextState });
+}
+
+function saveLifeProjectEntity(level) {
+  const title = document.getElementById("life-entity-title")?.value.trim() || "Untitled";
+  const status = document.getElementById("life-entity-status")?.value || "planned";
+  const assignedTo = document.getElementById("life-entity-assigned-to")?.value.trim() || "";
+  const assignedDate = document.getElementById("life-entity-assigned-date")?.value || "";
+  const notes = document.getElementById("life-entity-notes")?.value || "";
+  updateLifeProjectEntity(level, (entity) => ({
+    ...entity,
+    title,
+    status,
+    assignedTo,
+    assignedDate,
+    notes
+  }));
+}
+
+async function uploadLifeAttachment(level) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.multiple = true;
+  input.addEventListener("change", async () => {
+    const files = Array.from(input.files || []);
+    if (!files.length) return;
+    try {
+      const attachments = [];
+      for (const file of files) {
+        attachments.push(await storeLocalFile(file));
+      }
+      updateLifeProjectEntity(level, (entity) => ({
+        ...entity,
+        attachments: [...(entity.attachments || []), ...attachments]
+      }));
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Could not upload attachment.");
+    }
+  });
+  input.click();
+}
+
+function deleteLifeAttachment(level, attachmentId) {
+  updateLifeProjectEntity(level, (entity) => ({
+    ...entity,
+    attachments: (entity.attachments || []).filter((attachment) => attachment.id !== attachmentId)
+  }));
+  deleteLocalImages([attachmentId]).catch(() => {});
 }
 
 function setDashboardPeriod(period) {
@@ -1254,6 +2984,7 @@ function render() {
   const compendium = selectedCompendium();
   const block = selectedBlock();
   const spiritBook = selectedSpiritBook();
+  const sidebarScrollTop = app.querySelector(".sidebar-list-scroll")?.scrollTop ?? 0;
   app.innerHTML = `
     <div class="workspace${state.mobileMenuOpen ? " has-mobile-menu" : ""}" style="--sidebar-width: ${clampSidebarWidth(state.sidebarWidth)}px;">
       <button class="mobile-menu-toggle" data-action="toggle-mobile-menu" type="button" aria-expanded="${state.mobileMenuOpen ? "true" : "false"}">
@@ -1266,10 +2997,17 @@ function render() {
       </section>
     </div>
     ${donationModalHtml()}
+    ${thoughtToastHtml()}
   `;
+  const sidebarScroll = app.querySelector(".sidebar-list-scroll");
+  if (sidebarScroll) sidebarScroll.scrollTop = sidebarScrollTop;
   bindActions();
+  bindThoughtToastControls();
+  bindTrackerSettingsForms();
+  bindTrackerOrbSorting();
   bindSidebarResize();
   bindSidebarHorizontalScroll();
+  bindCompendiumSectionSorting();
   bindDashboardBalanceHover();
   bindGalleryControls();
   bindEditorMedia();
@@ -1277,6 +3015,226 @@ function render() {
   bindDonationFlow(document);
   updateBodyTimerDom();
   renderLifeMonthCalendar();
+  focusThoughtEditor();
+}
+
+function thoughtToastHtml() {
+  const toast = state.thoughtToast;
+  if (!toast) return "";
+  const quickNote = toast.quickNote || "";
+  const hasQuickNote = quickNote.trim().length > 0;
+  const toastDate = thoughtDateInputValue(toast.timestamp);
+  const toastTime = thoughtTimeInputValue(toast.timestamp);
+  return `
+    <aside class="thought-toast" role="status" aria-live="polite">
+      <div class="thought-toast-summary">
+        <strong>${escapeHtml(toast.dashboard)} thought saved</strong>
+        <small><span>${escapeHtml(toast.label)}</span><span id="thought-toast-summary-time">${escapeHtml(thoughtTimestampLabel(toast.timestamp))}</span></small>
+      </div>
+      <label class="thought-toast-input-label">
+        <span>Quick note</span>
+        <input class="thought-toast-input" id="thought-toast-note" type="text" value="${escapeHtml(quickNote)}" placeholder="Add a detail">
+      </label>
+      <div class="thought-toast-time-fields">
+        <label>
+          <span>Date</span>
+          <input class="thought-toast-input" id="thought-toast-date" type="date" value="${escapeHtml(toastDate)}">
+        </label>
+        <label>
+          <span>Time</span>
+          <input class="thought-toast-input" id="thought-toast-time" type="time" value="${escapeHtml(toastTime)}">
+        </label>
+      </div>
+      <button class="icon-button thought-toast-action" data-action="${hasQuickNote ? "submit-thought-toast-note" : "open-thought-toast-note"}" data-id="${escapeHtml(toast.noteId)}" type="button" aria-label="${hasQuickNote ? "Submit quick note" : "Open note"}" title="${hasQuickNote ? "Submit" : "Open Note"}">
+        ${iconHtml(hasQuickNote ? "tabler:device-floppy" : "tabler:external-link")}
+      </button>
+      <button class="icon-button danger-button thought-toast-delete" data-action="delete-thought-toast-note" data-id="${escapeHtml(toast.noteId)}" type="button" aria-label="Delete thought note" title="Delete thought note">${iconHtml("tabler:trash")}</button>
+      <button class="icon-button" data-action="dismiss-thought-toast" type="button" aria-label="Dismiss thought popup" title="Dismiss">${iconHtml("tabler:x")}</button>
+    </aside>
+  `;
+}
+
+function bindThoughtToastControls() {
+  const toast = app.querySelector(".thought-toast");
+  const input = app.querySelector(".thought-toast-input");
+  const noteInput = app.querySelector("#thought-toast-note");
+  const dateInput = app.querySelector("#thought-toast-date");
+  const timeInput = app.querySelector("#thought-toast-time");
+  const summaryTime = app.querySelector("#thought-toast-summary-time");
+  const actionButton = app.querySelector(".thought-toast-action");
+  if (!toast || !input || !noteInput || !actionButton) return;
+
+  const updateActionButton = () => {
+    const value = noteInput.value.trim();
+    if (state.thoughtToast) state.thoughtToast.quickNote = noteInput.value;
+    actionButton.dataset.action = value ? "submit-thought-toast-note" : "open-thought-toast-note";
+    actionButton.innerHTML = iconHtml(value ? "tabler:device-floppy" : "tabler:external-link");
+    actionButton.setAttribute("aria-label", value ? "Submit quick note" : "Open note");
+    actionButton.setAttribute("title", value ? "Submit" : "Open Note");
+    pauseThoughtToastFade();
+  };
+  const updateTimestamp = () => {
+    const timestamp = thoughtTimestampFromToastControls();
+    if (state.thoughtToast) state.thoughtToast.timestamp = timestamp;
+    if (summaryTime) summaryTime.textContent = thoughtTimestampLabel(timestamp);
+    pauseThoughtToastFade();
+  };
+
+  toast.addEventListener("pointerenter", pauseThoughtToastFade);
+  toast.addEventListener("pointerleave", () => resumeThoughtToastFade(0));
+  toast.addEventListener("focusin", pauseThoughtToastFade);
+  toast.addEventListener("focusout", () => {
+    window.setTimeout(() => {
+      if (!toast.contains(document.activeElement) && !toast.matches(":hover")) resumeThoughtToastFade(0);
+    }, 0);
+  });
+  noteInput.addEventListener("input", updateActionButton);
+  dateInput?.addEventListener("input", updateTimestamp);
+  timeInput?.addEventListener("input", updateTimestamp);
+}
+
+function trackerIconInputId(area, target) {
+  if (target === "add") return trackerFieldId(area, "icon");
+  if (target.startsWith("edit-")) return trackerFieldId(`${area}-${target.replace(/^edit-/, "")}`, "icon");
+  return "";
+}
+
+function bindTrackerSettingsForms() {
+  app.querySelectorAll(".tracker-title-input").forEach((input) => {
+    const area = input.dataset.area || "";
+    const target = input.dataset.target || "add";
+    const slot = app.querySelector(`.tracker-suggestion-slot[data-area="${CSS.escape(area)}"][data-target="${CSS.escape(target)}"]`);
+    const iconInput = document.getElementById(trackerIconInputId(area, target));
+    if (!slot || !iconInput) return;
+
+    const refresh = () => {
+      slot.innerHTML = trackerIconSuggestionsHtml(input.value, area, target, iconInput.value);
+      slot.querySelectorAll(".tracker-icon-suggestion").forEach((button) => {
+        button.addEventListener("click", () => {
+          iconInput.value = button.dataset.icon || "";
+          refresh();
+        });
+      });
+    };
+    const refreshFromIconify = () => {
+      const query = input.value.trim();
+      if (query.length < 3) {
+        refresh();
+        return;
+      }
+      refresh();
+      searchIconifyIcons(query).then(() => {
+        if (!document.body.contains(input) || input.value.trim() !== query) return;
+        refresh();
+      });
+    };
+
+    refreshFromIconify();
+    input.addEventListener("input", refreshFromIconify);
+    iconInput.addEventListener("input", refresh);
+  });
+}
+
+function trackerDropIndex(row, activeWrap, pointerX) {
+  const wraps = Array.from(row.querySelectorAll("[data-tracker-orb-wrap]"))
+    .filter((wrap) => wrap !== activeWrap);
+  const index = wraps.findIndex((wrap) => {
+    const rect = wrap.getBoundingClientRect();
+    return pointerX < rect.left + rect.width / 2;
+  });
+  return index === -1 ? wraps.length : index;
+}
+
+function clearTrackerDropMarkers(row) {
+  row.querySelectorAll(".is-drop-before, .is-drop-after").forEach((wrap) => {
+    wrap.classList.remove("is-drop-before", "is-drop-after");
+  });
+}
+
+function setTrackerDropMarker(row, activeWrap, targetIndex) {
+  clearTrackerDropMarkers(row);
+  const wraps = Array.from(row.querySelectorAll("[data-tracker-orb-wrap]"))
+    .filter((wrap) => wrap !== activeWrap);
+  if (!wraps.length) return;
+  const targetWrap = wraps[targetIndex];
+  if (targetWrap) {
+    targetWrap.classList.add("is-drop-before");
+  } else {
+    wraps[wraps.length - 1].classList.add("is-drop-after");
+  }
+}
+
+function bindTrackerOrbSorting() {
+  app.querySelectorAll("[data-tracker-reorder-row]").forEach((row) => {
+    row.querySelectorAll("[data-tracker-orb-wrap]").forEach((wrap) => {
+      const orb = wrap.querySelector(".tracker-orb");
+      if (!orb) return;
+
+      orb.addEventListener("pointerdown", (event) => {
+        if (event.button !== undefined && event.button !== 0) return;
+        const area = wrap.dataset.area || row.dataset.area || "";
+        const trackerId = wrap.dataset.id || "";
+        if (!area || !trackerId) return;
+
+        const startX = event.clientX;
+        const startY = event.clientY;
+        let isDragging = false;
+        let targetIndex = null;
+
+        const startDrag = (moveEvent) => {
+          isDragging = true;
+          state.suppressNextTrackerEditClick = true;
+          orb.setPointerCapture?.(event.pointerId);
+          row.classList.add("is-reordering");
+          wrap.classList.add("is-dragging");
+          targetIndex = trackerDropIndex(row, wrap, moveEvent.clientX);
+          setTrackerDropMarker(row, wrap, targetIndex);
+        };
+
+        const onPointerMove = (moveEvent) => {
+          const moved = Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY);
+          if (!isDragging && moved < 6) return;
+          moveEvent.preventDefault();
+          if (!isDragging) startDrag(moveEvent);
+          targetIndex = trackerDropIndex(row, wrap, moveEvent.clientX);
+          setTrackerDropMarker(row, wrap, targetIndex);
+        };
+
+        const finishDrag = (finishEvent) => {
+          window.removeEventListener("pointermove", onPointerMove);
+          window.removeEventListener("pointerup", finishDrag);
+          window.removeEventListener("pointercancel", finishDrag);
+          orb.releasePointerCapture?.(finishEvent.pointerId);
+          row.classList.remove("is-reordering");
+          wrap.classList.remove("is-dragging");
+          clearTrackerDropMarkers(row);
+
+          if (!isDragging) return;
+          finishEvent.preventDefault();
+          reorderTracker(area, trackerId, targetIndex ?? 0);
+          window.setTimeout(() => {
+            state.suppressNextTrackerEditClick = false;
+          }, 0);
+        };
+
+        window.addEventListener("pointermove", onPointerMove, { passive: false });
+        window.addEventListener("pointerup", finishDrag);
+        window.addEventListener("pointercancel", finishDrag);
+      });
+    });
+  });
+}
+
+function focusThoughtEditor() {
+  const note = findArtifact(state.artifactStore, state.selectedArtifactId);
+  if (state.artifactMode !== "editor" || note?.properties?.role !== "thought") return;
+  window.requestAnimationFrame(() => {
+    const editor = document.getElementById("editor-body");
+    if (!editor) return;
+    editor.focus();
+    const end = editor.value.length;
+    editor.setSelectionRange(end, end);
+  });
 }
 
 function sidebarHtml(compendium) {
@@ -1302,22 +3260,23 @@ function sidebarHtml(compendium) {
             .map(([number, label]) => {
               const expanded = state.sidebarExpanded[label];
               const items = label === "Mind"
-                ? state.compendiums.map((item) => `
-                  <button class="sidebar-item${compendium?.id === item.id ? " is-active" : ""}" data-action="open-compendium" data-id="${item.id}">
-                    <span class="sidebar-item-label">${escapeHtml(item.title)}</span>
-                  </button>
-                `).join("")
+                ? mindSidebarItems().map((item, index) => sidebarItemHtml(item, {
+                  action: item.type === "mind-section" ? "open-mind-section" : "open-artifact-note",
+                  active: item.type === "mind-section" ? state.selectedBlockId === item.id : state.selectedArtifactId === item.id,
+                  number: index + 1,
+                  parentId: item.parentId || ""
+                })).join("")
                 : label === "Spirit"
-                  ? spiritNotes().map((item) => `
-                  <button class="sidebar-item${state.selectedArtifactId === item.id ? " is-active" : ""}" data-action="open-artifact-note" data-id="${item.id}">
-                    <span class="sidebar-item-label">${escapeHtml(item.title)}</span>
-                  </button>
-                `).join("")
-                  : rootNotesForDashboard(state.artifactStore, label).map((item) => `
-                  <button class="sidebar-item${state.selectedArtifactId === item.id ? " is-active" : ""}" data-action="open-artifact-note" data-id="${item.id}">
-                    <span class="sidebar-item-label">${escapeHtml(item.title)}</span>
-                  </button>
-                `).join("");
+                  ? newestActivityFirst(spiritNotes()).map((item, index) => sidebarItemHtml(item, {
+                    action: "open-artifact-note",
+                    active: state.selectedArtifactId === item.id,
+                    number: index + 1
+                  })).join("")
+                  : newestActivityFirst(rootNotesForDashboard(state.artifactStore, label)).map((item, index) => sidebarItemHtml(item, {
+                    action: "open-artifact-note",
+                    active: state.selectedArtifactId === item.id,
+                    number: index + 1
+                  })).join("");
 
               return `
               <section class="sidebar-group${expanded ? " is-expanded" : " is-collapsed"}">
@@ -1337,11 +3296,15 @@ function sidebarHtml(compendium) {
       <div class="sidebar-donate-row">
         <button class="primary-button full-width donate-sidebar" data-action="open-donation" type="button">${buttonContent("tabler:heart-handshake", "Thanks / Donate")}</button>
         <div class="sidebar-footer-links">
-          <button class="sidebar-text-link" data-action="open-getting-started" type="button">Getting Started</button>
+          <button class="sidebar-text-link" data-action="open-settings" type="button">Settings</button>
           <span aria-hidden="true">•</span>
           <button class="sidebar-text-link" data-action="open-gallery" type="button">Gallery</button>
           <span aria-hidden="true">•</span>
+          <button class="sidebar-text-link" data-action="import-artifacts" type="button">Import</button>
+          <span aria-hidden="true">•</span>
           <button class="sidebar-text-link" data-action="export-artifacts" type="button">Export</button>
+          <span aria-hidden="true">•</span>
+          <button class="sidebar-text-link" data-action="clear-app-data" type="button">Clear Data</button>
         </div>
       </div>
     </aside>
@@ -1364,9 +3327,10 @@ function sidebarPagedItemsHtml(section, itemsHtml) {
       <button data-action="sidebar-page" data-section="${escapeHtml(section)}" data-direction="next" data-max-page="${maxPage}" type="button"${activePage === maxPage ? " disabled" : ""} aria-label="Next page">&gt;</button>
     </div>
   ` : "";
+  const visibleItems = itemButtons.slice(activePage * 5, activePage * 5 + 5);
   return `
     <div class="sidebar-group-page">
-      ${itemButtons.slice(activePage * 5, activePage * 5 + 5).join("")}
+      ${visibleItems.join("")}
     </div>
     ${pageControls}
   `;
@@ -1386,7 +3350,7 @@ function pathBarHtml(compendium, block, spiritBook) {
 
 function contentHtml(compendium, block) {
   if (state.active === "Dashboard") return dashboardGridHtml();
-  if (state.active === "Getting Started") return gettingStartedHtml();
+  if (state.active === "Settings") return settingsHtml();
   if (state.active === "Gallery") return galleryHtml();
   if (state.active === "Mind") return mindHtml(compendium, block);
   if (state.active === "Body") return bodyHtml();
@@ -1398,6 +3362,8 @@ function contentHtml(compendium, block) {
 function dashboardGridHtml() {
   return `
     <div class="dashboard-home">
+      ${dashboardAnalyticsHtml()}
+      <div class="dashboard-divider" aria-hidden="true"></div>
       <div class="dashboard-grid">
         ${dashboardCards.map(([number, label]) => `
           <button class="dashboard-card${state.flipped === label ? " is-flipped" : ""}" data-action="open-dashboard-card" data-section="${label}" data-balance-key="${label}" style="--card-color: ${DASHBOARD_COLORS[label]};">
@@ -1412,14 +3378,13 @@ function dashboardGridHtml() {
           </button>
         `).join("")}
       </div>
-      <div class="dashboard-divider" aria-hidden="true"></div>
-      ${dashboardAnalyticsHtml()}
     </div>
   `;
 }
 
 function dashboardAnalyticsHtml() {
   const labels = ["Mind", "Body", "Spirit", "Life"];
+  const pieLabels = ["Body", "Spirit", "Life", "Mind"];
   const events = lifeEvents().filter((event) => eventIsInPeriod(event, state.dashboardPeriod));
   const counts = Object.fromEntries(labels.map((label) => [label, 0]));
   events.forEach((event) => {
@@ -1427,7 +3392,7 @@ function dashboardAnalyticsHtml() {
   });
   const total = labels.reduce((sum, label) => sum + counts[label], 0);
   let cursor = 0;
-  const segments = labels.map((label) => {
+  const segments = pieLabels.map((label) => {
     const value = total ? (counts[label] / total) * 100 : 25;
     const start = cursor;
     cursor += value;
@@ -1449,9 +3414,9 @@ function dashboardAnalyticsHtml() {
       <div class="dashboard-analytics-body">
         <div class="dashboard-pie-wrap">
           <div class="dashboard-pie">
-            <svg class="dashboard-pie-chart" viewBox="0 0 148 148" aria-hidden="true">
+            <svg class="dashboard-pie-chart" viewBox="0 0 148 148" aria-label="Open balance section">
               ${segments.map(({ label, value, start }) => `
-                <circle class="dashboard-pie-segment" data-balance-key="${label}" cx="74" cy="74" r="57" pathLength="100" style="--segment-color: ${DASHBOARD_COLORS[label]}; --segment-start: ${start}; --segment-size: ${value};"></circle>
+                <circle class="dashboard-pie-segment" data-action="open-dashboard-direct" data-section="${label}" data-balance-key="${label}" tabindex="0" role="button" aria-label="Open ${label}" cx="74" cy="74" r="57" pathLength="100" style="--segment-color: ${DASHBOARD_COLORS[label]}; --segment-start: ${start}; --segment-size: ${value};"></circle>
               `).join("")}
             </svg>
             <span>${total}</span>
@@ -1469,12 +3434,48 @@ function dashboardAnalyticsHtml() {
   `;
 }
 
-function gettingStartedHtml() {
+function settingsHtml() {
+  const tab = ["getting-started", "thoughts", "goals", "dashboard"].includes(state.settingsTab)
+    ? state.settingsTab
+    : "getting-started";
+  const panels = {
+    "getting-started": settingsGettingStartedHtml(),
+    thoughts: settingsThoughtsHtml(),
+    goals: settingsComingSoonHtml("Goals"),
+    dashboard: settingsComingSoonHtml("Dashboard")
+  };
   return panelHtml(`
-    ${headerHtml("Getting Started", "Use the four areas as a simple loop: collect what matters, act on it, reflect, and keep the record useful.", `
-      <button class="icon-button close-viewer-button" data-action="close-getting-started" type="button" aria-label="Close getting started" title="Close">${iconHtml("tabler:x")}</button>
+    ${headerHtml("Settings", "Getting started, Thoughts, Goals, and Dashboard setup.", `
+      <button class="icon-button close-viewer-button" data-action="close-settings" type="button" aria-label="Close settings" title="Close">${iconHtml("tabler:x")}</button>
     `)}
-    <div class="getting-started-page">
+    <div class="settings-page">
+      ${settingsTabsHtml(tab)}
+      ${panels[tab]}
+    </div>
+  `);
+}
+
+function settingsTabsHtml(activeTab) {
+  const tabs = [
+    ["getting-started", "Getting Started", "tabler:sparkles"],
+    ["thoughts", "Thoughts", "tabler:message-circle"],
+    ["goals", "Goals", "tabler:target-arrow"],
+    ["dashboard", "Dashboard", "tabler:layout-dashboard"]
+  ];
+  return `
+    <nav class="settings-tabs" aria-label="Settings tabs">
+      ${tabs.map(([tab, label, icon]) => `
+        <button class="body-mode-button${activeTab === tab ? " is-active" : ""}" data-action="set-settings-tab" data-tab="${tab}" type="button" aria-pressed="${activeTab === tab ? "true" : "false"}">
+          ${buttonContent(icon, label, "body-mode-label")}
+        </button>
+      `).join("")}
+    </nav>
+  `;
+}
+
+function settingsGettingStartedHtml() {
+  return `
+    <div class="settings-tab-panel getting-started-page">
       <section class="getting-started-intro">
         <h3>Build a clear picture of your life</h3>
         <p>This space works best when it becomes a steady record of what you are learning, how you are taking care of yourself, what gives you direction, and what is actually happening day to day. Small entries are enough. The value comes from returning to them and seeing the pattern.</p>
@@ -1511,7 +3512,98 @@ function gettingStartedHtml() {
         </div>
       </section>
     </div>
-  `);
+  `;
+}
+
+function settingsThoughtsHtml() {
+  return `
+    <div class="settings-tab-panel thoughts-settings">
+      <section class="thoughts-settings-intro">
+        <div>
+          <h3>Thought Orbs</h3>
+          <p>Click an orb in Mind, Body, Spirit, or Life to open a new thought note for that exact thought type.</p>
+        </div>
+        <a class="settings-inline-link" href="${ICONIFY_DOCS_URL}" target="_blank" rel="noopener noreferrer">${buttonContent("tabler:external-link", "Iconify")}</a>
+      </section>
+      <div class="thoughts-settings-sections">
+        ${DASHBOARD_LABELS.map((dashboard) => `
+          <section class="thoughts-settings-section" style="--thought-color: ${DASHBOARD_COLORS[dashboard]};">
+            <div class="body-card-heading">
+              <div>
+                <h3>${escapeHtml(dashboard)}</h3>
+                <p>${escapeHtml((state.trackerSettings?.[dashboard] || []).length)} thought orb${(state.trackerSettings?.[dashboard] || []).length === 1 ? "" : "s"}</p>
+              </div>
+            </div>
+            ${trackerStripHtml(dashboard, { editable: true, compact: true })}
+            ${trackerEditFormHtml(dashboard)}
+            ${trackerAddFormHtml(dashboard)}
+          </section>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function trackerAddFormHtml(area) {
+  if (state.trackerAddArea !== area) return "";
+  return `
+    <div class="tracker-add-form">
+      <label class="body-field">Thought name<input class="tracker-title-input" id="${trackerFieldId(area, "label")}" data-area="${escapeHtml(area)}" data-target="add" type="text" placeholder="Example: Gratitude"></label>
+      <input class="tracker-icon-input" id="${trackerFieldId(area, "icon")}" type="hidden" value="">
+      <div class="tracker-suggestion-slot" data-area="${escapeHtml(area)}" data-target="add">
+        ${trackerIconSuggestionsHtml("", area, "add")}
+      </div>
+      <div class="action-row body-actions">
+        <button class="secondary-button" data-action="cancel-add-tracker" type="button">${buttonContent("tabler:x", "Cancel")}</button>
+        <button class="primary-button" data-action="save-tracker" data-area="${escapeHtml(area)}" type="button">${buttonContent("tabler:plus", "Add Thought")}</button>
+      </div>
+    </div>
+  `;
+}
+
+function trackerEditFormHtml(area) {
+  const [activeArea, id] = String(state.trackerEditKey || "").split(":");
+  if (activeArea !== area || !id) return "";
+  const tracker = (state.trackerSettings?.[area] || []).find((item) => item.id === id);
+  if (!tracker) return "";
+  const target = `edit-${id}`;
+  const confirmDelete = state.trackerDeleteKey === trackerEditKey(area, id);
+  return `
+    <div class="tracker-edit-form">
+      <div class="tracker-edit-heading">
+        <strong>Edit ${escapeHtml(tracker.label)}</strong>
+        <button class="icon-button" data-action="cancel-edit-tracker" type="button" aria-label="Close thought editor" title="Close">${iconHtml("tabler:x")}</button>
+      </div>
+      <div class="tracker-edit-preview">
+        <span class="tracker-orb tracker-orb--preview">
+          <span class="tracker-orb-icon">${trackerIconHtml(tracker.icon)}</span>
+          <span class="tracker-orb-label">${escapeHtml(tracker.label)}</span>
+        </span>
+      </div>
+      <div class="tracker-add-form tracker-add-form--embedded">
+        <label class="body-field">Button text<input class="tracker-title-input" id="${trackerFieldId(`${area}-${id}`, "label")}" data-area="${escapeHtml(area)}" data-target="${escapeHtml(target)}" type="text" value="${escapeHtml(tracker.label)}"></label>
+        <input class="tracker-icon-input" id="${trackerFieldId(`${area}-${id}`, "icon")}" type="hidden" value="${escapeHtml(tracker.icon)}">
+        <div class="tracker-suggestion-slot" data-area="${escapeHtml(area)}" data-target="${escapeHtml(target)}">
+          ${trackerIconSuggestionsHtml(tracker.label, area, target, tracker.icon)}
+        </div>
+        <div class="action-row body-actions">
+          <button class="secondary-button" data-action="cancel-edit-tracker" type="button">${buttonContent("tabler:x", "Cancel")}</button>
+          <button class="primary-button" data-action="save-edit-tracker" data-area="${escapeHtml(area)}" data-id="${escapeHtml(id)}" type="button">${buttonContent("tabler:device-floppy", "Save")}</button>
+          ${confirmDelete
+            ? `<button class="secondary-button" data-action="cancel-remove-tracker" type="button">${buttonContent("tabler:arrow-back-up", "Keep")}</button><button class="secondary-button danger-button" data-action="remove-tracker" data-area="${escapeHtml(area)}" data-id="${escapeHtml(id)}" type="button">${buttonContent("tabler:trash", "Confirm Delete")}</button>`
+            : `<button class="secondary-button danger-button" data-action="request-remove-tracker" data-area="${escapeHtml(area)}" data-id="${escapeHtml(id)}" type="button">${buttonContent("tabler:trash", "Delete")}</button>`}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function settingsComingSoonHtml(label) {
+  return `
+    <div class="settings-tab-panel">
+      ${emptyStateHtml("Coming Soon", `${label} settings will live here.`)}
+    </div>
+  `;
 }
 
 function galleryHtml() {
@@ -1644,7 +3736,6 @@ function spiritHtml() {
   const years = spiritYears();
   const activeYear = years.includes(state.spiritYear) ? state.spiritYear : years[0];
   const visibleWorks = works.filter((work) => work.year === activeYear);
-  const completedCount = works.filter((work) => isSpiritComplete(work.key)).length;
   const yearIndex = years.indexOf(activeYear);
 
   return panelHtml(`
@@ -1662,20 +3753,7 @@ function spiritHtml() {
       </div>
     `)}
     <div class="spirit-dashboard">
-      <section class="spirit-summary">
-        <div>
-          <strong>${escapeHtml(completedCount)}</strong>
-          <span>complete</span>
-        </div>
-        <div>
-          <strong>${escapeHtml(works.length)}</strong>
-          <span>total readings</span>
-        </div>
-        <div>
-          <strong>${escapeHtml(years.length)}</strong>
-          <span>years</span>
-        </div>
-      </section>
+      ${trackerStripHtml("Spirit")}
       <nav class="spirit-year-nav" aria-label="Plan years">
         <button class="secondary-button" data-action="spirit-prev-year" type="button"${yearIndex <= 0 ? " disabled" : ""}>Previous</button>
         <div class="spirit-year-buttons">
@@ -1771,8 +3849,8 @@ function dashboardArtifactHtml(dashboard) {
             <button class="section-row" data-action="open-artifact-note" data-id="${noteItem.id}">
               <span>${String(index + 1).padStart(2, "0")}</span>
               <strong>${escapeHtml(noteItem.title)}</strong>
-              <small>${escapeHtml(noteItem.body.replace(/[#>*`-]/g, ""))}</small>
-                <em>${iconHtml("tabler:notes")} ${escapeHtml(noteItem.dashboard)}</em>
+              <small>${escapeHtml(shortSummary(noteItem.body, "No note text yet"))}</small>
+              <em>${iconHtml("tabler:notes")} ${escapeHtml(noteItem.dashboard)}</em>
             </button>
           `).join("")}
         </div>
@@ -1826,14 +3904,50 @@ function artifactReaderHtml(note, subtitle) {
 function lifeEvents() {
   if (!state.artifactStore) return [];
   const events = [];
+  const addEvent = (event) => {
+    const timestamp = event.timestamp || `${event.dateKey}T12:00:00`;
+    const minuteKey = Number.isNaN(new Date(timestamp).getTime())
+      ? String(timestamp)
+      : new Date(timestamp).toISOString().slice(0, 16);
+    const title = event.role === "thought" && event.thoughtLabel ? event.thoughtLabel : event.title;
+    const eventKey = [
+      event.artifactId,
+      event.dashboard,
+      event.type,
+      minuteKey,
+      title
+    ].join("|");
+    if (events.some((existing) => existing.eventKey === eventKey)) return;
+    events.push({ ...event, eventKey });
+  };
   state.artifactStore.artifacts.forEach((artifact) => {
+    if (artifact.properties?.role === "spirit-reading-plan-item") return;
+    if (artifact.properties?.role === "thought") {
+      const timestamp = artifact.properties?.thoughtLoggedAt || artifact.created || artifact.edited;
+      addEvent({
+        id: `${artifact.id}-thought`,
+        artifactId: artifact.id,
+        title: artifact.title,
+        role: "thought",
+        thoughtLabel: artifact.properties?.thoughtLabel || "",
+        dashboard: artifact.dashboard,
+        type: artifact.type,
+        action: "created",
+        changed: [],
+        dateKey: dateKeyFromValue(artifact.properties?.dateKey || timestamp),
+        timestamp
+      });
+      return;
+    }
     const auditEntries = Array.isArray(artifact.properties?.audit) ? artifact.properties.audit : [];
     if (auditEntries.length) {
       auditEntries.forEach((entry) => {
-        events.push({
+        addEvent({
           id: `${artifact.id}-${entry.at || entry.action}`,
           artifactId: artifact.id,
           title: artifact.title,
+          role: artifact.properties?.role || "",
+          thoughtLabel: artifact.properties?.thoughtLabel || "",
           dashboard: artifact.dashboard,
           type: artifact.type,
           action: entry.action || "edited",
@@ -1845,10 +3959,12 @@ function lifeEvents() {
       return;
     }
     if (artifact.created) {
-      events.push({
+      addEvent({
         id: `${artifact.id}-created`,
         artifactId: artifact.id,
         title: artifact.title,
+        role: artifact.properties?.role || "",
+        thoughtLabel: artifact.properties?.thoughtLabel || "",
         dashboard: artifact.dashboard,
         type: artifact.type,
         action: "created",
@@ -1858,10 +3974,12 @@ function lifeEvents() {
       });
     }
     if (artifact.edited && artifact.edited !== artifact.created) {
-      events.push({
+      addEvent({
         id: `${artifact.id}-edited`,
         artifactId: artifact.id,
         title: artifact.title,
+        role: artifact.properties?.role || "",
+        thoughtLabel: artifact.properties?.thoughtLabel || "",
         dashboard: artifact.dashboard,
         type: artifact.type,
         action: "edited",
@@ -1874,10 +3992,15 @@ function lifeEvents() {
   return events.sort((a, b) => (Date.parse(b.timestamp) || Date.parse(b.dateKey)) - (Date.parse(a.timestamp) || Date.parse(a.dateKey)));
 }
 
+function lifeCalendarEventTitle(event) {
+  if (event.role === "thought" && event.thoughtLabel) return event.thoughtLabel;
+  return event.title;
+}
+
 function lifeCalendarEvents() {
   return lifeEvents().map((event) => ({
     id: event.id,
-    title: event.title,
+    title: lifeCalendarEventTitle(event),
     start: event.timestamp && !Number.isNaN(new Date(event.timestamp).getTime())
       ? event.timestamp
       : `${event.dateKey}T12:00:00`,
@@ -1886,6 +4009,7 @@ function lifeCalendarEvents() {
       artifactId: event.artifactId,
       dashboard: event.dashboard,
       action: event.action,
+      fullTitle: event.title,
       meta: event.changed.length ? event.changed.join(", ") : event.type
     },
     classNames: [`life-calendar-event--${event.dashboard.toLowerCase()}`]
@@ -1917,8 +4041,10 @@ function renderLifeMonthCalendar() {
       const timeText = info.timeText || formatEventTime(info.event.start);
       const title = info.event.title;
       const dashboard = info.event.extendedProps.dashboard || "";
+      const fullTitle = info.event.extendedProps.fullTitle || title;
       const wrapper = document.createElement("div");
       wrapper.className = "life-fc-event-inner";
+      wrapper.title = [timeText, fullTitle].filter(Boolean).join(" ");
       wrapper.innerHTML = `
         <span>${escapeHtml(timeText)}</span>
         <strong>${escapeHtml(title)}</strong>
@@ -1975,10 +4101,11 @@ function lifeJournalMetaHtml(note) {
 
 function lifeHtml() {
   const note = findArtifact(state.artifactStore, state.selectedArtifactId);
-  if (state.artifactMode === "editor" && note?.dashboard === "Life") return lifeJournalEditorHtml(note);
+  if (state.artifactMode === "editor" && note?.dashboard === "Life" && note.properties?.role === "life-journal") return lifeJournalEditorHtml(note);
   if (state.artifactMode === "editor" && note) return dashboardNoteEditorHtml(note);
   if (state.artifactMode === "viewer" && note) {
     if (note.dashboard !== "Life") return artifactReaderHtml(note, `${note.dashboard} note`);
+    if (note.properties?.role !== "life-journal") return artifactReaderHtml(note, "Life thought");
     return panelHtml(`
       ${headerHtml(note.title, "", artifactViewerActions(note))}
       <div class="life-reader-grid">
@@ -1993,7 +4120,8 @@ function lifeHtml() {
   return panelHtml(`
     ${headerHtml("Life", "Calendar-first journal, habits, and app activity.")}
     <div class="life-dashboard">
-      ${lifeModeSwitcherHtml()}
+      ${trackerStripHtml("Life")}
+      ${lifeToolSwitcherHtml()}
       <div class="life-mode-panel">
         ${lifePanelHtml()}
       </div>
@@ -2001,16 +4129,34 @@ function lifeHtml() {
   `);
 }
 
-function lifeModeSwitcherHtml() {
+function lifeToolSwitcherHtml() {
+  const activeTool = state.lifeTool || "calendar";
   const modes = [
-    ["day", "Day", "tabler:calendar-event"],
-    ["week", "Week", "tabler:calendar-week"],
-    ["month", "Month", "tabler:calendar-month"],
-    ["list", "List", "tabler:list-details"],
+    ["calendar", "Calendar", "tabler:calendar-month"],
+    ["todo", "Todo List", "tabler:checkbox"],
+    ["projects", "Projects", "tabler:folders"],
     ["notes", "Notes", "tabler:notes"]
   ];
   return `
-    <nav class="life-mode-switcher" aria-label="Life tools">
+    <nav class="life-mode-switcher life-tool-switcher" aria-label="Life tools">
+      ${modes.map(([mode, label, icon]) => `
+        <button class="body-mode-button${activeTool === mode ? " is-active" : ""}" data-action="set-life-tool" data-tool="${mode}" type="button" aria-pressed="${activeTool === mode ? "true" : "false"}">
+          ${buttonContent(icon, label, "body-mode-label")}
+        </button>
+      `).join("")}
+    </nav>
+  `;
+}
+
+function lifeCalendarModeSwitcherHtml() {
+  const modes = [
+    ["month", "Month", "tabler:calendar-month"],
+    ["week", "Week", "tabler:calendar-week"],
+    ["day", "Day", "tabler:calendar-event"],
+    ["list", "List", "tabler:list-details"]
+  ];
+  return `
+    <nav class="life-calendar-switcher" aria-label="Calendar views">
       ${modes.map(([mode, label, icon]) => `
         <button class="body-mode-button${state.lifeMode === mode ? " is-active" : ""}" data-action="set-life-mode" data-mode="${mode}" type="button" aria-pressed="${state.lifeMode === mode ? "true" : "false"}">
           ${buttonContent(icon, label, "body-mode-label")}
@@ -2021,10 +4167,22 @@ function lifeModeSwitcherHtml() {
 }
 
 function lifePanelHtml() {
+  const tool = state.lifeTool || "calendar";
+  if (tool === "todo") return lifeTodoHtml();
+  if (tool === "projects") return lifeProjectsHtml();
+  if (tool === "notes") return lifeNotesHtml();
+  return `
+    <div class="life-calendar-viewer">
+      ${lifeCalendarModeSwitcherHtml()}
+      ${lifeCalendarPanelHtml()}
+    </div>
+  `;
+}
+
+function lifeCalendarPanelHtml() {
   if (state.lifeMode === "day") return lifeDayHtml();
   if (state.lifeMode === "week") return lifeWeekHtml();
   if (state.lifeMode === "list") return lifeListHtml();
-  if (state.lifeMode === "notes") return lifeNotesHtml();
   return lifeMonthHtml();
 }
 
@@ -2135,6 +4293,174 @@ function lifeListHtml() {
   `;
 }
 
+function lifeTodoCardHtml(task) {
+  const isProjectTask = task.source === "project-task";
+  const id = task.todoId || task.taskId;
+  const taskAttrs = `data-source="${escapeHtml(task.source)}" data-id="${escapeHtml(id)}"${isProjectTask ? ` data-project-id="${escapeHtml(task.projectId)}" data-phase-id="${escapeHtml(task.phaseId)}"` : ""}`;
+  return `
+    <article class="life-todo-card${task.status === "complete" ? " is-complete" : ""}${isProjectTask ? " is-project-task" : ""}" data-action="open-life-task" ${taskAttrs} tabindex="0" role="button" aria-label="Open ${escapeHtml(task.title)}">
+      <button class="life-todo-check" data-action="toggle-life-task" ${taskAttrs} type="button" aria-label="${task.status === "complete" ? "Reopen" : "Complete"} ${escapeHtml(task.title)}" title="${task.status === "complete" ? "Reopen" : "Complete"}">
+        ${iconHtml(task.status === "complete" ? "tabler:circle-check" : "tabler:circle")}
+      </button>
+      <h4>${escapeHtml(task.title)}</h4>
+    </article>
+  `;
+}
+
+function lifeTodoHtml() {
+  const tasks = lifeTaskItems();
+  const open = tasks.filter((task) => task.status !== "complete");
+  const complete = tasks.filter((task) => task.status === "complete");
+  return `
+    <section class="body-card life-card life-todo-view">
+      <div class="body-card-heading">
+        <div>
+          <h3>Todo List</h3>
+          <p>Standalone todos and project tasks stay connected here and inside Projects.</p>
+        </div>
+      </div>
+      <div class="life-quick-add">
+        <input id="life-todo-title" type="text" placeholder="Add a task">
+        <button class="primary-button" data-action="add-life-todo" type="button">${buttonContent("tabler:plus", "Add")}</button>
+      </div>
+      <div class="life-todo-columns">
+        <section>
+          <h4>Todo</h4>
+          <div class="life-todo-stack">${open.length ? open.map(lifeTodoCardHtml).join("") : "<p>No open todos.</p>"}</div>
+        </section>
+        <section>
+          <h4>Done</h4>
+          <div class="life-todo-stack">${complete.length ? complete.map(lifeTodoCardHtml).join("") : "<p>No completed todos.</p>"}</div>
+        </section>
+      </div>
+    </section>
+  `;
+}
+
+function lifeProjectNavButtonHtml(entity, action, active, attrs = "") {
+  return `
+    <button class="life-project-nav-button${active ? " is-active" : ""}" data-action="${action}" ${attrs} type="button">
+      <strong>${escapeHtml(entity.title)}</strong>
+      <small>${escapeHtml(entity.status || "planned")}${entity.assignedDate ? ` / ${escapeHtml(formatDateLabel(entity.assignedDate))}` : ""}</small>
+    </button>
+  `;
+}
+
+function lifeAttachmentsHtml(level, attachments = []) {
+  return `
+    <section class="life-attachments">
+      <div class="body-card-heading">
+        <div>
+          <h3>Attachments</h3>
+          <p>Files stay local now and keep storage metadata for later cloud storage.</p>
+        </div>
+        <button class="secondary-button" data-action="upload-life-attachment" data-level="${level}" type="button">${buttonContent("tabler:paperclip", "Upload")}</button>
+      </div>
+      <div class="life-attachment-list">
+        ${attachments.length ? attachments.map((attachment) => `
+          <div class="life-attachment-item">
+            <a href="#" data-local-file-link="${escapeHtml(attachment.id)}" target="_blank" rel="noopener noreferrer">${iconHtml("tabler:file")} ${escapeHtml(attachment.name || attachment.id)}</a>
+            <small>${escapeHtml(formatFileSize(attachment.size))}</small>
+            <button class="icon-button danger-button" data-action="delete-life-attachment" data-level="${level}" data-id="${escapeHtml(attachment.id)}" type="button" aria-label="Remove attachment" title="Remove">${iconHtml("tabler:x")}</button>
+          </div>
+        `).join("") : "<p>No attachments yet.</p>"}
+      </div>
+    </section>
+  `;
+}
+
+function formatFileSize(size) {
+  const bytes = Number(size) || 0;
+  if (bytes >= 1048576) return `${Math.round(bytes / 104857.6) / 10} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 102.4) / 10} KB`;
+  return `${bytes} B`;
+}
+
+function lifeEntityStatusOptions(level, value) {
+  const options = level === "task"
+    ? ["todo", "active", "waiting", "complete"]
+    : ["planned", "active", "waiting", "complete"];
+  return options.map((option) => `<option value="${option}"${value === option ? " selected" : ""}>${escapeHtml(option)}</option>`).join("");
+}
+
+function lifeProjectDetailHtml(level, entity) {
+  const label = level === "task" ? "Task" : level === "phase" ? "Phase" : "Project";
+  return `
+    <div class="life-project-detail">
+      <div class="body-card-heading">
+        <div>
+          <h3>${escapeHtml(label)} Info</h3>
+          <p>${escapeHtml(entity.title)}</p>
+        </div>
+        <div class="action-row">
+          <button class="secondary-button" data-action="save-life-project-entity" data-level="${level}" type="button">${buttonContent("tabler:device-floppy", "Save")}</button>
+        </div>
+      </div>
+      <div class="life-project-form">
+        <label class="body-field body-field--full">Title<input id="life-entity-title" type="text" value="${escapeHtml(entity.title)}"></label>
+        <label class="body-field">Status<select id="life-entity-status">${lifeEntityStatusOptions(level, entity.status)}</select></label>
+        <label class="body-field">Assigned To<input id="life-entity-assigned-to" type="text" value="${escapeHtml(entity.assignedTo || "")}" placeholder="Name or role"></label>
+        <label class="body-field">Calendar Date<input id="life-entity-assigned-date" type="date" value="${escapeHtml(entity.assignedDate || "")}"></label>
+        <label class="body-field body-field--full">Notes<textarea id="life-entity-notes" rows="8" placeholder="Notes, links, decisions, next steps">${escapeHtml(entity.notes || "")}</textarea></label>
+      </div>
+      ${lifeAttachmentsHtml(level, entity.attachments || [])}
+    </div>
+  `;
+}
+
+function lifeProjectsHtml() {
+  const projects = lifeProjects();
+  const project = selectedLifeProject();
+  const phase = selectedLifePhase(project);
+  const task = selectedLifeTask(phase);
+  const detail = task
+    ? lifeProjectDetailHtml("task", task)
+    : phase
+      ? lifeProjectDetailHtml("phase", phase)
+      : project
+        ? lifeProjectDetailHtml("project", project)
+        : emptyStateHtml("Select or add a project.", "Projects organize phases, tasks, notes, status, assignments, and attachments.");
+  return `
+    <section class="body-card life-card life-projects-view">
+      <div class="life-project-shell">
+        <aside class="life-project-sidebar">
+          <div class="life-quick-add">
+            <input id="life-project-title" type="text" placeholder="New project">
+            <button class="primary-button" data-action="add-life-project" type="button">${buttonContent("tabler:plus", "Add")}</button>
+          </div>
+          <div class="life-project-nav-section">
+            <h4>Projects</h4>
+            ${projects.length ? projects.map((item) => lifeProjectNavButtonHtml(item, "select-life-project", item.id === project?.id, `data-id="${escapeHtml(item.id)}"`)).join("") : "<p>No projects yet.</p>"}
+          </div>
+          ${project ? `
+            <div class="life-quick-add">
+              <input id="life-phase-title" type="text" placeholder="New phase">
+              <button class="secondary-button" data-action="add-life-phase" data-project-id="${escapeHtml(project.id)}" type="button">${buttonContent("tabler:plus", "Phase")}</button>
+            </div>
+            <div class="life-project-nav-section">
+              <h4>Phases</h4>
+              ${project.phases.length ? project.phases.map((item) => lifeProjectNavButtonHtml(item, "select-life-phase", item.id === phase?.id, `data-id="${escapeHtml(item.id)}"`)).join("") : "<p>No phases yet.</p>"}
+            </div>
+          ` : ""}
+          ${project && phase ? `
+            <div class="life-quick-add">
+              <input id="life-task-title" type="text" placeholder="New task">
+              <button class="secondary-button" data-action="add-life-project-task" data-project-id="${escapeHtml(project.id)}" data-phase-id="${escapeHtml(phase.id)}" type="button">${buttonContent("tabler:plus", "Task")}</button>
+            </div>
+            <div class="life-project-nav-section">
+              <h4>Tasks</h4>
+              ${phase.tasks.length ? phase.tasks.map((item) => lifeProjectNavButtonHtml(item, "select-life-task", item.id === task?.id, `data-task-id="${escapeHtml(item.id)}"`)).join("") : "<p>No tasks yet.</p>"}
+            </div>
+          ` : ""}
+        </aside>
+        <section class="life-project-body">
+          ${detail}
+        </section>
+      </div>
+    </section>
+  `;
+}
+
 function lifeNotesHtml() {
   const notes = lifeNotes();
   return `
@@ -2152,13 +4478,156 @@ function lifeNotesHtml() {
             <button class="section-row" data-action="open-artifact-note" data-id="${noteItem.id}">
               <span>${String(index + 1).padStart(2, "0")}</span>
               <strong>${escapeHtml(noteItem.title)}</strong>
-              <small>${escapeHtml([noteItem.properties?.mood, ...(noteItem.properties?.habits || [])].filter(Boolean).join(" / ") || noteItem.body.replace(/[#>*`-]/g, ""))}</small>
-              <em>${iconHtml("tabler:calendar")} ${escapeHtml(noteItem.properties?.dateKey || noteItem.edited)}</em>
+              <small>${escapeHtml([noteItem.properties?.mood, ...(noteItem.properties?.habits || [])].filter(Boolean).join(" / ") || shortSummary(noteItem.body, "No journal text yet"))}</small>
+              <em>${iconHtml("tabler:calendar")} ${escapeHtml(noteItem.properties?.dateKey || noteDateLabel(noteItem))}</em>
             </button>
           `).join("")}
         </div>
       ` : emptyStateHtml("No Life notes yet.", "Add a journal note to track a day, habit, goal, or reflection.")}
     </section>
+  `;
+}
+
+function bodyTimerSwitcherHtml() {
+  return `
+    <nav class="body-mode-switcher body-timer-switcher" aria-label="Body timers">
+      ${BODY_TIMER_MODES.map(({ key, label, icon }) => `
+        <button class="body-mode-button${state.bodyTimerMode === key ? " is-active" : ""}" data-action="set-body-timer-mode" data-mode="${key}" type="button" aria-pressed="${state.bodyTimerMode === key ? "true" : "false"}">
+          ${buttonContent(icon, label, "body-mode-label")}
+        </button>
+      `).join("")}
+    </nav>
+  `;
+}
+
+function bodyTimerPanelHtml(key = state.bodyTimerMode) {
+  const config = bodyTimerConfig(key);
+  const timer = bodyTimerState(key);
+  const progress = getBodyTimerProgress(key);
+  const dashOffset = RING_CIRCUMFERENCE * (1 - progress);
+  return `
+    <section class="body-card body-card--timer is-active">
+      <div class="body-ring-wrap">
+        <svg class="body-ring" viewBox="0 0 220 220" aria-hidden="true">
+          <circle class="body-ring-track" cx="110" cy="110" r="80"></circle>
+          <circle class="body-ring-value" id="body-timer-${key}-ring" cx="110" cy="110" r="80" style="stroke-dashoffset: ${dashOffset};"></circle>
+        </svg>
+        <div class="body-ring-center">
+          <div class="body-ring-label">${escapeHtml(timer.label)}</div>
+          <div class="body-ring-value-text" id="body-timer-${key}-time">${formatDuration(getBodyTimerElapsedMs(key))}</div>
+          <div class="body-ring-sub">${timer.active ? config.activeText : config.idleText}</div>
+        </div>
+      </div>
+      <div class="body-form-grid">
+        <label class="body-field">${escapeHtml(config.label)} label<input id="body-timer-${key}-label" type="text" value="${escapeHtml(timer.label)}"></label>
+        <label class="body-field">${escapeHtml(config.targetLabel)}<input id="body-timer-${key}-target" type="number" min="1" step="1" value="${escapeHtml(bodyTimerTargetInputValue(key, timer))}"></label>
+      </div>
+      <div class="action-row body-actions">
+        <button class="secondary-button" data-action="save-body-timer-settings" data-mode="${key}">${buttonContent("tabler:device-floppy", "Save")}</button>
+        ${timer.active
+          ? `<button class="secondary-button danger-button" data-action="stop-body-timer" data-mode="${key}">${buttonContent("tabler:player-stop", config.stopText)}</button>`
+          : `<button class="primary-button" data-action="start-body-timer" data-mode="${key}">${buttonContent("tabler:player-play", config.startText)}</button>`}
+      </div>
+      <p class="body-card-note">${timer.lastCompletedHours ? `Last completed: ${timer.lastCompletedHours.toFixed(1)} hours` : config.emptyText}</p>
+    </section>
+  `;
+}
+
+function bodyTimersHtml() {
+  return `
+    <div class="body-timer-viewer">
+      ${bodyTimerSwitcherHtml()}
+      ${bodyTimerPanelHtml(state.bodyTimerMode)}
+    </div>
+  `;
+}
+
+function bodyNutritionSwitcherHtml() {
+  const modes = [
+    ["daily", "Daily Tracker", "tabler:clipboard-list"],
+    ["goals", "Nutrition Goals", "tabler:target-arrow"]
+  ];
+  return `
+    <nav class="body-mode-switcher body-nutrition-switcher" aria-label="Nutrition views">
+      ${modes.map(([mode, label, icon]) => `
+        <button class="body-mode-button${state.bodyNutritionMode === mode ? " is-active" : ""}" data-action="set-body-nutrition-mode" data-mode="${mode}" type="button" aria-pressed="${state.bodyNutritionMode === mode ? "true" : "false"}">
+          ${buttonContent(icon, label, "body-mode-label")}
+        </button>
+      `).join("")}
+    </nav>
+  `;
+}
+
+function nutritionGoalSummaryHtml(nutrition) {
+  return `
+    <div class="body-macro-row">
+      <span>${Math.round(Number(nutrition.protein) || 0)} / ${Math.round(Number(nutrition.targetProtein) || 0)}g protein</span>
+      <span>${Math.round(Number(nutrition.carbs) || 0)} / ${Math.round(Number(nutrition.targetCarbs) || 0)}g carbs</span>
+      <span>${Math.round(Number(nutrition.fat) || 0)} / ${Math.round(Number(nutrition.targetFat) || 0)}g fat</span>
+    </div>
+  `;
+}
+
+function bodyNutritionDailyHtml(nutrition, nutritionDashOffset) {
+  return `
+    <section class="body-card body-card--nutrition">
+      <div class="body-ring-wrap body-ring-wrap--small">
+        <svg class="body-ring" viewBox="0 0 220 220" aria-hidden="true">
+          <circle class="body-ring-track" cx="110" cy="110" r="80"></circle>
+          <circle class="body-ring-value body-ring-value--nutrition" cx="110" cy="110" r="80" style="stroke-dashoffset: ${nutritionDashOffset};"></circle>
+        </svg>
+        <div class="body-ring-center">
+          <div class="body-ring-label">Daily Tracker</div>
+          <div class="body-ring-value-text">${Math.round(Number(nutrition.calories) || 0)}</div>
+          <div class="body-ring-sub">of ${Math.round(Number(nutrition.targetCalories) || 0)} cal</div>
+        </div>
+      </div>
+      <div class="body-form-grid body-form-grid--nutrition">
+        <label class="body-field">Calories<input id="body-calories" type="number" min="0" step="1" value="${escapeHtml(nutrition.calories)}"></label>
+        <label class="body-field">Protein g<input id="body-protein" type="number" min="0" step="1" value="${escapeHtml(nutrition.protein)}"></label>
+        <label class="body-field">Carbs g<input id="body-carbs" type="number" min="0" step="1" value="${escapeHtml(nutrition.carbs)}"></label>
+        <label class="body-field">Fat g<input id="body-fat" type="number" min="0" step="1" value="${escapeHtml(nutrition.fat)}"></label>
+      </div>
+      ${nutritionGoalSummaryHtml(nutrition)}
+      <label class="body-field body-field--full">Daily note<textarea id="body-nutrition-note" rows="3" placeholder="Meals, cravings, energy, digestion, anything worth remembering">${escapeHtml(nutrition.note || "")}</textarea></label>
+      <div class="action-row body-actions">
+        <button class="secondary-button" data-action="save-body-nutrition">${buttonContent("tabler:device-floppy", "Save Daily")}</button>
+        <button class="secondary-button danger-button" data-action="reset-body-nutrition">${buttonContent("tabler:restore", "Reset Today")}</button>
+      </div>
+    </section>
+  `;
+}
+
+function bodyNutritionGoalsHtml(nutrition) {
+  return `
+    <section class="body-card body-card--nutrition">
+      <div class="body-card-heading">
+        <div>
+          <h3>Nutrition Goals</h3>
+          <p>Daily targets used by the tracker.</p>
+        </div>
+      </div>
+      <div class="body-form-grid body-form-grid--nutrition">
+        <label class="body-field">Daily calories<input id="body-target-calories" type="number" min="1" step="1" value="${escapeHtml(nutrition.targetCalories)}"></label>
+        <label class="body-field">Protein goal g<input id="body-target-protein" type="number" min="0" step="1" value="${escapeHtml(nutrition.targetProtein)}"></label>
+        <label class="body-field">Carbs goal g<input id="body-target-carbs" type="number" min="0" step="1" value="${escapeHtml(nutrition.targetCarbs)}"></label>
+        <label class="body-field">Fat goal g<input id="body-target-fat" type="number" min="0" step="1" value="${escapeHtml(nutrition.targetFat)}"></label>
+      </div>
+      <div class="action-row body-actions">
+        <button class="secondary-button" data-action="save-body-nutrition-goals">${buttonContent("tabler:device-floppy", "Save Goals")}</button>
+      </div>
+    </section>
+  `;
+}
+
+function bodyNutritionHtml(nutrition, nutritionDashOffset) {
+  return `
+    <div class="body-nutrition-viewer">
+      ${bodyNutritionSwitcherHtml()}
+      ${state.bodyNutritionMode === "goals"
+        ? bodyNutritionGoalsHtml(nutrition)
+        : bodyNutritionDailyHtml(nutrition, nutritionDashOffset)}
+    </div>
   `;
 }
 
@@ -2168,71 +4637,14 @@ function bodyHtml() {
   if (state.artifactMode === "viewer" && note) return artifactReaderHtml(note, "Body note");
 
   const notes = rootNotesForDashboard(state.artifactStore, "Body");
-  const fast = state.bodyTracker.fast;
   const nutrition = state.bodyTracker.nutrition;
   const workouts = state.bodyTracker.workouts;
-  const fastProgress = getFastProgress();
   const nutritionProgress = getNutritionProgress();
-  const fastDashOffset = RING_CIRCUMFERENCE * (1 - fastProgress);
   const nutritionDashOffset = RING_CIRCUMFERENCE * (1 - nutritionProgress);
 
   const panels = {
-    fasting: `
-      <section class="body-card body-card--timer is-active">
-        <div class="body-ring-wrap">
-          <svg class="body-ring" viewBox="0 0 220 220" aria-hidden="true">
-            <circle class="body-ring-track" cx="110" cy="110" r="80"></circle>
-            <circle class="body-ring-value" id="body-fast-ring" cx="110" cy="110" r="80" style="stroke-dashoffset: ${fastDashOffset};"></circle>
-          </svg>
-          <div class="body-ring-center">
-            <div class="body-ring-label">${escapeHtml(fast.label)}</div>
-            <div class="body-ring-value-text" id="body-fast-time">${formatDuration(getFastElapsedMs())}</div>
-            <div class="body-ring-sub">${fast.active ? "Active fast" : "No active fast"}</div>
-          </div>
-        </div>
-        <div class="body-form-grid">
-          <label class="body-field">Fast label<input id="body-fast-label" type="text" value="${escapeHtml(fast.label)}"></label>
-          <label class="body-field">Target hours<input id="body-fast-target" type="number" min="1" step="1" value="${escapeHtml(fast.targetHours)}"></label>
-        </div>
-        <div class="action-row body-actions">
-          <button class="secondary-button" data-action="save-body-fast-settings">${buttonContent("tabler:device-floppy", "Save")}</button>
-          ${fast.active
-            ? `<button class="secondary-button danger-button" data-action="stop-body-fast">${buttonContent("tabler:player-stop", "Stop Fast")}</button>`
-            : `<button class="primary-button" data-action="start-body-fast">${buttonContent("tabler:player-play", "Start Fast")}</button>`}
-        </div>
-        <p class="body-card-note">${fast.lastCompletedHours ? `Last completed: ${fast.lastCompletedHours.toFixed(1)} hours` : "Start a fast to track elapsed time against your target."}</p>
-      </section>`,
-
-    nutrition: `
-      <section class="body-card body-card--nutrition">
-        <div class="body-ring-wrap body-ring-wrap--small">
-          <svg class="body-ring" viewBox="0 0 220 220" aria-hidden="true">
-            <circle class="body-ring-track" cx="110" cy="110" r="80"></circle>
-            <circle class="body-ring-value body-ring-value--nutrition" cx="110" cy="110" r="80" style="stroke-dashoffset: ${nutritionDashOffset};"></circle>
-          </svg>
-          <div class="body-ring-center">
-            <div class="body-ring-label">Nutrition</div>
-            <div class="body-ring-value-text">${Math.round(Number(nutrition.calories) || 0)}</div>
-            <div class="body-ring-sub">of ${Math.round(Number(nutrition.targetCalories) || 0)} cal</div>
-          </div>
-        </div>
-        <div class="body-form-grid body-form-grid--nutrition">
-          <label class="body-field">Target calories<input id="body-target-calories" type="number" min="1" step="1" value="${escapeHtml(nutrition.targetCalories)}"></label>
-          <label class="body-field">Calories<input id="body-calories" type="number" min="0" step="1" value="${escapeHtml(nutrition.calories)}"></label>
-          <label class="body-field">Protein g<input id="body-protein" type="number" min="0" step="1" value="${escapeHtml(nutrition.protein)}"></label>
-          <label class="body-field">Carbs g<input id="body-carbs" type="number" min="0" step="1" value="${escapeHtml(nutrition.carbs)}"></label>
-          <label class="body-field">Fat g<input id="body-fat" type="number" min="0" step="1" value="${escapeHtml(nutrition.fat)}"></label>
-        </div>
-        <div class="body-macro-row">
-          <span>${Math.round(Number(nutrition.protein) || 0)}g protein</span>
-          <span>${Math.round(Number(nutrition.carbs) || 0)}g carbs</span>
-          <span>${Math.round(Number(nutrition.fat) || 0)}g fat</span>
-        </div>
-        <div class="action-row body-actions">
-          <button class="secondary-button" data-action="save-body-nutrition">${buttonContent("tabler:device-floppy", "Save Nutrition")}</button>
-          <button class="secondary-button danger-button" data-action="reset-body-nutrition">${buttonContent("tabler:restore", "Reset Today")}</button>
-        </div>
-      </section>`,
+    timers: bodyTimersHtml(),
+    nutrition: bodyNutritionHtml(nutrition, nutritionDashOffset),
 
     notes: `
       <section class="body-card body-card--notes">
@@ -2249,7 +4661,7 @@ function bodyHtml() {
               <button class="section-row" data-action="open-artifact-note" data-id="${noteItem.id}">
                 <span>${String(index + 1).padStart(2, "0")}</span>
                 <strong>${escapeHtml(noteItem.title)}</strong>
-                <small>${escapeHtml(noteItem.body.replace(/[#>*`-]/g, ""))}</small>
+                <small>${escapeHtml(shortSummary(noteItem.body, "No note text yet"))}</small>
                 <em>${iconHtml("tabler:notes")} Note</em>
               </button>
             `).join("")}
@@ -2293,19 +4705,20 @@ function bodyHtml() {
   };
 
   return panelHtml(`
-    ${headerHtml("Body", "Manual fasting, nutrition, and notes.")}
+    ${headerHtml("Body", "Timers, nutrition, movement, and notes.")}
     <div class="body-dashboard">
-      <div class="body-mode-panel">
-        ${panels[state.bodyMode] || panels.fasting}
-      </div>
+      ${trackerStripHtml("Body")}
       ${bodyModeSwitcherHtml()}
+      <div class="body-mode-panel">
+        ${panels[state.bodyMode] || panels.timers}
+      </div>
     </div>
   `);
 }
 
 function bodyModeSwitcherHtml() {
   const modes = [
-    ["fasting", "Fasting", "tabler:clock-hour-4"],
+    ["timers", "Timers", "tabler:clock-hour-4"],
     ["nutrition", "Nutrition", "tabler:apple"],
     ["workout", "Workout", "tabler:barbell"],
     ["notes", "Notes", "tabler:notes"]
@@ -2322,6 +4735,9 @@ function bodyModeSwitcherHtml() {
 }
 
 function mindHtml(compendium, block) {
+  const note = findArtifact(state.artifactStore, state.selectedArtifactId);
+  if (state.artifactMode === "editor" && note?.dashboard === "Mind") return dashboardNoteEditorHtml(note);
+  if (state.artifactMode === "viewer" && note?.dashboard === "Mind") return artifactReaderHtml(note, "Mind note");
   if (state.mindMode === "compendium-editor" && compendium) return compendiumEditorHtml(compendium);
   if (state.mindMode === "block-editor" && block) return blockEditorHtml(block);
   if (state.mindMode === "block-viewer" && block) {
@@ -2342,8 +4758,10 @@ function mindHtml(compendium, block) {
 }
 
 function mindGridHtml() {
+  const mindNotes = rootNotesForDashboard(state.artifactStore, "Mind");
   return panelHtml(`
     ${headerHtml("Knowledge", "Organize your knowledge and share with the world.", `<button class="secondary-button" data-action="new-compendium">${buttonContent("tabler:plus", "New")}</button>`)}
+    ${trackerStripHtml("Mind")}
     <div class="scroll-area">
       <div class="compendium-grid">
         ${state.compendiums.map((compendium) => `
@@ -2354,6 +4772,26 @@ function mindGridHtml() {
           </button>
         `).join("")}
       </div>
+      ${mindNotes.length ? `
+        <section class="mind-thought-section">
+          <div class="body-card-heading">
+            <div>
+              <h3>Thoughts</h3>
+              <p>Quick notes opened from the Mind thought orbs.</p>
+            </div>
+          </div>
+          <div class="section-list body-notes-list">
+            ${newestCreatedFirst(mindNotes).map((noteItem, index) => `
+              <button class="section-row" data-action="open-artifact-note" data-id="${noteItem.id}">
+                <span>${String(index + 1).padStart(2, "0")}</span>
+                <strong>${escapeHtml(noteItem.title)}</strong>
+                <small>${escapeHtml(shortSummary(noteItem.body, "No thought text yet"))}</small>
+                <em>${iconHtml(noteItem.properties?.thoughtIcon || "tabler:message-circle")} ${escapeHtml(noteItem.properties?.thoughtLabel || "Thought")}</em>
+              </button>
+            `).join("")}
+          </div>
+        </section>
+      ` : ""}
     </div>
   `);
 }
@@ -2376,10 +4814,10 @@ function compendiumManagerHtml(compendium) {
 function sectionListHtml(compendium) {
   return `
     <div class="scroll-area">
-      <div class="section-list">
+      <div class="section-list" data-section-sort-list data-compendium-id="${escapeHtml(compendium.id)}">
         ${compendium.blocks.map((section, index) => `
-          <button class="section-row" data-action="open-block" data-id="${section.id}">
-            <span>${String(index + 1).padStart(2, "0")}</span>
+          <button class="section-row" data-action="open-block" data-id="${escapeHtml(section.id)}" data-section-row>
+            <span class="section-number-handle" data-section-drag-handle data-id="${escapeHtml(section.id)}" title="Drag to reorder" aria-label="Drag section ${String(index + 1).padStart(2, "0")} to reorder">${String(index + 1).padStart(2, "0")}</span>
             <strong>${escapeHtml(section.title)}</strong>
             <small>${escapeHtml(section.body.replace(/[#>*`-]/g, ""))}</small>
           </button>
@@ -2436,10 +4874,11 @@ function blockEditorHtml(block) {
 }
 
 function dashboardNoteEditorHtml(note) {
-  if (note.dashboard === "Life") return lifeJournalEditorHtml(note);
+  if (note.dashboard === "Life" && note.properties?.role === "life-journal") return lifeJournalEditorHtml(note);
+  const isThought = note.properties?.role === "thought";
   return editorHtml({
-    title: "Edit Note",
-    subtitle: `${note.dashboard} artifact note. It uses the same root schema as every dashboard.`,
+    title: isThought ? "Edit Thought" : "Edit Note",
+    subtitle: isThought ? `${note.dashboard} thought / ${note.properties?.thoughtLabel || "Quick thought"}` : `${note.dashboard} artifact note. It uses the same root schema as every dashboard.`,
     saveAction: "save-artifact-note",
     cancelAction: "artifact-viewer",
     id: note.id,
@@ -2463,9 +4902,8 @@ function lifeJournalEditorHtml(note) {
   return panelHtml(`
     ${headerHtml("Edit Life Note", "Journal entry with quick habit markers.", `
       <div class="action-row">
-        <button class="secondary-button" data-action="artifact-viewer">${buttonContent("tabler:x", "Cancel")}</button>
-        <button class="secondary-button" data-action="save-artifact-note" data-id="${note.id}">${buttonContent("tabler:device-floppy", "Save")}</button>
         <button class="secondary-button danger-button" data-action="delete-artifact-note" data-id="${note.id}">${buttonContent("tabler:trash", "Delete")}</button>
+        <button class="icon-button close-viewer-button" data-action="artifact-viewer" type="button" aria-label="Close editor" title="Close">${iconHtml("tabler:x")}</button>
       </div>
     `)}
     <form class="editor-form life-editor-form">
@@ -2495,8 +4933,11 @@ function lifeJournalEditorHtml(note) {
           `).join("")}
         </div>
       </fieldset>
-      ${editorMediaToolbarHtml()}
       <label class="body-field">Journal<textarea id="editor-body" aria-label="Body" placeholder="What happened today? What needs attention?">${escapeHtml(note.body)}</textarea></label>
+      <div class="editor-footer-actions">
+        <button class="secondary-button" data-action="artifact-viewer" type="button">${buttonContent("tabler:x", "Cancel")}</button>
+        <button class="secondary-button" data-action="save-artifact-note" data-id="${note.id}" type="button">${buttonContent("tabler:device-floppy", "Save")}</button>
+      </div>
     </form>
   `);
 }
@@ -2505,17 +4946,19 @@ function editorHtml({ title, subtitle, saveAction, cancelAction, id, valueTitle,
   return panelHtml(`
     ${headerHtml(title, subtitle, `
       <div class="action-row">
-        <button class="secondary-button" data-action="${cancelAction}">${buttonContent("tabler:x", "Cancel")}</button>
-        <button class="secondary-button" data-action="${saveAction}" data-id="${id}">${buttonContent("tabler:device-floppy", "Save")}</button>
         ${saveAction === "save-artifact-note" ? `<button class="secondary-button danger-button" data-action="delete-artifact-note" data-id="${id}">${buttonContent("tabler:trash", "Delete")}</button>` : ""}
         ${saveAction === "save-compendium" ? `<button class="secondary-button danger-button" data-action="delete-compendium" data-id="${id}">${buttonContent("tabler:trash", "Delete")}</button>` : ""}
         ${saveAction === "save-block" ? `<button class="secondary-button danger-button" data-action="delete-block" data-id="${id}">${buttonContent("tabler:trash", "Delete")}</button>` : ""}
+        <button class="icon-button close-viewer-button" data-action="${cancelAction}" type="button" aria-label="Close editor" title="Close">${iconHtml("tabler:x")}</button>
       </div>
     `)}
     <form class="editor-form">
       <input id="editor-title" value="${escapeHtml(valueTitle)}" aria-label="Title">
-      ${editorMediaToolbarHtml()}
       <textarea id="editor-body" aria-label="Body">${escapeHtml(valueBody)}</textarea>
+      <div class="editor-footer-actions">
+        <button class="secondary-button" data-action="${cancelAction}" type="button">${buttonContent("tabler:x", "Cancel")}</button>
+        <button class="secondary-button" data-action="${saveAction}" data-id="${id}" type="button">${buttonContent("tabler:device-floppy", "Save")}</button>
+      </div>
     </form>
   `);
 }
@@ -2554,9 +4997,24 @@ function bindActions() {
     if (action === "select-spirit-plan") {
       element.addEventListener("change", () => selectSpiritPlan(element.value));
     } else {
-      element.addEventListener("click", () => handleAction(element));
+      element.addEventListener("click", (event) => {
+        const actionElement = eventActionElement(event);
+        if (actionElement && actionElement !== element) return;
+        handleAction(element);
+      });
+      element.addEventListener("keydown", (event) => {
+        if (event.target !== element || !["Enter", " "].includes(event.key)) return;
+        event.preventDefault();
+        handleAction(element);
+      });
     }
   });
+}
+
+function eventActionElement(event) {
+  const direct = event.target?.closest?.("[data-action]");
+  if (direct) return direct;
+  return event.composedPath?.().find((node) => node?.dataset?.action) || null;
 }
 
 function bindSidebarResize() {
@@ -2571,9 +5029,11 @@ function bindSidebarResize() {
 
   toggle.addEventListener("pointerdown", (event) => {
     if (event.button !== undefined && event.button !== 0) return;
+    if (!state.mobileMenuOpen) return;
     startX = event.clientX;
-    startWidth = state.mobileMenuOpen ? state.sidebarWidth : SIDEBAR_MIN_WIDTH;
+    startWidth = state.sidebarWidth;
     dragging = false;
+    workspace.classList.add("is-resizing");
     toggle.setPointerCapture?.(event.pointerId);
   });
 
@@ -2582,11 +5042,7 @@ function bindSidebarResize() {
     const delta = event.clientX - startX;
     if (!dragging && Math.abs(delta) < 5) return;
     dragging = true;
-    const openingFromCollapsed = !state.mobileMenuOpen && delta > 0;
-    if (openingFromCollapsed) {
-      workspace.classList.add("has-mobile-menu");
-    }
-    setSidebarWidth(startWidth + delta, { open: state.mobileMenuOpen || openingFromCollapsed });
+    setSidebarWidth(startWidth + delta, { open: true });
   });
 
   const finishDrag = (event) => {
@@ -2600,6 +5056,8 @@ function bindSidebarResize() {
       }, 0);
     }
     dragging = false;
+    workspace.classList.remove("is-resizing");
+    toggle.style.transform = "";
   };
 
   toggle.addEventListener("pointerup", finishDrag);
@@ -2617,6 +5075,101 @@ function bindSidebarHorizontalScroll() {
         behavior: "smooth"
       });
     }, { passive: false });
+  });
+}
+
+function sectionDropIndex(list, activeRow, pointerY) {
+  const rows = Array.from(list.querySelectorAll("[data-section-row]"))
+    .filter((row) => row !== activeRow);
+  const index = rows.findIndex((row) => {
+    const rect = row.getBoundingClientRect();
+    return pointerY < rect.top + rect.height / 2;
+  });
+  return index === -1 ? rows.length : index;
+}
+
+function moveSectionRow(list, activeRow, targetIndex) {
+  const rows = Array.from(list.querySelectorAll("[data-section-row]"))
+    .filter((row) => row !== activeRow);
+  list.insertBefore(activeRow, rows[targetIndex] || null);
+}
+
+function renumberSectionRows(list) {
+  list.querySelectorAll("[data-section-row]").forEach((row, index) => {
+    const number = String(index + 1).padStart(2, "0");
+    const handle = row.querySelector("[data-section-drag-handle]");
+    if (handle) {
+      handle.textContent = number;
+      handle.setAttribute("aria-label", `Drag section ${number} to reorder`);
+    }
+  });
+}
+
+function scrollSectionListWhileDragging(scrollArea, pointerY) {
+  if (!scrollArea) return;
+  const rect = scrollArea.getBoundingClientRect();
+  const edge = 56;
+  if (pointerY < rect.top + edge) {
+    scrollArea.scrollTop -= Math.ceil((rect.top + edge - pointerY) / 3);
+  } else if (pointerY > rect.bottom - edge) {
+    scrollArea.scrollTop += Math.ceil((pointerY - (rect.bottom - edge)) / 3);
+  }
+}
+
+function bindCompendiumSectionSorting() {
+  const list = app.querySelector("[data-section-sort-list]");
+  if (!list) return;
+
+  list.querySelectorAll("[data-section-drag-handle]").forEach((handle) => {
+    handle.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+
+    handle.addEventListener("pointerdown", (event) => {
+      if (event.button !== undefined && event.button !== 0) return;
+      const activeRow = handle.closest("[data-section-row]");
+      const compendiumId = list.dataset.compendiumId;
+      const blockId = activeRow?.dataset.id;
+      if (!activeRow || !compendiumId || !blockId) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      handle.setPointerCapture?.(event.pointerId);
+      list.classList.add("is-sorting");
+      activeRow.classList.add("is-dragging");
+      handle.classList.add("is-active");
+
+      const scrollArea = list.closest(".scroll-area");
+      let moved = false;
+
+      const onPointerMove = (moveEvent) => {
+        moveEvent.preventDefault();
+        scrollSectionListWhileDragging(scrollArea, moveEvent.clientY);
+        const targetIndex = sectionDropIndex(list, activeRow, moveEvent.clientY);
+        if (!reorderCompendiumBlock(compendiumId, blockId, targetIndex)) return;
+        moveSectionRow(list, activeRow, targetIndex);
+        renumberSectionRows(list);
+        moved = true;
+      };
+
+      const finishDrag = (finishEvent) => {
+        handle.releasePointerCapture?.(finishEvent.pointerId);
+        window.removeEventListener("pointermove", onPointerMove);
+        window.removeEventListener("pointerup", finishDrag);
+        window.removeEventListener("pointercancel", finishDrag);
+        list.classList.remove("is-sorting");
+        activeRow.classList.remove("is-dragging");
+        handle.classList.remove("is-active");
+        if (!moved) return;
+        touchCompendium(compendiumId);
+        persistCompendiums();
+      };
+
+      window.addEventListener("pointermove", onPointerMove, { passive: false });
+      window.addEventListener("pointerup", finishDrag);
+      window.addEventListener("pointercancel", finishDrag);
+    });
   });
 }
 
@@ -2656,26 +5209,9 @@ function bindGalleryControls() {
   });
 }
 
-function editorMediaToolbarHtml() {
-  return `
-    <div class="editor-media-toolbar">
-      <label class="secondary-button editor-media-button">
-        ${buttonContent("tabler:photo-plus", "Image")}
-        <input data-editor-image-input type="file" accept="image/*" multiple>
-      </label>
-    </div>
-  `;
-}
-
 function bindEditorMedia() {
   const editor = document.getElementById("editor-body");
   if (!editor) return;
-  app.querySelectorAll("[data-editor-image-input]").forEach((input) => {
-    input.addEventListener("change", async () => {
-      await insertEditorImages(Array.from(input.files || []));
-      input.value = "";
-    });
-  });
   editor.addEventListener("paste", async (event) => {
     const files = Array.from(event.clipboardData?.items || [])
       .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
@@ -2694,8 +5230,25 @@ function bindEditorMedia() {
     const files = Array.from(event.dataTransfer?.files || []).filter((file) => file.type.startsWith("image/"));
     if (!files.length) return;
     event.preventDefault();
+    setEditorCursorFromPoint(event);
     await insertEditorImages(files);
   });
+}
+
+function setEditorCursorFromPoint(event) {
+  const editor = document.getElementById("editor-body");
+  if (!editor) return;
+  if (document.caretPositionFromPoint) {
+    const position = document.caretPositionFromPoint(event.clientX, event.clientY);
+    if (position?.offsetNode === editor.firstChild || position?.offsetNode === editor) {
+      editor.setSelectionRange(position.offset, position.offset);
+    }
+    return;
+  }
+  if (document.caretRangeFromPoint) {
+    const range = document.caretRangeFromPoint(event.clientX, event.clientY);
+    if (range) editor.setSelectionRange(range.startOffset, range.startOffset);
+  }
 }
 
 async function insertEditorImages(files) {
@@ -2753,6 +5306,18 @@ function bindLocalAssetImages() {
       link.classList.add("is-missing");
     }
   });
+  app.querySelectorAll("a[data-local-file-link]").forEach(async (link) => {
+    link.addEventListener("click", (event) => {
+      if (!link.href || link.getAttribute("href") === "#") event.preventDefault();
+    });
+    try {
+      const url = await resolveLocalFileUrl(link.dataset.localFileLink);
+      if (url) link.href = url;
+      else link.classList.add("is-missing");
+    } catch {
+      link.classList.add("is-missing");
+    }
+  });
 }
 
 function handleAction(element) {
@@ -2793,25 +5358,60 @@ function handleAction(element) {
   }
   if (action === "set-dashboard-period") setDashboardPeriod(element.dataset.period);
   if (action === "open-compendium") openCompendium(element.dataset.id);
+  if (action === "open-mind-section") openMindSection(element.dataset.parentId, element.dataset.id);
   if (action === "open-artifact-note") openArtifactNote(element.dataset.id, element.dataset.returnActive || "");
   if (action === "export-artifacts") exportArtifacts();
+  if (action === "import-artifacts") importArtifacts();
+  if (action === "clear-app-data") clearAppData();
   if (action === "open-gallery") openGallery();
   if (action === "close-gallery") goHome();
   if (action === "gallery-select-all") selectAllGalleryImages();
   if (action === "gallery-clear-selection") clearGallerySelection();
   if (action === "gallery-delete-selected") deleteSelectedGalleryImages();
-  if (action === "open-getting-started") {
+  if (action === "open-settings") {
     setState({
-      active: "Getting Started",
+      active: "Settings",
       flipped: null,
       artifactMode: "grid",
       selectedArtifactId: null,
       selectedCompendiumId: null,
       selectedBlockId: null,
-      selectedSpiritBookKey: null
+      selectedSpiritBookKey: null,
+      trackerAddArea: "",
+      trackerEditKey: "",
+      trackerDeleteKey: ""
     });
   }
-  if (action === "close-getting-started") goHome();
+  if (action === "close-settings") goHome();
+  if (action === "set-settings-tab") setState({ settingsTab: element.dataset.tab || "getting-started", trackerAddArea: "", trackerEditKey: "", trackerDeleteKey: "" });
+  if (action === "start-add-tracker") setState({ trackerAddArea: element.dataset.area || "", trackerEditKey: "", trackerDeleteKey: "" });
+  if (action === "cancel-add-tracker") setState({ trackerAddArea: "" });
+  if (action === "start-edit-tracker") {
+    if (state.suppressNextTrackerEditClick) {
+      state.suppressNextTrackerEditClick = false;
+      return;
+    }
+    setState({ trackerEditKey: trackerEditKey(element.dataset.area, element.dataset.id), trackerDeleteKey: "", trackerAddArea: "" });
+  }
+  if (action === "cancel-edit-tracker") setState({ trackerEditKey: "", trackerDeleteKey: "" });
+  if (action === "save-edit-tracker") updateTracker(element.dataset.area, element.dataset.id);
+  if (action === "request-remove-tracker") setState({ trackerDeleteKey: trackerEditKey(element.dataset.area, element.dataset.id) });
+  if (action === "cancel-remove-tracker") setState({ trackerDeleteKey: "" });
+  if (action === "save-tracker") addTracker(element.dataset.area);
+  if (action === "remove-tracker") removeTracker(element.dataset.area, element.dataset.id);
+  if (action === "quick-thought") quickThought(element.dataset.area, element.dataset.id);
+  if (action === "open-thought-toast-note") {
+    const noteId = element.dataset.id || state.thoughtToast?.noteId;
+    const dashboard = state.thoughtToast?.dashboard || findArtifact(state.artifactStore, noteId)?.dashboard || "";
+    applyThoughtToastTimestamp(noteId);
+    clearThoughtToast();
+    openArtifactNote(noteId, dashboard);
+  }
+  if (action === "submit-thought-toast-note") {
+    submitThoughtToastNote(element.dataset.id || state.thoughtToast?.noteId, document.getElementById("thought-toast-note")?.value || state.thoughtToast?.quickNote || "");
+  }
+  if (action === "delete-thought-toast-note") deleteThoughtToastNote(element.dataset.id || state.thoughtToast?.noteId);
+  if (action === "dismiss-thought-toast") clearThoughtToast();
   if (action === "new-compendium") addCompendium();
   if (action === "new-artifact-note") addDashboardNote(element.dataset.dashboard);
   if (action === "delete-compendium") deleteCompendium(element.dataset.id);
@@ -2820,12 +5420,46 @@ function handleAction(element) {
   if (action === "save-body-fast-settings") saveBodyFastSettings();
   if (action === "start-body-fast") startBodyFast();
   if (action === "stop-body-fast") stopBodyFast();
+  if (action === "save-body-timer-settings") saveBodyTimerSettings(element.dataset.mode);
+  if (action === "start-body-timer") startBodyTimer(element.dataset.mode);
+  if (action === "stop-body-timer") stopBodyTimer(element.dataset.mode);
   if (action === "save-body-nutrition") saveBodyNutrition();
+  if (action === "save-body-nutrition-goals") saveBodyNutritionGoals();
   if (action === "reset-body-nutrition") resetBodyNutrition();
   if (action === "add-body-workout") addBodyWorkout();
   if (action === "delete-body-workout") deleteBodyWorkout(element.dataset.id);
   if (action === "set-body-mode") setBodyMode(element.dataset.mode);
+  if (action === "set-body-timer-mode") setBodyTimerMode(element.dataset.mode);
+  if (action === "set-body-nutrition-mode") setBodyNutritionMode(element.dataset.mode);
+  if (action === "set-life-tool") setLifeTool(element.dataset.tool);
   if (action === "set-life-mode") setLifeMode(element.dataset.mode);
+  if (action === "add-life-todo") addLifeTodo();
+  if (action === "toggle-life-todo") toggleLifeTodo(element.dataset.id);
+  if (action === "toggle-life-task") toggleLifeTaskItem(element.dataset.source, element.dataset.id, element.dataset.projectId, element.dataset.phaseId);
+  if (action === "edit-life-task-notes") editLifeTaskNotes(element.dataset.source, element.dataset.id, element.dataset.projectId, element.dataset.phaseId);
+  if (action === "open-life-task") openLifeTaskItem(element.dataset.source, element.dataset.id, element.dataset.projectId, element.dataset.phaseId);
+  if (action === "open-life-project-task") openLifeProjectTask(element.dataset.projectId, element.dataset.phaseId, element.dataset.taskId);
+  if (action === "delete-life-todo") deleteLifeTodo(element.dataset.id);
+  if (action === "add-life-project") addLifeProject();
+  if (action === "select-life-project") selectLifeProject(element.dataset.id);
+  if (action === "select-life-phase") selectLifePhase(element.dataset.id);
+  if (action === "select-life-task") {
+    if (element.dataset.projectId && element.dataset.phaseId) {
+      setState({
+        lifeTool: "projects",
+        selectedLifeProjectId: element.dataset.projectId,
+        selectedLifePhaseId: element.dataset.phaseId,
+        selectedLifeTaskId: element.dataset.taskId
+      });
+    } else {
+      selectLifeTask(element.dataset.taskId);
+    }
+  }
+  if (action === "add-life-phase") addLifePhase(element.dataset.projectId);
+  if (action === "add-life-project-task") addLifeProjectTask(element.dataset.projectId, element.dataset.phaseId);
+  if (action === "save-life-project-entity") saveLifeProjectEntity(element.dataset.level);
+  if (action === "upload-life-attachment") uploadLifeAttachment(element.dataset.level);
+  if (action === "delete-life-attachment") deleteLifeAttachment(element.dataset.level, element.dataset.id);
   if (action === "set-spirit-year") setSpiritYear(Number(element.dataset.year));
   if (action === "spirit-prev-year") {
     const years = spiritYears();
@@ -2866,19 +5500,25 @@ function editorBody() {
 }
 
 function updateBodyTimerDom() {
-  if (!state.bodyTracker.fast.active) return;
+  BODY_TIMER_MODES.forEach(({ key }) => {
+    const timer = bodyTimerState(key);
+    if (!timer.active) return;
 
-  const timeEl = document.getElementById("body-fast-time");
-  const ringEl = document.getElementById("body-fast-ring");
-  if (!timeEl || !ringEl) return;
+    const timeEl = document.getElementById(`body-timer-${key}-time`);
+    const ringEl = document.getElementById(`body-timer-${key}-ring`);
+    if (!timeEl || !ringEl) return;
 
-  timeEl.textContent = formatDuration(getFastElapsedMs());
-  ringEl.style.strokeDashoffset = String(RING_CIRCUMFERENCE * (1 - getFastProgress()));
+    timeEl.textContent = formatDuration(getBodyTimerElapsedMs(key));
+    ringEl.style.strokeDashoffset = String(RING_CIRCUMFERENCE * (1 - getBodyTimerProgress(key)));
+  });
 }
 
 render();
 
-loadArtifactStore().then((artifactStore) => {
+loadArtifactStore().then(async (artifactStore) => {
+  if (artifactStore.appState && !hasStoredAppState()) {
+    await restoreImportedAppState(artifactStore.appState);
+  }
   setState({
     artifactStore,
     compendiums: artifactStoreToCompendiums(artifactStore)

@@ -35,6 +35,20 @@ function requestToPromise(request) {
   });
 }
 
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function dataUrlToBlob(dataUrl) {
+  const response = await fetch(dataUrl);
+  return await response.blob();
+}
+
 function blobToImage(blob) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(blob);
@@ -73,6 +87,13 @@ function safeAltText(name) {
     .replace(/\.[a-z0-9]+$/i, "")
     .replace(/[\][()]/g, "")
     .trim() || "image";
+}
+
+function safeStorageName(name) {
+  return String(name || "file")
+    .replace(/[^a-z0-9._-]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 96) || "file";
 }
 
 export function localAssetUrl(id) {
@@ -120,6 +141,25 @@ export async function storeLocalImage(file) {
   };
 }
 
+export async function storeLocalFile(file, folder = "life-attachments") {
+  if (!file) throw new Error("No file selected.");
+  const id = `file-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const record = {
+    id,
+    name: file.name || id,
+    type: file.type || "application/octet-stream",
+    size: file.size || 0,
+    created: new Date().toISOString(),
+    storage: "indexeddb",
+    futureStoragePath: `${folder}/${id}-${safeStorageName(file.name || id)}`,
+    blob: file
+  };
+  const store = await transaction("readwrite");
+  await requestToPromise(store.put(record));
+  const { blob, ...metadata } = record;
+  return metadata;
+}
+
 export async function listLocalImages() {
   const store = await transaction("readonly");
   const records = await requestToPromise(store.getAll());
@@ -141,6 +181,37 @@ export async function deleteLocalImages(ids) {
   });
 }
 
+export async function clearLocalFiles() {
+  const store = await transaction("readwrite");
+  await requestToPromise(store.clear());
+  objectUrlCache.forEach((url) => URL.revokeObjectURL(url));
+  objectUrlCache.clear();
+}
+
+export async function exportLocalFiles() {
+  const store = await transaction("readonly");
+  const records = await requestToPromise(store.getAll());
+  return await Promise.all(records.map(async (record) => {
+    const { blob, ...metadata } = record;
+    return {
+      ...metadata,
+      dataUrl: blob ? await blobToDataUrl(blob) : ""
+    };
+  }));
+}
+
+export async function importLocalFiles(records) {
+  if (!Array.isArray(records)) return;
+  await clearLocalFiles();
+  const restoredRecords = await Promise.all(records.filter((record) => record?.id).map(async (record) => {
+    const { dataUrl, ...metadata } = record;
+    const blob = dataUrl ? await dataUrlToBlob(dataUrl) : new Blob([], { type: metadata.type || "application/octet-stream" });
+    return { ...metadata, blob };
+  }));
+  const store = await transaction("readwrite");
+  await Promise.all(restoredRecords.map((record) => requestToPromise(store.put(record))));
+}
+
 export async function resolveLocalImageUrl(id) {
   if (!id) return "";
   if (objectUrlCache.has(id)) return objectUrlCache.get(id);
@@ -150,4 +221,8 @@ export async function resolveLocalImageUrl(id) {
   const url = URL.createObjectURL(record.blob);
   objectUrlCache.set(id, url);
   return url;
+}
+
+export async function resolveLocalFileUrl(id) {
+  return resolveLocalImageUrl(id);
 }
