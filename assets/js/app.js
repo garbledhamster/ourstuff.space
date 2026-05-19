@@ -2,6 +2,7 @@ import { dashboardCards, today } from "./data.js";
 import { donationModalHtml, bindDonationFlow } from "./donations.js";
 import { clearLocalFiles, deleteLocalImages, exportLocalFiles, importLocalFiles, listLocalImages, resolveLocalFileUrl, resolveLocalImageUrl, storeLocalFile, storeLocalImage } from "./localMedia.js";
 import { escapeHtml, renderMarkdown } from "./markdown.js";
+import { autoUpdate, computePosition, flip, offset, shift } from "https://cdn.jsdelivr.net/npm/@floating-ui/dom@1.7.5/+esm";
 import {
   artifactStoreToCompendiums,
   compendiumsToArtifactStore,
@@ -30,7 +31,12 @@ const SIDEBAR_DEFAULT_WIDTH = 270;
 const SIDEBAR_MIN_WIDTH = 220;
 const SIDEBAR_MAX_WIDTH = 540;
 const THOUGHT_COOLDOWN_MS = 7000;
+const TRACKER_ORBS_PER_ROW = 8;
+const TRACKER_ORB_ROWS = 2;
+const TRACKER_ORBS_PER_PAGE = TRACKER_ORBS_PER_ROW * TRACKER_ORB_ROWS;
+const THOUGHT_TOOLTIP_LONG_PRESS_MS = 480;
 const MOBILE_MENU_QUERY = "(max-width: 860px)";
+const INSTALLED_APP_QUERY = "(display-mode: standalone)";
 const DASHBOARD_LABELS = ["Mind", "Body", "Spirit", "Life"];
 const BODY_TIMER_MODES = [
   {
@@ -100,6 +106,8 @@ const BODY_TIMER_MODES = [
 ];
 let thoughtToastFadeTimer = null;
 let thoughtToastHideTimer = null;
+let thoughtTooltipCleanup = null;
+let thoughtTooltipLongPressTimer = null;
 const SPIRIT_PLANS = [
   {
     id: "ten-year",
@@ -361,6 +369,38 @@ function initialMenuOpen() {
   return false;
 }
 
+function isInstalledWebApp() {
+  return Boolean(window.matchMedia?.(INSTALLED_APP_QUERY).matches || window.navigator?.standalone === true);
+}
+
+function isMobileViewport() {
+  return Boolean(window.matchMedia?.(MOBILE_MENU_QUERY).matches);
+}
+
+function applyEnvironmentClasses() {
+  const installed = isInstalledWebApp();
+  const mobile = isMobileViewport();
+  app.classList.toggle("is-installed-app", installed);
+  app.classList.toggle("is-browser-mode", !installed);
+  app.classList.toggle("is-mobile-viewport", mobile);
+  app.classList.toggle("is-desktop-viewport", !mobile);
+  app.dataset.displayMode = installed ? "standalone" : "browser";
+  app.dataset.viewportMode = mobile ? "mobile" : "desktop";
+}
+
+function bindEnvironmentMedia(media) {
+  if (!media) return;
+  const update = () => {
+    applyEnvironmentClasses();
+    render();
+  };
+  if (typeof media.addEventListener === "function") {
+    media.addEventListener("change", update);
+  } else if (typeof media.addListener === "function") {
+    media.addListener(update);
+  }
+}
+
 function createDefaultLifePlanner() {
   return {
     schemaVersion: 1,
@@ -527,6 +567,7 @@ const state = {
   compendiums: [],
   selectedCompendiumId: null,
   selectedBlockId: null,
+  compendiumReaderPages: {},
   selectedArtifactId: null,
   artifactReturnActive: "",
   mindMode: "grid",
@@ -566,12 +607,13 @@ const state = {
   sidebarWidth: loadSidebarWidth(),
   suppressNextMenuToggle: false,
   sidebarExpanded: {
-    Mind: true,
-    Body: true,
-    Spirit: true,
-    Life: true
+    Mind: false,
+    Body: false,
+    Spirit: false,
+    Life: false
   },
-  sidebarPages: {}
+  sidebarPages: {},
+  trackerPages: {}
 };
 
 function makeId(prefix) {
@@ -776,17 +818,30 @@ function trackerStripHtml(dashboard, options = {}) {
   const trackers = state.trackerSettings?.[dashboard] || [];
   const editable = Boolean(options.editable);
   const compact = Boolean(options.compact);
+  const entries = editable
+    ? [...trackers, { id: "__add__", label: "Add thought", icon: "tabler:plus", isAdd: true }]
+    : trackers;
+  const maxPage = Math.max(0, Math.ceil(entries.length / TRACKER_ORBS_PER_PAGE) - 1);
+  const page = trackerPage(dashboard, editable, maxPage);
+  const visibleEntries = entries.slice(page * TRACKER_ORBS_PER_PAGE, (page + 1) * TRACKER_ORBS_PER_PAGE);
   return `
     <section class="tracker-strip${compact ? " tracker-strip--compact" : ""}${editable ? " is-editable" : ""}" aria-label="${escapeHtml(dashboard)} thoughts" style="--thought-color: ${DASHBOARD_COLORS[dashboard] || DASHBOARD_COLORS.Mind};">
       <div class="tracker-orb-row"${editable ? ` data-tracker-reorder-row data-area="${escapeHtml(dashboard)}"` : ""}>
-        ${trackers.map((tracker) => trackerOrbHtml(dashboard, tracker, editable)).join("")}
-        ${editable ? `
-          <button class="tracker-orb tracker-orb--add" data-action="start-add-tracker" data-area="${escapeHtml(dashboard)}" type="button" aria-label="Add ${escapeHtml(dashboard)} thought" title="Add thought">
-            ${iconHtml("tabler:plus")}
-            <span>Add</span>
-          </button>
-        ` : ""}
+        ${visibleEntries.map((tracker) => tracker.isAdd ? `
+          <span class="tracker-orb-wrap">
+            <button class="tracker-orb tracker-orb--add" data-action="start-add-tracker" data-area="${escapeHtml(dashboard)}" data-thought-tooltip="Add thought" type="button" aria-label="Add ${escapeHtml(dashboard)} thought">
+              ${iconHtml("tabler:plus")}
+            </button>
+          </span>
+        ` : trackerOrbHtml(dashboard, tracker, editable)).join("")}
       </div>
+      ${maxPage > 0 ? `
+        <div class="tracker-page-controls" aria-label="${escapeHtml(dashboard)} thought pages">
+          <button data-action="tracker-page" data-area="${escapeHtml(dashboard)}" data-direction="prev" data-max-page="${maxPage}" data-editable="${editable ? "true" : "false"}" type="button" aria-label="Previous ${escapeHtml(dashboard)} thoughts"${page <= 0 ? " disabled" : ""}>${iconHtml("tabler:chevron-left")}</button>
+          <span>${page + 1} / ${maxPage + 1}</span>
+          <button data-action="tracker-page" data-area="${escapeHtml(dashboard)}" data-direction="next" data-max-page="${maxPage}" data-editable="${editable ? "true" : "false"}" type="button" aria-label="Next ${escapeHtml(dashboard)} thoughts"${page >= maxPage ? " disabled" : ""}>${iconHtml("tabler:chevron-right")}</button>
+        </div>
+      ` : ""}
     </section>
   `;
 }
@@ -800,10 +855,9 @@ function trackerOrbHtml(dashboard, tracker, editable = false) {
     : ` data-action="quick-thought" data-area="${escapeHtml(dashboard)}" data-id="${escapeHtml(tracker.id)}"`;
   return `
     <span class="tracker-orb-wrap"${editable ? ` data-tracker-orb-wrap data-area="${escapeHtml(dashboard)}" data-id="${escapeHtml(tracker.id)}"` : ""}>
-      <button class="tracker-orb${isCooling ? " is-cooling" : ""}${isEditing ? " is-editing" : ""}" type="button"${actionAttrs} title="${escapeHtml(tracker.label)}" aria-label="${escapeHtml(`${dashboard} thought: ${tracker.label}`)}"${isCooling ? " disabled" : ""}>
+      <button class="tracker-orb${isCooling ? " is-cooling" : ""}${isEditing ? " is-editing" : ""}" type="button"${actionAttrs} data-thought-tooltip="${escapeHtml(tracker.label)}" aria-label="${escapeHtml(`${dashboard} thought: ${tracker.label}`)}"${isCooling ? " disabled" : ""}>
         ${isCooling ? `<span class="tracker-cooldown-pie" aria-hidden="true"${thoughtCooldownPieStyle(cooldownRemaining)}></span>` : ""}
         <span class="tracker-orb-icon">${trackerIconHtml(tracker.icon)}</span>
-        <span class="tracker-orb-label">${escapeHtml(tracker.label)}</span>
       </button>
     </span>
   `;
@@ -1760,6 +1814,26 @@ function setSidebarPage(section, direction, maxPage) {
   });
 }
 
+function trackerPageKey(dashboard, editable = false) {
+  return `${dashboard}:${editable ? "settings" : "quick"}`;
+}
+
+function trackerPage(dashboard, editable = false, maxPage = 0) {
+  const page = state.trackerPages?.[trackerPageKey(dashboard, editable)] || 0;
+  return Math.min(Math.max(page, 0), Math.max(0, maxPage));
+}
+
+function setTrackerPage(dashboard, direction, maxPage, editable = false) {
+  const current = trackerPage(dashboard, editable, maxPage);
+  const nextPage = direction === "prev" ? current - 1 : current + 1;
+  setState({
+    trackerPages: {
+      ...(state.trackerPages || {}),
+      [trackerPageKey(dashboard, editable)]: Math.min(Math.max(nextPage, 0), Math.max(0, maxPage))
+    }
+  });
+}
+
 function clampSidebarWidth(value) {
   return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(Number(value) || SIDEBAR_DEFAULT_WIDTH)));
 }
@@ -1771,23 +1845,23 @@ function setSidebarWidth(width, options = {}) {
   const workspace = app.querySelector(".workspace");
   if (workspace) workspace.style.setProperty("--sidebar-width", `${nextWidth}px`);
   const toggle = app.querySelector(".mobile-menu-toggle");
-  if (toggle && workspace?.classList.contains("is-resizing")) {
-    toggle.style.transform = `translateX(${nextWidth}px)`;
-  } else if (toggle) {
-    toggle.style.transform = "";
-  }
+  if (toggle) toggle.style.transform = "";
   if (options.open) {
     state.mobileMenuOpen = true;
     if (workspace) workspace.classList.add("has-mobile-menu");
     if (toggle) {
       toggle.setAttribute("aria-expanded", "true");
-      toggle.textContent = ">>> COLLAPSE MENU >>>";
+      toggle.textContent = menuToggleLabel(true);
     }
   }
 }
 
 function toggleMobileMenu() {
   setState({ mobileMenuOpen: !state.mobileMenuOpen });
+}
+
+function menuToggleLabel(isOpen = state.mobileMenuOpen) {
+  return isOpen ? "↓↓↓ COLLAPSE MENU ↓↓↓" : "↑↑↑ EXPAND MENU ↑↑↑";
 }
 
 function persistCompendiums() {
@@ -2144,6 +2218,23 @@ function openCompendium(id) {
     selectedBlockId: null,
     selectedArtifactId: null,
     mindMode: "manager"
+  });
+}
+
+function compendiumReaderPage(compendium) {
+  const maxPage = Math.max(0, (compendium?.blocks?.length || 0));
+  const page = state.compendiumReaderPages?.[compendium?.id] || 0;
+  return Math.min(Math.max(page, 0), maxPage);
+}
+
+function setCompendiumReaderPage(compendiumId, direction, maxPage) {
+  const current = state.compendiumReaderPages?.[compendiumId] || 0;
+  const nextPage = direction === "prev" ? current - 1 : current + 1;
+  setState({
+    compendiumReaderPages: {
+      ...state.compendiumReaderPages,
+      [compendiumId]: Math.min(Math.max(nextPage, 0), Math.max(0, maxPage))
+    }
   });
 }
 
@@ -2977,6 +3068,8 @@ function setDashboardPeriod(period) {
 }
 
 function render() {
+  applyEnvironmentClasses();
+
   if (!isReady()) {
     app.innerHTML = `
       <div class="workspace">
@@ -2999,10 +3092,12 @@ function render() {
   const block = selectedBlock();
   const spiritBook = selectedSpiritBook();
   const sidebarScrollTop = app.querySelector(".sidebar-list-scroll")?.scrollTop ?? 0;
+  const settingsScrollTop = app.querySelector(".settings-tab-panel")?.scrollTop ?? 0;
+  hideThoughtTooltip();
   app.innerHTML = `
     <div class="workspace${state.mobileMenuOpen ? " has-mobile-menu" : ""}" style="--sidebar-width: ${clampSidebarWidth(state.sidebarWidth)}px;">
       <button class="mobile-menu-toggle" data-action="toggle-mobile-menu" type="button" aria-expanded="${state.mobileMenuOpen ? "true" : "false"}">
-        ${state.mobileMenuOpen ? ">>> COLLAPSE MENU >>>" : ">>> EXPAND MENU >>>"}
+        ${menuToggleLabel()}
       </button>
       ${sidebarHtml(compendium)}
       <section class="content-shell">
@@ -3015,7 +3110,10 @@ function render() {
   `;
   const sidebarScroll = app.querySelector(".sidebar-list-scroll");
   if (sidebarScroll) sidebarScroll.scrollTop = sidebarScrollTop;
+  const settingsScroll = app.querySelector(".settings-tab-panel");
+  if (settingsScroll) settingsScroll.scrollTop = settingsScrollTop;
   bindActions();
+  bindThoughtTooltips();
   bindThoughtToastControls();
   bindTrackerSettingsForms();
   bindTrackerOrbSorting();
@@ -3592,7 +3690,6 @@ function trackerEditFormHtml(area) {
       <div class="tracker-edit-preview">
         <span class="tracker-orb tracker-orb--preview">
           <span class="tracker-orb-icon">${trackerIconHtml(tracker.icon)}</span>
-          <span class="tracker-orb-label">${escapeHtml(tracker.label)}</span>
         </span>
       </div>
       <div class="tracker-add-form tracker-add-form--embedded">
@@ -4846,22 +4943,56 @@ function sectionListHtml(compendium) {
 }
 
 function compendiumReaderHtml(compendium) {
-  return panelHtml(`
-    <div class="reader-topbar">
-      <button class="icon-button" data-action="manager" type="button" aria-label="Close reader" title="Close">${iconHtml("tabler:x")}</button>
-    </div>
-    <section class="reader-book reader-book--compendium">
-      <div class="reader-book-inner">
+  const pages = [
+    {
+      key: "cover",
+      body: `
         <section class="reader-section reader-section--cover">
           <h2 class="reader-compendium-title">${escapeHtml(compendium.title)}</h2>
           <div class="markdown-body">${readerBodyHtml(compendium.title, compendium.body, "")}</div>
         </section>
-        ${compendium.blocks.map((section) => `
-          <section class="reader-section">
-            <button class="reader-section-title" data-action="open-block" data-id="${section.id}">${escapeHtml(section.title)}</button>
-            <div class="markdown-body">${renderMarkdown(section.body)}</div>
-          </section>
-        `).join("")}
+      `
+    },
+    ...compendium.blocks.map((section) => ({
+      key: section.id,
+      body: `
+        <section class="reader-section">
+          <button class="reader-section-title" data-action="open-block" data-id="${section.id}">${escapeHtml(section.title)}</button>
+          <div class="markdown-body">${renderMarkdown(section.body)}</div>
+        </section>
+      `
+    }))
+  ];
+  const page = compendiumReaderPage(compendium);
+  const maxPage = Math.max(0, pages.length - 1);
+  const hasPrev = page > 0;
+  const hasNext = page < maxPage;
+  return panelHtml(`
+    <div class="reader-topbar">
+      <button class="icon-button" data-action="manager" type="button" aria-label="Close reader" title="Close">${iconHtml("tabler:x")}</button>
+    </div>
+    <section class="reader-book reader-book--compendium" aria-label="${escapeHtml(compendium.title)} reader">
+      <div class="reader-slider">
+        <button class="reader-slider-edge reader-slider-edge--prev${hasPrev ? " is-available" : ""}" data-action="compendium-reader-page" data-id="${escapeHtml(compendium.id)}" data-direction="prev" data-max-page="${maxPage}" type="button" aria-label="Previous page"${hasPrev ? "" : " disabled"}>
+          ${iconHtml("tabler:chevron-left")}
+        </button>
+        <div class="reader-book-window">
+          <div class="reader-book-inner" style="--reader-page: ${page};">
+            ${pages.map((item, index) => `
+              <article class="reader-slide${index === page ? " is-active" : ""}" data-reader-page="${index}">
+                ${item.body}
+              </article>
+            `).join("")}
+          </div>
+        </div>
+        <button class="reader-slider-edge reader-slider-edge--next${hasNext ? " is-available" : ""}" data-action="compendium-reader-page" data-id="${escapeHtml(compendium.id)}" data-direction="next" data-max-page="${maxPage}" type="button" aria-label="Next page"${hasNext ? "" : " disabled"}>
+          ${iconHtml("tabler:chevron-right")}
+        </button>
+      </div>
+      <div class="reader-page-indicator" aria-label="Reader page position">
+        <span class="reader-page-dot reader-page-dot--side${hasPrev ? " is-available" : ""}" aria-hidden="true"></span>
+        <span class="reader-page-dot reader-page-dot--current" aria-label="Page ${page + 1} of ${pages.length}"></span>
+        <span class="reader-page-dot reader-page-dot--side${hasNext ? " is-available" : ""}" aria-hidden="true"></span>
       </div>
     </section>
   `);
@@ -4951,7 +5082,12 @@ function lifeJournalEditorHtml(note) {
           `).join("")}
         </div>
       </fieldset>
-      <label class="body-field">Journal<textarea id="editor-body" aria-label="Body" placeholder="What happened today? What needs attention?">${escapeHtml(note.body)}</textarea></label>
+      <label class="body-field editor-body-field">Journal
+        <span class="editor-body-wrap has-image-button">
+          <textarea id="editor-body" aria-label="Body" placeholder="What happened today? What needs attention?">${escapeHtml(note.body)}</textarea>
+          ${editorImageButtonHtml()}
+        </span>
+      </label>
       <div class="editor-footer-actions">
         <button class="secondary-button" data-action="artifact-viewer" type="button">${buttonContent("tabler:x", "Cancel")}</button>
         <button class="secondary-button" data-action="save-artifact-note" data-id="${note.id}" type="button">${buttonContent("tabler:device-floppy", "Save")}</button>
@@ -4972,13 +5108,29 @@ function editorHtml({ title, subtitle, saveAction, cancelAction, id, valueTitle,
     `)}
     <form class="editor-form">
       <input id="editor-title" value="${escapeHtml(valueTitle)}" aria-label="Title">
-      <textarea id="editor-body" aria-label="Body">${escapeHtml(valueBody)}</textarea>
+      <div class="editor-body-wrap has-image-button">
+        <textarea id="editor-body" aria-label="Body">${escapeHtml(valueBody)}</textarea>
+        ${editorImageButtonHtml()}
+      </div>
       <div class="editor-footer-actions">
         <button class="secondary-button" data-action="${cancelAction}" type="button">${buttonContent("tabler:x", "Cancel")}</button>
         <button class="secondary-button" data-action="${saveAction}" data-id="${id}" type="button">${buttonContent("tabler:device-floppy", "Save")}</button>
       </div>
     </form>
   `);
+}
+
+function prefersCameraCapture() {
+  return Boolean(window.matchMedia?.("(pointer: coarse)").matches || window.matchMedia?.("(max-width: 860px)").matches);
+}
+
+function editorImageButtonHtml() {
+  const camera = prefersCameraCapture();
+  return `
+    <button class="icon-button editor-image-button" data-editor-image-button type="button" aria-label="${camera ? "Take photo" : "Upload image"}" title="${camera ? "Take Photo" : "Upload Image"}">
+      ${iconHtml(camera ? "tabler:camera" : "tabler:photo")}
+    </button>
+  `;
 }
 
 function panelHtml(inner) {
@@ -5006,6 +5158,64 @@ function emptyStateHtml(title, body) {
       </div>
     </div>
   `;
+}
+
+function hideThoughtTooltip() {
+  window.clearTimeout(thoughtTooltipLongPressTimer);
+  thoughtTooltipLongPressTimer = null;
+  if (thoughtTooltipCleanup) {
+    thoughtTooltipCleanup();
+    thoughtTooltipCleanup = null;
+  }
+  document.querySelector(".thought-tooltip")?.remove();
+}
+
+function showThoughtTooltip(target) {
+  const label = target?.dataset?.thoughtTooltip;
+  if (!label) return;
+  hideThoughtTooltip();
+  const tooltip = document.createElement("div");
+  tooltip.className = "thought-tooltip";
+  tooltip.setAttribute("role", "tooltip");
+  const thoughtColor = window.getComputedStyle(target).getPropertyValue("--thought-color").trim();
+  if (thoughtColor) tooltip.style.setProperty("--thought-color", thoughtColor);
+  tooltip.innerHTML = `<span>${escapeHtml(label)}</span><i aria-hidden="true"></i>`;
+  document.body.append(tooltip);
+
+  const update = () => {
+    computePosition(target, tooltip, {
+      placement: "top",
+      strategy: "fixed",
+      middleware: [offset(10), flip(), shift({ padding: 8 })]
+    }).then(({ x, y }) => {
+      Object.assign(tooltip.style, {
+        left: `${x}px`,
+        top: `${y}px`
+      });
+      tooltip.dataset.ready = "true";
+    });
+  };
+  thoughtTooltipCleanup = autoUpdate(target, tooltip, update);
+  update();
+}
+
+function bindThoughtTooltips() {
+  app.querySelectorAll("[data-thought-tooltip]").forEach((element) => {
+    element.addEventListener("pointerenter", (event) => {
+      if (event.pointerType === "touch") return;
+      showThoughtTooltip(element);
+    });
+    element.addEventListener("pointerleave", hideThoughtTooltip);
+    element.addEventListener("focus", () => showThoughtTooltip(element));
+    element.addEventListener("blur", hideThoughtTooltip);
+    element.addEventListener("pointerdown", (event) => {
+      if (event.pointerType !== "touch") return;
+      window.clearTimeout(thoughtTooltipLongPressTimer);
+      thoughtTooltipLongPressTimer = window.setTimeout(() => showThoughtTooltip(element), THOUGHT_TOOLTIP_LONG_PRESS_MS);
+    });
+    element.addEventListener("pointerup", () => window.clearTimeout(thoughtTooltipLongPressTimer));
+    element.addEventListener("pointercancel", hideThoughtTooltip);
+  });
 }
 
 function bindActions() {
@@ -5036,50 +5246,7 @@ function eventActionElement(event) {
 }
 
 function bindSidebarResize() {
-  const toggle = app.querySelector(".mobile-menu-toggle");
-  const workspace = app.querySelector(".workspace");
-  if (!toggle || !workspace) return;
-  if (window.matchMedia(MOBILE_MENU_QUERY).matches) return;
-
-  let startX = 0;
-  let startWidth = state.mobileMenuOpen ? state.sidebarWidth : SIDEBAR_MIN_WIDTH;
-  let dragging = false;
-
-  toggle.addEventListener("pointerdown", (event) => {
-    if (event.button !== undefined && event.button !== 0) return;
-    if (!state.mobileMenuOpen) return;
-    startX = event.clientX;
-    startWidth = state.sidebarWidth;
-    dragging = false;
-    workspace.classList.add("is-resizing");
-    toggle.setPointerCapture?.(event.pointerId);
-  });
-
-  toggle.addEventListener("pointermove", (event) => {
-    if (startX === 0) return;
-    const delta = event.clientX - startX;
-    if (!dragging && Math.abs(delta) < 5) return;
-    dragging = true;
-    setSidebarWidth(startWidth + delta, { open: true });
-  });
-
-  const finishDrag = (event) => {
-    if (startX === 0) return;
-    toggle.releasePointerCapture?.(event.pointerId);
-    startX = 0;
-    if (dragging) {
-      state.suppressNextMenuToggle = true;
-      window.setTimeout(() => {
-        state.suppressNextMenuToggle = false;
-      }, 0);
-    }
-    dragging = false;
-    workspace.classList.remove("is-resizing");
-    toggle.style.transform = "";
-  };
-
-  toggle.addEventListener("pointerup", finishDrag);
-  toggle.addEventListener("pointercancel", finishDrag);
+  return;
 }
 
 function bindSidebarHorizontalScroll() {
@@ -5230,6 +5397,27 @@ function bindGalleryControls() {
 function bindEditorMedia() {
   const editor = document.getElementById("editor-body");
   if (!editor) return;
+  const imageButton = app.querySelector("[data-editor-image-button]");
+  if (imageButton) {
+    imageButton.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      editor.focus();
+    });
+    imageButton.addEventListener("click", async () => {
+      const start = editor.selectionStart ?? editor.value.length;
+      const end = editor.selectionEnd ?? start;
+      const useCamera = prefersCameraCapture();
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      input.multiple = !useCamera;
+      if (useCamera) input.setAttribute("capture", "environment");
+      input.addEventListener("change", async () => {
+        await insertEditorImages(Array.from(input.files || []), { start, end });
+      }, { once: true });
+      input.click();
+    });
+  }
   editor.addEventListener("paste", async (event) => {
     const files = Array.from(event.clipboardData?.items || [])
       .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
@@ -5269,12 +5457,13 @@ function setEditorCursorFromPoint(event) {
   }
 }
 
-async function insertEditorImages(files) {
+async function insertEditorImages(files, range = null) {
   const editor = document.getElementById("editor-body");
   if (!editor) return;
   const images = files.filter((file) => file?.type?.startsWith("image/"));
   if (!images.length) return;
-  const previousCursor = editor.selectionStart ?? editor.value.length;
+  const previousCursor = range?.start ?? editor.selectionStart ?? editor.value.length;
+  const previousEnd = range?.end ?? editor.selectionEnd ?? previousCursor;
   const markdownItems = [];
   try {
     for (const image of images) {
@@ -5285,7 +5474,7 @@ async function insertEditorImages(files) {
     window.alert(error instanceof Error ? error.message : "Could not add image.");
     return;
   }
-  insertTextAtEditorCursor(markdownItems.join("\n\n"), previousCursor, editor.selectionEnd ?? previousCursor);
+  insertTextAtEditorCursor(markdownItems.join("\n\n"), previousCursor, previousEnd);
 }
 
 function insertTextAtEditorCursor(text, start, end) {
@@ -5364,6 +5553,7 @@ function handleAction(element) {
   if (action === "toggle-sidebar-section") toggleSidebarSection(element.dataset.section);
   if (action === "toggle-all-sidebar-sections") toggleAllSidebarSections();
   if (action === "sidebar-page") setSidebarPage(element.dataset.section, element.dataset.direction, Number(element.dataset.maxPage || 0));
+  if (action === "tracker-page") setTrackerPage(element.dataset.area, element.dataset.direction, Number(element.dataset.maxPage || 0), element.dataset.editable === "true");
   if (action === "open-dashboard-card") openDashboardCard(element.dataset.section);
   if (action === "open-dashboard-direct") {
     setState({
@@ -5497,6 +5687,7 @@ function handleAction(element) {
   if (action === "toggle-spirit-complete") toggleSpiritComplete(element.dataset.key);
   if (action === "reader") setState({ mindMode: "reader" });
   if (action === "manager") setState({ mindMode: "manager" });
+  if (action === "compendium-reader-page") setCompendiumReaderPage(element.dataset.id, element.dataset.direction, Number(element.dataset.maxPage || 0));
   if (action === "edit-compendium") setState({ mindMode: "compendium-editor" });
   if (action === "add-block") addBlock();
   if (action === "open-block") setState({ selectedBlockId: element.dataset.id, mindMode: "block-viewer" });
@@ -5532,7 +5723,13 @@ function updateBodyTimerDom() {
   });
 }
 
+applyEnvironmentClasses();
 render();
+
+const installedAppMedia = window.matchMedia?.(INSTALLED_APP_QUERY);
+const mobileViewportMedia = window.matchMedia?.(MOBILE_MENU_QUERY);
+bindEnvironmentMedia(installedAppMedia);
+bindEnvironmentMedia(mobileViewportMedia);
 
 loadArtifactStore().then(async (artifactStore) => {
   if (artifactStore.appState && !hasStoredAppState()) {

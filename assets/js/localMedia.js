@@ -2,7 +2,7 @@ const DB_NAME = "ourstuff.localMedia.v1";
 const DB_VERSION = 1;
 const STORE_NAME = "files";
 const ASSET_PREFIX = "ourstuff-asset:";
-const MAX_IMAGE_EDGE = 1280;
+const MAX_IMAGE_EDGE = 1080;
 const JPEG_QUALITY = 0.84;
 
 let dbPromise = null;
@@ -96,6 +96,15 @@ function safeStorageName(name) {
     .slice(0, 96) || "file";
 }
 
+function storageExtensionForType(type, fallback = "jpg") {
+  const normalized = String(type || "").toLowerCase();
+  if (normalized === "image/jpeg" || normalized === "image/jpg") return "jpg";
+  if (normalized === "image/png") return "png";
+  if (normalized === "image/webp") return "webp";
+  if (normalized === "image/gif") return "gif";
+  return fallback;
+}
+
 export function localAssetUrl(id) {
   return `${ASSET_PREFIX}${id}`;
 }
@@ -108,7 +117,10 @@ export function localAssetIdFromUrl(url) {
 export async function storeLocalImage(file) {
   if (!file?.type?.startsWith("image/")) throw new Error("Only image files can be added.");
   const image = await blobToImage(file);
-  const { width, height } = resizedDimensions(image.naturalWidth || image.width, image.naturalHeight || image.height);
+  const originalWidth = image.naturalWidth || image.width;
+  const originalHeight = image.naturalHeight || image.height;
+  const { width, height } = resizedDimensions(originalWidth, originalHeight);
+  const isResized = width !== originalWidth || height !== originalHeight;
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
@@ -117,12 +129,18 @@ export async function storeLocalImage(file) {
   context.fillRect(0, 0, width, height);
   context.drawImage(image, 0, 0, width, height);
 
-  const blob = await canvasToBlob(canvas, "image/jpeg", JPEG_QUALITY);
+  const jpegBlob = await canvasToBlob(canvas, "image/jpeg", JPEG_QUALITY);
+  const useOriginal = !isResized && file.size <= jpegBlob.size;
+  const blob = useOriginal ? file : jpegBlob;
+  const type = useOriginal ? file.type : "image/jpeg";
+  const extension = useOriginal
+    ? storageExtensionForType(file.type, safeStorageName(file.name).split(".").pop() || "img")
+    : "jpg";
   const id = `img-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const record = {
     id,
-    name: file.name || `${id}.jpg`,
-    type: "image/jpeg",
+    name: file.name || `${id}.${extension}`,
+    type,
     size: blob.size,
     width,
     height,
@@ -130,7 +148,7 @@ export async function storeLocalImage(file) {
     originalSize: file.size,
     created: new Date().toISOString(),
     storage: "indexeddb",
-    futureStoragePath: `note-images/${id}.jpg`,
+    futureStoragePath: `note-images/${id}.${extension}`,
     blob
   };
   const store = await transaction("readwrite");
