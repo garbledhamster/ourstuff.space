@@ -10,11 +10,22 @@
   --panel: rgba(15, 23, 42, 0.9);
   --border: #334155;
   --border-soft: #1e293b;
+  --border-strong: #64748b;
+  --border-muted: rgba(100, 116, 139, 0.34);
+  --border-accent: #38bdf8;
+  --border-accent-soft: rgba(56, 189, 248, 0.42);
+  --theme-divider: rgba(100, 116, 139, 0.28);
   --text: #f8fafc;
   --muted: #94a3b8;
   --faint: #64748b;
   --accent: #38bdf8;
   --danger: #fca5a5;
+  --theme-select-bg: #020617;
+  --theme-select-text: #f8fafc;
+  --theme-select-option-bg: #0f172a;
+  --theme-select-option-text: #f8fafc;
+  --theme-select-option-active: #075985;
+  --theme-select-option-active-text: #ffffff;
   --app-height: 100vh;
   --app-max-width: 720px;
   --content-pad: 32px;
@@ -30,6 +41,39 @@
   --bottom-menu-toggle-height: calc(var(--bottom-menu-button-height) + var(--safe-bottom));
   --sidebar-width: 270px;
   --dashboard-card-size: 154px;
+  --panel-section-gap: 8px;
+  --menu-body-gap: 8px;
+  --tracker-orb-size: 38px;
+  --tracker-strip-height: 84px;
+}
+
+:root.theme-consolas {
+  --font-body: Consolas, "Cascadia Mono", "SFMono-Regular", "Liberation Mono", monospace;
+  --font-display: Consolas, "Cascadia Mono", "SFMono-Regular", "Liberation Mono", monospace;
+  --font-label: Consolas, "Cascadia Mono", "SFMono-Regular", "Liberation Mono", monospace;
+  --font-mono: Consolas, "Cascadia Mono", "SFMono-Regular", "Liberation Mono", monospace;
+  --bg: #050505;
+  --surface: #080808;
+  --surface-2: #0d0d0d;
+  --panel: rgba(8, 8, 8, 0.96);
+  --border: #efeee7;
+  --border-soft: rgba(239, 238, 231, 0.58);
+  --border-strong: #efeee7;
+  --border-muted: rgba(239, 238, 231, 0.32);
+  --border-accent: #efeee7;
+  --border-accent-soft: rgba(239, 238, 231, 0.64);
+  --theme-divider: rgba(239, 238, 231, 0.42);
+  --text: #f1f0e8;
+  --muted: #d6d3c9;
+  --faint: #aaa79f;
+  --accent: #efeee7;
+  --danger: #f0b7b7;
+  --theme-select-bg: #050505;
+  --theme-select-text: #f1f0e8;
+  --theme-select-option-bg: #080808;
+  --theme-select-option-text: #f1f0e8;
+  --theme-select-option-active: #efeee7;
+  --theme-select-option-active-text: #050505;
 }
 
 @supports (height: 100dvh) {
@@ -62,14 +106,101 @@ body {
   line-height: 1.45;
 }
 
+:root.theme-consolas body {
+  background: #050505;
+}
+
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
 }
 
 button {
   cursor: pointer;
+  font-family: var(--font-label);
+}
+
+input,
+textarea,
+select {
+  font-family: var(--font-body);
+}
+
+select {
+  color-scheme: inherit;
+}
+
+select option {
+  background: var(--theme-select-option-bg);
+  color: var(--theme-select-option-text);
+}
+
+select option:checked {
+  background: var(--theme-select-option-active);
+  color: var(--theme-select-option-active-text);
+}
+
+.app-shell,
+.workspace,
+.sidebar,
+.panel,
+.reader-panel,
+.reader-book,
+.reader-slide,
+.markdown-body,
+.editor-form,
+.body-card,
+.life-card,
+.spirit-dashboard,
+.spirit-detail-card,
+.donation-panel,
+.life-fullcalendar.fc,
+.life-fullcalendar .fc {
+  font-family: var(--font-body);
+}
+
+.home-button,
+.panel-header h2,
+.reader-heading h2,
+.donation-panel h2,
+.empty-state h3,
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3 {
+  font-family: var(--font-display);
+}
+
+.mobile-menu-toggle,
+.path-bar,
+.settings-tabs,
+.theme-choice,
+.sidebar-item,
+.sidebar-toggle-all,
+.primary-button,
+.secondary-button,
+.icon-button,
+.body-mode-button,
+.dashboard-chart-switcher button,
+.dashboard-period-toggle button,
+.tracker-page-controls,
+.tracker-icon-suggestion,
+.plan-select-label,
+.plan-select,
+.field-label,
+.amount-option,
+.life-calendar-switcher,
+.life-mode-switcher,
+.life-todo-column-heading h4,
+.life-todo-columns h4,
+.life-project-nav-section h4,
+.life-assigned-tasks h4,
+.life-event-row em,
+.life-habit-fieldset legend,
+.spirit-year-button,
+.spirit-reading-order {
+  font-family: var(--font-label);
 }
 
 .mobile-menu-toggle {
@@ -132,6 +263,82 @@ button {
   box-shadow: none;
 }
 
+:root.theme-consolas .app-shell,
+:root.theme-consolas .workspace,
+:root.theme-consolas .sidebar,
+:root.theme-consolas .mobile-menu-toggle,
+:root.theme-consolas .home-button,
+:root.theme-consolas .panel,
+:root.theme-consolas .sidebar-item,
+:root.theme-consolas .sidebar-item-organizer,
+:root.theme-consolas .dashboard-card-face,
+:root.theme-consolas .dashboard-card-back-face,
+:root.theme-consolas .dashboard-analytics,
+:root.theme-consolas .dashboard-textbox,
+:root.theme-consolas .settings-tabs,
+:root.theme-consolas .settings-inline-link,
+:root.theme-consolas .thoughts-settings-intro,
+:root.theme-consolas .thoughts-settings-section,
+:root.theme-consolas .interface-settings-section,
+:root.theme-consolas .getting-started-grid article,
+:root.theme-consolas .compendium-tile,
+:root.theme-consolas .compendium-picker-popover,
+:root.theme-consolas .compendium-picker-tile,
+:root.theme-consolas .section-row,
+:root.theme-consolas .body-card,
+:root.theme-consolas .spirit-detail-card,
+:root.theme-consolas .reader-panel,
+:root.theme-consolas .reader-book {
+  background: #050505;
+}
+
+:root.theme-consolas button,
+:root.theme-consolas input,
+:root.theme-consolas textarea,
+:root.theme-consolas select {
+  border-color: var(--border-soft);
+  color: var(--text);
+}
+
+:root.theme-consolas .primary-button,
+:root.theme-consolas .secondary-button,
+:root.theme-consolas .icon-button,
+:root.theme-consolas .body-mode-button,
+:root.theme-consolas .dashboard-chart-switcher button,
+:root.theme-consolas .dashboard-period-toggle button,
+:root.theme-consolas .theme-choice {
+  border-color: var(--border-soft);
+  background: #050505;
+  color: var(--text);
+}
+
+:root.theme-consolas .home-button:hover,
+:root.theme-consolas .home-button:focus-visible,
+:root.theme-consolas .primary-button:hover,
+:root.theme-consolas .secondary-button:hover,
+:root.theme-consolas .icon-button:hover,
+:root.theme-consolas .body-mode-button:hover,
+:root.theme-consolas .body-mode-button.is-active,
+:root.theme-consolas .dashboard-chart-switcher button:hover,
+:root.theme-consolas .dashboard-chart-switcher button.is-active,
+:root.theme-consolas .dashboard-period-toggle button:hover,
+:root.theme-consolas .dashboard-period-toggle button.is-active,
+:root.theme-consolas .theme-choice:hover,
+:root.theme-consolas .theme-choice:focus-visible,
+:root.theme-consolas .theme-choice.is-active {
+  border-color: var(--border);
+  background: #111;
+  color: var(--text);
+}
+
+:root.theme-consolas .sidebar-item.is-active,
+:root.theme-consolas .dashboard-card.is-linked-hover .dashboard-card-face,
+:root.theme-consolas .dashboard-card.is-flipped .dashboard-card-face {
+  border-color: var(--border);
+  background: #111;
+  box-shadow: 0 0 0 1px rgba(239, 238, 231, 0.48), 0 14px 32px rgba(0, 0, 0, 0.55);
+}
+
 .workspace:not(.has-mobile-menu) {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -165,6 +372,13 @@ button {
   visibility: visible;
   transform: translateY(0);
   transition-delay: 0s;
+}
+
+.workspace.has-mobile-menu .content-stage {
+  overflow: hidden;
+  overscroll-behavior: none;
+  pointer-events: none;
+  touch-action: none;
 }
 
 .workspace.is-resizing .mobile-menu-toggle,
@@ -433,12 +647,38 @@ button {
 .sidebar-item-label {
   display: grid;
   align-content: center;
+  gap: 2px;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 0.96rem;
   line-height: 1.2;
+}
+
+.sidebar-item-label small,
+.sidebar-item-label strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-item-label small {
+  color: var(--faint);
+  font-family: var(--font-label);
+  font-size: 0.48rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.sidebar-item-label strong {
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  line-height: 1.12;
 }
 
 .sidebar-item-organizer {
@@ -516,6 +756,12 @@ button {
   border-color: var(--accent);
   background: rgba(12, 74, 110, 0.48);
   color: #fff;
+}
+
+.sidebar-item--mind-topic.is-active,
+.sidebar-item--mind-lesson.is-active {
+  width: calc(100% - 6px);
+  margin-left: 6px;
 }
 
 @container (max-width: 330px) {
@@ -710,6 +956,12 @@ button {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--card-color) 70%, transparent), 0 14px 32px rgba(2, 6, 23, 0.38);
 }
 
+.dashboard-card.is-flipped .dashboard-card-face {
+  border-color: var(--card-color);
+  background: color-mix(in srgb, var(--card-color) 28%, #0f172a);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--card-color) 70%, transparent), 0 14px 32px rgba(2, 6, 23, 0.38);
+}
+
 .dashboard-home:has(.dashboard-pie-segment[data-balance-key="Mind"]:hover) .dashboard-card[data-balance-key="Mind"],
 .dashboard-home:has(.dashboard-pie-segment[data-balance-key="Body"]:hover) .dashboard-card[data-balance-key="Body"],
 .dashboard-home:has(.dashboard-pie-segment[data-balance-key="Spirit"]:hover) .dashboard-card[data-balance-key="Spirit"],
@@ -846,6 +1098,15 @@ button {
   color: var(--muted);
 }
 
+.dashboard-chart-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+
+.dashboard-chart-switcher,
 .dashboard-period-toggle {
   display: inline-flex;
   gap: 6px;
@@ -855,7 +1116,12 @@ button {
   padding: 5px;
 }
 
+.dashboard-chart-switcher button,
 .dashboard-period-toggle button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   min-height: 32px;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -869,11 +1135,18 @@ button {
   text-transform: uppercase;
 }
 
+.dashboard-chart-switcher button:hover,
+.dashboard-chart-switcher button.is-active,
 .dashboard-period-toggle button:hover,
 .dashboard-period-toggle button.is-active {
   border-color: var(--border);
   background: #1e293b;
   color: #fff;
+}
+
+.dashboard-chart-switcher .button-icon {
+  width: 1em;
+  height: 1em;
 }
 
 .dashboard-analytics-body {
@@ -964,6 +1237,15 @@ button {
   stroke-width: 32;
 }
 
+.dashboard-home:has(.dashboard-card[data-balance-key="Mind"].is-flipped) .dashboard-pie-segment[data-balance-key="Mind"],
+.dashboard-home:has(.dashboard-card[data-balance-key="Body"].is-flipped) .dashboard-pie-segment[data-balance-key="Body"],
+.dashboard-home:has(.dashboard-card[data-balance-key="Spirit"].is-flipped) .dashboard-pie-segment[data-balance-key="Spirit"],
+.dashboard-home:has(.dashboard-card[data-balance-key="Life"].is-flipped) .dashboard-pie-segment[data-balance-key="Life"] {
+  filter: drop-shadow(0 0 8px var(--segment-color));
+  opacity: 1;
+  stroke-width: 32;
+}
+
 .dashboard-pie::after {
   content: "";
   position: absolute;
@@ -995,6 +1277,86 @@ button {
   letter-spacing: 0.08em;
   line-height: 1;
   text-transform: uppercase;
+}
+
+.dashboard-bar-chart {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: end;
+  gap: 10px;
+  width: min(100%, 230px);
+  min-height: 148px;
+  padding-top: 4px;
+}
+
+.dashboard-bar-button {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  justify-items: center;
+  gap: 5px;
+  min-width: 0;
+  height: 148px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--muted);
+  padding: 4px;
+  font-family: var(--font-label);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.dashboard-bar-value {
+  color: var(--text);
+  font-size: 0.78rem;
+  line-height: 1;
+}
+
+.dashboard-bar-track {
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  width: 22px;
+  height: 96px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.42);
+  padding: 3px;
+}
+
+.dashboard-bar-fill {
+  width: 100%;
+  height: var(--bar-size);
+  min-height: 5px;
+  border-radius: 999px;
+  background: var(--bar-color);
+  transition: height 0.18s ease, filter 0.18s ease, transform 0.18s ease;
+}
+
+.dashboard-bar-label {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.dashboard-bar-button:hover,
+.dashboard-bar-button:focus-visible,
+.dashboard-bar-button.is-linked-hover {
+  border-color: var(--bar-color);
+  color: #fff;
+  outline: none;
+}
+
+.dashboard-bar-button:hover .dashboard-bar-fill,
+.dashboard-bar-button:focus-visible .dashboard-bar-fill,
+.dashboard-bar-button.is-linked-hover .dashboard-bar-fill {
+  filter: drop-shadow(0 0 8px var(--bar-color));
+  transform: scaleX(1.12);
 }
 
 .dashboard-pie-wrap strong {
@@ -1105,8 +1467,15 @@ button {
   gap: 14px;
 }
 
+.interface-settings {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
 .thoughts-settings-intro,
-.thoughts-settings-section {
+.thoughts-settings-section,
+.interface-settings-section {
   border: 1px solid var(--border-soft);
   border-radius: 16px;
   background: rgba(2, 6, 23, 0.5);
@@ -1131,6 +1500,125 @@ button {
   margin: 0;
   color: var(--muted);
   line-height: 1.5;
+}
+
+.theme-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.theme-choice {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  grid-template-areas:
+    "preview title"
+    "preview detail";
+  align-items: center;
+  gap: 4px 12px;
+  min-width: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+  background: rgba(2, 6, 23, 0.5);
+  color: var(--text);
+  padding: 12px;
+  text-align: left;
+}
+
+.theme-choice-preview {
+  grid-area: preview;
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  width: 72px;
+  height: 54px;
+  border: 1px solid var(--theme-preview-border, var(--border-soft));
+  border-radius: 10px;
+  background: var(--theme-preview-bg, #0f172a);
+  padding: 10px;
+}
+
+.theme-choice-preview i {
+  display: block;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--theme-preview-text, #e2e8f0);
+}
+
+.theme-choice-preview i:nth-child(2) {
+  width: 72%;
+  background: var(--theme-preview-accent, #38bdf8);
+}
+
+.theme-choice-preview i:nth-child(3) {
+  width: 48%;
+  background: var(--theme-preview-secondary, #22c55e);
+}
+
+.theme-choice-preview--consolas {
+  border-color: #efeee7;
+  background: #050505;
+}
+
+.theme-choice-preview--consolas i {
+  background: #f1f0e8;
+}
+
+.theme-choice strong {
+  grid-area: title;
+  color: #fff;
+  font-family: var(--font-label);
+  font-size: 0.94rem;
+  line-height: 1.15;
+}
+
+.theme-choice small {
+  grid-area: detail;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.25;
+}
+
+.theme-choice:hover,
+.theme-choice:focus-visible,
+.theme-choice.is-active {
+  border-color: var(--accent);
+  background: #1e293b;
+  outline: none;
+}
+
+:root.theme-consolas .theme-choice strong,
+:root.theme-consolas .home-button,
+:root.theme-consolas .dashboard-card,
+:root.theme-consolas .dashboard-analytics-header h2,
+:root.theme-consolas .dashboard-pie span,
+:root.theme-consolas .dashboard-bar-value,
+:root.theme-consolas .getting-started-intro h3,
+:root.theme-consolas .getting-started-rhythm h3,
+:root.theme-consolas .getting-started-grid h3,
+:root.theme-consolas .thoughts-settings-intro h3,
+:root.theme-consolas .thoughts-settings-section h3,
+:root.theme-consolas .body-card-heading h3,
+:root.theme-consolas .section-row,
+:root.theme-consolas .compendium-tile,
+:root.theme-consolas .reader-compendium-title,
+:root.theme-consolas .reader-section-title,
+:root.theme-consolas .markdown-body,
+:root.theme-consolas .empty-state h3 {
+  color: var(--text);
+}
+
+:root.theme-consolas .theme-choice small,
+:root.theme-consolas .dashboard-analytics-header p,
+:root.theme-consolas .getting-started-intro p,
+:root.theme-consolas .getting-started-rhythm p,
+:root.theme-consolas .getting-started-grid p,
+:root.theme-consolas .thoughts-settings-intro p,
+:root.theme-consolas .body-card-heading p,
+:root.theme-consolas .section-row > small,
+:root.theme-consolas .empty-state p {
+  color: var(--muted);
 }
 
 .settings-inline-link {
@@ -1164,7 +1652,7 @@ button {
 
 .tracker-strip {
   min-width: 0;
-  margin-bottom: 18px;
+  margin-bottom: var(--panel-section-gap);
 }
 
 .body-dashboard > .tracker-strip,
@@ -1182,12 +1670,16 @@ button {
   display: grid;
   grid-template-columns: repeat(8, minmax(0, 1fr));
   grid-template-rows: repeat(2, minmax(0, 1fr));
-  gap: clamp(4px, 1.25vw, 10px);
+  gap: 6px;
   min-width: 0;
-  height: clamp(72px, 20vw, 158px);
+  height: var(--tracker-strip-height);
   overflow-x: hidden;
   overflow-y: visible;
   padding: 2px;
+}
+
+.tracker-orb-row:not(:has(.tracker-orb-wrap:nth-child(9))) {
+  height: calc(var(--tracker-orb-size) + 4px);
 }
 
 .tracker-orb-wrap {
@@ -1246,8 +1738,8 @@ button {
   gap: 4px;
   width: 100%;
   height: 100%;
-  max-width: 74px;
-  max-height: 74px;
+  max-width: var(--tracker-orb-size);
+  max-height: var(--tracker-orb-size);
   aspect-ratio: 1;
   justify-self: center;
   align-self: center;
@@ -1255,7 +1747,8 @@ button {
   border-radius: 50%;
   background: #0f172a;
   color: #e2e8f0;
-  padding: 8px;
+  padding: 6px;
+  line-height: 1;
   text-align: center;
   transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease, transform 0.18s ease;
 }
@@ -1285,20 +1778,29 @@ button {
 }
 
 .tracker-orb .button-icon {
-  width: clamp(0.92rem, 3.8vw, 1.4rem);
-  height: clamp(0.92rem, 3.8vw, 1.4rem);
+  display: block;
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
   color: var(--thought-color, var(--accent));
-  font-size: clamp(0.92rem, 3.8vw, 1.4rem);
+  font-size: 1rem;
+  line-height: 1;
 }
 
 .tracker-orb-icon {
   position: relative;
   z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  line-height: 1;
 }
 
 .tracker-orb-image {
-  width: 1.55rem;
-  height: 1.55rem;
+  display: block;
+  width: 1.1rem;
+  height: 1.1rem;
   object-fit: contain;
 }
 
@@ -1811,7 +2313,7 @@ button {
   border: 0;
   border-radius: 0;
   background: transparent;
-  padding: 24px;
+  padding: 8px 24px 24px;
   box-shadow: none;
 }
 
@@ -1820,7 +2322,7 @@ button {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 24px;
+  margin-bottom: var(--panel-section-gap);
   padding-right: 52px;
 }
 
@@ -1925,10 +2427,207 @@ button {
   padding-right: 8px;
 }
 
-.compendium-grid {
+.compendium-rotator {
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(auto-fill, 180px);
-  gap: 16px;
+  gap: 10px;
+}
+
+.compendium-rotator-stage {
+  position: relative;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 42px;
+  align-items: center;
+  min-height: 190px;
+  overflow: hidden;
+}
+
+.compendium-rotator-window {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.compendium-rotator-track {
+  display: flex;
+  width: 100%;
+  transform: translateX(calc(var(--compendium-page, 0) * -100%));
+  transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.compendium-rotator-slide {
+  flex: 0 0 100%;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  padding: 0 4px;
+}
+
+.compendium-rotator-row {
+  display: grid;
+  grid-template-columns: repeat(var(--compendiums-per-page), minmax(0, 156px));
+  justify-content: center;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+}
+
+.compendium-rotator-edge {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  border: 0;
+  background: transparent;
+  color: rgba(148, 163, 184, 0.28);
+  padding: 0;
+  font-size: 1.45rem;
+  transition: color 0.18s ease, transform 0.18s ease;
+}
+
+.compendium-rotator-edge.is-available {
+  color: rgba(226, 232, 240, 0.82);
+}
+
+.compendium-rotator-edge.is-available:hover {
+  color: #fff;
+  transform: scale(1.08);
+}
+
+.compendium-rotator-edge:disabled {
+  cursor: default;
+}
+
+.compendium-page-indicator {
+  margin-top: -2px;
+  justify-self: center;
+  width: auto;
+  border: 0;
+  background: transparent;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.compendium-page-indicator:hover .reader-page-dot--current,
+.compendium-page-indicator:focus-visible .reader-page-dot--current {
+  box-shadow: 0 0 22px rgba(56, 189, 248, 0.7);
+}
+
+.compendium-picker-popover {
+  position: absolute;
+  inset: 0 42px;
+  z-index: 3;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+  overflow: auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+  background: #020617;
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.05), 0 18px 34px rgba(0, 0, 0, 0.32);
+  padding: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.compendium-picker-header {
+  display: grid;
+  gap: 3px;
+  padding: 2px 4px 4px;
+}
+
+.compendium-picker-header strong {
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  line-height: 1.1;
+}
+
+.compendium-picker-header p {
+  max-width: 46rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.compendium-picker-popover::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.compendium-picker-popover::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.compendium-picker-popover::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.compendium-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(58px, 1fr));
+  grid-auto-rows: 36px;
+  gap: 4px;
+  min-width: 620px;
+}
+
+.compendium-picker-tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.88);
+  color: #e2e8f0;
+  padding: 4px;
+  text-align: center;
+}
+
+.compendium-picker-tile b {
+  position: absolute;
+  top: 4px;
+  left: 5px;
+  color: var(--faint);
+  font-family: var(--font-label);
+  font-size: 0.52rem;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.08em;
+}
+
+.compendium-picker-tile:hover,
+.compendium-picker-tile:focus-visible {
+  border-color: #94a3b8;
+  background: #1e293b;
+  color: #fff;
+}
+
+.compendium-picker-tile span,
+.compendium-picker-title {
+  display: -webkit-box;
+  overflow: hidden;
+  max-width: 100%;
+  font-family: var(--font-label);
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1.05;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.compendium-picker-title.is-long {
+  font-size: 0.6rem;
+}
+
+.compendium-picker-title.is-very-long {
+  font-size: 0.54rem;
 }
 
 .mind-thought-section {
@@ -1940,41 +2639,71 @@ button {
 }
 
 .compendium-tile {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  width: 180px;
-  height: 180px;
+  width: 100%;
+  min-height: 0;
+  aspect-ratio: 1;
+  overflow: hidden;
   border: 1px solid var(--border-soft);
   border-radius: 16px;
   background: rgba(2, 6, 23, 0.52);
   color: #fff;
-  padding: 20px;
+  padding: 14px;
   text-align: left;
+}
+
+.compendium-tile b {
+  margin-bottom: 8px;
+  color: var(--faint);
+  font-family: var(--font-label);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
 }
 
 .compendium-tile span {
   display: -webkit-box;
   overflow: hidden;
   font-family: var(--font-display);
-  font-size: 1.2rem;
+  font-size: 1.08rem;
   font-weight: 800;
+  line-height: 1.05;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
+}
+
+.compendium-tile-title {
+  max-width: 100%;
+}
+
+.compendium-tile-title.is-long {
+  font-size: 0.98rem;
+}
+
+.compendium-tile-title.is-very-long {
+  font-size: 0.88rem;
+  line-height: 1.05;
 }
 
 .compendium-tile small,
 .compendium-tile em {
-  margin-top: 16px;
   color: var(--muted);
-  font-size: 0.86rem;
+  font-size: 0.78rem;
   font-style: normal;
 }
 
+.compendium-tile small {
+  margin-top: auto;
+}
+
 .compendium-tile em {
+  margin-top: 5px;
   color: var(--faint);
   font-family: var(--font-label);
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   font-weight: 800;
   letter-spacing: 0.13em;
   text-transform: uppercase;
@@ -2136,21 +2865,21 @@ button {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   border: 1px solid var(--border-soft);
-  border-radius: 16px;
+  border-radius: 14px;
   background: rgba(2, 6, 23, 0.62);
-  padding: 8px;
+  padding: 6px;
 }
 
 .body-timer-switcher {
   border-bottom: 0;
-  border-radius: 16px 16px 0 0;
+  border-radius: 14px 14px 0 0;
   background: rgba(2, 6, 23, 0.72);
 }
 
 .body-nutrition-switcher {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   border-bottom: 0;
-  border-radius: 16px 16px 0 0;
+  border-radius: 14px 14px 0 0;
   background: rgba(2, 6, 23, 0.72);
 }
 
@@ -2167,12 +2896,13 @@ button {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 44px;
+  min-height: 34px;
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: 10px;
   background: transparent;
   color: var(--muted);
   font-weight: 900;
+  font-size: 0.9rem;
 }
 
 .body-mode-button:hover,
@@ -2292,8 +3022,8 @@ button {
   min-width: 0;
   border: 1px solid var(--border-soft);
   border-radius: 12px;
-  background: #020617;
-  color: #fff;
+  background: var(--theme-select-bg);
+  color: var(--theme-select-text);
   padding: 10px 12px;
   outline: none;
 }
@@ -2402,7 +3132,7 @@ button {
 .life-dashboard {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
-  gap: 18px;
+  gap: var(--menu-body-gap);
   height: calc(100% - 80px);
   min-height: 0;
   overflow: hidden;
@@ -2413,9 +3143,9 @@ button {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   border: 1px solid var(--border-soft);
-  border-radius: 16px;
+  border-radius: 14px;
   background: rgba(2, 6, 23, 0.62);
-  padding: 8px;
+  padding: 6px;
 }
 
 .life-calendar-viewer {
@@ -2433,9 +3163,9 @@ button {
   gap: 8px;
   border: 1px solid var(--border-soft);
   border-bottom: 0;
-  border-radius: 16px 16px 0 0;
+  border-radius: 14px 14px 0 0;
   background: rgba(2, 6, 23, 0.72);
-  padding: 8px;
+  padding: 6px;
 }
 
 .life-calendar-viewer > .life-card {
@@ -2464,6 +3194,75 @@ button {
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
+.life-todo-view {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 14px;
+  min-height: 0;
+}
+
+.life-todo-overview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+  border-bottom: 1px solid var(--border-soft);
+  padding-bottom: 12px;
+}
+
+.life-todo-overview h3,
+.life-todo-overview p {
+  margin: 0;
+}
+
+.life-todo-overview h3 {
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+}
+
+.life-todo-overview p {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.life-todo-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(58px, auto));
+  gap: 8px;
+}
+
+.life-todo-stats span {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: rgba(2, 6, 23, 0.36);
+  padding: 7px 9px;
+}
+
+.life-todo-stats strong {
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.life-todo-stats small {
+  color: var(--faint);
+  font-family: var(--font-label);
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  margin-top: 4px;
+  text-transform: uppercase;
+}
+
 .life-quick-add input {
   min-width: 0;
   border: 1px solid var(--border-soft);
@@ -2473,21 +3272,36 @@ button {
   padding: 10px 12px;
 }
 
-.life-todo-columns {
+.life-todo-board {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: minmax(0, 1.35fr) minmax(180px, 0.85fr);
+  gap: 14px;
   min-height: 0;
 }
 
-.life-todo-columns section {
+.life-todo-column {
   display: grid;
-  align-content: start;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 10px;
+  min-width: 0;
+  min-height: 0;
+  border-top: 1px solid var(--border-soft);
+  padding-top: 12px;
+}
+
+.life-todo-column--done .life-todo-card {
+  opacity: 0.74;
+}
+
+.life-todo-column-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   min-width: 0;
 }
 
-.life-todo-columns h4,
+.life-todo-column-heading h4,
 .life-project-nav-section h4,
 .life-assigned-tasks h4 {
   margin: 0;
@@ -2499,9 +3313,26 @@ button {
   text-transform: uppercase;
 }
 
+.life-todo-column-heading span {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  min-height: 22px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  color: var(--faint);
+  font-family: var(--font-label);
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
 .life-todo-stack {
   display: grid;
+  align-content: start;
   gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .life-todo-stack p,
@@ -2514,24 +3345,20 @@ button {
 
 .life-todo-card {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
-  gap: 9px;
-  align-items: center;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
   min-width: 0;
   border: 1px solid var(--border-soft);
-  border-radius: 8px;
+  border-radius: 10px;
   background: rgba(15, 23, 42, 0.38);
   cursor: pointer;
-  padding: 8px 10px;
+  padding: 10px;
   transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
 }
 
 .life-todo-card.is-project-task {
   border-color: rgba(56, 189, 248, 0.24);
-}
-
-.life-todo-card.is-complete {
-  opacity: 0.58;
 }
 
 .life-todo-card:hover,
@@ -2547,11 +3374,35 @@ button {
   border-color: rgba(56, 189, 248, 0.4);
 }
 
-.life-todo-card h4 {
-  margin: 0;
+.life-todo-card-main {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.life-todo-card-title {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.life-todo-source {
+  width: max-content;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--faint);
+  font-family: var(--font-label);
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .life-todo-card h4 {
+  margin: 0;
   min-width: 0;
   overflow: hidden;
   color: #fff;
@@ -2565,6 +3416,59 @@ button {
   white-space: nowrap;
 }
 
+.life-todo-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.life-todo-card-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--faint);
+  font-family: var(--font-label);
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.life-todo-card-meta .button-icon {
+  width: 0.9em;
+  height: 0.9em;
+}
+
+.life-todo-detail {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.3;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.life-todo-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.life-todo-card-actions .secondary-button {
+  min-height: 28px;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 0.68rem;
+}
+
 .life-todo-check {
   display: inline-grid;
   place-items: center;
@@ -2575,6 +3479,7 @@ button {
   background: transparent;
   color: rgba(203, 213, 225, 0.58);
   cursor: pointer;
+  margin-top: 2px;
   padding: 0;
   transition: border-color 0.16s ease, color 0.16s ease, background 0.16s ease;
 }
@@ -2614,27 +3519,141 @@ button {
   gap: 8px;
 }
 
+.life-projects-view {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 14px;
+  min-height: 0;
+}
+
+.life-project-overview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+  border-bottom: 1px solid var(--border-soft);
+  padding-bottom: 12px;
+}
+
+.life-project-overview h3,
+.life-project-overview p {
+  margin: 0;
+}
+
+.life-project-overview h3 {
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+}
+
+.life-project-overview p {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.life-project-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(58px, auto));
+  gap: 8px;
+}
+
+.life-project-stats span {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: rgba(2, 6, 23, 0.36);
+  padding: 7px 9px;
+}
+
+.life-project-stats strong {
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.life-project-stats small {
+  color: var(--faint);
+  font-family: var(--font-label);
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  margin-top: 4px;
+  text-transform: uppercase;
+}
+
 .life-project-shell {
   display: grid;
-  grid-template-columns: minmax(190px, 230px) minmax(0, 1fr);
-  gap: 16px;
+  grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
+  grid-template-rows: minmax(64px, 0.65fr) minmax(0, 1.35fr);
+  grid-template-areas:
+    "projects workflow"
+    "projects detail";
+  gap: 14px;
   height: 100%;
   min-height: 0;
 }
 
 .life-project-sidebar,
+.life-project-workflow,
 .life-project-body {
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
 }
 
-.life-project-sidebar {
+.life-project-sidebar,
+.life-project-workflow {
   display: grid;
   align-content: start;
-  gap: 14px;
+  gap: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: rgba(2, 6, 23, 0.22);
+  padding: 12px;
+}
+
+.life-project-sidebar {
+  grid-area: projects;
   border-right: 1px solid var(--border-soft);
-  padding-right: 14px;
+}
+
+.life-project-workflow {
+  grid-area: workflow;
+}
+
+.life-project-body {
+  grid-area: detail;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: rgba(2, 6, 23, 0.18);
+  padding: 14px;
+}
+
+.life-project-workflow .empty-state,
+.life-project-body .empty-state {
+  align-content: center;
+  height: auto;
+  min-height: 0;
+  padding: 16px;
+}
+
+.life-project-workflow .empty-state h3,
+.life-project-body .empty-state h3 {
+  font-size: 1rem;
+}
+
+.life-project-workflow .empty-state p,
+.life-project-body .empty-state p {
+  margin: 4px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.35;
 }
 
 .life-project-nav-section {
@@ -2654,6 +3673,7 @@ button {
   color: var(--text);
   padding: 10px;
   text-align: left;
+  transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
 }
 
 .life-project-nav-button:hover,
@@ -2661,6 +3681,7 @@ button {
   border-color: var(--border);
   background: #1e293b;
   color: #fff;
+  transform: translateY(-1px);
 }
 
 .life-project-nav-button strong,
@@ -2738,6 +3759,7 @@ button {
   color: var(--text);
 }
 
+.life-fullcalendar.fc,
 .life-fullcalendar .fc {
   --fc-border-color: var(--border-soft);
   --fc-page-bg-color: transparent;
@@ -2752,6 +3774,13 @@ button {
 .life-fullcalendar .fc-theme-standard td,
 .life-fullcalendar .fc-theme-standard th {
   border-color: var(--border-soft);
+}
+
+.life-fullcalendar .fc-daygrid-body,
+.life-fullcalendar .fc-daygrid-body table,
+.life-fullcalendar .fc-scrollgrid-sync-table {
+  height: auto !important;
+  width: 100% !important;
 }
 
 .life-fullcalendar .fc-col-header-cell {
@@ -2769,11 +3798,17 @@ button {
 }
 
 .life-fullcalendar .fc-daygrid-day-frame {
-  min-height: clamp(120px, 12vw, 160px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .life-fullcalendar .fc-daygrid-day-events {
-  max-height: 8.6em;
+  min-height: 0;
+  max-height: none;
   overflow-y: auto;
   padding: 0 1px 2px 0;
   scrollbar-width: thin;
@@ -3230,8 +4265,8 @@ button.life-event-row:hover {
   min-width: 180px;
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: #020617;
-  color: #fff;
+  background: var(--theme-select-bg);
+  color: var(--theme-select-text);
   padding: 10px 12px;
   font-family: var(--font-label);
   font-size: 0.95rem;
@@ -3905,6 +4940,810 @@ button.life-event-row:hover {
   font-size: 0.95rem;
 }
 
+:root.theme-palette:not(.theme-consolas) body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+:root.theme-palette:not(.theme-consolas) .app-shell,
+:root.theme-palette:not(.theme-consolas) .workspace,
+:root.theme-palette:not(.theme-consolas) .sidebar,
+:root.theme-palette:not(.theme-consolas) .mobile-menu-toggle,
+:root.theme-palette:not(.theme-consolas) .home-button,
+:root.theme-palette:not(.theme-consolas) .panel,
+:root.theme-palette:not(.theme-consolas) .path-bar,
+:root.theme-palette:not(.theme-consolas) .settings-tabs,
+:root.theme-palette:not(.theme-consolas) .settings-inline-link,
+:root.theme-palette:not(.theme-consolas) .thoughts-settings-intro,
+:root.theme-palette:not(.theme-consolas) .thoughts-settings-section,
+:root.theme-palette:not(.theme-consolas) .interface-settings-section,
+:root.theme-palette:not(.theme-consolas) .getting-started-intro,
+:root.theme-palette:not(.theme-consolas) .getting-started-rhythm,
+:root.theme-palette:not(.theme-consolas) .getting-started-grid article,
+:root.theme-palette:not(.theme-consolas) .dashboard-analytics,
+:root.theme-palette:not(.theme-consolas) .dashboard-textbox,
+:root.theme-palette:not(.theme-consolas) .dashboard-chart-switcher,
+:root.theme-palette:not(.theme-consolas) .dashboard-period-toggle,
+:root.theme-palette:not(.theme-consolas) .dashboard-card-face,
+:root.theme-palette:not(.theme-consolas) .dashboard-card-back-face,
+:root.theme-palette:not(.theme-consolas) .theme-choice,
+:root.theme-palette:not(.theme-consolas) .sidebar-item,
+:root.theme-palette:not(.theme-consolas) .sidebar-item-organizer,
+:root.theme-palette:not(.theme-consolas) .sidebar-donate-row,
+:root.theme-palette:not(.theme-consolas) .sidebar-toggle-all,
+:root.theme-palette:not(.theme-consolas) .body-mode-switcher,
+:root.theme-palette:not(.theme-consolas) .body-timer-switcher,
+:root.theme-palette:not(.theme-consolas) .body-nutrition-switcher,
+:root.theme-palette:not(.theme-consolas) .body-card,
+:root.theme-palette:not(.theme-consolas) .body-card-heading,
+:root.theme-palette:not(.theme-consolas) .body-card-note,
+:root.theme-palette:not(.theme-consolas) .body-field input,
+:root.theme-palette:not(.theme-consolas) .body-field select,
+:root.theme-palette:not(.theme-consolas) .body-field textarea,
+:root.theme-palette:not(.theme-consolas) .body-workout-item,
+:root.theme-palette:not(.theme-consolas) .body-macro-row span,
+:root.theme-palette:not(.theme-consolas) .tracker-orb,
+:root.theme-palette:not(.theme-consolas) .tracker-icon-suggestion,
+:root.theme-palette:not(.theme-consolas) .tracker-icon-suggestions.is-empty,
+:root.theme-palette:not(.theme-consolas) .life-mode-switcher,
+:root.theme-palette:not(.theme-consolas) .life-calendar-switcher,
+:root.theme-palette:not(.theme-consolas) .life-card,
+:root.theme-palette:not(.theme-consolas) .life-quick-add input,
+:root.theme-palette:not(.theme-consolas) .life-todo-stats span,
+:root.theme-palette:not(.theme-consolas) .life-todo-column-heading span,
+:root.theme-palette:not(.theme-consolas) .life-todo-card,
+:root.theme-palette:not(.theme-consolas) .life-todo-check,
+:root.theme-palette:not(.theme-consolas) .life-project-sidebar,
+:root.theme-palette:not(.theme-consolas) .life-project-workflow,
+:root.theme-palette:not(.theme-consolas) .life-project-body,
+:root.theme-palette:not(.theme-consolas) .life-project-nav-button,
+:root.theme-palette:not(.theme-consolas) .life-project-stats span,
+:root.theme-palette:not(.theme-consolas) .life-attachment-item,
+:root.theme-palette:not(.theme-consolas) .life-month-heading,
+:root.theme-palette:not(.theme-consolas) .life-month-day,
+:root.theme-palette:not(.theme-consolas) .life-day-column,
+:root.theme-palette:not(.theme-consolas) .life-date-group h3,
+:root.theme-palette:not(.theme-consolas) .life-event-row,
+:root.theme-palette:not(.theme-consolas) .life-journal-meta span,
+:root.theme-palette:not(.theme-consolas) .life-habit-fieldset,
+:root.theme-palette:not(.theme-consolas) .life-habit-pill,
+:root.theme-palette:not(.theme-consolas) .spirit-dashboard,
+:root.theme-palette:not(.theme-consolas) .spirit-year-button,
+:root.theme-palette:not(.theme-consolas) .spirit-reading-button,
+:root.theme-palette:not(.theme-consolas) .spirit-book-dashboard,
+:root.theme-palette:not(.theme-consolas) .spirit-lookup-bar,
+:root.theme-palette:not(.theme-consolas) .spirit-lookup-link,
+:root.theme-palette:not(.theme-consolas) .spirit-detail-card,
+:root.theme-palette:not(.theme-consolas) .compendium-rotator,
+:root.theme-palette:not(.theme-consolas) .compendium-picker-popover,
+:root.theme-palette:not(.theme-consolas) .compendium-picker-tile,
+:root.theme-palette:not(.theme-consolas) .compendium-tile,
+:root.theme-palette:not(.theme-consolas) .section-row,
+:root.theme-palette:not(.theme-consolas) .sidebar-item--mind-topic,
+:root.theme-palette:not(.theme-consolas) .sidebar-item--mind-lesson,
+:root.theme-palette:not(.theme-consolas) .reader-panel,
+:root.theme-palette:not(.theme-consolas) .reader-book,
+:root.theme-palette:not(.theme-consolas) .reader-slide,
+:root.theme-palette:not(.theme-consolas) .reader-section-title,
+:root.theme-palette:not(.theme-consolas) .empty-state,
+:root.theme-palette:not(.theme-consolas) .editor-form input,
+:root.theme-palette:not(.theme-consolas) .editor-form textarea,
+:root.theme-palette:not(.theme-consolas) .field-label input,
+:root.theme-palette:not(.theme-consolas) .editor-image-button.icon-button,
+:root.theme-palette:not(.theme-consolas) .donation-panel,
+:root.theme-palette:not(.theme-consolas) .amount-option,
+:root.theme-palette:not(.theme-consolas) .life-fullcalendar .fc-col-header-cell,
+:root.theme-palette:not(.theme-consolas) .life-fullcalendar .fc-daygrid-day,
+:root.theme-palette:not(.theme-consolas) .life-fullcalendar .fc-event {
+  border-color: var(--border-soft);
+  background: var(--surface);
+  color: var(--text);
+}
+
+:root.theme-palette:not(.theme-consolas) .mobile-menu-toggle,
+:root.theme-palette:not(.theme-consolas) .sidebar,
+:root.theme-palette:not(.theme-consolas) .panel,
+:root.theme-palette:not(.theme-consolas) .theme-choice,
+:root.theme-palette:not(.theme-consolas) .body-card,
+:root.theme-palette:not(.theme-consolas) .life-card,
+:root.theme-palette:not(.theme-consolas) .reader-panel,
+:root.theme-palette:not(.theme-consolas) .donation-panel {
+  background: var(--surface);
+}
+
+:root.theme-palette:not(.theme-consolas) .primary-button,
+:root.theme-palette:not(.theme-consolas) .secondary-button,
+:root.theme-palette:not(.theme-consolas) .icon-button,
+:root.theme-palette:not(.theme-consolas) .body-mode-button,
+:root.theme-palette:not(.theme-consolas) .dashboard-chart-switcher button,
+:root.theme-palette:not(.theme-consolas) .dashboard-period-toggle button,
+:root.theme-palette:not(.theme-consolas) .tracker-page-controls button,
+:root.theme-palette:not(.theme-consolas) .compendium-rotator-edge,
+:root.theme-palette:not(.theme-consolas) .reader-slider-edge {
+  border-color: var(--border);
+  background: var(--theme-control);
+  color: var(--text);
+}
+
+:root.theme-palette:not(.theme-consolas) .primary-button {
+  border-color: var(--border-accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+:root.theme-palette:not(.theme-consolas) .primary-button:hover,
+:root.theme-palette:not(.theme-consolas) .primary-button:focus-visible {
+  border-color: var(--border-accent);
+  background: var(--accent-2);
+  color: var(--on-accent-2);
+}
+
+:root.theme-palette:not(.theme-consolas) .danger-button {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+:root.theme-palette:not(.theme-consolas) .danger-button:hover,
+:root.theme-palette:not(.theme-consolas) .danger-button:focus-visible {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: var(--on-danger);
+}
+
+:root.theme-palette:not(.theme-consolas) .home-button:hover,
+:root.theme-palette:not(.theme-consolas) .home-button:focus-visible,
+:root.theme-palette:not(.theme-consolas) .secondary-button:hover,
+:root.theme-palette:not(.theme-consolas) .icon-button:hover,
+:root.theme-palette:not(.theme-consolas) .body-mode-button:hover,
+:root.theme-palette:not(.theme-consolas) .body-mode-button.is-active,
+:root.theme-palette:not(.theme-consolas) .dashboard-chart-switcher button:hover,
+:root.theme-palette:not(.theme-consolas) .dashboard-chart-switcher button.is-active,
+:root.theme-palette:not(.theme-consolas) .dashboard-period-toggle button:hover,
+:root.theme-palette:not(.theme-consolas) .dashboard-period-toggle button.is-active,
+:root.theme-palette:not(.theme-consolas) .theme-choice:hover,
+:root.theme-palette:not(.theme-consolas) .theme-choice:focus-visible,
+:root.theme-palette:not(.theme-consolas) .theme-choice.is-active,
+:root.theme-palette:not(.theme-consolas) .sidebar-item.is-active,
+:root.theme-palette:not(.theme-consolas) .sidebar-item:hover,
+:root.theme-palette:not(.theme-consolas) .sidebar-item:focus-visible,
+:root.theme-palette:not(.theme-consolas) .section-row:hover,
+:root.theme-palette:not(.theme-consolas) .section-row:focus-visible,
+:root.theme-palette:not(.theme-consolas) .compendium-picker-tile:hover,
+:root.theme-palette:not(.theme-consolas) .compendium-picker-tile:focus-visible,
+:root.theme-palette:not(.theme-consolas) .compendium-tile:hover,
+:root.theme-palette:not(.theme-consolas) .compendium-tile:focus-visible,
+:root.theme-palette:not(.theme-consolas) .tracker-orb:hover,
+:root.theme-palette:not(.theme-consolas) .tracker-orb:focus-visible,
+:root.theme-palette:not(.theme-consolas) .tracker-orb.is-editing,
+:root.theme-palette:not(.theme-consolas) .life-todo-card:hover,
+:root.theme-palette:not(.theme-consolas) .life-todo-card:focus-visible,
+:root.theme-palette:not(.theme-consolas) .life-project-nav-button:hover,
+:root.theme-palette:not(.theme-consolas) .life-project-nav-button.is-active,
+:root.theme-palette:not(.theme-consolas) button.life-event-row:hover,
+:root.theme-palette:not(.theme-consolas) .life-habit-pill:hover,
+:root.theme-palette:not(.theme-consolas) .life-habit-pill:has(input:checked),
+:root.theme-palette:not(.theme-consolas) .spirit-year-button:hover,
+:root.theme-palette:not(.theme-consolas) .spirit-year-button.is-active,
+:root.theme-palette:not(.theme-consolas) .spirit-reading-button:hover,
+:root.theme-palette:not(.theme-consolas) .spirit-lookup-link:hover,
+:root.theme-palette:not(.theme-consolas) .amount-option:hover,
+:root.theme-palette:not(.theme-consolas) .amount-option.is-selected,
+:root.theme-palette:not(.theme-consolas) .life-fullcalendar .fc-event:hover {
+  border-color: var(--border-accent);
+  background: var(--theme-control-hover);
+  color: var(--on-surface-2);
+}
+
+:root.theme-palette:not(.theme-consolas) .path-bar,
+:root.theme-palette:not(.theme-consolas) .settings-tabs,
+:root.theme-palette:not(.theme-consolas) .body-mode-switcher,
+:root.theme-palette:not(.theme-consolas) .body-timer-switcher,
+:root.theme-palette:not(.theme-consolas) .body-nutrition-switcher,
+:root.theme-palette:not(.theme-consolas) .dashboard-chart-switcher,
+:root.theme-palette:not(.theme-consolas) .dashboard-period-toggle,
+:root.theme-palette:not(.theme-consolas) .life-mode-switcher,
+:root.theme-palette:not(.theme-consolas) .life-calendar-switcher,
+:root.theme-palette:not(.theme-consolas) .spirit-dashboard {
+  border-color: var(--border-strong);
+}
+
+:root.theme-palette:not(.theme-consolas) .theme-choice,
+:root.theme-palette:not(.theme-consolas) .getting-started-grid article,
+:root.theme-palette:not(.theme-consolas) .body-card,
+:root.theme-palette:not(.theme-consolas) .life-card,
+:root.theme-palette:not(.theme-consolas) .reader-panel,
+:root.theme-palette:not(.theme-consolas) .donation-panel,
+:root.theme-palette:not(.theme-consolas) .compendium-tile,
+:root.theme-palette:not(.theme-consolas) .section-row,
+:root.theme-palette:not(.theme-consolas) .body-field input,
+:root.theme-palette:not(.theme-consolas) .body-field select,
+:root.theme-palette:not(.theme-consolas) .body-field textarea,
+:root.theme-palette:not(.theme-consolas) .editor-form input,
+:root.theme-palette:not(.theme-consolas) .editor-form textarea,
+:root.theme-palette:not(.theme-consolas) .field-label input {
+  border-color: var(--border);
+}
+
+:root.theme-palette:not(.theme-consolas) .theme-choice.is-active {
+  border-color: var(--border-accent);
+}
+
+:root.theme-palette:not(.theme-consolas) .theme-choice:hover,
+:root.theme-palette:not(.theme-consolas) .theme-choice:focus-visible,
+:root.theme-palette:not(.theme-consolas) .theme-choice.is-active {
+  box-shadow: 0 0 0 1px var(--border-accent-soft), 0 12px 28px var(--theme-shadow);
+}
+
+:root.theme-palette:not(.theme-consolas) .amount-option.is-selected {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+:root.theme-palette:not(.theme-consolas) .danger-button:hover,
+:root.theme-palette:not(.theme-consolas) .danger-button:focus-visible {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: var(--on-danger);
+}
+
+:root.theme-palette:not(.theme-consolas) .theme-choice strong,
+:root.theme-palette:not(.theme-consolas) .home-button,
+:root.theme-palette:not(.theme-consolas) .path-bar button,
+:root.theme-palette:not(.theme-consolas) .dashboard-card,
+:root.theme-palette:not(.theme-consolas) .dashboard-analytics-header h2,
+:root.theme-palette:not(.theme-consolas) .dashboard-pie span,
+:root.theme-palette:not(.theme-consolas) .dashboard-bar-value,
+:root.theme-palette:not(.theme-consolas) .panel-header h2,
+:root.theme-palette:not(.theme-consolas) .getting-started-intro h3,
+:root.theme-palette:not(.theme-consolas) .getting-started-rhythm h3,
+:root.theme-palette:not(.theme-consolas) .getting-started-grid h3,
+:root.theme-palette:not(.theme-consolas) .thoughts-settings-intro h3,
+:root.theme-palette:not(.theme-consolas) .thoughts-settings-section h3,
+:root.theme-palette:not(.theme-consolas) .body-card-heading h3,
+:root.theme-palette:not(.theme-consolas) .body-workout-item h4,
+:root.theme-palette:not(.theme-consolas) .section-row,
+:root.theme-palette:not(.theme-consolas) .section-row > strong,
+:root.theme-palette:not(.theme-consolas) .compendium-tile,
+:root.theme-palette:not(.theme-consolas) .reader-compendium-title,
+:root.theme-palette:not(.theme-consolas) .reader-section-title,
+:root.theme-palette:not(.theme-consolas) .markdown-body,
+:root.theme-palette:not(.theme-consolas) .empty-state h3,
+:root.theme-palette:not(.theme-consolas) .life-todo-overview h3,
+:root.theme-palette:not(.theme-consolas) .life-todo-stats strong,
+:root.theme-palette:not(.theme-consolas) .life-todo-card h4,
+:root.theme-palette:not(.theme-consolas) .life-project-overview h3,
+:root.theme-palette:not(.theme-consolas) .life-project-stats strong,
+:root.theme-palette:not(.theme-consolas) .life-project-nav-button strong,
+:root.theme-palette:not(.theme-consolas) .life-month-day span,
+:root.theme-palette:not(.theme-consolas) .life-day-column strong,
+:root.theme-palette:not(.theme-consolas) .life-event-row strong,
+:root.theme-palette:not(.theme-consolas) .life-fc-event-inner strong,
+:root.theme-palette:not(.theme-consolas) .spirit-reading-main strong,
+:root.theme-palette:not(.theme-consolas) .spirit-detail-card strong {
+  color: var(--text);
+}
+
+:root.theme-palette:not(.theme-consolas) .path-bar button:hover,
+:root.theme-palette:not(.theme-consolas) .path-bar button:focus-visible {
+  color: var(--accent);
+}
+
+:root.theme-palette:not(.theme-consolas) .theme-choice small,
+:root.theme-palette:not(.theme-consolas) .dashboard-analytics-header p,
+:root.theme-palette:not(.theme-consolas) .panel-header p,
+:root.theme-palette:not(.theme-consolas) .path-bar span,
+:root.theme-palette:not(.theme-consolas) .getting-started-intro p,
+:root.theme-palette:not(.theme-consolas) .getting-started-rhythm p,
+:root.theme-palette:not(.theme-consolas) .getting-started-grid p,
+:root.theme-palette:not(.theme-consolas) .getting-started-grid span,
+:root.theme-palette:not(.theme-consolas) .thoughts-settings-intro p,
+:root.theme-palette:not(.theme-consolas) .body-field,
+:root.theme-palette:not(.theme-consolas) .body-card-heading p,
+:root.theme-palette:not(.theme-consolas) .body-card-note,
+:root.theme-palette:not(.theme-consolas) .body-workout-item p,
+:root.theme-palette:not(.theme-consolas) .section-row > span,
+:root.theme-palette:not(.theme-consolas) .section-row > small,
+:root.theme-palette:not(.theme-consolas) .section-row > em,
+:root.theme-palette:not(.theme-consolas) .empty-state p,
+:root.theme-palette:not(.theme-consolas) .compendium-tile b,
+:root.theme-palette:not(.theme-consolas) .compendium-tile small,
+:root.theme-palette:not(.theme-consolas) .compendium-tile em,
+:root.theme-palette:not(.theme-consolas) .reader-heading p,
+:root.theme-palette:not(.theme-consolas) .life-todo-overview p,
+:root.theme-palette:not(.theme-consolas) .life-todo-stats small,
+:root.theme-palette:not(.theme-consolas) .life-todo-column-heading h4,
+:root.theme-palette:not(.theme-consolas) .life-todo-column-heading span,
+:root.theme-palette:not(.theme-consolas) .life-todo-source,
+:root.theme-palette:not(.theme-consolas) .life-todo-card-meta span,
+:root.theme-palette:not(.theme-consolas) .life-todo-detail,
+:root.theme-palette:not(.theme-consolas) .life-todo-columns h4,
+:root.theme-palette:not(.theme-consolas) .life-todo-stack p,
+:root.theme-palette:not(.theme-consolas) .life-project-overview p,
+:root.theme-palette:not(.theme-consolas) .life-project-stats small,
+:root.theme-palette:not(.theme-consolas) .life-project-nav-button small,
+:root.theme-palette:not(.theme-consolas) .life-month-heading,
+:root.theme-palette:not(.theme-consolas) .life-month-day strong,
+:root.theme-palette:not(.theme-consolas) .life-month-day small,
+:root.theme-palette:not(.theme-consolas) .life-day-column h3,
+:root.theme-palette:not(.theme-consolas) .life-day-column p,
+:root.theme-palette:not(.theme-consolas) .life-event-row small,
+:root.theme-palette:not(.theme-consolas) .life-event-row em,
+:root.theme-palette:not(.theme-consolas) .life-journal-meta span,
+:root.theme-palette:not(.theme-consolas) .life-habit-fieldset legend,
+:root.theme-palette:not(.theme-consolas) .life-fc-event-inner span,
+:root.theme-palette:not(.theme-consolas) .spirit-year-button,
+:root.theme-palette:not(.theme-consolas) .spirit-reading-order,
+:root.theme-palette:not(.theme-consolas) .spirit-reading-main small,
+:root.theme-palette:not(.theme-consolas) .spirit-detail-card span,
+:root.theme-palette:not(.theme-consolas) .spirit-pill-row small,
+:root.theme-palette:not(.theme-consolas) .spirit-pill-row em,
+:root.theme-palette:not(.theme-consolas) .tracker-page-controls,
+:root.theme-palette:not(.theme-consolas) .tracker-icon-suggestion,
+:root.theme-palette:not(.theme-consolas) .tracker-icon-suggestions.is-empty {
+  color: var(--muted);
+}
+
+:root.theme-palette:not(.theme-consolas) .dashboard-card.is-linked-hover .dashboard-card-face,
+:root.theme-palette:not(.theme-consolas) .dashboard-card.is-flipped .dashboard-card-face {
+  border-color: var(--border-accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  box-shadow: 0 0 0 1px var(--theme-ring), 0 14px 32px var(--theme-shadow);
+}
+
+:root.theme-palette:not(.theme-consolas) .body-field input:focus,
+:root.theme-palette:not(.theme-consolas) .body-field select:focus,
+:root.theme-palette:not(.theme-consolas) .body-field textarea:focus,
+:root.theme-palette:not(.theme-consolas) .editor-form input:focus,
+:root.theme-palette:not(.theme-consolas) .editor-form textarea:focus,
+:root.theme-palette:not(.theme-consolas) .field-label input:focus,
+:root.theme-palette:not(.theme-consolas) .life-quick-add input:focus,
+:root.theme-palette:not(.theme-consolas) .plan-select:focus {
+  border-color: var(--border-accent);
+  box-shadow: 0 0 0 2px var(--theme-ring);
+}
+
+:root.theme-palette:not(.theme-consolas) .donation-modal {
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+}
+
+:root.theme-palette:not(.theme-consolas) .life-fullcalendar.fc,
+:root.theme-palette:not(.theme-consolas) .life-fullcalendar .fc {
+  --fc-border-color: var(--border-soft);
+  --fc-neutral-bg-color: var(--surface);
+  --fc-list-event-hover-bg-color: var(--surface-2);
+  --fc-today-bg-color: var(--theme-ring);
+}
+
+:root.theme-palette:not(.theme-consolas) .life-fullcalendar .fc-scrollgrid,
+:root.theme-palette:not(.theme-consolas) .life-fullcalendar .fc-theme-standard td,
+:root.theme-palette:not(.theme-consolas) .life-fullcalendar .fc-theme-standard th {
+  border-color: var(--border-soft);
+}
+
+:root.theme-consolas .path-bar,
+:root.theme-consolas .mobile-menu-toggle,
+:root.theme-consolas .sidebar-donate-row,
+:root.theme-consolas .sidebar-toggle-all,
+:root.theme-consolas .body-mode-switcher,
+:root.theme-consolas .body-timer-switcher,
+:root.theme-consolas .body-nutrition-switcher,
+:root.theme-consolas .dashboard-chart-switcher,
+:root.theme-consolas .dashboard-period-toggle,
+:root.theme-consolas .plan-select,
+:root.theme-consolas .spirit-dashboard,
+:root.theme-consolas .spirit-year-button,
+:root.theme-consolas .spirit-reading-button,
+:root.theme-consolas .spirit-book-dashboard,
+:root.theme-consolas .spirit-lookup-bar,
+:root.theme-consolas .spirit-lookup-link,
+:root.theme-consolas .spirit-detail-card,
+:root.theme-consolas .spirit-pill-row em,
+:root.theme-consolas .spirit-focus-grid p,
+:root.theme-consolas .getting-started-intro,
+:root.theme-consolas .getting-started-rhythm,
+:root.theme-consolas .getting-started-grid article,
+:root.theme-consolas .body-card,
+:root.theme-consolas .body-card-heading,
+:root.theme-consolas .body-card-note,
+:root.theme-consolas .body-field input,
+:root.theme-consolas .body-field select,
+:root.theme-consolas .body-field textarea,
+:root.theme-consolas .body-workout-item,
+:root.theme-consolas .life-mode-switcher,
+:root.theme-consolas .life-calendar-switcher,
+:root.theme-consolas .life-calendar-viewer > .life-card,
+:root.theme-consolas .life-card,
+:root.theme-consolas .life-quick-add input,
+:root.theme-consolas .life-todo-stats span,
+:root.theme-consolas .life-todo-column-heading span,
+:root.theme-consolas .life-todo-columns section,
+:root.theme-consolas .life-todo-card,
+:root.theme-consolas .life-todo-check,
+:root.theme-consolas .life-unassigned-panel,
+:root.theme-consolas .life-assigned-tasks,
+:root.theme-consolas .life-project-sidebar,
+:root.theme-consolas .life-project-workflow,
+:root.theme-consolas .life-project-body,
+:root.theme-consolas .life-project-nav-button,
+:root.theme-consolas .life-project-stats span,
+:root.theme-consolas .life-project-detail,
+:root.theme-consolas .life-attachments,
+:root.theme-consolas .life-attachment-item,
+:root.theme-consolas .life-month-heading,
+:root.theme-consolas .life-month-day,
+:root.theme-consolas .life-day-column,
+:root.theme-consolas .life-date-group h3,
+:root.theme-consolas .life-event-row,
+:root.theme-consolas .life-journal-meta span,
+:root.theme-consolas .life-habit-fieldset,
+:root.theme-consolas .life-habit-pill,
+:root.theme-consolas .donation-modal,
+:root.theme-consolas .donation-panel,
+:root.theme-consolas .amount-option,
+:root.theme-consolas .compendium-rotator,
+:root.theme-consolas .compendium-picker-popover,
+:root.theme-consolas .compendium-picker-tile,
+:root.theme-consolas .compendium-tile,
+:root.theme-consolas .section-row,
+:root.theme-consolas .sidebar-item--mind-topic,
+:root.theme-consolas .sidebar-item--mind-lesson,
+:root.theme-consolas .reader-panel,
+:root.theme-consolas .reader-book,
+:root.theme-consolas .reader-slide,
+:root.theme-consolas .reader-section-title,
+:root.theme-consolas .empty-state,
+:root.theme-consolas .editor-form input,
+:root.theme-consolas .editor-form textarea,
+:root.theme-consolas .field-label input,
+:root.theme-consolas .editor-image-button.icon-button,
+:root.theme-consolas .tracker-orb,
+:root.theme-consolas .tracker-icon-suggestion,
+:root.theme-consolas .tracker-icon-suggestions.is-empty,
+:root.theme-consolas .life-fullcalendar .fc-col-header-cell,
+:root.theme-consolas .life-fullcalendar .fc-daygrid-day,
+:root.theme-consolas .life-fullcalendar .fc-event {
+  border-color: var(--border-soft);
+  background: #050505;
+  color: var(--text);
+}
+
+:root.theme-consolas .donation-modal {
+  background: rgba(5, 5, 5, 0.82);
+}
+
+:root.theme-consolas .path-bar button,
+:root.theme-consolas .sidebar-text-link,
+:root.theme-consolas .field-label,
+:root.theme-consolas .donation-panel h2,
+:root.theme-consolas .panel-header h2,
+:root.theme-consolas .plan-select-label,
+:root.theme-consolas .plan-select,
+:root.theme-consolas .spirit-year-button.is-active,
+:root.theme-consolas .spirit-reading-button,
+:root.theme-consolas .spirit-reading-main strong,
+:root.theme-consolas .spirit-detail-card strong,
+:root.theme-consolas .spirit-lookup-link,
+:root.theme-consolas .spirit-focus-grid p,
+:root.theme-consolas .getting-started-intro h3,
+:root.theme-consolas .getting-started-rhythm h3,
+:root.theme-consolas .getting-started-grid h3,
+:root.theme-consolas .body-card-heading h3,
+:root.theme-consolas .body-workout-item h4,
+:root.theme-consolas .life-todo-overview h3,
+:root.theme-consolas .life-todo-stats strong,
+:root.theme-consolas .life-todo-card h4,
+:root.theme-consolas .life-project-overview h3,
+:root.theme-consolas .life-project-stats strong,
+:root.theme-consolas .life-project-nav-button strong,
+:root.theme-consolas .life-attachment-item a,
+:root.theme-consolas .life-month-day span,
+:root.theme-consolas .life-day-column strong,
+:root.theme-consolas .life-date-group h3,
+:root.theme-consolas .life-event-row strong,
+:root.theme-consolas .life-habit-label,
+:root.theme-consolas .life-fc-event-inner strong,
+:root.theme-consolas .reader-heading h2,
+:root.theme-consolas .compendium-picker-header strong,
+:root.theme-consolas .compendium-picker-tile span,
+:root.theme-consolas .compendium-tile,
+:root.theme-consolas .compendium-tile span,
+:root.theme-consolas .section-row,
+:root.theme-consolas .section-row > strong,
+:root.theme-consolas .section-number-handle:hover,
+:root.theme-consolas .section-number-handle.is-active,
+:root.theme-consolas .reader-compendium-title,
+:root.theme-consolas .reader-section-title,
+:root.theme-consolas .empty-state h3,
+:root.theme-consolas .sidebar-item--mind-topic,
+:root.theme-consolas .sidebar-item--mind-lesson,
+:root.theme-consolas .sidebar-item--mind-topic .sidebar-item-label,
+:root.theme-consolas .sidebar-item--mind-lesson .sidebar-item-label,
+:root.theme-consolas .life-fullcalendar .fc-daygrid-day-number {
+  color: var(--text);
+}
+
+:root.theme-consolas .path-bar span,
+:root.theme-consolas .sidebar-footer-links,
+:root.theme-consolas .donation-panel p,
+:root.theme-consolas .panel-header p,
+:root.theme-consolas .plan-select-label span,
+:root.theme-consolas .spirit-year-button,
+:root.theme-consolas .spirit-reading-order,
+:root.theme-consolas .spirit-reading-main small,
+:root.theme-consolas .spirit-detail-card span,
+:root.theme-consolas .spirit-pill-row small,
+:root.theme-consolas .spirit-pill-row em,
+:root.theme-consolas .getting-started-intro p,
+:root.theme-consolas .getting-started-rhythm p,
+:root.theme-consolas .getting-started-grid p,
+:root.theme-consolas .getting-started-grid span,
+:root.theme-consolas .body-field,
+:root.theme-consolas .body-card-heading p,
+:root.theme-consolas .body-card-note,
+:root.theme-consolas .body-workout-item p,
+:root.theme-consolas .life-todo-overview p,
+:root.theme-consolas .life-todo-stats small,
+:root.theme-consolas .life-todo-column-heading h4,
+:root.theme-consolas .life-todo-column-heading span,
+:root.theme-consolas .life-todo-source,
+:root.theme-consolas .life-todo-card-meta span,
+:root.theme-consolas .life-todo-detail,
+:root.theme-consolas .life-todo-columns h4,
+:root.theme-consolas .life-project-overview p,
+:root.theme-consolas .life-project-stats small,
+:root.theme-consolas .life-project-nav-section h4,
+:root.theme-consolas .life-assigned-tasks h4,
+:root.theme-consolas .life-todo-stack p,
+:root.theme-consolas .life-project-nav-section p,
+:root.theme-consolas .life-attachment-list p,
+:root.theme-consolas .life-project-nav-button small,
+:root.theme-consolas .life-attachment-item small,
+:root.theme-consolas .life-month-heading,
+:root.theme-consolas .life-month-day strong,
+:root.theme-consolas .life-month-day small,
+:root.theme-consolas .life-month-day small em,
+:root.theme-consolas .life-day-column h3,
+:root.theme-consolas .life-day-column p,
+:root.theme-consolas .life-event-row small,
+:root.theme-consolas .life-event-row em,
+:root.theme-consolas .life-journal-meta span,
+:root.theme-consolas .life-habit-fieldset legend,
+:root.theme-consolas .life-habit-icon,
+:root.theme-consolas .reader-heading p,
+:root.theme-consolas .compendium-picker-header p,
+:root.theme-consolas .compendium-picker-tile b,
+:root.theme-consolas .compendium-tile b,
+:root.theme-consolas .compendium-tile small,
+:root.theme-consolas .compendium-tile em,
+:root.theme-consolas .section-row > span,
+:root.theme-consolas .section-row > small,
+:root.theme-consolas .section-row > em,
+:root.theme-consolas .empty-state p,
+:root.theme-consolas .sidebar-item--mind-topic .sidebar-item-number,
+:root.theme-consolas .sidebar-item--mind-lesson .sidebar-item-number,
+:root.theme-consolas .tracker-page-controls,
+:root.theme-consolas .tracker-icon-suggestion,
+:root.theme-consolas .tracker-icon-suggestions.is-empty,
+:root.theme-consolas .life-fullcalendar .fc-col-header-cell,
+:root.theme-consolas .life-fc-event-inner span {
+  color: var(--muted);
+}
+
+:root.theme-consolas .body-mode-button,
+:root.theme-consolas .dashboard-chart-switcher button,
+:root.theme-consolas .dashboard-period-toggle button,
+:root.theme-consolas .spirit-year-button,
+:root.theme-consolas .spirit-lookup-link,
+:root.theme-consolas .life-todo-check,
+:root.theme-consolas .life-project-nav-button,
+:root.theme-consolas .life-habit-pill,
+:root.theme-consolas .amount-option,
+:root.theme-consolas .compendium-rotator-edge,
+:root.theme-consolas .reader-slider-edge,
+:root.theme-consolas .reader-section-title,
+:root.theme-consolas .reader-page-indicator,
+:root.theme-consolas .compendium-page-indicator,
+:root.theme-consolas .tracker-orb,
+:root.theme-consolas .tracker-icon-suggestion,
+:root.theme-consolas .tracker-page-controls button {
+  background: #050505;
+}
+
+:root.theme-consolas .body-mode-button:hover,
+:root.theme-consolas .body-mode-button.is-active,
+:root.theme-consolas .dashboard-chart-switcher button:hover,
+:root.theme-consolas .dashboard-chart-switcher button.is-active,
+:root.theme-consolas .dashboard-period-toggle button:hover,
+:root.theme-consolas .dashboard-period-toggle button.is-active,
+:root.theme-consolas .spirit-year-button:hover,
+:root.theme-consolas .spirit-year-button.is-active,
+:root.theme-consolas .spirit-reading-button:hover,
+:root.theme-consolas .spirit-reading-row.is-complete .spirit-reading-button,
+:root.theme-consolas .spirit-lookup-link:hover,
+:root.theme-consolas .amount-option:hover,
+:root.theme-consolas .amount-option.is-selected,
+:root.theme-consolas .compendium-picker-tile:hover,
+:root.theme-consolas .compendium-picker-tile:focus-visible,
+:root.theme-consolas .compendium-tile:hover,
+:root.theme-consolas .compendium-tile:focus-visible,
+:root.theme-consolas .section-row:hover,
+:root.theme-consolas .section-row:focus-visible,
+:root.theme-consolas .section-row.is-dragging,
+:root.theme-consolas .reader-section-title:hover,
+:root.theme-consolas .reader-section-title:focus-visible,
+:root.theme-consolas .sidebar-item.is-active,
+:root.theme-consolas .sidebar-item--mind-topic.is-active,
+:root.theme-consolas .sidebar-item--mind-lesson.is-active,
+:root.theme-consolas .sidebar-item--mind-topic:hover,
+:root.theme-consolas .sidebar-item--mind-topic:focus-visible,
+:root.theme-consolas .sidebar-item--mind-lesson:hover,
+:root.theme-consolas .sidebar-item--mind-lesson:focus-visible,
+:root.theme-consolas .editor-image-button.icon-button:hover,
+:root.theme-consolas .editor-image-button.icon-button:focus-visible,
+:root.theme-consolas .tracker-orb:hover,
+:root.theme-consolas .tracker-orb:focus-visible,
+:root.theme-consolas .tracker-orb.is-editing,
+:root.theme-consolas .tracker-icon-suggestion:hover,
+:root.theme-consolas .tracker-icon-suggestion:focus-visible,
+:root.theme-consolas .tracker-icon-suggestion.is-selected,
+:root.theme-consolas .life-todo-card:hover,
+:root.theme-consolas .life-todo-card:focus-visible,
+:root.theme-consolas .life-todo-card.is-project-task:hover,
+:root.theme-consolas .life-todo-card.is-project-task:focus-visible,
+:root.theme-consolas .life-todo-check:hover,
+:root.theme-consolas .life-todo-check:focus-visible,
+:root.theme-consolas .life-todo-card.is-complete .life-todo-check,
+:root.theme-consolas .life-project-nav-button:hover,
+:root.theme-consolas .life-project-nav-button.is-active,
+:root.theme-consolas button.life-event-row:hover,
+:root.theme-consolas .life-habit-pill:hover,
+:root.theme-consolas .life-habit-pill:has(input:checked),
+:root.theme-consolas .life-fullcalendar .fc-event:hover {
+  border-color: var(--border);
+  background: #111;
+  color: var(--text);
+}
+
+:root.theme-consolas .reader-section-title {
+  display: inline-flex;
+  width: auto;
+  max-width: 100%;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+:root.theme-consolas .empty-state {
+  border-color: var(--border);
+  background: #050505;
+}
+
+:root.theme-consolas .compendium-page-indicator:hover .reader-page-dot--current,
+:root.theme-consolas .compendium-page-indicator:focus-visible .reader-page-dot--current {
+  box-shadow: 0 0 22px rgba(239, 238, 231, 0.38);
+}
+
+:root.theme-consolas .editor-form input:focus,
+:root.theme-consolas .editor-form textarea:focus,
+:root.theme-consolas .field-label input:focus,
+:root.theme-consolas .body-field input:focus,
+:root.theme-consolas .body-field select:focus,
+:root.theme-consolas .body-field textarea:focus,
+:root.theme-consolas .life-quick-add input:focus {
+  border-color: var(--border);
+}
+
+:root.theme-consolas .body-field input,
+:root.theme-consolas .body-field select,
+:root.theme-consolas .body-field textarea,
+:root.theme-consolas .life-quick-add input {
+  font-family: var(--font-body);
+}
+
+:root.theme-consolas .section-row > span {
+  border-right-color: var(--border-soft);
+}
+
+:root.theme-consolas .plan-select:focus {
+  border-color: var(--border);
+}
+
+:root.theme-consolas .spirit-reading-order {
+  border-right-color: var(--border-soft);
+}
+
+:root.theme-consolas .spirit-reading-row.is-complete .spirit-reading-main strong {
+  text-decoration-color: rgba(239, 238, 231, 0.72);
+}
+
+:root.theme-consolas .life-project-sidebar,
+:root.theme-consolas .life-project-workflow {
+  border-right-color: var(--border-soft);
+}
+
+:root.theme-consolas .life-unassigned-panel,
+:root.theme-consolas .life-attachments {
+  border-top-color: var(--border-soft);
+}
+
+:root.theme-consolas .life-todo-card.is-project-task {
+  border-color: var(--border-soft);
+}
+
+:root.theme-consolas .life-month-grid {
+  border-color: var(--border-soft);
+  background: var(--border-soft);
+}
+
+:root.theme-consolas .life-month-day.is-muted {
+  opacity: 0.52;
+}
+
+:root.theme-consolas .life-date-group h3 {
+  border-bottom-color: var(--border-soft);
+}
+
+:root.theme-consolas .life-todo-card.is-complete h4 {
+  text-decoration-color: rgba(239, 238, 231, 0.72);
+}
+
+:root.theme-consolas .life-habit-pill:has(input:checked) .life-habit-icon {
+  color: var(--text);
+}
+
+:root.theme-consolas .reader-heading {
+  border-bottom-color: var(--border-soft);
+}
+
+:root.theme-consolas .reader-page-dot {
+  background: rgba(214, 211, 201, 0.42);
+  box-shadow: 0 0 0 1px rgba(239, 238, 231, 0.1);
+}
+
+:root.theme-consolas .reader-page-dot--side.is-available {
+  background: rgba(214, 211, 201, 0.72);
+  box-shadow: 0 0 14px rgba(239, 238, 231, 0.18);
+}
+
+:root.theme-consolas .reader-page-dot--current {
+  background: var(--text);
+  box-shadow: 0 0 18px rgba(239, 238, 231, 0.34);
+}
+
+:root.theme-consolas .tracker-orb {
+  color: var(--text);
+}
+
+:root.theme-consolas .tracker-orb.is-editing {
+  box-shadow: 0 0 0 2px rgba(239, 238, 231, 0.26);
+}
+
+:root.theme-consolas .tracker-page-controls button {
+  color: var(--text);
+}
+
+:root.theme-consolas .tracker-page-controls button:disabled {
+  color: var(--faint);
+}
+
+:root.theme-consolas .life-fullcalendar.fc,
+:root.theme-consolas .life-fullcalendar .fc {
+  --fc-border-color: var(--border-soft);
+  --fc-neutral-bg-color: #050505;
+  --fc-list-event-hover-bg-color: #111;
+  --fc-today-bg-color: rgba(239, 238, 231, 0.12);
+}
+
+:root.theme-consolas .life-fullcalendar .fc-scrollgrid,
+:root.theme-consolas .life-fullcalendar .fc-theme-standard td,
+:root.theme-consolas .life-fullcalendar .fc-theme-standard th {
+  border-color: var(--border-soft);
+}
+
+:root.theme-consolas .life-fullcalendar .fc-day-today {
+  background: rgba(239, 238, 231, 0.1);
+}
+
 .markdown-body {
   color: #e2e8f0;
   line-height: 1.75;
@@ -4275,17 +6114,40 @@ button.life-event-row:hover {
   .life-editor-grid,
   .life-habit-grid,
   .life-todo-columns,
-  .life-project-shell,
+  .life-todo-board,
   .life-project-form,
   .life-todo-view > .life-quick-add {
     grid-template-columns: 1fr;
   }
 
-  .life-project-sidebar {
-    border-right: 0;
-    border-bottom: 1px solid var(--border-soft);
-    padding-right: 0;
-    padding-bottom: 14px;
+  .life-todo-overview {
+    display: grid;
+  }
+
+  .life-todo-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .life-project-shell {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "projects"
+      "workflow"
+      "detail";
+  }
+
+  .life-project-overview {
+    display: grid;
+  }
+
+  .life-project-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .life-project-sidebar,
+  .life-project-workflow {
+    border-right: 1px solid var(--border-soft);
+    padding: 12px;
   }
 
   .life-todo-card,
@@ -4334,21 +6196,22 @@ button.life-event-row:hover {
     min-height: 360px;
   }
 
-  .compendium-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  .compendium-rotator-stage {
+    grid-template-columns: 32px minmax(0, 1fr) 32px;
+    min-height: 186px;
   }
 
-  .compendium-tile {
-    width: 100%;
+  .compendium-picker-popover {
+    inset: 0 32px;
   }
 
   .body-mode-button {
-    min-height: 48px;
+    min-height: 34px;
     padding: 0;
   }
 
   .body-mode-button .button-icon {
-    font-size: 1.35rem;
+    font-size: 1rem;
   }
 
   .body-mode-label {

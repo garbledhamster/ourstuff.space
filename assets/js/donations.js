@@ -33,7 +33,7 @@ export function donationModalHtml() {
   `;
 }
 
-export function bindDonationFlow(root = document) {
+export function bindDonationFlow(root = document, options = {}) {
   const modal = root.getElementById("donation-modal");
   const openButtons = Array.from(root.querySelectorAll("[data-action='open-donation']"));
   const closeButton = root.getElementById("donation-close");
@@ -46,6 +46,7 @@ export function bindDonationFlow(root = document) {
   if (!modal || !submitButton || !customAmountInput) return;
 
   function openModal() {
+    options.onOpen?.();
     modal.hidden = false;
     status.textContent = "";
     submitButton.disabled = false;

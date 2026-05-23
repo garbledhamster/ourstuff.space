@@ -1,4 +1,4 @@
-import { dashboardCards, today } from "./data.js";
+﻿import { dashboardCards, today } from "./data.js";
 import { donationModalHtml, bindDonationFlow } from "./donations.js";
 import { clearLocalFiles, deleteLocalImages, exportLocalFiles, importLocalFiles, listLocalImages, resolveLocalFileUrl, resolveLocalImageUrl, storeLocalFile, storeLocalImage } from "./localMedia.js";
 import { escapeHtml, renderMarkdown } from "./markdown.js";
@@ -22,6 +22,7 @@ const SPIRIT_PROGRESS_KEY = "ourstuff.spiritPlanProgress.v1";
 const LIFE_PLANNER_KEY = "ourstuff.lifePlanner.v1";
 const TRACKER_SETTINGS_KEY = "ourstuff.thoughts.v1";
 const SIDEBAR_WIDTH_KEY = "ourstuff.sidebarWidth.v1";
+const THEME_KEY = "ourstuff.theme.v1";
 const ICONIFY_SEARCH_CACHE_KEY = "ourstuff.iconifySearchCache.v1";
 const ICONIFY_SEARCH_URL = "https://api.iconify.design/search";
 const ICONIFY_PREFIXES = "tabler,lucide,ph,mdi,material-symbols";
@@ -37,6 +38,8 @@ const TRACKER_ORBS_PER_PAGE = TRACKER_ORBS_PER_ROW * TRACKER_ORB_ROWS;
 const THOUGHT_TOOLTIP_LONG_PRESS_MS = 480;
 const MOBILE_MENU_QUERY = "(max-width: 860px)";
 const INSTALLED_APP_QUERY = "(display-mode: standalone)";
+const COMPENDIUM_TWO_QUERY = "(max-width: 680px)";
+const COMPENDIUM_ONE_QUERY = "(max-width: 480px)";
 const DASHBOARD_LABELS = ["Mind", "Body", "Spirit", "Life"];
 const BODY_TIMER_MODES = [
   {
@@ -121,6 +124,365 @@ const DASHBOARD_COLORS = {
   Spirit: "#f59e0b",
   Life: "#f472b6"
 };
+const APP_THEMES = [
+  {
+    id: "default",
+    label: "Default",
+    description: "Original Ourstuff dark interface.",
+    fontSet: "classic"
+  },
+  {
+    id: "midnight",
+    label: "Midnight",
+    description: "Fast Track's deep slate theme with cyan accents.",
+    colorScheme: "dark",
+    fontSet: "midnight",
+    colors: {
+      primaryColor: "#06b6d4",
+      secondaryColor: "#0891b2",
+      backgroundColor: "#020617",
+      surfaceColor: "#0f172a",
+      surfaceMutedColor: "#1e293b",
+      borderColor: "#1e293b",
+      textColor: "#f8fafc",
+      textMutedColor: "#94a3b8",
+      dangerColor: "#dc2626"
+    }
+  },
+  {
+    id: "ocean",
+    label: "Ocean",
+    description: "Blue-green shell with bright sky highlights.",
+    colorScheme: "dark",
+    fontSet: "ocean",
+    colors: {
+      primaryColor: "#38bdf8",
+      secondaryColor: "#0ea5e9",
+      backgroundColor: "#071a2b",
+      surfaceColor: "#0b2942",
+      surfaceMutedColor: "#123a5a",
+      borderColor: "#1e3a5f",
+      textColor: "#e0f2fe",
+      textMutedColor: "#94a3b8",
+      dangerColor: "#f97316"
+    }
+  },
+  {
+    id: "sunrise",
+    label: "Sunrise",
+    description: "Warm rose and orange Fast Track palette.",
+    colorScheme: "dark",
+    fontSet: "sunrise",
+    colors: {
+      primaryColor: "#fb7185",
+      secondaryColor: "#f97316",
+      backgroundColor: "#1f0f1a",
+      surfaceColor: "#2a1523",
+      surfaceMutedColor: "#3b1c2e",
+      borderColor: "#4b2237",
+      textColor: "#fff1f2",
+      textMutedColor: "#fda4af",
+      dangerColor: "#f87171"
+    }
+  },
+  {
+    id: "light",
+    label: "Light",
+    description: "Clean white Fast Track palette with blue accents.",
+    colorScheme: "light",
+    fontSet: "minimal",
+    colors: {
+      primaryColor: "#2563eb",
+      secondaryColor: "#1d4ed8",
+      backgroundColor: "#ffffff",
+      surfaceColor: "#f8fafc",
+      surfaceMutedColor: "#f8fafc",
+      borderColor: "#e2e8f0",
+      textColor: "#000000",
+      textMutedColor: "#000000",
+      dangerColor: "#dc2626"
+    }
+  },
+  {
+    id: "monokai",
+    label: "Monokai (Dark)",
+    description: "Editor-like green and cyan on warm charcoal.",
+    colorScheme: "dark",
+    fontSet: "code",
+    colors: {
+      primaryColor: "#a6e22e",
+      secondaryColor: "#66d9ef",
+      backgroundColor: "#272822",
+      surfaceColor: "#2d2e28",
+      surfaceMutedColor: "#3e3d32",
+      borderColor: "#49483e",
+      textColor: "#f8f8f2",
+      textMutedColor: "#a1a1a1",
+      dangerColor: "#f92672"
+    }
+  },
+  {
+    id: "monokaiLight",
+    label: "Monokai (Light)",
+    description: "Light editor palette with teal and violet accents.",
+    colorScheme: "light",
+    fontSet: "softCode",
+    colors: {
+      primaryColor: "#2aa198",
+      secondaryColor: "#6c71c4",
+      backgroundColor: "#faf7ef",
+      surfaceColor: "#fffdf7",
+      surfaceMutedColor: "#f3eee3",
+      borderColor: "#e7decd",
+      textColor: "#2b2b2b",
+      textMutedColor: "#6b6b6b",
+      dangerColor: "#dc322f"
+    }
+  },
+  {
+    id: "sand",
+    label: "Sand",
+    description: "Soft parchment surfaces with amber and teal accents.",
+    colorScheme: "light",
+    fontSet: "warm",
+    colors: {
+      primaryColor: "#c17d3b",
+      secondaryColor: "#2c6e6f",
+      backgroundColor: "#f7f1e3",
+      surfaceColor: "#fffaf0",
+      surfaceMutedColor: "#efe4cf",
+      borderColor: "#e0d2b8",
+      textColor: "#2f2a24",
+      textMutedColor: "#6b5f52",
+      dangerColor: "#b42318"
+    }
+  },
+  {
+    id: "yellow",
+    label: "Yellow",
+    description: "Dark shell with strong yellow highlights.",
+    colorScheme: "dark",
+    fontSet: "utility",
+    colors: {
+      primaryColor: "#facc15",
+      secondaryColor: "#f59e0b",
+      backgroundColor: "#0b0f19",
+      surfaceColor: "#121a2a",
+      surfaceMutedColor: "#18233a",
+      borderColor: "#23324f",
+      textColor: "#fff7cc",
+      textMutedColor: "#f5e6a8",
+      dangerColor: "#ef4444"
+    }
+  },
+  {
+    id: "forest",
+    label: "Forest (Green)",
+    description: "Dark green surfaces with bright leaf accents.",
+    colorScheme: "dark",
+    fontSet: "humanist",
+    colors: {
+      primaryColor: "#22c55e",
+      secondaryColor: "#16a34a",
+      backgroundColor: "#06130b",
+      surfaceColor: "#0b1f13",
+      surfaceMutedColor: "#0f2a19",
+      borderColor: "#173b25",
+      textColor: "#ecfdf5",
+      textMutedColor: "#86efac",
+      dangerColor: "#ef4444"
+    }
+  },
+  {
+    id: "cobalt",
+    label: "Cobalt (Blue)",
+    description: "Deep navy Fast Track palette with blue accents.",
+    colorScheme: "dark",
+    fontSet: "technical",
+    colors: {
+      primaryColor: "#3b82f6",
+      secondaryColor: "#2563eb",
+      backgroundColor: "#070a14",
+      surfaceColor: "#0b1224",
+      surfaceMutedColor: "#0f1a33",
+      borderColor: "#1b2a55",
+      textColor: "#eff6ff",
+      textMutedColor: "#93c5fd",
+      dangerColor: "#f43f5e"
+    }
+  },
+  {
+    id: "twilight",
+    label: "Twilight",
+    description: "Purple night palette with cyan secondary accents.",
+    colorScheme: "dark",
+    fontSet: "editorial",
+    colors: {
+      primaryColor: "#8b5cf6",
+      secondaryColor: "#22d3ee",
+      backgroundColor: "#07051a",
+      surfaceColor: "#120a2b",
+      surfaceMutedColor: "#1a123a",
+      borderColor: "#2b1b55",
+      textColor: "#f5f3ff",
+      textMutedColor: "#c4b5fd",
+      dangerColor: "#fb7185"
+    }
+  },
+  {
+    id: "consolas",
+    label: "Consolas",
+    description: "Slate black console surface with off-white Consolas-style text and borders.",
+    colorScheme: "dark",
+    fontSet: "mono",
+    colors: {
+      primaryColor: "#efeee7",
+      secondaryColor: "#d6d3c9",
+      backgroundColor: "#050505",
+      surfaceColor: "#080808",
+      surfaceMutedColor: "#111111",
+      borderColor: "#efeee7",
+      textColor: "#f1f0e8",
+      textMutedColor: "#d6d3c9",
+      dangerColor: "#f0b7b7"
+    }
+  }
+];
+const THEME_FONT_SETS = {
+  classic: {
+    label: "Classic",
+    body: '"Aptos", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif',
+    display: 'Georgia, "Times New Roman", serif',
+    labelFont: '"Bahnschrift", "Aptos", "Segoe UI", system-ui, sans-serif',
+    mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
+  },
+  midnight: {
+    label: "Midnight UI",
+    body: '"Segoe UI Variable Text", "Aptos", "Segoe UI", system-ui, sans-serif',
+    display: '"Aptos Display", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif',
+    labelFont: '"Bahnschrift", "Segoe UI Variable Text", "Aptos", system-ui, sans-serif',
+    mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
+  },
+  ocean: {
+    label: "Rounded",
+    body: 'Corbel, "Candara", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
+    display: '"Trebuchet MS", Corbel, "Segoe UI Variable Display", system-ui, sans-serif',
+    labelFont: '"Trebuchet MS", "Bahnschrift", Corbel, system-ui, sans-serif',
+    mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
+  },
+  sunrise: {
+    label: "Editorial Warm",
+    body: 'Candara, "Segoe UI Variable Text", "Aptos", system-ui, sans-serif',
+    display: 'Constantia, Georgia, "Palatino Linotype", serif',
+    labelFont: '"Franklin Gothic Medium", "Bahnschrift", "Aptos", system-ui, sans-serif',
+    mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
+  },
+  minimal: {
+    label: "Minimal",
+    body: '"Segoe UI Variable Text", "Aptos", "Segoe UI", system-ui, sans-serif',
+    display: '"Segoe UI Variable Display", "Aptos Display", "Segoe UI", system-ui, sans-serif',
+    labelFont: '"Segoe UI Variable Small", "Bahnschrift", "Segoe UI", system-ui, sans-serif',
+    mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
+  },
+  editorial: {
+    label: "Editorial",
+    body: '"Aptos", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif',
+    display: 'Georgia, "Iowan Old Style", "Palatino Linotype", serif',
+    labelFont: '"Bahnschrift", "Aptos", "Segoe UI", system-ui, sans-serif',
+    mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
+  },
+  warm: {
+    label: "Parchment",
+    body: 'Constantia, Cambria, Georgia, "Times New Roman", serif',
+    display: '"Palatino Linotype", "Book Antiqua", Georgia, serif',
+    labelFont: '"Trebuchet MS", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
+    mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
+  },
+  humanist: {
+    label: "Humanist",
+    body: '"Candara", "Segoe UI Variable Text", "Aptos", system-ui, sans-serif',
+    display: '"Cambria", Georgia, "Times New Roman", serif',
+    labelFont: '"Bahnschrift", "Candara", "Segoe UI", system-ui, sans-serif',
+    mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
+  },
+  utility: {
+    label: "Utility",
+    body: 'Verdana, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
+    display: '"Arial Black", Impact, "Aptos Display", system-ui, sans-serif',
+    labelFont: 'Tahoma, Verdana, "Segoe UI", system-ui, sans-serif',
+    mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
+  },
+  technical: {
+    label: "Technical",
+    body: '"Segoe UI Variable Text", "Aptos", "Segoe UI", system-ui, sans-serif',
+    display: '"Century Gothic", "Aptos Display", "Segoe UI Variable Display", system-ui, sans-serif',
+    labelFont: '"Bahnschrift", "Century Gothic", "Segoe UI", system-ui, sans-serif',
+    mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
+  },
+  code: {
+    label: "Code",
+    body: '"Cascadia Code", "Cascadia Mono", Consolas, "Liberation Mono", monospace',
+    display: '"Cascadia Code", "Cascadia Mono", Consolas, "Liberation Mono", monospace',
+    labelFont: '"Cascadia Mono", Consolas, "Liberation Mono", monospace',
+    mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
+  },
+  softCode: {
+    label: "Soft Code",
+    body: '"Cascadia Mono", "Lucida Console", Consolas, monospace',
+    display: '"Segoe UI Variable Display", "Aptos Display", "Cascadia Mono", system-ui, sans-serif',
+    labelFont: '"Cascadia Mono", "Lucida Console", Consolas, monospace',
+    mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
+  },
+  mono: {
+    label: "Mono",
+    body: 'Consolas, "Cascadia Mono", "SFMono-Regular", "Liberation Mono", monospace',
+    display: 'Consolas, "Cascadia Mono", "SFMono-Regular", "Liberation Mono", monospace',
+    labelFont: 'Consolas, "Cascadia Mono", "SFMono-Regular", "Liberation Mono", monospace',
+    mono: 'Consolas, "Cascadia Mono", "SFMono-Regular", "Liberation Mono", monospace'
+  }
+};
+const APP_THEME_CLASSES = APP_THEMES.map((theme) => `theme-${theme.id}`);
+const THEME_STYLE_PROPERTIES = [
+  "color-scheme",
+  "--bg",
+  "--surface",
+  "--surface-2",
+  "--panel",
+  "--border",
+  "--border-soft",
+  "--border-strong",
+  "--border-muted",
+  "--border-accent",
+  "--border-accent-soft",
+  "--theme-divider",
+  "--text",
+  "--muted",
+  "--faint",
+  "--accent",
+  "--accent-2",
+  "--danger",
+  "--theme-hover",
+  "--theme-control",
+  "--theme-control-hover",
+  "--theme-select-bg",
+  "--theme-select-text",
+  "--theme-select-option-bg",
+  "--theme-select-option-text",
+  "--theme-select-option-active",
+  "--theme-select-option-active-text",
+  "--theme-ring",
+  "--theme-shadow",
+  "--on-bg",
+  "--on-surface",
+  "--on-surface-2",
+  "--on-accent",
+  "--on-accent-2",
+  "--on-danger",
+  "--font-body",
+  "--font-display",
+  "--font-label",
+  "--font-mono"
+];
 const ICON_ALIASES = {
   "tabler:lotus": "tabler:yoga",
   "tabler:hands-pray": "tabler:pray"
@@ -241,6 +603,167 @@ function saveSidebarWidth(width) {
   } catch {
     // Width persistence is a convenience; resizing should keep working if storage is blocked.
   }
+}
+
+function normalizeTheme(value) {
+  return APP_THEMES.some((theme) => theme.id === value) ? value : "default";
+}
+
+function loadTheme() {
+  try {
+    return normalizeTheme(window.localStorage.getItem(THEME_KEY));
+  } catch {
+    return "default";
+  }
+}
+
+function saveTheme(theme) {
+  try {
+    window.localStorage.setItem(THEME_KEY, normalizeTheme(theme));
+  } catch {
+    // Theme persistence is optional; the current session can still render the choice.
+  }
+}
+
+function hexToRgb(value) {
+  const hex = String(value || "").replace("#", "").trim();
+  const normalized = hex.length === 3
+    ? hex.split("").map((char) => `${char}${char}`).join("")
+    : hex.padEnd(6, "0").slice(0, 6);
+  const number = Number.parseInt(normalized, 16);
+  if (Number.isNaN(number)) return { r: 0, g: 0, b: 0 };
+  return {
+    r: (number >> 16) & 255,
+    g: (number >> 8) & 255,
+    b: number & 255
+  };
+}
+
+function colorWithAlpha(value, alpha = 1) {
+  const { r, g, b } = hexToRgb(value);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function relativeLuminance(value) {
+  const { r, g, b } = hexToRgb(value);
+  const channels = [r, g, b].map((channel) => {
+    const normalized = channel / 255;
+    return normalized <= 0.03928
+      ? normalized / 12.92
+      : ((normalized + 0.055) / 1.055) ** 2.4;
+  });
+  return (0.2126 * channels[0]) + (0.7152 * channels[1]) + (0.0722 * channels[2]);
+}
+
+function contrastRatio(colorA, colorB) {
+  const light = Math.max(relativeLuminance(colorA), relativeLuminance(colorB));
+  const dark = Math.min(relativeLuminance(colorA), relativeLuminance(colorB));
+  return (light + 0.05) / (dark + 0.05);
+}
+
+function readableTextFor(background, preferred = "#ffffff") {
+  const lightText = "#ffffff";
+  const darkText = "#000000";
+  const preferredRatio = contrastRatio(background, preferred);
+  const lightRatio = contrastRatio(background, lightText);
+  const darkRatio = contrastRatio(background, darkText);
+  if (preferredRatio >= 4.5) return preferred;
+  return lightRatio >= darkRatio ? lightText : darkText;
+}
+
+function themeById(themeId) {
+  return APP_THEMES.find((theme) => theme.id === normalizeTheme(themeId)) || APP_THEMES[0];
+}
+
+function themeFonts(theme) {
+  return {
+    ...THEME_FONT_SETS.classic,
+    ...(THEME_FONT_SETS[theme.fontSet] || {}),
+    ...(theme.fonts || {})
+  };
+}
+
+function applyThemeFontVariables(root, theme) {
+  const fonts = themeFonts(theme);
+  root.style.setProperty("--font-body", fonts.body);
+  root.style.setProperty("--font-display", fonts.display);
+  root.style.setProperty("--font-label", fonts.labelFont);
+  root.style.setProperty("--font-mono", fonts.mono);
+}
+
+function applyThemeVariables(themeId) {
+  const theme = themeById(themeId);
+  const root = document.documentElement;
+  APP_THEME_CLASSES.forEach((className) => root.classList.remove(className));
+  root.classList.toggle("theme-palette", Boolean(theme.colors));
+  root.classList.add(`theme-${theme.id}`);
+
+  THEME_STYLE_PROPERTIES.forEach((property) => root.style.removeProperty(property));
+  applyThemeFontVariables(root, theme);
+  if (!theme.colors) return;
+
+  const colors = theme.colors;
+  const lightTheme = theme.colorScheme === "light";
+  const consoleTheme = theme.id === "consolas";
+  root.style.setProperty("color-scheme", theme.colorScheme || "dark");
+  root.style.setProperty("--bg", colors.backgroundColor);
+  root.style.setProperty("--surface", colors.surfaceColor);
+  root.style.setProperty("--surface-2", colors.surfaceMutedColor);
+  root.style.setProperty("--panel", colorWithAlpha(colors.surfaceColor, lightTheme ? 0.96 : 0.92));
+  root.style.setProperty("--border", consoleTheme ? colors.primaryColor : colorWithAlpha(colors.primaryColor, lightTheme ? 0.42 : 0.48));
+  root.style.setProperty("--border-soft", colorWithAlpha(colors.primaryColor, consoleTheme ? 0.58 : lightTheme ? 0.2 : 0.26));
+  root.style.setProperty("--border-strong", consoleTheme ? colors.primaryColor : colorWithAlpha(colors.primaryColor, lightTheme ? 0.72 : 0.78));
+  root.style.setProperty("--border-muted", colorWithAlpha(colors.secondaryColor, consoleTheme ? 0.46 : lightTheme ? 0.28 : 0.3));
+  root.style.setProperty("--border-accent", colors.primaryColor);
+  root.style.setProperty("--border-accent-soft", colorWithAlpha(colors.primaryColor, consoleTheme ? 0.74 : lightTheme ? 0.54 : 0.6));
+  root.style.setProperty("--theme-divider", colorWithAlpha(colors.secondaryColor, consoleTheme ? 0.42 : lightTheme ? 0.24 : 0.22));
+  root.style.setProperty("--text", colors.textColor);
+  root.style.setProperty("--muted", colors.textMutedColor);
+  root.style.setProperty("--faint", colorWithAlpha(colors.textMutedColor, 0.72));
+  root.style.setProperty("--accent", colors.primaryColor);
+  root.style.setProperty("--accent-2", colors.secondaryColor);
+  root.style.setProperty("--danger", colors.dangerColor);
+  root.style.setProperty("--theme-hover", colors.surfaceMutedColor);
+  root.style.setProperty("--theme-control", colors.surfaceColor);
+  root.style.setProperty("--theme-control-hover", colors.surfaceMutedColor);
+  root.style.setProperty("--theme-select-bg", colors.surfaceColor);
+  root.style.setProperty("--theme-select-text", readableTextFor(colors.surfaceColor, colors.textColor));
+  root.style.setProperty("--theme-select-option-bg", colors.surfaceMutedColor);
+  root.style.setProperty("--theme-select-option-text", readableTextFor(colors.surfaceMutedColor, colors.textColor));
+  root.style.setProperty("--theme-select-option-active", colors.primaryColor);
+  root.style.setProperty("--theme-select-option-active-text", readableTextFor(colors.primaryColor, colors.textColor));
+  root.style.setProperty("--theme-ring", colorWithAlpha(colors.primaryColor, 0.34));
+  root.style.setProperty("--theme-shadow", colorWithAlpha(lightTheme ? colors.primaryColor : colors.backgroundColor, lightTheme ? 0.18 : 0.48));
+  root.style.setProperty("--on-bg", readableTextFor(colors.backgroundColor, colors.textColor));
+  root.style.setProperty("--on-surface", readableTextFor(colors.surfaceColor, colors.textColor));
+  root.style.setProperty("--on-surface-2", readableTextFor(colors.surfaceMutedColor, colors.textColor));
+  root.style.setProperty("--on-accent", readableTextFor(colors.primaryColor, colors.textColor));
+  root.style.setProperty("--on-accent-2", readableTextFor(colors.secondaryColor, colors.textColor));
+  root.style.setProperty("--on-danger", readableTextFor(colors.dangerColor, colors.textColor));
+}
+
+function themePreviewStyle(theme) {
+  const colors = theme.colors || {
+    backgroundColor: "#020617",
+    surfaceColor: "#0f172a",
+    borderColor: "#1e293b",
+    textColor: "#f8fafc",
+    textMutedColor: "#94a3b8",
+    primaryColor: "#38bdf8",
+    secondaryColor: "#22c55e"
+  };
+  return [
+    `--theme-preview-bg:${colors.surfaceColor}`,
+    `--theme-preview-border:${colorWithAlpha(colors.primaryColor, theme.colorScheme === "light" ? 0.54 : 0.62)}`,
+    `--theme-preview-text:${colors.textColor}`,
+    `--theme-preview-muted:${colors.textMutedColor}`,
+    `--theme-preview-accent:${colors.primaryColor}`,
+    `--theme-preview-secondary:${colors.secondaryColor}`
+  ].join(";");
+}
+
+function themeFontLabel(theme) {
+  return themeFonts(theme).label;
 }
 
 function loadIconifySearchCache() {
@@ -380,12 +903,15 @@ function isMobileViewport() {
 function applyEnvironmentClasses() {
   const installed = isInstalledWebApp();
   const mobile = isMobileViewport();
+  const theme = normalizeTheme(state?.theme);
   app.classList.toggle("is-installed-app", installed);
   app.classList.toggle("is-browser-mode", !installed);
   app.classList.toggle("is-mobile-viewport", mobile);
   app.classList.toggle("is-desktop-viewport", !mobile);
   app.dataset.displayMode = installed ? "standalone" : "browser";
   app.dataset.viewportMode = mobile ? "mobile" : "desktop";
+  applyThemeVariables(theme);
+  app.dataset.theme = theme;
 }
 
 function bindEnvironmentMedia(media) {
@@ -523,6 +1049,7 @@ async function exportAppState() {
     spiritProgress: state.spiritProgress || {},
     lifePlanner: normalizeLifePlanner(state.lifePlanner || createDefaultLifePlanner()),
     thoughtSettings: normalizeTrackerSettings(state.trackerSettings || cloneDefaultTrackers()),
+    theme: normalizeTheme(state.theme),
     localFiles: await exportLocalFiles().catch(() => [])
   };
 }
@@ -537,15 +1064,18 @@ async function restoreImportedAppState(appState) {
     : {};
   const lifePlanner = normalizeLifePlanner(appState?.lifePlanner || createDefaultLifePlanner());
   const trackerSettings = normalizeTrackerSettings(appState?.thoughtSettings || appState?.trackerSettings || cloneDefaultTrackers());
+  const theme = normalizeTheme(appState?.theme || state.theme);
 
   state.bodyTracker = bodyTracker;
   state.spiritProgress = spiritProgress;
   state.lifePlanner = lifePlanner;
   state.trackerSettings = trackerSettings;
+  state.theme = theme;
   saveBodyTracker();
   saveSpiritProgress();
   saveLifePlannerStore(lifePlanner);
   saveTrackerSettings();
+  saveTheme(theme);
   if (Array.isArray(appState.localFiles)) {
     await importLocalFiles(appState.localFiles);
   }
@@ -557,6 +1087,7 @@ function hasStoredAppState() {
     || window.localStorage.getItem(SPIRIT_PROGRESS_KEY)
     || window.localStorage.getItem(LIFE_PLANNER_KEY)
     || window.localStorage.getItem(TRACKER_SETTINGS_KEY)
+    || window.localStorage.getItem(THEME_KEY)
   );
 }
 
@@ -567,6 +1098,8 @@ const state = {
   compendiums: [],
   selectedCompendiumId: null,
   selectedBlockId: null,
+  mindCompendiumPage: 0,
+  mindCompendiumPickerOpen: false,
   compendiumReaderPages: {},
   selectedArtifactId: null,
   artifactReturnActive: "",
@@ -578,6 +1111,7 @@ const state = {
   lifeTool: "",
   lifeMode: "month",
   settingsTab: "getting-started",
+  theme: loadTheme(),
   trackerAddArea: "",
   trackerEditKey: "",
   trackerDeleteKey: "",
@@ -587,7 +1121,8 @@ const state = {
   thoughtToast: null,
   thoughtCooldowns: {},
   thoughtCreateLocks: {},
-  dashboardPeriod: "week",
+  dashboardPeriod: "day",
+  dashboardChartType: "pie",
   bodyTracker: loadBodyTracker(),
   trackerSettings: loadTrackerSettings(),
   spiritPlan: null,
@@ -1022,11 +1557,19 @@ function scheduleThoughtToastFade(toast = state.thoughtToast, delay = 3500) {
   window.clearTimeout(thoughtToastHideTimer);
   if (!toast) return;
   thoughtToastFadeTimer = window.setTimeout(() => {
+    if (isThoughtToastHeldOpen()) {
+      pauseThoughtToastFade();
+      return;
+    }
     const element = app.querySelector(".thought-toast");
     element?.classList.remove("is-held");
     element?.classList.add("is-fading");
   }, delay);
   thoughtToastHideTimer = window.setTimeout(() => {
+    if (isThoughtToastHeldOpen()) {
+      pauseThoughtToastFade();
+      return;
+    }
     if (state.thoughtToast?.noteId === toast.noteId) {
       state.thoughtToast = null;
       render();
@@ -1060,6 +1603,27 @@ function showThoughtToast(toast) {
   state.thoughtToast = toast;
   render();
   scheduleThoughtToastFade(toast);
+}
+
+function captureThoughtToastFocus() {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLInputElement) || !active.id.startsWith("thought-toast-")) return null;
+  return {
+    id: active.id,
+    start: active.type === "text" ? active.selectionStart : null,
+    end: active.type === "text" ? active.selectionEnd : null
+  };
+}
+
+function restoreThoughtToastFocus(focusState) {
+  if (!focusState) return;
+  const input = document.getElementById(focusState.id);
+  if (!(input instanceof HTMLInputElement)) return;
+  input.focus({ preventScroll: true });
+  if (input.type === "text" && typeof focusState.start === "number" && typeof focusState.end === "number") {
+    input.setSelectionRange(focusState.start, focusState.end);
+  }
+  pauseThoughtToastFade();
 }
 
 function clearThoughtToast() {
@@ -1336,7 +1900,7 @@ function dashboardFlipRows(label) {
     ));
     const latest = latestBlock || latestCompendium;
     return [
-      ["What", latest ? shortSummary(latest.title) : "No compendium yet"],
+      ["What", latest ? shortSummary(latest.title) : "No lesson yet"],
       ["Where", latest?.compendiumTitle ? shortSummary(latest.compendiumTitle) : "Mind"],
       ["When", formatActivityTimestamp(activityTimestamp(latest))]
     ];
@@ -1553,10 +2117,18 @@ function sidebarOrganizerHtml(item) {
 
 function sidebarItemHtml(item, options) {
   const number = Number(options.number) || 1;
+  const typeClass = item.type === "compendium"
+    ? " sidebar-item--mind-topic"
+    : item.type === "mind-section"
+      ? " sidebar-item--mind-lesson"
+      : "";
+  const labelHtml = item.compendiumTitle
+    ? `<span class="sidebar-item-label"><small>${escapeHtml(item.compendiumTitle)}</small><strong>${escapeHtml(item.title)}</strong></span>`
+    : `<span class="sidebar-item-label">${escapeHtml(item.title)}</span>`;
   return `
-    <button class="sidebar-item${options.active ? " is-active" : ""}" data-action="${options.action}" data-id="${item.id}"${options.parentId ? ` data-parent-id="${escapeHtml(options.parentId)}"` : ""}>
+    <button class="sidebar-item${typeClass}${options.active ? " is-active" : ""}" data-action="${options.action}" data-id="${item.id}"${options.parentId ? ` data-parent-id="${escapeHtml(options.parentId)}"` : ""}>
       <span class="sidebar-item-number">${escapeHtml(String(number).padStart(2, "0"))}</span>
-      <span class="sidebar-item-label">${escapeHtml(item.title)}</span>
+      ${labelHtml}
       ${sidebarOrganizerHtml(item)}
     </button>
   `;
@@ -1860,8 +2432,21 @@ function toggleMobileMenu() {
   setState({ mobileMenuOpen: !state.mobileMenuOpen });
 }
 
+function closeMobileMenu() {
+  if (!state.mobileMenuOpen) return false;
+  state.mobileMenuOpen = false;
+  const workspace = app.querySelector(".workspace");
+  const toggle = app.querySelector(".mobile-menu-toggle");
+  workspace?.classList.remove("has-mobile-menu");
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.textContent = menuToggleLabel(false);
+  }
+  return true;
+}
+
 function menuToggleLabel(isOpen = state.mobileMenuOpen) {
-  return isOpen ? "↓↓↓ COLLAPSE MENU ↓↓↓" : "↑↑↑ EXPAND MENU ↑↑↑";
+  return isOpen ? "vvv HIDE NOTES vvv" : "^^^ SHOW NOTES ^^^";
 }
 
 function persistCompendiums() {
@@ -2005,6 +2590,7 @@ async function clearAppData() {
   window.localStorage.removeItem(LIFE_PLANNER_KEY);
   window.localStorage.removeItem(TRACKER_SETTINGS_KEY);
   window.localStorage.removeItem(SIDEBAR_WIDTH_KEY);
+  window.localStorage.removeItem(THEME_KEY);
   window.localStorage.removeItem(ICONIFY_SEARCH_CACHE_KEY);
   await clearLocalFiles().catch(() => {});
   state.artifactStore = null;
@@ -2013,6 +2599,7 @@ async function clearAppData() {
   state.spiritProgress = {};
   state.lifePlanner = createDefaultLifePlanner();
   state.trackerSettings = cloneDefaultTrackers();
+  state.theme = "default";
   state.settingsTab = "getting-started";
   state.trackerAddArea = "";
   state.trackerEditKey = "";
@@ -2238,6 +2825,51 @@ function setCompendiumReaderPage(compendiumId, direction, maxPage) {
   });
 }
 
+function mindCompendiumsPerPage() {
+  if (window.matchMedia?.(COMPENDIUM_ONE_QUERY).matches) return 1;
+  if (window.matchMedia?.(COMPENDIUM_TWO_QUERY).matches) return 2;
+  return 3;
+}
+
+function chunkItems(items, size) {
+  const chunkSize = Math.max(1, size);
+  const chunks = [];
+  for (let index = 0; index < items.length; index += chunkSize) {
+    chunks.push(items.slice(index, index + chunkSize));
+  }
+  return chunks;
+}
+
+function mindCompendiumPage(maxPage = Math.max(0, Math.ceil(state.compendiums.length / mindCompendiumsPerPage()) - 1)) {
+  return Math.min(Math.max(state.mindCompendiumPage || 0, 0), Math.max(0, maxPage));
+}
+
+function setMindCompendiumPage(direction, maxPage) {
+  const current = mindCompendiumPage(maxPage);
+  const nextPage = direction === "prev" ? current - 1 : current + 1;
+  setState({
+    mindCompendiumPage: Math.min(Math.max(nextPage, 0), Math.max(0, maxPage)),
+    mindCompendiumPickerOpen: false
+  });
+}
+
+function toggleMindCompendiumPicker() {
+  setState({ mindCompendiumPickerOpen: !state.mindCompendiumPickerOpen });
+}
+
+function closeMindCompendiumPicker() {
+  if (!state.mindCompendiumPickerOpen) return;
+  setState({ mindCompendiumPickerOpen: false });
+}
+
+function selectMindCompendiumFromPicker(compendiumId, index, perPage) {
+  setState({
+    mindCompendiumPage: Math.floor(Math.max(0, index) / Math.max(1, perPage)),
+    mindCompendiumPickerOpen: false
+  });
+  openCompendium(compendiumId);
+}
+
 function openMindSection(parentId, blockId) {
   if (!parentId || !blockId) return;
   const compendium = state.compendiums.find((item) => item.id === parentId);
@@ -2294,8 +2926,8 @@ function addCompendium() {
   const now = nowIso();
   const next = {
     id: makeId("compendium"),
-    title: `Untitled Compendium ${state.compendiums.length + 1}`,
-    body: "## New Compendium\n\nDescribe what this compendium is for.",
+    title: `Untitled Lesson ${state.compendiums.length + 1}`,
+    body: "## New Lesson\n\nDescribe what this lesson is for.",
     created: now,
     edited: now,
     blocks: []
@@ -2322,7 +2954,7 @@ function saveCompendium(id, title, body) {
 function deleteCompendium(id) {
   const compendium = state.compendiums.find((item) => item.id === id);
   if (!compendium) return;
-  if (!window.confirm(`Delete compendium "${compendium.title}" and all of its sections?`)) return;
+  if (!window.confirm(`Delete lesson "${compendium.title}" and all of its topics?`)) return;
 
   state.compendiums = state.compendiums.filter((item) => item.id !== id);
   persistCompendiums();
@@ -2339,8 +2971,8 @@ function addBlock() {
   const now = nowIso();
   const nextBlock = {
     id: makeId("block"),
-    title: `Section ${compendium.blocks.length + 1}`,
-    body: "## New Section\n\nWrite the section body here.",
+    title: `Topic ${compendium.blocks.length + 1}`,
+    body: "## New Topic\n\nWrite the topic body here.",
     created: now,
     edited: now
   };
@@ -2376,7 +3008,7 @@ function deleteBlock(id) {
   const compendium = selectedCompendium();
   const block = selectedBlock();
   if (!compendium || !block) return;
-  if (!window.confirm(`Delete section "${block.title}"?`)) return;
+  if (!window.confirm(`Delete topic "${block.title}"?`)) return;
 
   const now = nowIso();
   state.compendiums = state.compendiums.map((item) =>
@@ -2568,6 +3200,59 @@ function appendBodyLogNote(title, body, properties = {}) {
   }));
 }
 
+function workoutLogNoteArtifact(workout) {
+  const created = workout.created || nowIso();
+  const title = workout.title || "Workout";
+  const type = workout.type || "General";
+  const minutes = Math.max(0, Number(workout.minutes) || 0);
+  const effort = Math.max(1, Math.min(10, Number(workout.effort) || 5));
+  const notes = String(workout.notes || "").trim();
+  return {
+    id: makeId("artifact"),
+    type: "note",
+    dashboard: "Body",
+    parentId: null,
+    title: `Workout: ${title}`,
+    body: `## Workout log\n\nSaved: ${formatActivityTimestamp(created)}\n\n- Name: ${title}\n- Type: ${type}\n- Minutes: ${minutes}\n- Effort: ${effort}/10${notes ? `\n- Notes: ${notes}` : ""}`,
+    created,
+    edited: created,
+    childIds: [],
+    properties: {
+      role: "body-log",
+      status: "active",
+      source: "body-tracker",
+      sourceType: "workout",
+      sourceWorkoutId: workout.id || "",
+      workoutType: type,
+      workoutMinutes: minutes,
+      workoutEffort: effort,
+      dateKey: workout.dateKey || dateKeyFromValue(created)
+    },
+    analysis: {}
+  };
+}
+
+function migrateBodyWorkoutsToNotes(store) {
+  const workouts = Array.isArray(state.bodyTracker?.workouts) ? state.bodyTracker.workouts : [];
+  if (!workouts.length) return store;
+  const existingWorkoutIds = new Set(
+    (store.artifacts || [])
+      .map((artifact) => artifact.properties?.sourceWorkoutId)
+      .filter(Boolean)
+  );
+  const migratedNotes = workouts
+    .filter((workout) => workout?.id && !existingWorkoutIds.has(workout.id))
+    .map(workoutLogNoteArtifact);
+  state.bodyTracker = {
+    ...state.bodyTracker,
+    workouts: []
+  };
+  saveBodyTracker();
+  return migratedNotes.length
+    ? { ...store, artifacts: [...(store.artifacts || []), ...migratedNotes] }
+    : store;
+}
+
 function saveBodyTimerSettings(key = state.bodyTimerMode) {
   const config = bodyTimerConfig(key);
   const timer = bodyTimerState(key);
@@ -2694,23 +3379,16 @@ function addBodyWorkout() {
   const notes = document.getElementById("body-workout-notes")?.value.trim() || "";
 
   const now = nowIso();
-  state.bodyTracker.workouts = [
-    {
-      id: makeId("workout"),
-      dateKey: todayDateKey(),
-      title,
-      type,
-      minutes,
-      effort,
-      notes,
-      created: now
-    },
-    ...state.bodyTracker.workouts
-  ];
-  saveBodyTracker();
   appendBodyLogNote(
-    "Workout logged",
-    `## Workout log\n\nSaved: ${currentTimestampLabel()}\n\n- Name: ${title}\n- Type: ${type}\n- Minutes: ${minutes}\n- Effort: ${effort}/10${notes ? `\n- Notes: ${notes}` : ""}`
+    `Workout: ${title}`,
+    `## Workout log\n\nSaved: ${currentTimestampLabel()}\n\n- Name: ${title}\n- Type: ${type}\n- Minutes: ${minutes}\n- Effort: ${effort}/10${notes ? `\n- Notes: ${notes}` : ""}`,
+    {
+      sourceType: "workout",
+      workoutType: type,
+      workoutMinutes: minutes,
+      workoutEffort: effort,
+      dateKey: todayDateKey()
+    }
   );
   render();
 }
@@ -3064,7 +3742,17 @@ function deleteLifeAttachment(level, attachmentId) {
 }
 
 function setDashboardPeriod(period) {
-  setState({ dashboardPeriod: ["day", "week", "year"].includes(period) ? period : "week" });
+  setState({ dashboardPeriod: ["day", "week", "year"].includes(period) ? period : "day" });
+}
+
+function setDashboardChartType(chartType) {
+  setState({ dashboardChartType: ["pie", "bar"].includes(chartType) ? chartType : "pie" });
+}
+
+function setTheme(theme) {
+  const nextTheme = normalizeTheme(theme);
+  saveTheme(nextTheme);
+  setState({ theme: nextTheme });
 }
 
 function render() {
@@ -3093,6 +3781,7 @@ function render() {
   const spiritBook = selectedSpiritBook();
   const sidebarScrollTop = app.querySelector(".sidebar-list-scroll")?.scrollTop ?? 0;
   const settingsScrollTop = app.querySelector(".settings-tab-panel")?.scrollTop ?? 0;
+  const thoughtToastFocus = captureThoughtToastFocus();
   hideThoughtTooltip();
   app.innerHTML = `
     <div class="workspace${state.mobileMenuOpen ? " has-mobile-menu" : ""}" style="--sidebar-width: ${clampSidebarWidth(state.sidebarWidth)}px;">
@@ -3102,7 +3791,7 @@ function render() {
       ${sidebarHtml(compendium)}
       <section class="content-shell">
         ${pathBarHtml(compendium, block, spiritBook)}
-        <div class="content-stage">${contentHtml(compendium, block)}</div>
+        <div class="content-stage"${state.mobileMenuOpen ? " inert aria-hidden=\"true\"" : ""}>${contentHtml(compendium, block)}</div>
       </section>
     </div>
     ${donationModalHtml()}
@@ -3124,10 +3813,11 @@ function render() {
   bindGalleryControls();
   bindEditorMedia();
   bindLocalAssetImages();
-  bindDonationFlow(document);
+  bindDonationFlow(document, { onOpen: closeMobileMenu });
   updateBodyTimerDom();
   renderLifeMonthCalendar();
   focusThoughtEditor();
+  restoreThoughtToastFocus(thoughtToastFocus);
 }
 
 function thoughtToastHtml() {
@@ -3191,9 +3881,18 @@ function bindThoughtToastControls() {
     if (summaryTime) summaryTime.textContent = thoughtTimestampLabel(timestamp);
     pauseThoughtToastFade();
   };
+  const keepNoteInputFocused = () => {
+    if (document.activeElement !== noteInput) return false;
+    noteInput.focus({ preventScroll: true });
+    pauseThoughtToastFade();
+    return true;
+  };
 
   toast.addEventListener("pointerenter", pauseThoughtToastFade);
-  toast.addEventListener("pointerleave", () => resumeThoughtToastFade(0));
+  toast.addEventListener("pointerleave", () => {
+    if (keepNoteInputFocused()) return;
+    resumeThoughtToastFade(0);
+  });
   toast.addEventListener("focusin", pauseThoughtToastFade);
   toast.addEventListener("focusout", () => {
     window.setTimeout(() => {
@@ -3360,7 +4059,6 @@ function sidebarHtml(compendium) {
   return `
     <aside class="sidebar">
       <div class="sidebar-fixed-top">
-        <button class="home-button" data-action="home">${buttonContent("tabler:layout-dashboard", "Dashboard")}</button>
         <button class="sidebar-toggle-all" data-action="toggle-all-sidebar-sections" type="button" aria-pressed="${allExpanded ? "true" : "false"}">
           <span>${allExpanded ? "Collapse all" : "Expand all"}</span>
           <span aria-hidden="true">${allExpanded ? "-" : "+"}</span>
@@ -3372,12 +4070,19 @@ function sidebarHtml(compendium) {
             .map(([number, label]) => {
               const expanded = state.sidebarExpanded[label];
               const items = label === "Mind"
-                ? mindSidebarItems().map((item, index) => sidebarItemHtml(item, {
-                  action: item.type === "mind-section" ? "open-mind-section" : "open-artifact-note",
-                  active: item.type === "mind-section" ? state.selectedBlockId === item.id : state.selectedArtifactId === item.id,
-                  number: index + 1,
-                  parentId: item.parentId || ""
-                })).join("")
+                ? (() => {
+                  const mindItems = mindSidebarItems();
+                  return mindItems.map((item, index) => sidebarItemHtml(item, {
+                    action: item.type === "mind-section" ? "open-mind-section" : "open-artifact-note",
+                    active: item.type === "mind-section"
+                      ? state.selectedBlockId === item.id
+                      : item.type === "compendium"
+                        ? state.selectedCompendiumId === item.id && !state.selectedBlockId
+                        : state.selectedArtifactId === item.id,
+                    number: mindItems.length - index,
+                    parentId: item.parentId || ""
+                  })).join("");
+                })()
                 : label === "Spirit"
                   ? newestActivityFirst(spiritNotes()).map((item, index) => sidebarItemHtml(item, {
                     action: "open-artifact-note",
@@ -3409,13 +4114,13 @@ function sidebarHtml(compendium) {
         <button class="primary-button full-width donate-sidebar" data-action="open-donation" type="button">${buttonContent("tabler:heart-handshake", "Thanks / Donate")}</button>
         <div class="sidebar-footer-links">
           <button class="sidebar-text-link" data-action="open-settings" type="button">Settings</button>
-          <span aria-hidden="true">•</span>
+          <span aria-hidden="true">/</span>
           <button class="sidebar-text-link" data-action="open-gallery" type="button">Gallery</button>
-          <span aria-hidden="true">•</span>
+          <span aria-hidden="true">/</span>
           <button class="sidebar-text-link" data-action="import-artifacts" type="button">Import</button>
-          <span aria-hidden="true">•</span>
+          <span aria-hidden="true">/</span>
           <button class="sidebar-text-link" data-action="export-artifacts" type="button">Export</button>
-          <span aria-hidden="true">•</span>
+          <span aria-hidden="true">/</span>
           <button class="sidebar-text-link" data-action="clear-app-data" type="button">Clear Data</button>
         </div>
       </div>
@@ -3497,6 +4202,7 @@ function dashboardGridHtml() {
 function dashboardAnalyticsHtml() {
   const labels = ["Mind", "Body", "Spirit", "Life"];
   const pieLabels = ["Body", "Spirit", "Life", "Mind"];
+  const chartType = state.dashboardChartType === "bar" ? "bar" : "pie";
   const events = lifeEvents().filter((event) => eventIsInPeriod(event, state.dashboardPeriod));
   const counts = Object.fromEntries(labels.map((label) => [label, 0]));
   events.forEach((event) => {
@@ -3514,6 +4220,34 @@ function dashboardAnalyticsHtml() {
   const ideal = total ? total / labels.length : 0;
   const imbalance = total ? labels.map((label) => Math.abs(counts[label] - ideal)).reduce((sum, value) => sum + value, 0) / total : 0;
   const balanceScore = Math.max(0, Math.round((1 - imbalance) * 100));
+  const maxCount = Math.max(1, ...labels.map((label) => counts[label]));
+  const chartHtml = chartType === "bar"
+    ? `
+      <div class="dashboard-bar-chart" role="img" aria-label="Balance bar chart">
+        ${labels.map((label) => {
+          const count = counts[label];
+          const barSize = count ? Math.max(10, Math.round((count / maxCount) * 100)) : 5;
+          return `
+            <button class="dashboard-bar-button" data-action="open-dashboard-direct" data-section="${label}" data-balance-key="${label}" type="button" aria-label="Open ${label}, ${count} event${count === 1 ? "" : "s"}" style="--bar-color: ${DASHBOARD_COLORS[label]}; --bar-size: ${barSize}%;">
+              <span class="dashboard-bar-value">${count}</span>
+              <span class="dashboard-bar-track" aria-hidden="true"><span class="dashboard-bar-fill"></span></span>
+              <span class="dashboard-bar-label">${label}</span>
+            </button>
+          `;
+        }).join("")}
+      </div>
+    `
+    : `
+      <div class="dashboard-pie">
+        <svg class="dashboard-pie-chart" viewBox="0 0 148 148" aria-label="Open balance section">
+          ${segments.map(({ label, value, start }) => `
+            <circle class="dashboard-pie-segment" data-action="open-dashboard-direct" data-section="${label}" data-balance-key="${label}" tabindex="0" role="button" aria-label="Open ${label}" cx="74" cy="74" r="57" pathLength="100" style="--segment-color: ${DASHBOARD_COLORS[label]}; --segment-start: ${start}; --segment-size: ${value};"></circle>
+          `).join("")}
+        </svg>
+        <span>${total}</span>
+        <small>events</small>
+      </div>
+    `;
 
   return `
     <section class="dashboard-analytics" aria-label="Dashboard analytics">
@@ -3525,20 +4259,22 @@ function dashboardAnalyticsHtml() {
       </div>
       <div class="dashboard-analytics-body">
         <div class="dashboard-pie-wrap">
-          <div class="dashboard-pie">
-            <svg class="dashboard-pie-chart" viewBox="0 0 148 148" aria-label="Open balance section">
-              ${segments.map(({ label, value, start }) => `
-                <circle class="dashboard-pie-segment" data-action="open-dashboard-direct" data-section="${label}" data-balance-key="${label}" tabindex="0" role="button" aria-label="Open ${label}" cx="74" cy="74" r="57" pathLength="100" style="--segment-color: ${DASHBOARD_COLORS[label]}; --segment-start: ${start}; --segment-size: ${value};"></circle>
-              `).join("")}
-            </svg>
-            <span>${total}</span>
-            <small>events</small>
-          </div>
+          ${chartHtml}
           <strong>${balanceScore}% balanced</strong>
-          <div class="dashboard-period-toggle" role="group" aria-label="Balance period">
-            ${["day", "week", "year"].map((period) => `
-              <button class="${state.dashboardPeriod === period ? "is-active" : ""}" data-action="set-dashboard-period" data-period="${period}" type="button" aria-pressed="${state.dashboardPeriod === period ? "true" : "false"}">${period}</button>
-            `).join("")}
+          <div class="dashboard-chart-controls">
+            <div class="dashboard-chart-switcher" role="group" aria-label="Balance chart type">
+              ${[
+                ["pie", "tabler:chart-pie", "Pie"],
+                ["bar", "tabler:chart-bar", "Bar"]
+              ].map(([type, icon, label]) => `
+                <button class="${chartType === type ? "is-active" : ""}" data-action="set-dashboard-chart" data-chart="${type}" type="button" aria-pressed="${chartType === type ? "true" : "false"}" title="${label} chart">${buttonContent(icon, label)}</button>
+              `).join("")}
+            </div>
+            <div class="dashboard-period-toggle" role="group" aria-label="Balance period">
+              ${["day", "week", "year"].map((period) => `
+                <button class="${state.dashboardPeriod === period ? "is-active" : ""}" data-action="set-dashboard-period" data-period="${period}" type="button" aria-pressed="${state.dashboardPeriod === period ? "true" : "false"}">${period}</button>
+              `).join("")}
+            </div>
           </div>
         </div>
       </div>
@@ -3555,7 +4291,7 @@ function settingsHtml() {
     "getting-started": settingsGettingStartedHtml(),
     thoughts: settingsThoughtsHtml(),
     goals: settingsComingSoonHtml("Goals"),
-    interface: settingsComingSoonHtml("Interface")
+    interface: settingsInterfaceHtml()
   };
   return panelHtml(`
     ${headerHtml("Settings", "Getting started, Thoughts, Goals, and Interface setup.", `
@@ -3653,6 +4389,32 @@ function settingsThoughtsHtml() {
           </section>
         `).join("")}
       </div>
+    </div>
+  `;
+}
+
+function settingsInterfaceHtml() {
+  return `
+    <div class="settings-tab-panel interface-settings">
+      <section class="interface-settings-section">
+        <div class="body-card-heading">
+          <div>
+            <h3>Theme</h3>
+            <p>Choose the surface, border, and type palette for the app.</p>
+          </div>
+        </div>
+        <div class="theme-choice-grid" role="group" aria-label="Interface theme">
+          ${APP_THEMES.map((theme) => `
+            <button class="theme-choice${state.theme === theme.id ? " is-active" : ""}" data-action="set-theme" data-theme="${escapeHtml(theme.id)}" type="button" aria-pressed="${state.theme === theme.id ? "true" : "false"}">
+              <span class="theme-choice-preview theme-choice-preview--${escapeHtml(theme.id)}" style="${escapeHtml(themePreviewStyle(theme))}" aria-hidden="true">
+                <i></i><i></i><i></i>
+              </span>
+              <strong>${escapeHtml(theme.label)}</strong>
+              <small>${escapeHtml(theme.description)} Font: ${escapeHtml(themeFontLabel(theme))}.</small>
+            </button>
+          `).join("")}
+        </div>
+      </section>
     </div>
   `;
 }
@@ -3895,7 +4657,7 @@ function spiritReadingRowHtml(work, index) {
         <span class="spirit-reading-order">${String(sequenceNumber).padStart(2, "0")}</span>
         <span class="spirit-reading-main">
           <strong>${escapeHtml(work.title)}</strong>
-          <small>${escapeHtml(work.author)}${work.selection ? ` · ${escapeHtml(work.selection)}` : ""}</small>
+          <small>${escapeHtml(work.author)}${work.selection ? ` / ${escapeHtml(work.selection)}` : ""}</small>
         </span>
       </button>
     </article>
@@ -3907,7 +4669,7 @@ function spiritBookHtml(work) {
   const outputs = Array.isArray(work.blackBox?.outputs) ? work.blackBox.outputs : [];
   const inputs = Array.isArray(work.blackBox?.inputs) ? work.blackBox.inputs : work.greatIdeas;
   return panelHtml(`
-    ${headerHtml(work.title, `${work.author}${work.selection ? ` · ${work.selection}` : ""}`, `
+    ${headerHtml(work.title, `${work.author}${work.selection ? ` / ${work.selection}` : ""}`, `
       <div class="action-row">
         <button class="secondary-button" data-action="add-spirit-book-note" data-key="${escapeHtml(work.key)}" type="button">${buttonContent("tabler:notes", "Add Note")}</button>
         <button class="secondary-button" data-action="toggle-spirit-complete" data-key="${escapeHtml(work.key)}" type="button">${buttonContent(complete ? "tabler:circle-off" : "tabler:circle-check", complete ? "Mark Incomplete" : "Mark Complete")}</button>
@@ -4412,12 +5174,31 @@ function lifeTodoCardHtml(task) {
   const isProjectTask = task.source === "project-task";
   const id = task.todoId || task.taskId;
   const taskAttrs = `data-source="${escapeHtml(task.source)}" data-id="${escapeHtml(id)}"${isProjectTask ? ` data-project-id="${escapeHtml(task.projectId)}" data-phase-id="${escapeHtml(task.phaseId)}"` : ""}`;
+  const path = isProjectTask
+    ? [task.projectTitle, task.phaseTitle].filter(Boolean).join(" / ")
+    : "Standalone";
+  const dateLabel = task.assignedDate ? formatDateLabel(task.assignedDate, { year: true }) : "No date";
+  const notePreview = shortSummary(task.notes, "No notes yet");
   return `
     <article class="life-todo-card${task.status === "complete" ? " is-complete" : ""}${isProjectTask ? " is-project-task" : ""}" data-action="open-life-task" ${taskAttrs} tabindex="0" role="button" aria-label="Open ${escapeHtml(task.title)}">
       <button class="life-todo-check" data-action="toggle-life-task" ${taskAttrs} type="button" aria-label="${task.status === "complete" ? "Reopen" : "Complete"} ${escapeHtml(task.title)}" title="${task.status === "complete" ? "Reopen" : "Complete"}">
         ${iconHtml(task.status === "complete" ? "tabler:circle-check" : "tabler:circle")}
       </button>
-      <h4>${escapeHtml(task.title)}</h4>
+      <div class="life-todo-card-main">
+        <div class="life-todo-card-title">
+          <span class="life-todo-source">${escapeHtml(isProjectTask ? "Project" : "Todo")}</span>
+          <h4>${escapeHtml(task.title)}</h4>
+        </div>
+        <div class="life-todo-card-meta">
+          <span>${iconHtml(isProjectTask ? "tabler:folder" : "tabler:list-check")} ${escapeHtml(path)}</span>
+          <span>${iconHtml("tabler:calendar")} ${escapeHtml(dateLabel)}</span>
+        </div>
+        <p class="life-todo-detail">${escapeHtml(notePreview)}</p>
+        <div class="life-todo-card-actions">
+          <button class="secondary-button" data-action="edit-life-task-notes" ${taskAttrs} type="button">${buttonContent("tabler:notes", "Notes")}</button>
+          ${isProjectTask ? `<button class="secondary-button" data-action="open-life-project-task" data-project-id="${escapeHtml(task.projectId)}" data-phase-id="${escapeHtml(task.phaseId)}" data-task-id="${escapeHtml(task.taskId)}" type="button">${buttonContent("tabler:folder-share", "Project")}</button>` : `<button class="secondary-button danger-button" data-action="delete-life-todo" data-id="${escapeHtml(id)}" type="button">${buttonContent("tabler:trash", "Delete")}</button>`}
+        </div>
+      </div>
     </article>
   `;
 }
@@ -4426,25 +5207,39 @@ function lifeTodoHtml() {
   const tasks = lifeTaskItems();
   const open = tasks.filter((task) => task.status !== "complete");
   const complete = tasks.filter((task) => task.status === "complete");
+  const projectCount = tasks.filter((task) => task.source === "project-task").length;
+  const standaloneCount = tasks.filter((task) => task.source === "todo").length;
+  const scheduledCount = tasks.filter((task) => task.assignedDate && task.status !== "complete").length;
   return `
     <section class="body-card life-card life-todo-view">
-      <div class="body-card-heading">
+      <div class="life-todo-overview">
         <div>
           <h3>Todo List</h3>
-          <p>Standalone todos and project tasks stay connected here and inside Projects.</p>
+          <p>${tasks.length ? `${open.length} open / ${complete.length} complete / ${projectCount} from projects` : "Standalone todos and project tasks stay connected here and inside Projects."}</p>
+        </div>
+        <div class="life-todo-stats" aria-label="Todo summary">
+          <span><strong>${open.length}</strong><small>Open</small></span>
+          <span><strong>${scheduledCount}</strong><small>Scheduled</small></span>
+          <span><strong>${standaloneCount}</strong><small>Solo</small></span>
         </div>
       </div>
       <div class="life-quick-add">
         <input id="life-todo-title" type="text" placeholder="Add a task">
         <button class="primary-button" data-action="add-life-todo" type="button">${buttonContent("tabler:plus", "Add")}</button>
       </div>
-      <div class="life-todo-columns">
-        <section>
-          <h4>Todo</h4>
+      <div class="life-todo-board">
+        <section class="life-todo-column life-todo-column--open">
+          <div class="life-todo-column-heading">
+            <h4>Open Tasks</h4>
+            <span>${open.length}</span>
+          </div>
           <div class="life-todo-stack">${open.length ? open.map(lifeTodoCardHtml).join("") : "<p>No open todos.</p>"}</div>
         </section>
-        <section>
-          <h4>Done</h4>
+        <section class="life-todo-column life-todo-column--done">
+          <div class="life-todo-column-heading">
+            <h4>Done</h4>
+            <span>${complete.length}</span>
+          </div>
           <div class="life-todo-stack">${complete.length ? complete.map(lifeTodoCardHtml).join("") : "<p>No completed todos.</p>"}</div>
         </section>
       </div>
@@ -4453,10 +5248,22 @@ function lifeTodoHtml() {
 }
 
 function lifeProjectNavButtonHtml(entity, action, active, attrs = "") {
+  const phaseCount = Array.isArray(entity.phases) ? entity.phases.length : null;
+  const taskCount = Array.isArray(entity.tasks)
+    ? entity.tasks.length
+    : Array.isArray(entity.phases)
+      ? entity.phases.reduce((sum, phase) => sum + (phase.tasks?.length || 0), 0)
+      : null;
+  const detail = [
+    entity.status || "planned",
+    phaseCount !== null ? `${phaseCount} phase${phaseCount === 1 ? "" : "s"}` : "",
+    taskCount !== null ? `${taskCount} task${taskCount === 1 ? "" : "s"}` : "",
+    entity.assignedDate ? formatDateLabel(entity.assignedDate) : ""
+  ].filter(Boolean).join(" / ");
   return `
     <button class="life-project-nav-button${active ? " is-active" : ""}" data-action="${action}" ${attrs} type="button">
       <strong>${escapeHtml(entity.title)}</strong>
-      <small>${escapeHtml(entity.status || "planned")}${entity.assignedDate ? ` / ${escapeHtml(formatDateLabel(entity.assignedDate))}` : ""}</small>
+      <small>${escapeHtml(detail)}</small>
     </button>
   `;
 }
@@ -4528,6 +5335,12 @@ function lifeProjectsHtml() {
   const project = selectedLifeProject();
   const phase = selectedLifePhase(project);
   const task = selectedLifeTask(phase);
+  const phaseCount = projects.reduce((sum, item) => sum + (item.phases?.length || 0), 0);
+  const taskCount = projects.reduce((sum, item) =>
+    sum + (item.phases || []).reduce((phaseSum, phaseItem) => phaseSum + (phaseItem.tasks?.length || 0), 0), 0);
+  const openTaskCount = projects.reduce((sum, item) =>
+    sum + (item.phases || []).reduce((phaseSum, phaseItem) =>
+      phaseSum + (phaseItem.tasks || []).filter((taskItem) => taskItem.status !== "complete").length, 0), 0);
   const detail = task
     ? lifeProjectDetailHtml("task", task)
     : phase
@@ -4537,6 +5350,17 @@ function lifeProjectsHtml() {
         : emptyStateHtml("Select or add a project.", "Projects organize phases, tasks, notes, status, assignments, and attachments.");
   return `
     <section class="body-card life-card life-projects-view">
+      <div class="life-project-overview">
+        <div>
+          <h3>Projects</h3>
+          <p>${projects.length ? `${projects.length} project${projects.length === 1 ? "" : "s"} / ${phaseCount} phase${phaseCount === 1 ? "" : "s"} / ${taskCount} task${taskCount === 1 ? "" : "s"}` : "Build projects from phases, tasks, notes, and files."}</p>
+        </div>
+        <div class="life-project-stats" aria-label="Project summary">
+          <span><strong>${projects.length}</strong><small>Projects</small></span>
+          <span><strong>${openTaskCount}</strong><small>Open</small></span>
+          <span><strong>${taskCount - openTaskCount}</strong><small>Done</small></span>
+        </div>
+      </div>
       <div class="life-project-shell">
         <aside class="life-project-sidebar">
           <div class="life-quick-add">
@@ -4547,6 +5371,8 @@ function lifeProjectsHtml() {
             <h4>Projects</h4>
             ${projects.length ? projects.map((item) => lifeProjectNavButtonHtml(item, "select-life-project", item.id === project?.id, `data-id="${escapeHtml(item.id)}"`)).join("") : "<p>No projects yet.</p>"}
           </div>
+        </aside>
+        <section class="life-project-workflow">
           ${project ? `
             <div class="life-quick-add">
               <input id="life-phase-title" type="text" placeholder="New phase">
@@ -4556,7 +5382,7 @@ function lifeProjectsHtml() {
               <h4>Phases</h4>
               ${project.phases.length ? project.phases.map((item) => lifeProjectNavButtonHtml(item, "select-life-phase", item.id === phase?.id, `data-id="${escapeHtml(item.id)}"`)).join("") : "<p>No phases yet.</p>"}
             </div>
-          ` : ""}
+          ` : emptyStateHtml("Pick a project.", "Choose a project to add phases and tasks.")}
           ${project && phase ? `
             <div class="life-quick-add">
               <input id="life-task-title" type="text" placeholder="New task">
@@ -4567,7 +5393,7 @@ function lifeProjectsHtml() {
               ${phase.tasks.length ? phase.tasks.map((item) => lifeProjectNavButtonHtml(item, "select-life-task", item.id === task?.id, `data-task-id="${escapeHtml(item.id)}"`)).join("") : "<p>No tasks yet.</p>"}
             </div>
           ` : ""}
-        </aside>
+        </section>
         <section class="life-project-body">
           ${detail}
         </section>
@@ -4753,7 +5579,6 @@ function bodyHtml() {
 
   const notes = rootNotesForDashboard(state.artifactStore, "Body");
   const nutrition = state.bodyTracker.nutrition;
-  const workouts = state.bodyTracker.workouts;
   const nutritionProgress = getNutritionProgress();
   const nutritionDashOffset = RING_CIRCUMFERENCE * (1 - nutritionProgress);
 
@@ -4800,22 +5625,9 @@ function bodyHtml() {
         </div>
         <label class="body-field body-field--full">Notes<textarea id="body-workout-notes" rows="4" placeholder="What did you do? How did it feel?"></textarea></label>
         <div class="action-row body-actions">
-          <button class="primary-button" data-action="add-body-workout">${buttonContent("tabler:barbell", "Add Workout")}</button>
+          <button class="primary-button" data-action="add-body-workout">${buttonContent("tabler:notes", "Save Workout Note")}</button>
         </div>
-        ${workouts.length ? `
-          <div class="body-workout-list">
-            ${workouts.map((workout) => `
-              <article class="body-workout-item">
-                <div>
-                  <h4>${escapeHtml(workout.title)}</h4>
-                  <p>${escapeHtml(workout.type)} · ${Math.round(Number(workout.minutes) || 0)} min · effort ${Math.round(Number(workout.effort) || 0)}/10</p>
-                  ${workout.notes ? `<p>${escapeHtml(workout.notes)}</p>` : ""}
-                </div>
-                <button class="icon-button danger-button" data-action="delete-body-workout" data-id="${workout.id}" type="button" aria-label="Delete workout" title="Delete">${iconHtml("tabler:trash")}</button>
-              </article>
-            `).join("")}
-          </div>
-        ` : emptyStateHtml("No workouts yet.", "Add a quick manual workout log.")}
+        <p class="body-card-note">Saved workouts become Body notes with the workout details written into the note.</p>
       </section>`
   };
 
@@ -4861,7 +5673,7 @@ function mindHtml(compendium, block) {
         <div class="action-row">
           <button class="secondary-button" data-action="edit-block">${buttonContent("tabler:pencil", "Edit")}</button>
           <button class="secondary-button danger-button" data-action="delete-block" data-id="${block.id}">${buttonContent("tabler:trash", "Delete")}</button>
-          <button class="icon-button close-viewer-button" data-action="manager" type="button" aria-label="Close section viewer" title="Close">${iconHtml("tabler:x")}</button>
+          <button class="icon-button close-viewer-button" data-action="manager" type="button" aria-label="Close topic viewer" title="Close">${iconHtml("tabler:x")}</button>
         </div>
       `)}
       <div class="reader-panel"><div class="markdown-body">${readerBodyHtml(block.title, block.body)}</div></div>
@@ -4872,21 +5684,99 @@ function mindHtml(compendium, block) {
   return mindGridHtml();
 }
 
+function truncatedWordsText(value, maxWords = 15) {
+  const text = String(value || "").trim().replace(/\s+/g, " ");
+  if (!text) return { text: "", truncated: false, wordCount: 0 };
+  const words = text.split(" ");
+  if (words.length <= maxWords) return { text, truncated: false, wordCount: words.length };
+  return {
+    text: `${words.slice(0, maxWords).join(" ")}...`,
+    truncated: true,
+    wordCount: words.length
+  };
+}
+
+function compendiumTitleSizeClass(title) {
+  const normalized = String(title || "").trim().replace(/\s+/g, " ");
+  const words = normalized ? normalized.split(" ").length : 0;
+  if (words > 11 || normalized.length > 68) return " is-very-long";
+  if (words > 7 || normalized.length > 44) return " is-long";
+  return "";
+}
+
+function compendiumTitleHtml(compendium, className = "compendium-tile-title") {
+  const title = String(compendium?.title || "Untitled lesson");
+  const displayTitle = truncatedWordsText(title, 15);
+  return `<span class="${className}${compendiumTitleSizeClass(displayTitle.text)}" title="${escapeHtml(title)}">${escapeHtml(displayTitle.text)}</span>`;
+}
+
 function mindGridHtml() {
   const mindNotes = rootNotesForDashboard(state.artifactStore, "Mind");
+  const perPage = mindCompendiumsPerPage();
+  const pages = chunkItems(state.compendiums, perPage);
+  const maxPage = Math.max(0, pages.length - 1);
+  const page = mindCompendiumPage(maxPage);
+  const hasPrev = page > 0;
+  const hasNext = page < maxPage;
+  const currentStart = page * perPage + 1;
+  const currentEnd = Math.min(state.compendiums.length, currentStart + perPage - 1);
   return panelHtml(`
-    ${headerHtml("Mind", "Organize your knowledge and share with the world.", `<button class="secondary-button" data-action="new-compendium">${buttonContent("tabler:plus", "New")}</button>`)}
+    ${headerHtml("Lessons", "Learning AI just got easier, pick your lesson of interest, and work through the topics.", `<button class="secondary-button" data-action="new-compendium">${buttonContent("tabler:plus", "New")}</button>`)}
     ${trackerStripHtml("Mind")}
     <div class="scroll-area">
-      <div class="compendium-grid">
-        ${state.compendiums.map((compendium) => `
-          <button class="compendium-tile" data-action="open-compendium" data-id="${compendium.id}">
-            <span>${escapeHtml(compendium.title)}</span>
-            <small>${compendium.blocks.length} sections</small>
-            <em>edited ${escapeHtml(compendium.edited)}</em>
+      ${state.compendiums.length ? `
+        <section class="compendium-rotator${state.mindCompendiumPickerOpen ? " is-picker-open" : ""}" aria-label="Lessons" style="--compendiums-per-page: ${perPage};">
+          <div class="compendium-rotator-stage">
+            <button class="compendium-rotator-edge compendium-rotator-edge--prev${hasPrev ? " is-available" : ""}" data-action="mind-compendium-page" data-direction="prev" data-max-page="${maxPage}" type="button" aria-label="Previous lessons"${hasPrev ? "" : " disabled"}>
+              ${iconHtml("tabler:chevron-left")}
+            </button>
+            <div class="compendium-rotator-window">
+              <div class="compendium-rotator-track" style="--compendium-page: ${page};">
+                ${pages.map((compendiums, pageIndex) => `
+                  <article class="compendium-rotator-slide${pageIndex === page ? " is-active" : ""}">
+                    <div class="compendium-rotator-row">
+                      ${compendiums.map((compendium, itemIndex) => {
+                        const lessonNumber = state.compendiums.length - ((pageIndex * perPage) + itemIndex);
+                        return `
+                        <button class="compendium-tile" data-action="open-compendium" data-id="${compendium.id}">
+                          <b>${String(lessonNumber).padStart(2, "0")}</b>
+                          ${compendiumTitleHtml(compendium)}
+                          <small>${compendium.blocks.length} topic${compendium.blocks.length === 1 ? "" : "s"}</small>
+                          <em>edited ${escapeHtml(compendium.edited)}</em>
+                        </button>
+                      `; }).join("")}
+                    </div>
+                  </article>
+                `).join("")}
+              </div>
+            </div>
+            <button class="compendium-rotator-edge compendium-rotator-edge--next${hasNext ? " is-available" : ""}" data-action="mind-compendium-page" data-direction="next" data-max-page="${maxPage}" type="button" aria-label="Next lessons"${hasNext ? "" : " disabled"}>
+              ${iconHtml("tabler:chevron-right")}
+            </button>
+            ${state.mindCompendiumPickerOpen ? `
+              <div class="compendium-picker-popover" role="dialog" aria-label="All lessons">
+                <div class="compendium-picker-header">
+                  <strong>Lessons</strong>
+                  <p>Learning AI just got easier, pick your lesson of interest, and work through the topics.</p>
+                </div>
+                <div class="compendium-picker-grid">
+                  ${state.compendiums.map((compendium, index) => `
+                    <button class="compendium-picker-tile" data-action="select-mind-compendium" data-id="${compendium.id}" data-index="${index}" data-per-page="${perPage}" type="button">
+                      <b>${String(state.compendiums.length - index).padStart(2, "0")}</b>
+                      ${compendiumTitleHtml(compendium, "compendium-picker-title")}
+                    </button>
+                  `).join("")}
+                </div>
+              </div>
+            ` : ""}
+          </div>
+          <button class="reader-page-indicator compendium-page-indicator" data-action="toggle-mind-compendium-picker" type="button" aria-label="${state.mindCompendiumPickerOpen ? "Close lesson overview" : "Open lesson overview"}" aria-expanded="${state.mindCompendiumPickerOpen ? "true" : "false"}">
+            <span class="reader-page-dot reader-page-dot--side${hasPrev ? " is-available" : ""}" aria-hidden="true"></span>
+            <span class="reader-page-dot reader-page-dot--current" aria-label="Lessons ${currentStart} through ${currentEnd} of ${state.compendiums.length}"></span>
+            <span class="reader-page-dot reader-page-dot--side${hasNext ? " is-available" : ""}" aria-hidden="true"></span>
           </button>
-        `).join("")}
-      </div>
+        </section>
+      ` : emptyStateHtml("No lessons yet.", "Add the first lesson to begin organizing Mind.")}
       ${mindNotes.length ? `
         <section class="mind-thought-section">
           <div class="body-card-heading">
@@ -4921,8 +5811,8 @@ function compendiumManagerHtml(compendium) {
     </div>
   `;
   return panelHtml(`
-    ${headerHtml(compendium.title, "Compendium manager: add, open, and edit ordered content.", actions)}
-    ${compendium.blocks.length ? sectionListHtml(compendium) : emptyStateHtml("No items yet.", "Add the first item to begin building the compendium.")}
+    ${headerHtml(compendium.title, "Topics are ordered bottom to top. Start at 01 and work upward.", actions)}
+    ${compendium.blocks.length ? sectionListHtml(compendium) : emptyStateHtml("No topics yet.", "Add the first topic to begin building the lesson.")}
   `);
 }
 
@@ -4932,7 +5822,7 @@ function sectionListHtml(compendium) {
       <div class="section-list" data-section-sort-list data-compendium-id="${escapeHtml(compendium.id)}">
         ${compendium.blocks.map((section, index) => `
           <button class="section-row" data-action="open-block" data-id="${escapeHtml(section.id)}" data-section-row>
-            <span class="section-number-handle" data-section-drag-handle data-id="${escapeHtml(section.id)}" title="Drag to reorder" aria-label="Drag section ${String(index + 1).padStart(2, "0")} to reorder">${String(index + 1).padStart(2, "0")}</span>
+            <span class="section-number-handle" data-section-drag-handle data-id="${escapeHtml(section.id)}" title="Drag to reorder" aria-label="Drag topic ${String(compendium.blocks.length - index).padStart(2, "0")} to reorder">${String(compendium.blocks.length - index).padStart(2, "0")}</span>
             <strong>${escapeHtml(section.title)}</strong>
             <small>${escapeHtml(section.body.replace(/[#>*`-]/g, ""))}</small>
           </button>
@@ -5000,8 +5890,8 @@ function compendiumReaderHtml(compendium) {
 
 function compendiumEditorHtml(compendium) {
   return editorHtml({
-    title: "Edit Compendium",
-    subtitle: "Title and body. Content is managed inside the compendium.",
+    title: "Edit Lesson",
+    subtitle: "Title and body. Topics are managed inside the lesson.",
     saveAction: "save-compendium",
     cancelAction: "manager",
     id: compendium.id,
@@ -5012,8 +5902,8 @@ function compendiumEditorHtml(compendium) {
 
 function blockEditorHtml(block) {
   return editorHtml({
-    title: "Edit Item",
-    subtitle: "This can be a chapter, part, terms list, index, or any future book unit.",
+    title: "Edit Topic",
+    subtitle: "This can be a chapter, part, terms list, index, or any future lesson unit.",
     saveAction: "save-block",
     cancelAction: "block-viewer",
     id: block.id,
@@ -5280,12 +6170,13 @@ function moveSectionRow(list, activeRow, targetIndex) {
 }
 
 function renumberSectionRows(list) {
-  list.querySelectorAll("[data-section-row]").forEach((row, index) => {
-    const number = String(index + 1).padStart(2, "0");
+  const rows = Array.from(list.querySelectorAll("[data-section-row]"));
+  rows.forEach((row, index) => {
+    const number = String(rows.length - index).padStart(2, "0");
     const handle = row.querySelector("[data-section-drag-handle]");
     if (handle) {
       handle.textContent = number;
-      handle.setAttribute("aria-label", `Drag section ${number} to reorder`);
+      handle.setAttribute("aria-label", `Drag topic ${number} to reorder`);
     }
   });
 }
@@ -5529,9 +6420,8 @@ function bindLocalAssetImages() {
 
 function handleAction(element) {
   const action = element.dataset.action;
-  if (state.mobileMenuOpen && !element.closest(".sidebar") && action !== "toggle-mobile-menu") {
-    state.mobileMenuOpen = false;
-  }
+  const keepMenuOpenActions = new Set(["toggle-mobile-menu", "toggle-sidebar-section", "toggle-all-sidebar-sections", "sidebar-page"]);
+  if (!keepMenuOpenActions.has(action)) closeMobileMenu();
   if (action === "home") goHome();
   if (action === "dashboard-root") {
     if (state.active === "Mind") {
@@ -5565,7 +6455,12 @@ function handleAction(element) {
     });
   }
   if (action === "set-dashboard-period") setDashboardPeriod(element.dataset.period);
+  if (action === "set-dashboard-chart") setDashboardChartType(element.dataset.chart);
+  if (action === "set-theme") setTheme(element.dataset.theme);
   if (action === "open-compendium") openCompendium(element.dataset.id);
+  if (action === "mind-compendium-page") setMindCompendiumPage(element.dataset.direction, Number(element.dataset.maxPage || 0));
+  if (action === "toggle-mind-compendium-picker") toggleMindCompendiumPicker();
+  if (action === "select-mind-compendium") selectMindCompendiumFromPicker(element.dataset.id, Number(element.dataset.index || 0), Number(element.dataset.perPage || 1));
   if (action === "open-mind-section") openMindSection(element.dataset.parentId, element.dataset.id);
   if (action === "open-artifact-note") openArtifactNote(element.dataset.id, element.dataset.returnActive || "");
   if (action === "open-life-activity") openActivityArtifact(element.dataset.id);
@@ -5728,12 +6623,20 @@ render();
 
 const installedAppMedia = window.matchMedia?.(INSTALLED_APP_QUERY);
 const mobileViewportMedia = window.matchMedia?.(MOBILE_MENU_QUERY);
+const compendiumTwoMedia = window.matchMedia?.(COMPENDIUM_TWO_QUERY);
+const compendiumOneMedia = window.matchMedia?.(COMPENDIUM_ONE_QUERY);
 bindEnvironmentMedia(installedAppMedia);
 bindEnvironmentMedia(mobileViewportMedia);
+bindEnvironmentMedia(compendiumTwoMedia);
+bindEnvironmentMedia(compendiumOneMedia);
 
 loadArtifactStore().then(async (artifactStore) => {
   if (artifactStore.appState && !hasStoredAppState()) {
     await restoreImportedAppState(artifactStore.appState);
+  }
+  artifactStore = migrateBodyWorkoutsToNotes(artifactStore);
+  if (artifactStore.artifacts?.some((artifact) => artifact.properties?.sourceType === "workout")) {
+    saveArtifactStore(artifactStore);
   }
   setState({
     artifactStore,
