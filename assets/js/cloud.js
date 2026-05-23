@@ -259,9 +259,10 @@ export async function saveCloudStateJson(json) {
   if (!response.ok) {
     throw new Error(result?.error?.message || "Cloud state save failed.");
   }
-  saveLastCloudSyncAt(savedAt);
-  emitCloudState({ lastCloudSyncAt: savedAt, message: "Cloud state saved.", error: "" });
-  return { updatedAt: savedAt, jsonBytes, ...result };
+  const syncedAt = normalizeSyncTimestamp(result?.updatedAt || savedAt);
+  saveLastCloudSyncAt(syncedAt);
+  emitCloudState({ lastCloudSyncAt: syncedAt, message: "Cloud state saved.", error: "" });
+  return { ...result, updatedAt: syncedAt, jsonBytes };
 }
 
 export async function loadCloudStateJson() {
@@ -324,6 +325,13 @@ export async function getCloudStateInfo() {
     throw new Error(result?.error?.message || "Cloud state check failed.");
   }
   return result;
+}
+
+export function recordCloudSyncAt(value = new Date().toISOString(), message = "Cloud state synced.") {
+  const syncedAt = normalizeSyncTimestamp(value);
+  saveLastCloudSyncAt(syncedAt);
+  emitCloudState({ lastCloudSyncAt: syncedAt, message, error: "" });
+  return syncedAt;
 }
 
 export async function deleteCloudStateJson() {
@@ -579,6 +587,11 @@ function saveLastCloudSyncAt(value) {
   } catch {
     // Sync still succeeds if the convenience timestamp cannot be persisted.
   }
+}
+
+function normalizeSyncTimestamp(value) {
+  const time = Date.parse(value || "");
+  return Number.isNaN(time) ? new Date().toISOString() : new Date(time).toISOString();
 }
 
 function isLocalDemoHost() {

@@ -104,3 +104,16 @@
 .theme-shadow {
   box-shadow: 0 12px 28px var(--theme-shadow);
 }
+
+.theme-tooltip {
+  border: 1px solid color-mix(in srgb, var(--accent) 58%, var(--border));
+  background: color-mix(in srgb, var(--surface) 94%, var(--bg));
+  color: var(--on-surface, var(--text));
+  box-shadow: 0 14px 36px var(--theme-shadow), 0 0 0 1px var(--theme-ring) inset;
+  font-family: var(--font-label);
+}
+
+.theme-tooltip-dot {
+  background: var(--accent);
+  box-shadow: 0 0 16px var(--accent);
+}

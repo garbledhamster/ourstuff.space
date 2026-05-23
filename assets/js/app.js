@@ -9,13 +9,14 @@ import {
   initCloudAccount,
   loadCloudStateJson,
   openBillingPortal,
+  recordCloudSyncAt,
   saveCloudStateJson,
   signInToCloud,
   signInWithEmailPassword,
   signInWithGoogle,
   signOutCloud,
   startCloudSubscription
-} from "./cloud.js?v=cloud-subscriptions-20260523a";
+} from "./cloud.js?v=cloud-auto-sync-20260523a";
 import { clearLocalFiles, deleteLocalImages, exportLocalFiles, importLocalFiles, listLocalImages, resolveLocalFileUrl, resolveLocalImageUrl, storeLocalFile, storeLocalImage } from "./localMedia.js";
 import { escapeHtml, renderMarkdown } from "./markdown.js";
 import {
@@ -39,7 +40,7 @@ import {
   removeArtifact,
   rootNotesForDashboard,
   SCHEMA_VERSION,
-  saveArtifactStore,
+  saveArtifactStore as writeArtifactStore,
   STORAGE_KEY,
   upsertArtifact
 } from "./storage.js?v=compendium-section-20260523a";
@@ -55,7 +56,10 @@ const SIDEBAR_WIDTH_KEY = "ourstuff.sidebarWidth.v1";
 const THEME_KEY = "ourstuff.theme.v1";
 const DISMISSED_TIPS_KEY = "ourstuff.dismissedTips.v1";
 const ICONIFY_SEARCH_CACHE_KEY = "ourstuff.iconifySearchCache.v1";
-const CLOUD_IMPORT_PROMPT_KEY = "ourstuff.cloudImportPrompt.v1";
+const LOCAL_APP_UPDATED_AT_KEY = "ourstuff.localAppUpdatedAt.v1";
+const CLOUD_SYNC_INTERVAL_MS = 2 * 60 * 1000;
+const CLOUD_SYNC_MIN_INTERVAL_MS = 20 * 1000;
+const CLOUD_SYNC_CLOCK_SKEW_MS = 1000;
 const ICONIFY_SEARCH_URL = "https://api.iconify.design/search";
 const ICONIFY_PREFIXES = "tabler,lucide,ph,mdi,material-symbols";
 const ICON_PICKER_PAGE_SIZE = 48;
@@ -143,6 +147,20 @@ const COMPENDIUM_ROWS_PER_PAGE = 2;
 const DASHBOARD_LABELS = ["Mind", "Body", "Spirit", "Life"];
 const DASHBOARD_RETURN_TIP = "dashboard-return";
 const COMPENDIUM_GRID_TIP = "compendium-grid";
+const SIMPLE_TOOLTIP_WORD_LIMIT = 7;
+const GUIDED_TIP_SEQUENCE = [
+  { id: DASHBOARD_RETURN_TIP, selector: ".dashboard-home-link", label: "Return to dashboard", placement: "bottom", when: () => state.active !== "Dashboard" },
+  { id: "dashboard-balance-tip", selector: ".dashboard-analytics", label: "Check your balance", placement: "bottom" },
+  { id: "dashboard-range-tip", selector: ".dashboard-period-slider:not(.sidebar-period-slider)", label: "Change time range", placement: "top" },
+  { id: "dashboard-chart-tip", selector: ".dashboard-chart-switcher", label: "Switch chart style", placement: "top" },
+  { id: "dashboard-card-tip", selector: ".dashboard-card", label: "Open a core area", placement: "top" },
+  { id: "sidebar-menu-tip", selector: ".mobile-menu-toggle", label: "Open side menu", placement: "bottom" },
+  { id: "sidebar-sections-tip", selector: ".sidebar-group-toggle", label: "Open side sections", placement: "top" },
+  { id: "sidebar-settings-tip", selector: ".sidebar-text-link[data-action='open-settings']", label: "Customize the interface", placement: "top" },
+  { id: "dashboard-orbs-tip", selector: ".dashboard-orb-nav .tracker-orb:not(.tracker-orb--add)", label: "Tap orbs to log", placement: "top" },
+  { id: "dashboard-tools-tip", selector: ".body-tool-switcher .body-mode-button, .life-tool-switcher .body-mode-button, .spirit-year-button", label: "Switch tools here", placement: "top" },
+  { id: COMPENDIUM_GRID_TIP, selector: ".compendium-page-indicator", label: "Open overview", placement: "top" }
+];
 const GOAL_FREQUENCY_OPTIONS = [
   { id: "daily", label: "Daily", days: 1 },
   { id: "weekly", label: "Weekly", days: 7 },
@@ -249,7 +267,15 @@ let thoughtToastHideTimer = null;
 let thoughtTooltipCleanup = null;
 let thoughtTooltipLongPressTimer = null;
 let thoughtTooltipSuppressClickTarget = null;
+let guidedTipCleanup = null;
+let guidedTipTarget = null;
+let guidedTipTargetClickHandler = null;
 let dashboardPeriodGlowTimer = null;
+let localChangeTrackingSuppressed = 0;
+let cloudSyncInFlight = null;
+let cloudAutoSyncTimer = null;
+let lastCloudAutoSyncAttemptAt = 0;
+let cloudAutoSyncPrimedFor = "";
 const SPIRIT_PLANS = [
   {
     id: "ten-year",
@@ -750,6 +776,7 @@ function loadDashboardIdentity() {
 
 function saveDashboardIdentity(identity = state.dashboardIdentity) {
   window.localStorage.setItem(DASHBOARD_IDENTITY_KEY, JSON.stringify(normalizeDashboardIdentity(identity)));
+  markLocalAppChanged();
 }
 
 function normalizeTracker(tracker, dashboard, index, fallbackType = "Thought") {
@@ -830,6 +857,7 @@ function loadTrackerSettings() {
 
 function saveTrackerSettings() {
   window.localStorage.setItem(TRACKER_SETTINGS_KEY, JSON.stringify(state.trackerSettings));
+  markLocalAppChanged();
 }
 
 function loadGoalSettings() {
@@ -848,6 +876,7 @@ function loadGoalSettings() {
 
 function saveGoalSettings() {
   window.localStorage.setItem(GOAL_SETTINGS_KEY, JSON.stringify(state.goalSettings));
+  markLocalAppChanged();
 }
 
 function loadSidebarWidth() {
@@ -882,11 +911,13 @@ function loadTheme() {
 }
 
 function saveTheme(theme) {
-  return saveThemeSelection(theme, {
+  const saved = saveThemeSelection(theme, {
     storageKey: THEME_KEY,
     themes: APP_THEMES,
     fallbackId: "default"
   });
+  markLocalAppChanged();
+  return saved;
 }
 
 function loadDismissedTips() {
@@ -909,6 +940,72 @@ function clearDismissedTips() {
     // Tip dismissal state is optional; reset should continue if storage is blocked.
   }
   state.dismissedTips = [];
+}
+
+function simpleTooltipText(value, maxWords = SIMPLE_TOOLTIP_WORD_LIMIT) {
+  const text = String(value || "").trim().replace(/\s+/g, " ");
+  if (!text) return "";
+  const words = text.split(" ");
+  return words.slice(0, maxWords).join(" ");
+}
+
+function rememberDismissedTip(tip) {
+  if (!tip) return;
+  const dismissedTips = Array.from(new Set([...(state.dismissedTips || []), tip]));
+  state.dismissedTips = dismissedTips;
+  saveDismissedTips(dismissedTips);
+}
+
+function setCoreTooltip(element, label, options = {}) {
+  if (!element) return;
+  if (!options.override && element.dataset.thoughtTooltip) return;
+  const text = simpleTooltipText(label);
+  if (!text) return;
+  element.dataset.thoughtTooltip = text;
+  if (!element.getAttribute("aria-label") && !element.textContent.trim()) {
+    element.setAttribute("aria-label", text);
+  }
+  if (!element.getAttribute("title")) element.setAttribute("title", text);
+}
+
+function applyCoreTooltips() {
+  const coreRules = [
+    [".mobile-menu-toggle", "Open menu"],
+    [".dashboard-home-link", "Return home"],
+    [".dashboard-period-range", "Change time range"],
+    [".dashboard-chart-switcher [data-chart='pie']", "Pie chart"],
+    [".dashboard-chart-switcher [data-chart='bar']", "Bar chart"],
+    [".sidebar-menu-nav-button", "Toggle side sections"],
+    [".sidebar-text-link[data-action='open-settings']", "Open settings"],
+    [".sidebar-text-link[data-action='open-gallery']", "Open gallery"],
+    [".sidebar-text-link[data-action='import-artifacts']", "Import data"],
+    [".sidebar-text-link[data-action='export-artifacts']", "Export data"],
+    [".sidebar-text-link[data-action='reset-tips']", "Replay tips"],
+    [".reader-page-indicator", "Open overview"],
+    [".compendium-rotator-edge--prev", "Previous compendiums"],
+    [".compendium-rotator-edge--next", "Next compendiums"],
+    [".tracker-page-controls [data-direction='prev']", "Previous orbs"],
+    [".tracker-page-controls [data-direction='next']", "Next orbs"],
+    [".sidebar-page-controls [data-direction='prev']", "Previous page"],
+    [".sidebar-page-controls [data-direction='next']", "Next page"]
+  ];
+
+  coreRules.forEach(([selector, label]) => {
+    app.querySelectorAll(selector).forEach((element) => setCoreTooltip(element, label));
+  });
+
+  DASHBOARD_LABELS.forEach((dashboard) => {
+    app.querySelectorAll(`.dashboard-card[data-section='${dashboard}']`).forEach((element) => {
+      setCoreTooltip(element, `Open ${dashboardDisplayLabel(dashboard)}`);
+    });
+    app.querySelectorAll(`.sidebar-group-toggle[data-section='${dashboard}']`).forEach((element) => {
+      setCoreTooltip(element, `Open ${dashboardDisplayLabel(dashboard)}`);
+    });
+  });
+
+  app.querySelectorAll(".body-mode-button, .icon-button").forEach((button) => {
+    setCoreTooltip(button, headerActionLabel(button));
+  });
 }
 
 function applyThemeVariables(themeId) {
@@ -1047,6 +1144,7 @@ function loadBodyTracker() {
 
 function saveBodyTracker() {
   window.localStorage.setItem(BODY_TRACKER_KEY, JSON.stringify(state.bodyTracker));
+  markLocalAppChanged();
 }
 
 function loadSpiritProgress() {
@@ -1060,6 +1158,7 @@ function loadSpiritProgress() {
 
 function saveSpiritProgress() {
   window.localStorage.setItem(SPIRIT_PROGRESS_KEY, JSON.stringify(state.spiritProgress));
+  markLocalAppChanged();
 }
 
 function currentTimestampLabel() {
@@ -1068,6 +1167,118 @@ function currentTimestampLabel() {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function normalizeIsoTimestamp(value) {
+  const time = Date.parse(value || "");
+  return Number.isNaN(time) ? "" : new Date(time).toISOString();
+}
+
+function compareIsoTimestamps(left, right) {
+  const leftTime = Date.parse(left || "");
+  const rightTime = Date.parse(right || "");
+  const hasLeft = !Number.isNaN(leftTime);
+  const hasRight = !Number.isNaN(rightTime);
+  if (!hasLeft && !hasRight) return 0;
+  if (hasLeft && !hasRight) return 1;
+  if (!hasLeft && hasRight) return -1;
+  const diff = leftTime - rightTime;
+  if (Math.abs(diff) <= CLOUD_SYNC_CLOCK_SKEW_MS) return 0;
+  return diff > 0 ? 1 : -1;
+}
+
+function latestIsoTimestamp(values) {
+  return values
+    .map(normalizeIsoTimestamp)
+    .filter(Boolean)
+    .sort((a, b) => Date.parse(b) - Date.parse(a))[0] || "";
+}
+
+function collectIsoTimestamp(value, bucket) {
+  const normalized = normalizeIsoTimestamp(value);
+  if (normalized) bucket.push(normalized);
+}
+
+function collectLifeEntityTimestamps(entity, bucket) {
+  if (!entity) return;
+  collectIsoTimestamp(entity.edited, bucket);
+  collectIsoTimestamp(entity.created, bucket);
+  (entity.attachments || []).forEach((attachment) => {
+    collectIsoTimestamp(attachment.created, bucket);
+    collectIsoTimestamp(attachment.edited, bucket);
+  });
+}
+
+function deriveLocalAppUpdatedAt() {
+  const candidates = [];
+  (state.artifactStore?.artifacts || []).forEach((artifact) => {
+    collectIsoTimestamp(artifact.edited, candidates);
+    collectIsoTimestamp(artifact.created, candidates);
+    (artifact.properties?.audit || []).forEach((entry) => collectIsoTimestamp(entry.at, candidates));
+  });
+  (state.bodyTracker?.workouts || []).forEach((workout) => {
+    collectIsoTimestamp(workout.edited, candidates);
+    collectIsoTimestamp(workout.created, candidates);
+  });
+  (state.lifePlanner?.todos || []).forEach((todo) => collectLifeEntityTimestamps(todo, candidates));
+  (state.lifePlanner?.projects || []).forEach((project) => {
+    collectLifeEntityTimestamps(project, candidates);
+    (project.phases || []).forEach((phase) => {
+      collectLifeEntityTimestamps(phase, candidates);
+      (phase.tasks || []).forEach((task) => collectLifeEntityTimestamps(task, candidates));
+    });
+  });
+  return latestIsoTimestamp(candidates);
+}
+
+function loadLocalAppUpdatedAt() {
+  try {
+    return normalizeIsoTimestamp(window.localStorage.getItem(LOCAL_APP_UPDATED_AT_KEY));
+  } catch {
+    return "";
+  }
+}
+
+function saveLocalAppUpdatedAt(value = nowIso()) {
+  const normalized = normalizeIsoTimestamp(value) || nowIso();
+  try {
+    window.localStorage.setItem(LOCAL_APP_UPDATED_AT_KEY, normalized);
+  } catch {
+    // Sync can still compare the in-memory timestamp if localStorage is blocked.
+  }
+  try {
+    state.localAppUpdatedAt = normalized;
+  } catch {
+    // State may not be initialized while helpers are being defined.
+  }
+  return normalized;
+}
+
+function markLocalAppChanged(value = nowIso()) {
+  if (localChangeTrackingSuppressed > 0) return "";
+  return saveLocalAppUpdatedAt(value);
+}
+
+async function withLocalChangeTrackingSuppressed(action) {
+  localChangeTrackingSuppressed += 1;
+  try {
+    return await action();
+  } finally {
+    localChangeTrackingSuppressed -= 1;
+  }
+}
+
+function localAppUpdatedAt(options = {}) {
+  const stored = normalizeIsoTimestamp(state.localAppUpdatedAt || loadLocalAppUpdatedAt());
+  if (stored) return stored;
+  const derived = deriveLocalAppUpdatedAt();
+  if (derived && options.persistDerived !== false) saveLocalAppUpdatedAt(derived);
+  return derived;
+}
+
+function saveArtifactStore(store) {
+  writeArtifactStore(store);
+  markLocalAppChanged();
 }
 
 function initialMenuOpen() {
@@ -1211,6 +1422,7 @@ function normalizeLifePlanner(planner) {
 
 function saveLifePlannerStore(planner) {
   window.localStorage.setItem(LIFE_PLANNER_KEY, JSON.stringify(planner));
+  markLocalAppChanged();
 }
 
 function loadLifePlanner() {
@@ -1243,6 +1455,11 @@ async function exportAppStateJson() {
     schemaVersion: SCHEMA_VERSION,
     rootId: state.artifactStore?.rootId || "ourstuff-root",
     artifacts: Array.isArray(state.artifactStore?.artifacts) ? state.artifactStore.artifacts : [],
+    metadata: {
+      localUpdatedAt: localAppUpdatedAt(),
+      exportedAt: nowIso(),
+      deviceId: state.cloud?.deviceId || ""
+    },
     appState: await exportAppState()
   };
 }
@@ -1280,7 +1497,7 @@ async function restoreImportedAppState(appState) {
   }
 }
 
-async function importAppStateJson(json) {
+async function importAppStateJson(json, options = {}) {
   if (json?.schemaVersion !== SCHEMA_VERSION || !Array.isArray(json.artifacts)) {
     throw new Error("Cloud state is not a valid Ourstuff app export.");
   }
@@ -1289,78 +1506,208 @@ async function importAppStateJson(json) {
     rootId: json.rootId || "ourstuff-root",
     artifacts: json.artifacts
   };
-  persistArtifactStore(importedStore);
-  await restoreImportedAppState(json.appState);
-  setState({
-    active: "Dashboard",
-    flipped: null,
-    mindMode: "grid",
-    artifactMode: "grid",
-    selectedCompendiumId: null,
-    selectedSectionId: null,
-    selectedArtifactId: null,
-    selectedSpiritBookKey: null
-  });
+  const sourceUpdatedAt = normalizeIsoTimestamp(options.sourceUpdatedAt);
+  const restore = async () => {
+    persistArtifactStore(importedStore);
+    await restoreImportedAppState(json.appState);
+    setState({
+      active: "Dashboard",
+      flipped: null,
+      mindMode: "grid",
+      artifactMode: "grid",
+      selectedCompendiumId: null,
+      selectedSectionId: null,
+      selectedArtifactId: null,
+      selectedSpiritBookKey: null
+    });
+  };
+  if (sourceUpdatedAt) {
+    await withLocalChangeTrackingSuppressed(restore);
+    saveLocalAppUpdatedAt(sourceUpdatedAt);
+    return;
+  }
+  await restore();
+  markLocalAppChanged();
 }
 
 function cloudReturnUrl() {
   return `${window.location.origin}${window.location.pathname}`;
 }
 
-async function syncCloudNow() {
-  const info = await getCloudStateInfo().catch(() => null);
-  if (info?.exists && !info.deleted && info.deviceId && info.deviceId !== state.cloud?.deviceId) {
-    const confirmed = window.confirm("Cloud already has data from another device. Syncing now will replace that cloud copy with this device's current data. Export first if you need a backup. Continue?");
-    if (!confirmed) return;
-  }
+function cloudHasSyncAccess(cloud = state.cloud) {
+  return Boolean(
+    state.artifactStore
+    && cloud?.mode === "signed-in"
+    && cloud.user
+    && (cloud.entitlement?.cloud === true || cloud.entitlement?.admin === true)
+  );
+}
+
+function cloudSyncIntervalLabel() {
+  const minutes = Math.max(1, Math.round(CLOUD_SYNC_INTERVAL_MS / 60000));
+  return `${minutes} min`;
+}
+
+function cloudInfoUpdatedAt(info) {
+  return normalizeIsoTimestamp(info?.updatedAt || info?.updated_at || info?.savedAt || info?.createdAt);
+}
+
+async function uploadLocalStateToCloud() {
   const json = await exportAppStateJson();
-  await saveCloudStateJson(json);
+  const result = await saveCloudStateJson(json);
+  const updatedAt = normalizeIsoTimestamp(result?.updatedAt) || nowIso();
+  saveLocalAppUpdatedAt(updatedAt);
+  return { updatedAt };
+}
+
+async function importCloudInfoIntoLocal(info) {
+  const cloudUpdatedAt = cloudInfoUpdatedAt(info);
+  const json = info?.json || await loadCloudStateJson();
+  await importAppStateJson(json, {
+    sourceUpdatedAt: cloudUpdatedAt || normalizeIsoTimestamp(json?.metadata?.localUpdatedAt) || nowIso()
+  });
+  return { updatedAt: cloudUpdatedAt };
+}
+
+async function clearLocalFromCloudDelete(info) {
+  const cloudUpdatedAt = cloudInfoUpdatedAt(info) || nowIso();
+  await withLocalChangeTrackingSuppressed(() => clearAppData({ silent: true }));
+  saveLocalAppUpdatedAt(cloudUpdatedAt);
+  return { updatedAt: cloudUpdatedAt };
+}
+
+function cloudSyncMessage(action, source = "manual") {
+  const prefix = source === "manual" ? "Sync" : "Auto sync";
+  if (action === "uploaded") return `${prefix} uploaded this device's newer data.`;
+  if (action === "downloaded") return `${prefix} downloaded the newer cloud data.`;
+  if (action === "cleared") return `${prefix} applied the newer cloud deletion.`;
+  return `${prefix} checked. Already current.`;
+}
+
+function finishCloudSyncResult(result, source = "manual") {
+  if (!result || result.action === "skipped") return result;
+  const message = cloudSyncMessage(result.action, source);
+  recordCloudSyncAt(nowIso(), message);
+  return { ...result, message };
+}
+
+async function syncCloudWithNewestWins(options = {}) {
+  const source = options.source || "manual";
+  if (!cloudHasSyncAccess()) return { action: "skipped", message: "Cloud sync is not active." };
+  if (cloudSyncInFlight) return cloudSyncInFlight;
+
+  cloudSyncInFlight = (async () => {
+    const info = await getCloudStateInfo();
+    const cloudUpdatedAt = cloudInfoUpdatedAt(info);
+    const localUpdatedAt = localAppUpdatedAt();
+    const comparison = compareIsoTimestamps(localUpdatedAt, cloudUpdatedAt);
+
+    if (info?.deleted) {
+      if (!cloudUpdatedAt || comparison <= 0) {
+        const result = await clearLocalFromCloudDelete(info);
+        return finishCloudSyncResult({ action: "cleared", ...result }, source);
+      }
+      const result = await uploadLocalStateToCloud();
+      return finishCloudSyncResult({ action: "uploaded", ...result }, source);
+    }
+
+    if (info?.exists && comparison < 0) {
+      const result = await importCloudInfoIntoLocal(info);
+      return finishCloudSyncResult({ action: "downloaded", ...result }, source);
+    }
+
+    if (!info?.exists || comparison > 0) {
+      const result = await uploadLocalStateToCloud();
+      return finishCloudSyncResult({ action: "uploaded", ...result }, source);
+    }
+
+    if (cloudUpdatedAt) saveLocalAppUpdatedAt(cloudUpdatedAt);
+    return finishCloudSyncResult({ action: "checked", updatedAt: cloudUpdatedAt || localUpdatedAt }, source);
+  })();
+
+  try {
+    return await cloudSyncInFlight;
+  } finally {
+    cloudSyncInFlight = null;
+  }
+}
+
+async function triggerCloudAutoSync(source = "interval", options = {}) {
+  if (!cloudHasSyncAccess()) return { action: "skipped" };
+  const now = Date.now();
+  if (!options.force && now - lastCloudAutoSyncAttemptAt < CLOUD_SYNC_MIN_INTERVAL_MS) {
+    return { action: "skipped" };
+  }
+  lastCloudAutoSyncAttemptAt = now;
+  try {
+    return await syncCloudWithNewestWins({ source });
+  } catch (error) {
+    setCloudStatus({
+      ...getCloudAccountState(),
+      busy: false,
+      message: "Auto sync failed.",
+      error: error instanceof Error ? error.message : "Cloud sync failed."
+    });
+    return { action: "error" };
+  }
+}
+
+function configureCloudAutoSync() {
+  if (!cloudHasSyncAccess()) {
+    if (cloudAutoSyncTimer) window.clearInterval(cloudAutoSyncTimer);
+    cloudAutoSyncTimer = null;
+    lastCloudAutoSyncAttemptAt = 0;
+    cloudAutoSyncPrimedFor = "";
+    return;
+  }
+  if (cloudAutoSyncTimer) return;
+  cloudAutoSyncTimer = window.setInterval(() => {
+    void triggerCloudAutoSync("interval");
+  }, CLOUD_SYNC_INTERVAL_MS);
+}
+
+async function syncCloudNow() {
+  return await syncCloudWithNewestWins({ source: "manual" });
 }
 
 async function loadCloudIntoLocalApp() {
   const confirmed = window.confirm("Load the saved Cloud state into this browser? This replaces the current local app state. Export first if you need a backup.");
   if (!confirmed) return;
-  const json = await loadCloudStateJson();
-  await importAppStateJson(json);
+  const info = await getCloudStateInfo().catch(() => null);
+  if (info?.json) {
+    await importCloudInfoIntoLocal(info);
+  } else {
+    const json = await loadCloudStateJson();
+    await importAppStateJson(json, { sourceUpdatedAt: cloudInfoUpdatedAt(info) || normalizeIsoTimestamp(json?.metadata?.localUpdatedAt) || nowIso() });
+  }
+  recordCloudSyncAt(nowIso(), "Cloud state loaded.");
+  return { message: "Cloud state loaded." };
 }
 
 async function deleteCloudData() {
   const confirmed = window.confirm("Delete the saved cloud copy for this app and reset this browser too? This marks the cloud copy for deletion in D1, removes the Firebase copy, and clears local app data so you can import or restore a profile cleanly.");
   if (!confirmed) return;
-  await deleteCloudStateJson();
-  await clearAppData({ silent: true });
+  const result = await deleteCloudStateJson();
+  await withLocalChangeTrackingSuppressed(() => clearAppData({ silent: true }));
+  saveLocalAppUpdatedAt(cloudInfoUpdatedAt(result) || nowIso());
+  return { message: "Cloud data deleted." };
 }
 
 async function deleteCloudAccountData() {
   const confirmed = window.confirm("Fully delete your cloud account and reset this browser? This marks all cloud app data for deletion in D1, removes Firebase cloud data, requests Firebase account deletion, and clears local app data. Export first if you need a backup.");
   if (!confirmed) return;
   await deleteCloudAccount();
-  await clearAppData({ silent: true });
+  await withLocalChangeTrackingSuppressed(() => clearAppData({ silent: true }));
+  saveLocalAppUpdatedAt(nowIso());
+  return { message: "Cloud account deletion requested." };
 }
 
 async function maybePromptCloudImport(cloud) {
-  if (!cloud?.user || cloud.entitlement?.cloud !== true && cloud.entitlement?.admin !== true) return;
-  const promptKey = `${CLOUD_IMPORT_PROMPT_KEY}:${cloud.user.uid}`;
-  if (window.localStorage.getItem(promptKey)) return;
-  const info = await getCloudStateInfo().catch(() => null);
-  if (!info?.exists || info.deleted) {
-    window.localStorage.setItem(promptKey, "no-cloud-data");
-    return;
-  }
-  if (info.deviceId && info.deviceId === cloud.deviceId) {
-    window.localStorage.setItem(promptKey, "same-device");
-    return;
-  }
-
-  const importNow = window.confirm("I've detected cloud data for this account. Do you want to import it now? Importing replaces the data currently on this device.");
-  window.localStorage.setItem(promptKey, importNow ? "imported" : "declined");
-  if (importNow) {
-    await importAppStateJson(info.json || await loadCloudStateJson());
-    setCloudStatus({ ...getCloudAccountState(), message: "Cloud data imported on sign-in.", error: "" });
-    return;
-  }
-  window.alert("If you sync this device without importing, it will replace the cloud copy with this device's data. Export your local data first if you need a backup.");
-  setCloudStatus({ ...getCloudAccountState(), message: "Cloud data detected. Import before syncing if you want the saved cloud copy.", error: "" });
+  if (!cloudHasSyncAccess(cloud)) return;
+  const userKey = `${cloud.user?.uid || cloud.user?.email || "cloud-user"}:${cloud.deviceId || ""}`;
+  if (cloudAutoSyncPrimedFor === userKey) return;
+  cloudAutoSyncPrimedFor = userKey;
+  await triggerCloudAutoSync("sign-in", { force: true });
 }
 
 async function signInWithEmailForm(options = {}) {
@@ -1420,6 +1767,7 @@ const state = {
   bodyTracker: loadBodyTracker(),
   trackerSettings: loadTrackerSettings(),
   goalSettings: loadGoalSettings(),
+  localAppUpdatedAt: loadLocalAppUpdatedAt(),
   cloud: getCloudAccountState(),
   spiritPlan: null,
   spiritPlanError: "",
@@ -2041,7 +2389,7 @@ function trackerOrbHtml(dashboard, tracker, editable = false, kind = "thought", 
       ? ` data-action="${normalizedKind === "goal" ? "quick-goal" : "quick-thought"}" data-kind="${normalizedKind}" data-area="${escapeHtml(dashboard)}" data-id="${escapeHtml(tracker.id)}"`
       : "";
   const tooltip = normalizedKind === "goal" && !tracker?.enabled
-    ? "Enable this orb in settings to log progress"
+    ? "Enable in settings first"
     : trackerTooltipLabel(dashboard, tracker, normalizedKind);
   const isDraggable = editable || allowReorder;
   return `
@@ -3180,8 +3528,14 @@ function setCloudStatus(patch) {
 async function runCloudAction(message, action) {
   setCloudStatus({ busy: true, message, error: "" });
   try {
-    await action();
-    setCloudStatus({ ...getCloudAccountState(), busy: false });
+    const result = await action();
+    const account = getCloudAccountState();
+    setCloudStatus({
+      ...account,
+      busy: false,
+      message: result?.message || account.message,
+      error: ""
+    });
   } catch (error) {
     setCloudStatus({
       ...getCloudAccountState(),
@@ -3444,23 +3798,7 @@ function importArtifacts() {
       if (parsed?.schemaVersion !== SCHEMA_VERSION || !Array.isArray(parsed.artifacts)) {
         throw new Error("Import file must be an Ourstuff artifact export.");
       }
-      const importedStore = {
-        schemaVersion: parsed.schemaVersion,
-        rootId: parsed.rootId || "ourstuff-root",
-        artifacts: parsed.artifacts
-      };
-      persistArtifactStore(importedStore);
-      await restoreImportedAppState(parsed.appState);
-      setState({
-        active: "Dashboard",
-        flipped: null,
-        mindMode: "grid",
-        artifactMode: "grid",
-        selectedCompendiumId: null,
-        selectedSectionId: null,
-        selectedArtifactId: null,
-        selectedSpiritBookKey: null
-      });
+      await importAppStateJson(parsed);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "Could not import data.");
     }
@@ -3484,6 +3822,7 @@ async function clearAppData(options = {}) {
   window.localStorage.removeItem(SIDEBAR_WIDTH_KEY);
   window.localStorage.removeItem(THEME_KEY);
   window.localStorage.removeItem(ICONIFY_SEARCH_CACHE_KEY);
+  window.localStorage.removeItem(LOCAL_APP_UPDATED_AT_KEY);
   clearDismissedTips();
   await clearLocalFiles().catch(() => {});
   saveArtifactStore(emptyStore);
@@ -3533,6 +3872,7 @@ async function restoreFactoryDefaults() {
   window.localStorage.removeItem(SIDEBAR_WIDTH_KEY);
   window.localStorage.removeItem(THEME_KEY);
   window.localStorage.removeItem(ICONIFY_SEARCH_CACHE_KEY);
+  window.localStorage.removeItem(LOCAL_APP_UPDATED_AT_KEY);
   clearDismissedTips();
   await clearLocalFiles().catch(() => {});
   state.artifactStore = seedStore;
@@ -4838,9 +5178,7 @@ function resetDashboardIdentityItem(dashboard) {
 function dismissTip(tip, element) {
   if (!tip) return;
   element?.classList.add("is-dismissed");
-  const dismissedTips = Array.from(new Set([...(state.dismissedTips || []), tip]));
-  state.dismissedTips = dismissedTips;
-  saveDismissedTips(dismissedTips);
+  rememberDismissedTip(tip);
   window.setTimeout(() => render(), 280);
 }
 
@@ -4877,6 +5215,7 @@ function render() {
   const settingsScrollTop = app.querySelector(".settings-tab-panel")?.scrollTop ?? 0;
   const thoughtToastFocus = captureThoughtToastFocus();
   hideThoughtTooltip();
+  hideGuidedTip();
   app.innerHTML = `
     <div class="workspace${state.mobileMenuOpen ? " has-mobile-menu" : ""}" style="--sidebar-width: ${clampSidebarWidth(state.sidebarWidth)}px;">
       <button class="mobile-menu-toggle" data-action="toggle-mobile-menu" type="button" aria-expanded="${state.mobileMenuOpen ? "true" : "false"}">
@@ -4900,7 +5239,9 @@ function render() {
   bindDashboardIdentityAutoSave();
   bindTrackerEditorAutoSave();
   bindHeaderActionTooltips();
+  applyCoreTooltips();
   bindThoughtTooltips();
+  bindGuidedTips();
   bindThoughtToastControls();
   bindIconPickerControls();
   bindTrackerOrbSorting();
@@ -5499,7 +5840,6 @@ function pathBarHtml(compendium, section, spiritBook) {
   return `
     <nav class="path-bar" aria-label="Current location" tabindex="0"${extraCrumbs.length ? " data-focus-current=\"true\"" : ""}>
       <button class="dashboard-home-link" data-action="home">Dashboard</button>
-      ${state.dismissedTips?.includes(DASHBOARD_RETURN_TIP) ? "" : `<button class="info-tip path-dashboard-tip" data-action="dismiss-tip" data-tip="${DASHBOARD_RETURN_TIP}" type="button"><span>click the dashboard link here anytime to return to the dashboard</span><i aria-hidden="true"></i></button>`}
       ${state.active !== "Dashboard" ? `<span>/</span><button data-action="dashboard-root">${escapeHtml(activeLabel)}</button>` : ""}
       ${compendium ? `<span>/</span><button class="truncate" data-action="compendium-root">${escapeHtml(compendium.title)}</button>` : ""}
       ${section ? `<span>/</span><span class="truncate muted">${escapeHtml(section.title)}</span>` : ""}
@@ -5878,6 +6218,7 @@ function settingsCloudHtml() {
   const statusLabel = signedIn
     ? (entitlement.admin ? "Admin / Cloud enabled" : isCloud ? "Cloud sync active" : "Cloud sync inactive")
     : "Signed out";
+  const localUpdatedAt = localAppUpdatedAt({ persistDerived: false });
   const localBytes = estimateJsonBytes({
     schemaVersion: SCHEMA_VERSION,
     rootId: state.artifactStore?.rootId || "ourstuff-root",
@@ -5913,7 +6254,9 @@ function settingsCloudHtml() {
           </div>
           <div class="cloud-sync-grid">
             <span><strong>${escapeHtml(formatFileSize(localBytes))}</strong><small>Current local JSON estimate</small></span>
+            <span><strong>${escapeHtml(localUpdatedAt ? new Date(localUpdatedAt).toLocaleString() : "No local changes")}</strong><small>Last local change</small></span>
             <span><strong>${escapeHtml(account.lastCloudSyncAt ? new Date(account.lastCloudSyncAt).toLocaleString() : "Not synced")}</strong><small>Last sync from this device</small></span>
+            <span><strong>${escapeHtml(isCloud ? `Every ${cloudSyncIntervalLabel()}` : "Off")}</strong><small>Auto sync / newer wins</small></span>
           </div>
           <div class="action-row cloud-actions">
             ${isCloud ? `<button class="primary-button" data-action="cloud-sync-now" type="button"${busyAttr}>${buttonContent("tabler:cloud-up", "Sync now")}</button>` : ""}
@@ -7415,7 +7758,6 @@ function mindGridHtml() {
           <span class="reader-page-dot reader-page-dot--current" aria-label="Compendiums ${currentStart} through ${currentEnd} of ${state.compendiums.length}"></span>
           <span class="reader-page-dot reader-page-dot--side${hasNext ? " is-available" : ""}" aria-hidden="true"></span>
         </button>
-        ${state.dismissedTips?.includes(COMPENDIUM_GRID_TIP) ? "" : `<button class="compendium-grid-tooltip" data-action="dismiss-tip" data-tip="${COMPENDIUM_GRID_TIP}" type="button">click here for a grid view<i aria-hidden="true"></i></button>`}
       </div>
     </div>
   `);
@@ -7695,7 +8037,8 @@ function hideThoughtTooltip() {
 }
 
 function showThoughtTooltip(target) {
-  const label = target?.dataset?.thoughtTooltip;
+  if (document.querySelector(".guided-tip-bubble")) return;
+  const label = simpleTooltipText(target?.dataset?.thoughtTooltip);
   if (!label) return;
   hideThoughtTooltip();
   const tooltip = document.createElement("div");
@@ -7721,6 +8064,90 @@ function showThoughtTooltip(target) {
   };
   thoughtTooltipCleanup = autoUpdate(target, tooltip, update);
   update();
+}
+
+function hideGuidedTip() {
+  if (guidedTipCleanup) {
+    guidedTipCleanup();
+    guidedTipCleanup = null;
+  }
+  if (guidedTipTarget && guidedTipTargetClickHandler) {
+    guidedTipTarget.removeEventListener("click", guidedTipTargetClickHandler, true);
+    guidedTipTarget = null;
+    guidedTipTargetClickHandler = null;
+  }
+  document.querySelector(".guided-tip-bubble")?.remove();
+  app.querySelectorAll(".is-guided-tip-target").forEach((element) => {
+    element.classList.remove("is-guided-tip-target");
+  });
+}
+
+function isElementVisible(element) {
+  if (!element || element.closest("[hidden], [inert]")) return false;
+  const rect = element.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return false;
+  const style = window.getComputedStyle(element);
+  return style.display !== "none" && style.visibility !== "hidden" && style.opacity !== "0";
+}
+
+function activeGuidedTip() {
+  const dismissed = new Set(state.dismissedTips || []);
+  for (const tip of GUIDED_TIP_SEQUENCE) {
+    if (dismissed.has(tip.id) || (tip.when && !tip.when())) continue;
+    const target = app.querySelector(tip.selector);
+    if (isElementVisible(target)) return { ...tip, target };
+  }
+  return null;
+}
+
+function advanceGuidedTip(tipId) {
+  rememberDismissedTip(tipId);
+  hideGuidedTip();
+  render();
+}
+
+function showGuidedTip(tip) {
+  if (!tip?.target) return;
+  hideThoughtTooltip();
+  hideGuidedTip();
+  const bubble = document.createElement("button");
+  bubble.className = "guided-tip-bubble";
+  bubble.type = "button";
+  bubble.innerHTML = `<span>${escapeHtml(simpleTooltipText(tip.label))}</span><i aria-hidden="true"></i>`;
+  bubble.setAttribute("aria-label", `${simpleTooltipText(tip.label)}. Next tip.`);
+  bubble.addEventListener("click", () => advanceGuidedTip(tip.id));
+  document.body.append(bubble);
+  tip.target.classList.add("is-guided-tip-target");
+  guidedTipTarget = tip.target;
+  guidedTipTargetClickHandler = () => {
+    rememberDismissedTip(tip.id);
+    hideGuidedTip();
+  };
+  tip.target.addEventListener("click", guidedTipTargetClickHandler, { capture: true, once: true });
+
+  const update = () => {
+    computePosition(tip.target, bubble, {
+      placement: tip.placement || "top",
+      strategy: "fixed",
+      middleware: [offset(12), flip(), shift({ padding: 10 })]
+    }).then(({ x, y, placement }) => {
+      Object.assign(bubble.style, {
+        left: `${x}px`,
+        top: `${y}px`
+      });
+      bubble.dataset.placement = placement;
+      bubble.dataset.ready = "true";
+    });
+  };
+  guidedTipCleanup = autoUpdate(tip.target, bubble, update);
+  update();
+}
+
+function bindGuidedTips() {
+  window.requestAnimationFrame(() => {
+    const tip = activeGuidedTip();
+    if (tip) showGuidedTip(tip);
+  });
 }
 
 function bindThoughtTooltips() {
@@ -7766,7 +8193,7 @@ function headerActionLabel(button) {
 
 function bindHeaderActionTooltips() {
   app.querySelectorAll(".panel-header-actions button").forEach((button) => {
-    const label = headerActionLabel(button);
+    const label = simpleTooltipText(headerActionLabel(button));
     if (!label) return;
     button.dataset.thoughtTooltip = label;
     if (!button.getAttribute("aria-label")) button.setAttribute("aria-label", label);
@@ -8417,6 +8844,7 @@ render();
 void initCloudAccount((cloud) => {
   state.cloud = cloud;
   render();
+  configureCloudAutoSync();
   if (state.artifactStore) void maybePromptCloudImport(cloud);
 });
 
@@ -8441,6 +8869,7 @@ loadArtifactStore().then(async (artifactStore) => {
     artifactStore,
     compendiums: normalizeCompendiums(artifactStoreToCompendiums(artifactStore))
   });
+  configureCloudAutoSync();
   void maybePromptCloudImport(state.cloud);
 });
 

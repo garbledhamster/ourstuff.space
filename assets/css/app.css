@@ -31,6 +31,12 @@
   --theme-select-option-active-text: #ffffff;
   --theme-ring: rgba(56, 189, 248, 0.34);
   --theme-shadow: rgba(2, 6, 23, 0.48);
+  --tooltip-bg: color-mix(in srgb, var(--surface) 94%, var(--bg));
+  --tooltip-text: var(--on-surface, var(--text));
+  --tooltip-border: color-mix(in srgb, var(--accent) 58%, var(--border));
+  --tooltip-dot: var(--accent);
+  --tooltip-ring: var(--theme-ring);
+  --tooltip-shadow: var(--theme-shadow);
   --app-height: 100vh;
   --app-max-width: 720px;
   --content-pad: 32px;
@@ -924,10 +930,10 @@ select option:checked {
   z-index: 8;
   width: max-content;
   max-width: min(260px, calc(100vw - 48px));
-  border: 1px solid color-mix(in srgb, var(--accent) 48%, var(--border-soft));
+  border: 1px solid var(--tooltip-border);
   border-radius: 10px;
-  background: rgba(2, 6, 23, 0.96);
-  color: #f8fafc;
+  background: var(--tooltip-bg);
+  color: var(--tooltip-text);
   padding: 8px 10px;
   font-family: var(--font-label);
   font-size: 0.72rem;
@@ -936,7 +942,7 @@ select option:checked {
   text-align: center;
   text-decoration: none;
   white-space: normal;
-  box-shadow: 0 14px 36px rgba(2, 6, 23, 0.48), 0 0 0 1px rgba(148, 163, 184, 0.08) inset;
+  box-shadow: 0 14px 36px var(--tooltip-shadow), 0 0 0 1px var(--tooltip-ring) inset;
 }
 
 .path-bar .info-tip i {
@@ -945,9 +951,9 @@ select option:checked {
   top: 100%;
   width: 12px;
   height: 12px;
-  background: rgba(2, 6, 23, 0.96);
-  border-right: 1px solid color-mix(in srgb, var(--accent) 48%, var(--border-soft));
-  border-bottom: 1px solid color-mix(in srgb, var(--accent) 48%, var(--border-soft));
+  background: var(--tooltip-bg);
+  border-right: 1px solid var(--tooltip-border);
+  border-bottom: 1px solid var(--tooltip-border);
   transform: translateY(-6px) rotate(45deg);
 }
 
@@ -2478,7 +2484,7 @@ select option:checked {
   padding: 6px;
   line-height: 1;
   text-align: center;
-  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
 }
 
 .tracker-orb:disabled {
@@ -2598,17 +2604,18 @@ select option:checked {
   z-index: 10000;
   width: max-content;
   max-width: min(220px, calc(100vw - 24px));
-  border: 1px solid color-mix(in srgb, var(--thought-color, var(--accent)) 45%, #475569);
+  --tooltip-active-color: var(--thought-color, var(--tooltip-dot));
+  border: 1px solid color-mix(in srgb, var(--tooltip-active-color) 48%, var(--tooltip-border));
   border-radius: 10px;
-  background: rgba(2, 6, 23, 0.96);
-  color: #f8fafc;
+  background: var(--tooltip-bg);
+  color: var(--tooltip-text);
   padding: 8px 10px;
   font-family: var(--font-label);
   font-size: 0.72rem;
   font-weight: 900;
   line-height: 1.2;
   text-align: center;
-  box-shadow: 0 14px 36px rgba(2, 6, 23, 0.48), 0 0 0 1px rgba(148, 163, 184, 0.08) inset;
+  box-shadow: 0 14px 36px var(--tooltip-shadow), 0 0 0 1px color-mix(in srgb, var(--tooltip-active-color) 18%, transparent) inset;
   opacity: 0;
   pointer-events: none;
   transform: translateY(2px) scale(0.98);
@@ -2623,6 +2630,93 @@ select option:checked {
 .thought-tooltip span {
   display: block;
   overflow-wrap: anywhere;
+}
+
+.guided-tip-bubble {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 10001;
+  display: inline-grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  width: max-content;
+  max-width: min(214px, calc(100vw - 24px));
+  border: 1px solid color-mix(in srgb, var(--tooltip-dot) 70%, var(--tooltip-border));
+  border-radius: 999px;
+  background: var(--tooltip-bg);
+  color: var(--tooltip-text);
+  padding: 8px 10px 8px 12px;
+  font-family: var(--font-label);
+  font-size: 0.74rem;
+  font-weight: 950;
+  line-height: 1.1;
+  text-align: left;
+  box-shadow: 0 14px 36px var(--tooltip-shadow), 0 0 0 1px color-mix(in srgb, var(--tooltip-dot) 24%, transparent) inset, 0 0 26px color-mix(in srgb, var(--tooltip-dot) 52%, transparent);
+  opacity: 0;
+  transform: translateY(2px) scale(0.98);
+  transition: opacity 0.14s ease, transform 0.14s ease, border-color 0.14s ease;
+  animation: guided-tip-bubble-glow 1.55s ease-in-out infinite;
+}
+
+.guided-tip-bubble[data-ready="true"] {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.guided-tip-bubble:hover,
+.guided-tip-bubble:focus-visible {
+  border-color: var(--tooltip-text);
+  outline: none;
+}
+
+.guided-tip-bubble span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.guided-tip-bubble i {
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--tooltip-dot);
+  box-shadow: 0 0 16px var(--tooltip-dot);
+}
+
+.is-guided-tip-target {
+  outline: 2px solid color-mix(in srgb, var(--tooltip-dot) 86%, var(--tooltip-text));
+  outline-offset: 4px;
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--tooltip-dot) 18%, transparent), 0 0 26px color-mix(in srgb, var(--tooltip-dot) 55%, transparent) !important;
+}
+
+.tracker-orb.is-guided-tip-target,
+.reader-page-indicator.is-guided-tip-target,
+.dashboard-card.is-guided-tip-target,
+.body-mode-button.is-guided-tip-target,
+.sidebar-group-toggle.is-guided-tip-target {
+  animation: guided-tip-target-glow 1.55s ease-in-out infinite;
+}
+
+@keyframes guided-tip-bubble-glow {
+  0%,
+  100% {
+    box-shadow: 0 14px 36px var(--tooltip-shadow), 0 0 0 1px color-mix(in srgb, var(--tooltip-dot) 24%, transparent) inset, 0 0 18px color-mix(in srgb, var(--tooltip-dot) 38%, transparent);
+  }
+  50% {
+    box-shadow: 0 18px 42px var(--tooltip-shadow), 0 0 0 1px color-mix(in srgb, var(--tooltip-dot) 42%, transparent) inset, 0 0 34px color-mix(in srgb, var(--tooltip-dot) 68%, transparent);
+  }
+}
+
+@keyframes guided-tip-target-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--tooltip-dot) 14%, transparent), 0 0 18px color-mix(in srgb, var(--tooltip-dot) 36%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--tooltip-dot) 24%, transparent), 0 0 30px color-mix(in srgb, var(--tooltip-dot) 66%, transparent);
+  }
 }
 
 .tracker-cooldown-pie {
@@ -4037,10 +4131,10 @@ select option:checked {
 
 .compendium-grid-tooltip {
   position: relative;
-  border: 1px solid color-mix(in srgb, var(--accent) 48%, var(--border-soft));
+  border: 1px solid var(--tooltip-border);
   border-radius: 10px;
-  background: rgba(2, 6, 23, 0.94);
-  color: var(--muted);
+  background: var(--tooltip-bg);
+  color: var(--tooltip-text);
   padding: 7px 9px;
   font-family: var(--font-label);
   font-size: 0.78rem;
@@ -4054,16 +4148,16 @@ select option:checked {
   bottom: calc(100% - 1px);
   width: 10px;
   height: 10px;
-  background: rgba(2, 6, 23, 0.94);
-  border-left: 1px solid color-mix(in srgb, var(--accent) 48%, var(--border-soft));
-  border-top: 1px solid color-mix(in srgb, var(--accent) 48%, var(--border-soft));
+  background: var(--tooltip-bg);
+  border-left: 1px solid var(--tooltip-border);
+  border-top: 1px solid var(--tooltip-border);
   transform: translateX(-50%) rotate(45deg);
 }
 
 .compendium-grid-tooltip:hover,
 .compendium-grid-tooltip:focus-visible {
-  color: #fff;
-  border-color: var(--accent);
+  color: var(--tooltip-text);
+  border-color: var(--tooltip-dot);
   outline: none;
 }
 
@@ -4566,6 +4660,85 @@ select option:checked {
 
 .life-calendar-viewer > .life-card {
   border-radius: 0 0 16px 16px;
+}
+
+.content-stage:has(.life-calendar-viewer) {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.content-stage:has(.life-calendar-viewer) .panel {
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
+}
+
+.content-stage:has(.life-calendar-viewer) .panel > .life-dashboard {
+  flex: 0 0 auto;
+}
+
+.content-stage:has(.life-calendar-viewer) .life-dashboard,
+.content-stage:has(.life-calendar-viewer) .life-mode-panel,
+.content-stage:has(.life-calendar-viewer) .life-calendar-viewer,
+.content-stage:has(.life-calendar-viewer) .life-calendar-viewer > .life-card,
+.content-stage:has(.life-calendar-viewer) .life-card--month,
+.content-stage:has(.life-calendar-viewer) .life-date-list,
+.content-stage:has(.life-calendar-viewer) .life-mobile-month-agenda,
+.content-stage:has(.life-calendar-viewer) .life-calendar-viewer .empty-state {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+.content-stage:has(.life-calendar-viewer) .life-dashboard {
+  grid-template-rows: auto auto auto;
+}
+
+.content-stage:has(.life-calendar-viewer) .life-calendar-viewer {
+  grid-template-rows: auto auto;
+}
+
+.content-stage:has(.life-calendar-viewer) .life-mobile-month-agenda {
+  padding-right: 0;
+}
+
+.content-stage:has(.life-calendar-viewer) .life-month-grid,
+.content-stage:has(.life-calendar-viewer) .life-month-day {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+.content-stage:has(.life-calendar-viewer) .life-month-day {
+  min-height: 118px;
+}
+
+.content-stage:has(.life-calendar-viewer) .life-fullcalendar,
+.content-stage:has(.life-calendar-viewer) .life-fullcalendar.fc,
+.content-stage:has(.life-calendar-viewer) .life-fullcalendar .fc,
+.content-stage:has(.life-calendar-viewer) .life-fullcalendar .fc-view-harness,
+.content-stage:has(.life-calendar-viewer) .life-fullcalendar .fc-view-harness-active,
+.content-stage:has(.life-calendar-viewer) .life-fullcalendar .fc-dayGridMonth-view,
+.content-stage:has(.life-calendar-viewer) .life-fullcalendar .fc-scroller-harness,
+.content-stage:has(.life-calendar-viewer) .life-fullcalendar .fc-scroller,
+.content-stage:has(.life-calendar-viewer) .life-fullcalendar .fc-scrollgrid {
+  height: auto !important;
+  max-height: none;
+  overflow: visible !important;
+}
+
+.content-stage:has(.life-calendar-viewer) .life-fullcalendar .fc-daygrid-day-frame,
+.content-stage:has(.life-calendar-viewer) .life-fullcalendar .fc-daygrid-day-events {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+.content-stage:has(.life-calendar-viewer) .life-fullcalendar .fc-daygrid-day-events {
+  -webkit-mask-image: none;
+  mask-image: none;
 }
 
 .life-mode-panel {
