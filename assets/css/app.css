@@ -1835,6 +1835,24 @@ select option:checked {
   padding: 8px;
 }
 
+.settings-tabs .body-mode-button {
+  min-width: 0;
+  padding: 0 10px;
+}
+
+.settings-tabs .body-mode-label {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+  line-height: 1.15;
+}
+
 .settings-tab-panel {
   min-height: 0;
   overflow-y: auto;
@@ -2947,7 +2965,7 @@ select option:checked {
 
 .icon-picker-panel {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   width: min(760px, 100%);
   max-height: min(720px, calc(100dvh - 36px));
   border: 1px solid var(--border);
@@ -3012,6 +3030,83 @@ select option:checked {
   border-color: var(--icon-picker-color, var(--accent));
 }
 
+.icon-picker-color {
+  display: grid;
+  gap: 10px;
+  padding: 0 16px 14px;
+}
+
+.icon-picker-color-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  color: var(--muted);
+  font-family: var(--font-label);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.icon-picker-hex {
+  display: grid;
+  grid-template-columns: 28px 92px;
+  gap: 8px;
+  align-items: center;
+  min-height: 38px;
+  border: 1px solid color-mix(in srgb, var(--icon-picker-color, var(--accent)) 44%, var(--border-soft));
+  border-radius: 12px;
+  background: var(--theme-control);
+  padding: 5px 7px;
+}
+
+.icon-picker-color-preview,
+.icon-picker-swatch {
+  background:
+    linear-gradient(45deg, rgba(255, 255, 255, 0.16) 25%, transparent 25% 75%, rgba(255, 255, 255, 0.16) 75%),
+    var(--picked-color);
+}
+
+.icon-picker-color-preview {
+  width: 24px;
+  height: 24px;
+  border: 1px solid color-mix(in srgb, var(--picked-color) 48%, var(--border-soft));
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.icon-picker-hex input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  outline: none;
+  text-transform: uppercase;
+}
+
+.icon-picker-swatches {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.icon-picker-swatch {
+  aspect-ratio: 1;
+  min-height: 34px;
+  border: 1px solid color-mix(in srgb, var(--picked-color) 46%, var(--border-soft));
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.icon-picker-swatch:hover,
+.icon-picker-swatch:focus-visible,
+.icon-picker-swatch.is-selected {
+  border-color: var(--picked-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--picked-color) 34%, transparent), inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+  outline: none;
+}
+
 .icon-picker-results {
   min-height: 0;
   overflow: auto;
@@ -3026,7 +3121,9 @@ select option:checked {
 
 .icon-picker-option {
   display: grid;
-  place-items: center;
+  grid-template-rows: minmax(30px, auto) auto;
+  align-content: center;
+  justify-items: center;
   gap: 6px;
   min-width: 0;
   min-height: 76px;
@@ -3042,13 +3139,19 @@ select option:checked {
   width: 30px;
   height: 30px;
   color: var(--icon-picker-color, var(--accent));
+  line-height: 1;
 }
 
 .button-icon,
 .icon-picker-trigger-symbol .button-icon,
 .icon-picker-current .button-icon,
 .icon-picker-option-symbol .button-icon {
-  display: inline-block;
+  display: block;
+  line-height: 1;
+}
+
+.icon-picker-option-symbol .button-icon {
+  font-size: 1.35rem;
 }
 
 .icon-picker-option span:last-child {
@@ -5262,13 +5365,13 @@ select option:checked {
   gap: 10px;
   border: 1px solid var(--border-soft);
   border-radius: 12px;
-  background: rgba(15, 23, 42, 0.58);
+  background: var(--surface);
   padding: 10px;
 }
 
 .life-mobile-month-day.has-events {
   border-color: color-mix(in srgb, var(--accent) 34%, var(--border-soft));
-  background: rgba(15, 23, 42, 0.82);
+  background: var(--surface);
 }
 
 .life-mobile-month-date {
@@ -5277,7 +5380,7 @@ select option:checked {
   align-self: start;
   border: 1px solid var(--border-soft);
   border-radius: 10px;
-  background: #020617;
+  background: var(--theme-control);
   padding: 6px 4px;
 }
 
@@ -5291,7 +5394,7 @@ select option:checked {
 }
 
 .life-mobile-month-date span {
-  color: #fff;
+  color: var(--text);
   font-family: var(--font-display);
   font-size: 1.2rem;
   font-weight: 900;
@@ -6526,6 +6629,8 @@ button.life-event-row:hover {
 :root.theme-palette:not(.theme-consolas) .life-project-nav-button,
 :root.theme-palette:not(.theme-consolas) .life-project-stats span,
 :root.theme-palette:not(.theme-consolas) .life-attachment-item,
+:root.theme-palette:not(.theme-consolas) .life-mobile-month-day,
+:root.theme-palette:not(.theme-consolas) .life-mobile-month-date,
 :root.theme-palette:not(.theme-consolas) .life-month-heading,
 :root.theme-palette:not(.theme-consolas) .life-month-day,
 :root.theme-palette:not(.theme-consolas) .life-day-column,
@@ -7741,6 +7846,11 @@ button.life-event-row:hover {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .settings-tabs .body-mode-button {
+    min-height: 40px;
+    padding: 0 8px;
+  }
+
   .thoughts-settings-intro {
     display: grid;
     align-items: start;
@@ -7816,6 +7926,23 @@ button.life-event-row:hover {
 
   .icon-picker-search {
     padding: 12px;
+  }
+
+  .icon-picker-color {
+    padding: 0 12px 12px;
+  }
+
+  .icon-picker-color-top {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .icon-picker-hex {
+    grid-template-columns: 30px minmax(0, 1fr);
+  }
+
+  .icon-picker-swatches {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 
   .icon-picker-results {
@@ -8135,6 +8262,16 @@ button.life-event-row:hover {
     overflow: hidden;
     clip: rect(0 0 0 0);
     white-space: nowrap;
+  }
+
+  .settings-tabs .body-mode-label {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
   }
 }
 

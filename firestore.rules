@@ -14,6 +14,12 @@ service cloud.firestore {
       return signedIn() && request.auth.token.cloud == true;
     }
 
+    function isOwnerUid(uid) {
+      return signedIn()
+        && request.auth.uid == uid
+        && uid in ["hLyXXFx6MTYx3Hu35MESD0Gw77C2"];
+    }
+
     function isSelf(uid) {
       return signedIn() && request.auth.uid == uid;
     }
@@ -24,7 +30,7 @@ service cloud.firestore {
     }
 
     match /users/{uid}/apps/{appId} {
-      allow read, write: if isAdmin() || (isSelf(uid) && isCloudUser());
+      allow read, write: if isAdmin() || (isSelf(uid) && (isCloudUser() || isOwnerUid(uid)));
     }
   }
 }

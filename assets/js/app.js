@@ -1951,7 +1951,7 @@ function trackerStripHtml(dashboard, options = {}) {
     : entries.slice(page * TRACKER_ORBS_PER_PAGE, (page + 1) * TRACKER_ORBS_PER_PAGE);
   if (!editable && !visibleEntries.length) return "";
   return `
-    <section class="tracker-strip${compact ? " tracker-strip--compact" : ""}${editable ? " is-editable" : ""}" aria-label="${escapeHtml(dashboard)} ${escapeHtml(config.plural)}" style="--thought-color: ${DASHBOARD_COLORS[dashboard] || DASHBOARD_COLORS.Mind};">
+    <section class="tracker-strip${compact ? " tracker-strip--compact" : ""}${editable ? " is-editable" : ""}" aria-label="${escapeHtml(dashboard)} ${escapeHtml(config.plural)}" style="--thought-color: ${dashboardColor(dashboard)};">
       ${stripLabel ? `<div class="tracker-strip-heading">${stripIcon ? `${iconHtml(stripIcon)} ` : ""}<span>${escapeHtml(stripLabel)}</span></div>` : ""}
       <div class="tracker-orb-row${isCombined ? " tracker-orb-row--combined" : ""}${reorderEnabled ? " is-reorder-enabled" : ""}" data-kind="${isCombined ? "combined" : kind}" data-area="${escapeHtml(dashboard)}" data-tracker-combined="${isCombined ? "true" : "false"}" data-tracker-draggable="${reorderEnabled ? "true" : "false"}"${editable || reorderEnabled ? ` data-tracker-reorder-row data-kind="${isCombined ? "combined" : kind}" data-area="${escapeHtml(dashboard)}"` : ""}>
         ${visibleEntries.map((tracker) => tracker.isAdd ? `
@@ -2432,7 +2432,7 @@ function quickTrackerEntry(area, id, kind = "thought", triggerElement = null) {
   const tracker = (trackerSettingsForKind(normalizedKind)?.[area] || []).find((item) => item.id === id);
   if (!tracker || (normalizedKind === "goal" && !tracker.enabled)) return;
   if (thoughtCooldownRemaining(area, id, normalizedKind) > 0 || state.thoughtCreateLocks[cooldownKey]) return;
-  if (normalizedKind === "goal") launchGoalBurst(triggerElement, DASHBOARD_COLORS[area]);
+  if (normalizedKind === "goal") launchGoalBurst(triggerElement, dashboardColor(area));
   state.thoughtCreateLocks = {
     ...state.thoughtCreateLocks,
     [cooldownKey]: true
@@ -4757,10 +4757,15 @@ function saveDashboardIdentitySettings() {
     items: Object.fromEntries(DASHBOARD_LABELS.map((dashboard) => {
       const label = document.getElementById(`dashboard-identity-${dashboard}-label`)?.value.trim() || DEFAULT_DASHBOARD_IDENTITY.items[dashboard].label;
       const icon = document.getElementById(`dashboard-identity-${dashboard}-icon`)?.value.trim() || current.items[dashboard]?.icon || DEFAULT_DASHBOARD_IDENTITY.items[dashboard].icon;
+      const color = normalizeHexColor(
+        document.getElementById(`dashboard-identity-${dashboard}-color`)?.value,
+        current.items[dashboard]?.color || DEFAULT_DASHBOARD_IDENTITY.items[dashboard].color
+      );
       return [dashboard, {
         ...DEFAULT_DASHBOARD_IDENTITY.items[dashboard],
         label,
-        icon: normalizeIconSource(icon)
+        icon: normalizeIconSource(icon),
+        color
       }];
     }))
   };
@@ -4775,6 +4780,7 @@ function resetDashboardIdentityItem(dashboard) {
   const labelInput = document.getElementById(`dashboard-identity-${dashboard}-label`);
   if (labelInput) labelInput.value = fallback.label;
   updateIconPickerField(`dashboard-identity-${dashboard}-icon`, fallback.icon);
+  updateIconPickerColorField(`dashboard-identity-${dashboard}-color`, fallback.color);
   saveDashboardIdentitySettings();
 }
 
@@ -4959,11 +4965,16 @@ function openIconPicker(element) {
   const fieldId = element.dataset.iconField || "";
   const field = document.getElementById(fieldId);
   if (!field) return;
+  const colorFieldId = element.dataset.iconColorField || "";
+  const colorField = colorFieldId ? document.getElementById(colorFieldId) : null;
+  const currentColor = normalizeHexColor(colorField?.value, normalizeHexColor(element.dataset.iconColor, DASHBOARD_COLORS.Mind));
   state.iconPicker = {
     fieldId,
+    colorFieldId,
     previewId: element.dataset.iconPreview || "",
     title: element.dataset.iconTitle || "Choose icon",
-    color: element.dataset.iconColor || "var(--accent)",
+    color: currentColor,
+    selectedColor: currentColor,
     selected: normalizeIconSource(field.value || "tabler:circle") || "tabler:circle",
     query: "",
     limit: ICON_PICKER_PAGE_SIZE
@@ -4991,11 +5002,34 @@ function updateIconPickerCurrent() {
   }
 }
 
+function updateIconPickerColorPreview() {
+  if (!state.iconPicker) return;
+  const color = normalizeHexColor(state.iconPicker.selectedColor, normalizeHexColor(state.iconPicker.color, DASHBOARD_COLORS.Mind));
+  const overlay = app.querySelector("[data-icon-picker-overlay]");
+  overlay?.querySelector(".icon-picker-panel")?.style.setProperty("--icon-picker-color", color);
+  overlay?.querySelector(".icon-picker-color-preview")?.style.setProperty("--picked-color", color);
+  const input = overlay?.querySelector("[data-icon-picker-color-input]");
+  if (input && input.value.toLowerCase() !== color) input.value = color;
+  overlay?.querySelectorAll(".icon-picker-swatch").forEach((swatch) => {
+    const isSelected = normalizeHexColor(swatch.dataset.color) === color;
+    swatch.classList.toggle("is-selected", isSelected);
+    swatch.setAttribute("aria-selected", isSelected ? "true" : "false");
+  });
+}
+
 function selectIconPickerIcon(icon) {
   if (!state.iconPicker) return;
   state.iconPicker.selected = normalizeIconSource(icon || "tabler:circle") || "tabler:circle";
   updateIconPickerCurrent();
   refreshIconPickerResults();
+}
+
+function selectIconPickerColor(color) {
+  if (!state.iconPicker?.colorFieldId) return;
+  const normalized = normalizeHexColor(color, state.iconPicker.selectedColor || DASHBOARD_COLORS.Mind);
+  state.iconPicker.selectedColor = normalized;
+  state.iconPicker.color = normalized;
+  updateIconPickerColorPreview();
 }
 
 function requestIconPickerSearch(query, limit) {
@@ -5034,9 +5068,23 @@ function updateIconPickerField(fieldId, icon) {
   });
 }
 
+function updateIconPickerColorField(fieldId, color) {
+  const normalized = normalizeHexColor(color, DASHBOARD_COLORS.Mind);
+  const field = document.getElementById(fieldId);
+  if (field) {
+    field.value = normalized;
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+  app.querySelectorAll(`[data-icon-color-field="${CSS.escape(fieldId)}"]`).forEach((trigger) => {
+    trigger.dataset.iconColor = normalized;
+    trigger.style.setProperty("--icon-picker-color", normalized);
+  });
+}
+
 function saveIconPickerSelection() {
   if (!state.iconPicker) return;
   updateIconPickerField(state.iconPicker.fieldId, state.iconPicker.selected);
+  if (state.iconPicker.colorFieldId) updateIconPickerColorField(state.iconPicker.colorFieldId, state.iconPicker.selectedColor);
   closeIconPicker();
 }
 
@@ -5069,6 +5117,14 @@ function bindIconPickerControls() {
       state.iconPicker.limit = ICON_PICKER_PAGE_SIZE;
       refreshIconPickerResults();
       requestIconPickerSearch(state.iconPicker.query, state.iconPicker.limit);
+    });
+  }
+  const colorInput = overlay.querySelector("[data-icon-picker-color-input]");
+  if (colorInput) {
+    colorInput.addEventListener("input", () => {
+      const normalized = normalizeHexColor(colorInput.value);
+      if (!normalized) return;
+      selectIconPickerColor(normalized);
     });
   }
 }
@@ -5419,7 +5475,7 @@ function dashboardGridHtml() {
       <div class="dashboard-divider" aria-hidden="true"></div>
       <div class="dashboard-grid">
         ${DASHBOARD_LABELS.map((label) => `
-          <button class="dashboard-card${state.flipped === label ? " is-flipped" : ""}" data-action="open-dashboard-card" data-section="${label}" data-balance-key="${label}" style="--card-color: ${DASHBOARD_COLORS[label]};">
+          <button class="dashboard-card${state.flipped === label ? " is-flipped" : ""}" data-action="open-dashboard-card" data-section="${label}" data-balance-key="${label}" style="--card-color: ${dashboardColor(label)};">
             <span class="dashboard-card-inner">
               <span class="dashboard-card-face dashboard-card-front">
                 <span class="dashboard-card-title">${dashboardTitleHtml(label)}</span>
@@ -5487,7 +5543,7 @@ function dashboardAnalyticsHtml() {
           const displayLabel = dashboardDisplayLabel(label);
           const barSize = count ? Math.max(10, Math.round((count / maxCount) * 100)) : 5;
           return `
-            <button class="dashboard-bar-button" data-action="open-dashboard-direct" data-section="${label}" data-balance-key="${label}" type="button" aria-label="Open ${escapeHtml(displayLabel)}, ${count} event${count === 1 ? "" : "s"}" style="--bar-color: ${DASHBOARD_COLORS[label]}; --bar-size: ${barSize}%;">
+            <button class="dashboard-bar-button" data-action="open-dashboard-direct" data-section="${label}" data-balance-key="${label}" type="button" aria-label="Open ${escapeHtml(displayLabel)}, ${count} event${count === 1 ? "" : "s"}" style="--bar-color: ${dashboardColor(label)}; --bar-size: ${barSize}%;">
               <span class="dashboard-bar-value">${count}</span>
               <span class="dashboard-bar-track" aria-hidden="true"><span class="dashboard-bar-fill"></span></span>
             </button>
@@ -5499,7 +5555,7 @@ function dashboardAnalyticsHtml() {
       <div class="dashboard-pie">
         <svg class="dashboard-pie-chart" viewBox="0 0 148 148" aria-label="Open balance section">
           ${segments.map(({ label, value, start }) => `
-            <circle class="dashboard-pie-segment" data-action="open-dashboard-direct" data-section="${label}" data-balance-key="${label}" tabindex="0" role="button" aria-label="Open ${escapeHtml(dashboardDisplayLabel(label))}" cx="74" cy="74" r="57" pathLength="100" style="--segment-color: ${DASHBOARD_COLORS[label]}; --segment-start: ${start}; --segment-size: ${value};"></circle>
+            <circle class="dashboard-pie-segment" data-action="open-dashboard-direct" data-section="${label}" data-balance-key="${label}" tabindex="0" role="button" aria-label="Open ${escapeHtml(dashboardDisplayLabel(label))}" cx="74" cy="74" r="57" pathLength="100" style="--segment-color: ${dashboardColor(label)}; --segment-start: ${start}; --segment-size: ${value};"></circle>
           `).join("")}
         </svg>
         <span>${total}</span>
@@ -5568,7 +5624,7 @@ function settingsTabsHtml(activeTab) {
   return `
     <nav class="settings-tabs" aria-label="Settings tabs">
       ${tabs.map(([tab, label, icon]) => `
-        <button class="body-mode-button${activeTab === tab ? " is-active" : ""}" data-action="set-settings-tab" data-tab="${tab}" type="button" aria-pressed="${activeTab === tab ? "true" : "false"}">
+        <button class="body-mode-button${activeTab === tab ? " is-active" : ""}" data-action="set-settings-tab" data-tab="${tab}" type="button" aria-pressed="${activeTab === tab ? "true" : "false"}"${activeTab === tab ? " aria-current=\"page\"" : ""}>
           ${buttonContent(icon, label, "body-mode-label")}
         </button>
       `).join("")}
@@ -5639,7 +5695,7 @@ function settingsThoughtsHtml() {
       </section>
       <div class="thoughts-settings-sections">
         ${DASHBOARD_LABELS.map((dashboard) => `
-          <section class="thoughts-settings-section" style="--thought-color: ${DASHBOARD_COLORS[dashboard]};">
+          <section class="thoughts-settings-section" style="--thought-color: ${dashboardColor(dashboard)};">
             <div class="body-card-heading">
               <div>
                 <h3>${escapeHtml(dashboardDisplayLabel(dashboard))}</h3>
@@ -5672,7 +5728,7 @@ function settingsGoalsHtml() {
           const checks = goalProgressCount(dashboard);
           const orbLabel = goals.length === 1 ? "orb" : "orbs";
           return `
-          <section class="thoughts-settings-section" style="--thought-color: ${DASHBOARD_COLORS[dashboard]};">
+          <section class="thoughts-settings-section" style="--thought-color: ${dashboardColor(dashboard)};">
             <div class="body-card-heading">
               <div>
                 <h3>${escapeHtml(dashboardDisplayLabel(dashboard))}</h3>
@@ -5714,14 +5770,18 @@ function settingsInterfaceHtml() {
           ${DASHBOARD_LABELS.map((dashboard) => {
             const item = identity.items[dashboard];
             const fieldId = `dashboard-identity-${dashboard}-icon`;
+            const colorFieldId = `dashboard-identity-${dashboard}-color`;
+            const color = dashboardColor(dashboard);
             return `
-              <div class="dashboard-identity-card" style="--identity-color: ${DASHBOARD_COLORS[dashboard]};">
+              <div class="dashboard-identity-card" style="--identity-color: ${color};">
                 <div class="dashboard-identity-input-row">
                   ${iconPickerFieldHtml({
                     fieldId,
                     value: item.icon,
                     title: `${item.label || dashboard} icon`,
-                    color: DASHBOARD_COLORS[dashboard],
+                    color,
+                    colorFieldId,
+                    colorValue: item.color,
                     showLabel: false
                   })}
                   <input id="dashboard-identity-${dashboard}-label" type="text" value="${escapeHtml(item.label)}" placeholder="${escapeHtml(`Enter a title for the ${DEFAULT_DASHBOARD_IDENTITY.items[dashboard].label} category...`)}">
@@ -5840,12 +5900,12 @@ function trackerAddFormHtml(area, kind = "thought") {
   const labelFieldId = trackerFieldId(area, "label");
   return `
     <div class="tracker-add-form">
-      <div class="tracker-title-icon-row" style="--identity-color: ${DASHBOARD_COLORS[area]};">
+      <div class="tracker-title-icon-row" style="--identity-color: ${dashboardColor(area)};">
         ${iconPickerFieldHtml({
           fieldId,
           value: "tabler:circle",
           title: `${dashboardDisplayLabel(area)} ${config.noun} icon`,
-          color: DASHBOARD_COLORS[area],
+          color: dashboardColor(area),
           showLabel: false
         })}
         <input class="tracker-title-input" id="${labelFieldId}" data-area="${escapeHtml(area)}" data-target="add" type="text" placeholder="${escapeHtml(`${config.proper} name`)}" aria-label="${escapeHtml(`${config.proper} name`)}">
@@ -5885,12 +5945,12 @@ function trackerEditFormHtml(area, kind = "thought") {
         </div>
       </div>
       <div class="tracker-add-form tracker-add-form--embedded">
-        <div class="tracker-title-icon-row" style="--identity-color: ${DASHBOARD_COLORS[area]};">
+        <div class="tracker-title-icon-row" style="--identity-color: ${dashboardColor(area)};">
           ${iconPickerFieldHtml({
             fieldId,
             value: tracker.icon,
             title: `${tracker.label} icon`,
-            color: DASHBOARD_COLORS[area],
+            color: dashboardColor(area),
             showLabel: false
           })}
           <input class="tracker-title-input" id="${trackerFieldId(`${area}-${id}`, "label")}" data-area="${escapeHtml(area)}" data-target="${escapeHtml(target)}" type="text" value="${escapeHtml(tracker.label)}" aria-label="Button text">
@@ -8116,6 +8176,7 @@ function handleAction(element) {
   if (action === "open-icon-picker") openIconPicker(element);
   if (action === "close-icon-picker") closeIconPicker();
   if (action === "select-icon-picker-icon") selectIconPickerIcon(element.dataset.icon);
+  if (action === "select-icon-picker-color") selectIconPickerColor(element.dataset.color);
   if (action === "save-icon-picker") saveIconPickerSelection();
   if (action === "load-more-icon-picker") loadMoreIconPickerIcons();
   if (action === "open-compendium") openCompendium(element.dataset.id);
