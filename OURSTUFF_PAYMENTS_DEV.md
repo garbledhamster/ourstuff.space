@@ -16,6 +16,9 @@ The frontend apps may be hosted on GitHub Pages or another static host. Frontend
 - Firebase token verification.
 - Firebase profile/entitlement copy updates.
 - Firebase custom-claim updates.
+- Cloud app-state source JSON in D1.
+- Firebase app-state copy writes after D1 accepts a sync.
+- Cloud app/account deletion markers.
 
 Keep this system simple and secure. Do not leak PII.
 
@@ -54,7 +57,7 @@ Runtime values belong in Cloudflare Worker env vars/secrets, Firebase Console, S
 ```text
 Frontend app
   -> Firebase Auth for sign-in
-  -> Firestore for app-state sync
+  -> Firestore for app-state copy loading
   -> Payments Worker for subscription/billing actions
 
 Payments Worker
@@ -62,17 +65,19 @@ Payments Worker
   -> creates Stripe Checkout sessions
   -> receives Stripe webhooks
   -> writes D1 subscription/payment records
+  -> writes D1 app-state source records
   -> writes Firebase entitlement copy
+  -> writes Firebase app-state copy
   -> sets Firebase custom claims
 
 Stripe
   -> upstream billing system
 
 D1
-  -> private backend mirror/source for app entitlement
+  -> private backend source for app entitlement and cloud app-state JSON
 
 Firebase
-  -> frontend-readable identity, entitlement copy, and synced app JSON
+  -> frontend-readable identity, entitlement copy, and app-state JSON copy
 ```
 
 ## Security Rules
@@ -513,6 +518,25 @@ Behavior:
 - Compute entitlement.
 - Update Firebase profile copy.
 - Set Firebase custom claims.
+
+## D1-First App-State Sync
+
+D1 owns the original cloud app-state JSON. Firebase is the app-readable copy.
+
+```text
+App export -> Worker /api/cloud/apps/{appId}/state -> D1 app_states -> Firebase /users/{uid}/apps/{appId}
+```
+
+Rules:
+
+- Frontend never reads or writes D1 directly.
+- Frontend should not write app-state JSON directly to Firestore.
+- On first sign-in, the frontend checks the Worker for existing D1 cloud data before syncing local state up.
+- If cloud data exists, prompt the user to import it.
+- If the user declines import, warn that syncing this device will replace the cloud copy and recommend exporting first.
+- `DELETE /api/cloud/apps/{appId}/state` marks the app state deleted in D1 and deletes the Firebase copy.
+- `DELETE /api/cloud/account` marks all app states deleted in D1 and requests Firebase cloud account deletion.
+- If Firebase and D1 disagree, D1 wins.
 
 ## Subscription Entitlement Logic
 

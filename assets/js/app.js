@@ -1,8 +1,11 @@
 import { dashboardCards, today } from "./data.js";
 import { donationModalHtml, bindDonationFlow } from "./donations.js";
 import {
+  deleteCloudAccount,
+  deleteCloudStateJson,
   estimateJsonBytes,
   getCloudAccountState,
+  getCloudStateInfo,
   initCloudAccount,
   loadCloudStateJson,
   openBillingPortal,
@@ -52,6 +55,7 @@ const SIDEBAR_WIDTH_KEY = "ourstuff.sidebarWidth.v1";
 const THEME_KEY = "ourstuff.theme.v1";
 const DISMISSED_TIPS_KEY = "ourstuff.dismissedTips.v1";
 const ICONIFY_SEARCH_CACHE_KEY = "ourstuff.iconifySearchCache.v1";
+const CLOUD_IMPORT_PROMPT_KEY = "ourstuff.cloudImportPrompt.v1";
 const ICONIFY_SEARCH_URL = "https://api.iconify.design/search";
 const ICONIFY_PREFIXES = "tabler,lucide,ph,mdi,material-symbols";
 const ICON_PICKER_PAGE_SIZE = 48;
@@ -1304,6 +1308,11 @@ function cloudReturnUrl() {
 }
 
 async function syncCloudNow() {
+  const info = await getCloudStateInfo().catch(() => null);
+  if (info?.exists && !info.deleted && info.deviceId && info.deviceId !== state.cloud?.deviceId) {
+    const confirmed = window.confirm("Cloud already has data from another device. Syncing now will replace that cloud copy with this device's current data. Export first if you need a backup. Continue?");
+    if (!confirmed) return;
+  }
   const json = await exportAppStateJson();
   await saveCloudStateJson(json);
 }
@@ -1313,6 +1322,45 @@ async function loadCloudIntoLocalApp() {
   if (!confirmed) return;
   const json = await loadCloudStateJson();
   await importAppStateJson(json);
+}
+
+async function deleteCloudData() {
+  const confirmed = window.confirm("Delete the saved cloud copy for this app and reset this browser too? This marks the cloud copy for deletion in D1, removes the Firebase copy, and clears local app data so you can import or restore a profile cleanly.");
+  if (!confirmed) return;
+  await deleteCloudStateJson();
+  await clearAppData({ silent: true });
+}
+
+async function deleteCloudAccountData() {
+  const confirmed = window.confirm("Fully delete your cloud account and reset this browser? This marks all cloud app data for deletion in D1, removes Firebase cloud data, requests Firebase account deletion, and clears local app data. Export first if you need a backup.");
+  if (!confirmed) return;
+  await deleteCloudAccount();
+  await clearAppData({ silent: true });
+}
+
+async function maybePromptCloudImport(cloud) {
+  if (!cloud?.user || cloud.entitlement?.cloud !== true && cloud.entitlement?.admin !== true) return;
+  const promptKey = `${CLOUD_IMPORT_PROMPT_KEY}:${cloud.user.uid}`;
+  if (window.localStorage.getItem(promptKey)) return;
+  const info = await getCloudStateInfo().catch(() => null);
+  if (!info?.exists || info.deleted) {
+    window.localStorage.setItem(promptKey, "no-cloud-data");
+    return;
+  }
+  if (info.deviceId && info.deviceId === cloud.deviceId) {
+    window.localStorage.setItem(promptKey, "same-device");
+    return;
+  }
+
+  const importNow = window.confirm("I've detected cloud data for this account. Do you want to import it now? Importing replaces the data currently on this device.");
+  window.localStorage.setItem(promptKey, importNow ? "imported" : "declined");
+  if (importNow) {
+    await importAppStateJson(info.json || await loadCloudStateJson());
+    setCloudStatus({ ...getCloudAccountState(), message: "Cloud data imported on sign-in.", error: "" });
+    return;
+  }
+  window.alert("If you sync this device without importing, it will replace the cloud copy with this device's data. Export your local data first if you need a backup.");
+  setCloudStatus({ ...getCloudAccountState(), message: "Cloud data detected. Import before syncing if you want the saved cloud copy.", error: "" });
 }
 
 async function signInWithEmailForm(options = {}) {
@@ -3420,9 +3468,12 @@ function importArtifacts() {
   input.click();
 }
 
-async function clearAppData() {
-  const confirmed = window.confirm("Clear everything from this browser, including the mock app data and dismissed tips? This cannot be undone unless you have an export.");
-  if (!confirmed) return;
+async function clearAppData(options = {}) {
+  const silent = options?.silent === true;
+  if (!silent) {
+    const confirmed = window.confirm("Clear everything from this browser, including the mock app data and dismissed tips? This cannot be undone unless you have an export.");
+    if (!confirmed) return;
+  }
   const emptyStore = createEmptyStore();
   window.localStorage.removeItem(BODY_TRACKER_KEY);
   window.localStorage.removeItem(SPIRIT_PROGRESS_KEY);
@@ -5871,6 +5922,12 @@ function settingsCloudHtml() {
             ${account.billingCapable ? `<button class="secondary-button" data-action="cloud-billing" type="button"${busyAttr}>${buttonContent("tabler:receipt", "Manage Billing")}</button>` : ""}
             <button class="secondary-button" data-action="cloud-sign-out" type="button"${busyAttr}>${buttonContent("tabler:logout", "Sign out")}</button>
           </div>
+          ${isCloud ? `
+            <div class="action-row cloud-actions">
+              <button class="secondary-button danger-button" data-action="cloud-delete-data" type="button"${busyAttr}>${buttonContent("tabler:cloud-x", "Delete cloud data")}</button>
+              <button class="secondary-button danger-button" data-action="cloud-delete-account" type="button"${busyAttr}>${buttonContent("tabler:user-x", "Delete cloud account")}</button>
+            </div>
+          ` : ""}
         ` : `
           <div class="action-row cloud-actions">
             <button class="primary-button" data-action="cloud-sign-in" type="button"${busyAttr}>${buttonContent("tabler:login-2", "Sign in / Upgrade")}</button>
@@ -8222,6 +8279,8 @@ function handleAction(element) {
   if (action === "cloud-billing") void runCloudAction("Opening billing portal...", () => openBillingPortal(cloudReturnUrl()));
   if (action === "cloud-sync-now") void runCloudAction("Syncing to Cloud...", () => syncCloudNow());
   if (action === "cloud-load") void runCloudAction("Loading Cloud state...", () => loadCloudIntoLocalApp());
+  if (action === "cloud-delete-data") void runCloudAction("Deleting Cloud data...", () => deleteCloudData());
+  if (action === "cloud-delete-account") void runCloudAction("Deleting Cloud account...", () => deleteCloudAccountData());
   if (action === "start-add-tracker") setState({ trackerAddArea: trackerAddKey(element.dataset.area || "", element.dataset.kind || "thought"), trackerEditKey: "", trackerDeleteKey: "" });
   if (action === "cancel-add-tracker") setState({ trackerAddArea: "" });
   if (action === "start-edit-tracker") {
@@ -8358,6 +8417,7 @@ render();
 void initCloudAccount((cloud) => {
   state.cloud = cloud;
   render();
+  if (state.artifactStore) void maybePromptCloudImport(cloud);
 });
 
 const installedAppMedia = window.matchMedia?.(INSTALLED_APP_QUERY);
@@ -8381,6 +8441,7 @@ loadArtifactStore().then(async (artifactStore) => {
     artifactStore,
     compendiums: normalizeCompendiums(artifactStoreToCompendiums(artifactStore))
   });
+  void maybePromptCloudImport(state.cloud);
 });
 
 loadSpiritPlan();

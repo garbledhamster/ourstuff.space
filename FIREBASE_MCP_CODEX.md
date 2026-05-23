@@ -11,7 +11,7 @@ Firebase is responsible for:
 - Email/password sign-in.
 - Optional email-link sign-in.
 - Firestore user/profile documents.
-- Firestore app-state sync documents.
+- Firestore app-state copy documents written by the Worker after D1 accepts the source JSON.
 - Firestore Security Rules.
 - Custom-claim based access control.
 
@@ -107,6 +107,8 @@ Use Firestore for the frontend-readable cloud copy:
 Create Firestore in production mode or deploy locked rules immediately.
 
 Do not use Firestore as the Stripe source of truth. Stripe events flow into Cloudflare D1 first, then the Worker writes a minimal entitlement copy into Firestore.
+
+Do not use Firestore as the app-state source of truth. App-state sync writes go through the Worker into D1 first, and the Worker mirrors a Firebase copy for app loading. If D1 says an app state or account is deleted, synced devices must treat the Firebase copy as stale.
 
 ### 4. Custom Claims
 
@@ -272,7 +274,7 @@ For admin:
 
 Keep Stripe customer/subscription IDs in D1 unless the frontend has a specific need. If copied to Firestore, they must be readable only by the owner user and admins.
 
-### App cloud state
+### App cloud state copy
 
 Path:
 
@@ -296,7 +298,7 @@ Document shape:
 Rules:
 
 - One document per app for MVP.
-- Store the complete exported app JSON under `json`.
+- Store the complete exported app JSON under `json` only as the Worker-written copy of the D1 source row.
 - Estimate JSON size before writing.
 - Use `MAX_FIRESTORE_APPSTATE_BYTES = 900000` as the conservative frontend limit.
 - If state grows too large, future migration should use chunked documents or Cloud Storage.
@@ -438,7 +440,11 @@ Estimate byte size
 ↓
 Block if too large
 ↓
-Write /users/{uid}/apps/{appId}
+POST to Worker /api/cloud/apps/{appId}/state
+↓
+Worker writes D1 app_states as the source of truth
+↓
+Worker mirrors /users/{uid}/apps/{appId}
 ```
 
 ```text
@@ -448,9 +454,23 @@ Require signed-in user
 ↓
 Require cloud/admin claim
 ↓
-Read /users/{uid}/apps/{appId}
+GET Worker /api/cloud/apps/{appId}/state
+↓
+Worker reads D1 app_states and deletion markers
 ↓
 Import json into local app state
+```
+
+First sign-in rule:
+
+```text
+User signs in on a device
+↓
+Frontend checks Worker /api/cloud/apps/{appId}/state
+↓
+If D1 has existing cloud data from another device, prompt to import
+↓
+If user declines, warn that syncing this device will replace cloud data and recommend export first
 ```
 
 ## Firebase MCP Task Prompts

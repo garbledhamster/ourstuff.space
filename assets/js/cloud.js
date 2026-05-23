@@ -242,20 +242,26 @@ export async function saveCloudStateJson(json) {
   }
 
   const user = requireSignedInFirebaseUser();
-  const modules = await ensureFirebase();
   const savedAt = new Date().toISOString();
-  await modules.setDoc(modules.doc(firebaseDb, "users", user.uid, "apps", APP_ID), {
-    appId: APP_ID,
-    version: 1,
-    updatedAt: modules.serverTimestamp(),
-    updatedAtClient: savedAt,
-    deviceId: getDeviceId(),
-    jsonBytes,
-    json
+  const idToken = await user.getIdToken();
+  const response = await fetch(`${PAYMENTS_WORKER_URL}/api/cloud/apps/${encodeURIComponent(APP_ID)}/state`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${idToken}`
+    },
+    body: JSON.stringify({
+      deviceId: getDeviceId(),
+      json
+    })
   });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(result?.error?.message || "Cloud state save failed.");
+  }
   saveLastCloudSyncAt(savedAt);
   emitCloudState({ lastCloudSyncAt: savedAt, message: "Cloud state saved.", error: "" });
-  return { updatedAt: savedAt, jsonBytes };
+  return { updatedAt: savedAt, jsonBytes, ...result };
 }
 
 export async function loadCloudStateJson() {
@@ -271,17 +277,98 @@ export async function loadCloudStateJson() {
   }
 
   const user = requireSignedInFirebaseUser();
-  const modules = await ensureFirebase();
-  const snapshot = await modules.getDoc(modules.doc(firebaseDb, "users", user.uid, "apps", APP_ID));
-  if (!snapshot.exists()) {
+  const idToken = await user.getIdToken();
+  const response = await fetch(`${PAYMENTS_WORKER_URL}/api/cloud/apps/${encodeURIComponent(APP_ID)}/state`, {
+    headers: { authorization: `Bearer ${idToken}` }
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data?.error?.message || "Cloud state load failed.");
+  }
+  if (data.deleted) {
+    throw new Error("Cloud state has been deleted.");
+  }
+  if (!data.exists) {
     throw new Error("No cloud state has been saved yet.");
   }
-  const data = snapshot.data();
   if (!data?.json || data.appId !== APP_ID) {
     throw new Error("Saved cloud state is not valid for this app.");
   }
   emitCloudState({ message: "Cloud state loaded.", error: "" });
   return data.json;
+}
+
+export async function getCloudStateInfo() {
+  requireCloudEntitlement();
+
+  if (cloudState.isLocalDemo) {
+    const parsed = JSON.parse(window.localStorage.getItem(LOCAL_DEMO_STATE_KEY) || "null");
+    return {
+      appId: APP_ID,
+      exists: Boolean(parsed?.json),
+      deleted: false,
+      deviceId: parsed?.deviceId || null,
+      updatedAt: parsed?.updatedAt || "",
+      jsonBytes: parsed?.jsonBytes || 0,
+      json: parsed?.json || null
+    };
+  }
+
+  const user = requireSignedInFirebaseUser();
+  const idToken = await user.getIdToken();
+  const response = await fetch(`${PAYMENTS_WORKER_URL}/api/cloud/apps/${encodeURIComponent(APP_ID)}/state`, {
+    headers: { authorization: `Bearer ${idToken}` }
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(result?.error?.message || "Cloud state check failed.");
+  }
+  return result;
+}
+
+export async function deleteCloudStateJson() {
+  requireCloudEntitlement();
+
+  if (cloudState.isLocalDemo) {
+    window.localStorage.removeItem(LOCAL_DEMO_STATE_KEY);
+    emitCloudState({ message: "Local demo cloud state deleted.", error: "" });
+    return { deleted: true };
+  }
+
+  const user = requireSignedInFirebaseUser();
+  const idToken = await user.getIdToken();
+  const response = await fetch(`${PAYMENTS_WORKER_URL}/api/cloud/apps/${encodeURIComponent(APP_ID)}/state`, {
+    method: "DELETE",
+    headers: { authorization: `Bearer ${idToken}` }
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(result?.error?.message || "Cloud state delete failed.");
+  }
+  emitCloudState({ message: "Cloud state marked for deletion.", error: "" });
+  return result;
+}
+
+export async function deleteCloudAccount() {
+  if (cloudState.isLocalDemo) {
+    clearLocalDemoSession();
+    window.localStorage.removeItem(LOCAL_DEMO_STATE_KEY);
+    emitCloudState(signedOutState("Local demo cloud account deleted."));
+    return { deleted: true };
+  }
+
+  const user = requireSignedInFirebaseUser();
+  const idToken = await user.getIdToken();
+  const response = await fetch(`${PAYMENTS_WORKER_URL}/api/cloud/account`, {
+    method: "DELETE",
+    headers: { authorization: `Bearer ${idToken}` }
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(result?.error?.message || "Cloud account delete failed.");
+  }
+  emitCloudState(signedOutState("Cloud account deletion requested."));
+  return result;
 }
 
 export function estimateJsonBytes(json) {
