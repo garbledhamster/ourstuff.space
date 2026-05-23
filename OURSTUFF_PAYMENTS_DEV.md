@@ -800,10 +800,10 @@ After deploy:
 
 - [ ] Worker starts locally if supported.
 - [ ] D1 schema applies locally.
-- [ ] CORS allows expected local origin only.
+- [x] CORS allows expected local origin.
 - [ ] CORS rejects unknown origins.
 - [ ] Donation checkout rejects bad amounts.
-- [ ] Subscription checkout rejects missing/invalid Firebase token.
+- [x] Subscription checkout rejects missing/invalid Firebase token.
 - [ ] Subscription checkout accepts valid Firebase token.
 - [ ] Webhook rejects invalid signature.
 - [ ] Webhook dedupes repeated event IDs.
@@ -817,7 +817,7 @@ After deploy:
 - [ ] Firebase `/users/{uid}` is updated.
 - [ ] Custom claims are set.
 - [ ] Billing Portal opens for subscribed users.
-- [ ] Canceled/unpaid subscription removes cloud access.
+- [ ] Canceled/unpaid subscription removes cloud access after the paid period ends.
 
 ### PII/security checks
 

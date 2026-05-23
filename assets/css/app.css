@@ -6514,7 +6514,6 @@ button.life-event-row:hover {
 :root.theme-palette:not(.theme-consolas) .icon-picker-option,
 :root.theme-palette:not(.theme-consolas) .icon-picker-empty,
 :root.theme-palette:not(.theme-consolas) .life-mode-switcher,
-:root.theme-palette:not(.theme-consolas) .life-calendar-switcher,
 :root.theme-palette:not(.theme-consolas) .life-card,
 :root.theme-palette:not(.theme-consolas) .life-quick-add input,
 :root.theme-palette:not(.theme-consolas) .life-todo-stats span,
@@ -6682,7 +6681,6 @@ button.life-event-row:hover {
 :root.theme-palette:not(.theme-consolas) .dashboard-chart-switcher,
 :root.theme-palette:not(.theme-consolas) .dashboard-period-slider,
 :root.theme-palette:not(.theme-consolas) .life-mode-switcher,
-:root.theme-palette:not(.theme-consolas) .life-calendar-switcher,
 :root.theme-palette:not(.theme-consolas) .spirit-dashboard {
   border-color: var(--border-strong);
 }
@@ -7294,10 +7292,14 @@ button.life-event-row:hover {
 }
 
 :root.theme-palette:not(.theme-consolas) .body-timer-switcher .body-mode-button,
-:root.theme-palette:not(.theme-consolas) .body-nutrition-switcher .body-mode-button,
-:root.theme-palette:not(.theme-consolas) .life-calendar-switcher .body-mode-button {
+:root.theme-palette:not(.theme-consolas) .body-nutrition-switcher .body-mode-button {
   background: var(--theme-control);
   color: var(--text);
+}
+
+:root.theme-palette:not(.theme-consolas) .life-calendar-switcher .body-mode-button {
+  background: transparent;
+  color: var(--muted);
 }
 
 .body-timer-switcher .body-mode-button:hover,
@@ -7314,12 +7316,18 @@ button.life-event-row:hover {
 :root.theme-palette:not(.theme-consolas) .body-timer-switcher .body-mode-button:hover,
 :root.theme-palette:not(.theme-consolas) .body-timer-switcher .body-mode-button.is-active,
 :root.theme-palette:not(.theme-consolas) .body-nutrition-switcher .body-mode-button:hover,
-:root.theme-palette:not(.theme-consolas) .body-nutrition-switcher .body-mode-button.is-active,
-:root.theme-palette:not(.theme-consolas) .life-calendar-switcher .body-mode-button:hover,
-:root.theme-palette:not(.theme-consolas) .life-calendar-switcher .body-mode-button.is-active {
+:root.theme-palette:not(.theme-consolas) .body-nutrition-switcher .body-mode-button.is-active {
   background: var(--theme-control-hover);
   border-bottom-color: var(--surface);
   color: var(--on-surface-2);
+}
+
+:root.theme-palette:not(.theme-consolas) .life-calendar-switcher .body-mode-button:hover,
+:root.theme-palette:not(.theme-consolas) .life-calendar-switcher .body-mode-button.is-active {
+  background: transparent;
+  border-color: var(--border-accent);
+  border-bottom-color: var(--surface);
+  color: var(--accent);
 }
 
 :root.theme-consolas .body-timer-switcher .body-mode-button:hover,
@@ -7330,6 +7338,22 @@ button.life-event-row:hover {
 :root.theme-consolas .life-calendar-switcher .body-mode-button.is-active {
   background: #111;
   border-bottom-color: #111;
+  color: var(--text);
+}
+
+.life-calendar-switcher .body-mode-button,
+.life-calendar-switcher .body-mode-button:hover,
+.life-calendar-switcher .body-mode-button.is-active,
+:root.theme-consolas .life-calendar-switcher .body-mode-button,
+:root.theme-consolas .life-calendar-switcher .body-mode-button:hover,
+:root.theme-consolas .life-calendar-switcher .body-mode-button.is-active {
+  background: transparent;
+}
+
+.life-calendar-switcher .body-mode-button:hover,
+.life-calendar-switcher .body-mode-button.is-active {
+  border-color: var(--border);
+  border-bottom-color: var(--surface);
   color: var(--text);
 }
 

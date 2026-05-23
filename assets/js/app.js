@@ -152,10 +152,10 @@ const DEFAULT_DASHBOARD_IDENTITY = {
   showNumbers: true,
   showIcons: false,
   items: {
-    Mind: { number: "01", label: "Mind", icon: "tabler:brain" },
-    Body: { number: "02", label: "Body", icon: "tabler:activity" },
-    Spirit: { number: "03", label: "Spirit", icon: "tabler:sun" },
-    Life: { number: "04", label: "Life", icon: "tabler:calendar-heart" }
+    Mind: { number: "01", label: "Mind", icon: "tabler:brain", color: "#38bdf8" },
+    Body: { number: "02", label: "Body", icon: "tabler:activity", color: "#22c55e" },
+    Spirit: { number: "03", label: "Spirit", icon: "tabler:sun", color: "#f59e0b" },
+    Life: { number: "04", label: "Life", icon: "tabler:calendar-heart", color: "#f472b6" }
   }
 };
 const DASHBOARD_PERIOD_OPTIONS = [
@@ -259,6 +259,11 @@ const DASHBOARD_COLORS = {
   Spirit: "#f59e0b",
   Life: "#f472b6"
 };
+const ICON_PICKER_COLOR_PRESETS = [
+  "#38bdf8", "#0ea5e9", "#22c55e", "#84cc16", "#f59e0b", "#f97316",
+  "#ef4444", "#f43f5e", "#f472b6", "#a855f7", "#6366f1", "#14b8a6",
+  "#eab308", "#fb7185", "#94a3b8", "#f8fafc"
+];
 const APP_THEMES = [
   {
     id: "default",
@@ -698,6 +703,13 @@ function normalizeIconSource(value) {
   return ICON_ALIASES[source] || source;
 }
 
+function normalizeHexColor(value, fallback = "") {
+  const raw = String(value || "").trim();
+  const expanded = raw.replace(/^#([0-9a-f]{3})$/i, (_, hex) => `#${hex.split("").map((char) => `${char}${char}`).join("")}`);
+  if (/^#[0-9a-f]{6}$/i.test(expanded)) return expanded.toLowerCase();
+  return fallback;
+}
+
 function normalizeDashboardIdentity(value) {
   const defaults = cloneDefaultDashboardIdentity();
   const displayMode = value?.displayMode === "icons" || value?.showIcons === true
@@ -712,7 +724,8 @@ function normalizeDashboardIdentity(value) {
       const fallback = defaults.items[dashboard];
       const label = String(current.label || fallback.label).trim() || fallback.label;
       const icon = normalizeIconSource(current.icon || fallback.icon) || fallback.icon;
-      return [dashboard, { ...fallback, label, icon }];
+      const color = normalizeHexColor(current.color, fallback.color || DASHBOARD_COLORS[dashboard] || DASHBOARD_COLORS.Mind);
+      return [dashboard, { ...fallback, label, icon, color }];
     }))
   };
 }
@@ -1511,6 +1524,11 @@ function dashboardDisplayIcon(dashboard) {
   return dashboardIdentityItem(dashboard)?.icon || DEFAULT_DASHBOARD_IDENTITY.items[dashboard]?.icon || "tabler:circle";
 }
 
+function dashboardColor(dashboard) {
+  const fallback = DASHBOARD_COLORS[dashboard] || DASHBOARD_COLORS.Mind;
+  return normalizeHexColor(dashboardIdentityItem(dashboard)?.color, fallback);
+}
+
 function dashboardDisplayNumber(dashboard) {
   return dashboardIdentityItem(dashboard)?.number || DEFAULT_DASHBOARD_IDENTITY.items[dashboard]?.number || "";
 }
@@ -1606,15 +1624,19 @@ function iconPickerFieldHtml({
   value,
   title,
   color = "var(--accent)",
+  colorFieldId = "",
+  colorValue = "",
   previewId = "",
   showLabel = true
 }) {
   const icon = normalizeIconSource(value) || "tabler:circle";
   const label = iconDisplayName(icon);
+  const resolvedColor = normalizeHexColor(colorValue, normalizeHexColor(color, color) || color);
   const triggerText = showLabel ? `<span class="icon-picker-trigger-label">${escapeHtml(label)}</span>` : "";
   return `
     <input class="icon-picker-input" id="${escapeHtml(fieldId)}" type="hidden" value="${escapeHtml(icon)}">
-    <button class="icon-picker-trigger" data-action="open-icon-picker" data-icon-field="${escapeHtml(fieldId)}" data-icon-title="${escapeHtml(title || "Choose icon")}" data-icon-color="${escapeHtml(color)}"${previewId ? ` data-icon-preview="${escapeHtml(previewId)}"` : ""} type="button" aria-label="${escapeHtml(`Choose icon: ${label}`)}" title="${escapeHtml(`Choose icon: ${label}`)}" style="--icon-picker-color: ${escapeHtml(color)};">
+    ${colorFieldId ? `<input class="icon-picker-input" id="${escapeHtml(colorFieldId)}" type="hidden" value="${escapeHtml(resolvedColor)}">` : ""}
+    <button class="icon-picker-trigger" data-action="open-icon-picker" data-icon-field="${escapeHtml(fieldId)}" data-icon-title="${escapeHtml(title || "Choose icon")}" data-icon-color="${escapeHtml(resolvedColor)}"${colorFieldId ? ` data-icon-color-field="${escapeHtml(colorFieldId)}"` : ""}${previewId ? ` data-icon-preview="${escapeHtml(previewId)}"` : ""} type="button" aria-label="${escapeHtml(`Choose icon: ${label}`)}" title="${escapeHtml(`Choose icon: ${label}`)}" style="--icon-picker-color: ${escapeHtml(resolvedColor)};">
       <span class="icon-picker-trigger-symbol" aria-hidden="true">${trackerIconHtml(icon)}</span>
       ${triggerText}
     </button>
@@ -1749,6 +1771,29 @@ function iconPickerGridHtml() {
   `;
 }
 
+function iconPickerColorHtml() {
+  const picker = state.iconPicker;
+  if (!picker?.colorFieldId) return "";
+  const selectedColor = normalizeHexColor(picker.selectedColor, normalizeHexColor(picker.color, DASHBOARD_COLORS.Mind));
+  const presets = Array.from(new Set([selectedColor, ...ICON_PICKER_COLOR_PRESETS]));
+  return `
+    <section class="icon-picker-color" aria-label="Color picker">
+      <div class="icon-picker-color-top">
+        <span>Color</span>
+        <label class="icon-picker-hex">
+          <span class="icon-picker-color-preview" style="--picked-color: ${escapeHtml(selectedColor)};" aria-hidden="true"></span>
+          <input data-icon-picker-color-input type="text" value="${escapeHtml(selectedColor)}" inputmode="text" maxlength="7" spellcheck="false" aria-label="Hex color">
+        </label>
+      </div>
+      <div class="icon-picker-swatches" role="listbox" aria-label="Color choices">
+        ${presets.map((color) => `
+          <button class="icon-picker-swatch${selectedColor === color ? " is-selected" : ""}" data-action="select-icon-picker-color" data-color="${escapeHtml(color)}" type="button" role="option" aria-selected="${selectedColor === color ? "true" : "false"}" aria-label="${escapeHtml(color)}" title="${escapeHtml(color)}" style="--picked-color: ${escapeHtml(color)};"></button>
+        `).join("")}
+      </div>
+    </section>
+  `;
+}
+
 function iconPickerOverlayHtml() {
   const picker = state.iconPicker;
   if (!picker) return "";
@@ -1772,6 +1817,7 @@ function iconPickerOverlayHtml() {
           <span>Search</span>
           <input data-icon-picker-search type="search" value="${escapeHtml(picker.query || "")}" placeholder="brain, calendar, prayer, run">
         </label>
+        ${iconPickerColorHtml()}
         <div class="icon-picker-results" data-icon-picker-results>
           ${iconPickerGridHtml()}
         </div>
