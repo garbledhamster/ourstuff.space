@@ -7362,11 +7362,29 @@ button.life-event-row:hover {
   }
 
   .dashboard-identity-card {
-    grid-template-columns: 44px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .dashboard-identity-card .body-field:last-child {
-    grid-column: 1 / -1;
+  .dashboard-identity-input-row {
+    display: grid;
+    grid-template-columns: 48px minmax(96px, 1fr) 40px;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .dashboard-identity-input-row input[type="text"] {
+    width: 100%;
+  }
+
+  .dashboard-identity-reset {
+    width: 40px;
+    min-width: 40px;
+  }
+
+  .theme-choice-palette {
+    grid-template-columns: repeat(9, 22px);
+    justify-content: start;
+    gap: 4px;
   }
 
   .tracker-add-form {

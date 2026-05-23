@@ -655,6 +655,10 @@ function cloneDefaultGoals() {
   ]));
 }
 
+function createEmptyTrackerSettings() {
+  return Object.fromEntries(DASHBOARD_LABELS.map((dashboard) => [dashboard, []]));
+}
+
 function cloneDefaultDashboardIdentity() {
   return {
     displayMode: DEFAULT_DASHBOARD_IDENTITY.displayMode,
@@ -1807,6 +1811,7 @@ function trackerStripHtml(dashboard, options = {}) {
   const visibleEntries = isCombined
     ? (reorderEnabled ? entries : entries.slice(0, maxVisibleOrbs))
     : entries.slice(page * TRACKER_ORBS_PER_PAGE, (page + 1) * TRACKER_ORBS_PER_PAGE);
+  if (!editable && !visibleEntries.length) return "";
   return `
     <section class="tracker-strip${compact ? " tracker-strip--compact" : ""}${editable ? " is-editable" : ""}" aria-label="${escapeHtml(dashboard)} ${escapeHtml(config.plural)}" style="--thought-color: ${DASHBOARD_COLORS[dashboard] || DASHBOARD_COLORS.Mind};">
       ${stripLabel ? `<div class="tracker-strip-heading">${stripIcon ? `${iconHtml(stripIcon)} ` : ""}<span>${escapeHtml(stripLabel)}</span></div>` : ""}
@@ -1863,7 +1868,14 @@ function trackerOrbHtml(dashboard, tracker, editable = false, kind = "thought", 
   `;
 }
 
+function hasDashboardOrbs(dashboard) {
+  const thoughtTrackers = trackerSettingsForKind("thought")?.[dashboard] || [];
+  const enabledGoals = (trackerSettingsForKind("goal")?.[dashboard] || []).filter((goal) => goal?.enabled);
+  return thoughtTrackers.length > 0 || enabledGoals.length > 0;
+}
+
 function dashboardOrbNavHtml(dashboard) {
+  if (!hasDashboardOrbs(dashboard)) return "";
   return `
     <div class="dashboard-orb-nav" aria-label="${escapeHtml(dashboardDisplayLabel(dashboard))} orbs">
       ${trackerStripHtml(dashboard, { combined: true, label: "", icon: "tabler:planet" })}
@@ -3240,8 +3252,8 @@ async function clearAppData() {
   state.bodyTracker = createDefaultBodyTracker();
   state.spiritProgress = {};
   state.lifePlanner = createDefaultLifePlanner();
-  state.trackerSettings = cloneDefaultTrackers();
-  state.goalSettings = cloneDefaultGoals();
+  state.trackerSettings = createEmptyTrackerSettings();
+  state.goalSettings = createEmptyTrackerSettings();
   state.dashboardIdentity = cloneDefaultDashboardIdentity();
   state.theme = "default";
   state.settingsTab = "getting-started";
@@ -3262,6 +3274,8 @@ async function clearAppData() {
   state.selectedLifeTaskId = null;
   state.galleryImages = null;
   state.gallerySelectedIds = [];
+  saveTrackerSettings();
+  saveGoalSettings();
   goHome();
 }
 
@@ -4459,6 +4473,20 @@ function setDashboardPeriod(period) {
 
 function setDashboardPeriodByIndex(index) {
   setDashboardPeriod(dashboardPeriodOptionForIndex(index).id);
+}
+
+function previewDashboardPeriodByIndex(index) {
+  const option = dashboardPeriodOptionForIndex(index);
+  const optionIndex = dashboardPeriodIndex(option.id);
+  const progress = DASHBOARD_PERIOD_OPTIONS.length > 1
+    ? Math.round((optionIndex / (DASHBOARD_PERIOD_OPTIONS.length - 1)) * 100)
+    : 0;
+  app.querySelectorAll("[data-dashboard-period-slider]").forEach((input) => {
+    input.value = String(optionIndex);
+    input.style.setProperty("--period-progress", `${progress}%`);
+    input.setAttribute("aria-valuetext", option.label);
+    input.closest(".dashboard-period-slider")?.querySelector(".dashboard-period-slider-value")?.replaceChildren(option.label);
+  });
 }
 
 function setDashboardChartType(chartType) {
@@ -7361,20 +7389,10 @@ function bindDashboardBalanceHover() {
 
 function bindDashboardPeriodSlider() {
   app.querySelectorAll("[data-dashboard-period-slider]").forEach((input) => {
-    const updatePreview = () => {
-      const option = dashboardPeriodOptionForIndex(input.value);
-      const index = dashboardPeriodIndex(option.id);
-      const progress = DASHBOARD_PERIOD_OPTIONS.length > 1
-        ? Math.round((index / (DASHBOARD_PERIOD_OPTIONS.length - 1)) * 100)
-        : 0;
-      input.style.setProperty("--period-progress", `${progress}%`);
-      input.setAttribute("aria-valuetext", option.label);
-      input.closest(".dashboard-period-slider")?.querySelector(".dashboard-period-slider-value")?.replaceChildren(option.label);
-    };
     input.addEventListener("input", () => {
-      updatePreview();
       const option = dashboardPeriodOptionForIndex(input.value);
-      if (option.id !== state.dashboardPeriod) setDashboardPeriod(option.id);
+      state.dashboardPeriod = option.id;
+      previewDashboardPeriodByIndex(input.value);
     });
     input.addEventListener("change", () => setDashboardPeriodByIndex(input.value));
   });
