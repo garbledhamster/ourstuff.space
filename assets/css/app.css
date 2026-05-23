@@ -7640,6 +7640,62 @@ button.life-event-row:hover {
   color: var(--text);
 }
 
+.body-tool-switcher .body-mode-button,
+.body-timer-switcher .body-mode-button,
+.body-nutrition-switcher .body-mode-button {
+  background: var(--theme-control);
+  color: var(--text);
+}
+
+.body-tool-switcher .body-mode-button:hover,
+.body-tool-switcher .body-mode-button.is-active,
+.body-timer-switcher .body-mode-button:hover,
+.body-timer-switcher .body-mode-button.is-active,
+.body-nutrition-switcher .body-mode-button:hover,
+.body-nutrition-switcher .body-mode-button.is-active {
+  background: var(--theme-control-hover);
+  color: var(--text);
+}
+
+.body-timer-switcher .body-mode-button:hover,
+.body-timer-switcher .body-mode-button.is-active,
+.body-nutrition-switcher .body-mode-button:hover,
+.body-nutrition-switcher .body-mode-button.is-active {
+  border-bottom-color: var(--surface);
+}
+
+.body-macro-row span {
+  border-color: var(--border-accent-soft);
+  background: var(--theme-control);
+  color: var(--text);
+}
+
+:root.theme-palette:not(.theme-consolas) .body-tool-switcher .body-mode-button,
+:root.theme-palette:not(.theme-consolas) .body-timer-switcher .body-mode-button,
+:root.theme-palette:not(.theme-consolas) .body-nutrition-switcher .body-mode-button {
+  background: var(--theme-control);
+  color: var(--text);
+}
+
+:root.theme-consolas .body-tool-switcher .body-mode-button,
+:root.theme-consolas .body-timer-switcher .body-mode-button,
+:root.theme-consolas .body-nutrition-switcher .body-mode-button {
+  background: #050505;
+  color: var(--text);
+}
+
+:root.theme-palette:not(.theme-consolas) .body-macro-row span {
+  border-color: var(--border-accent-soft);
+  background: var(--theme-control);
+  color: var(--text);
+}
+
+:root.theme-consolas .body-macro-row span {
+  border-color: var(--border-soft);
+  background: #050505;
+  color: var(--text);
+}
+
 :root.theme-consolas .body-field input,
 :root.theme-consolas .body-field select,
 :root.theme-consolas .body-field textarea,

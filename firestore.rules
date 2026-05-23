@@ -24,13 +24,29 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
+    function canUseCloud(uid) {
+      return isAdmin() || (isSelf(uid) && (isCloudUser() || isOwnerUid(uid)));
+    }
+
+    function ownsIncomingArtifact(uid) {
+      return request.resource.data.owner == uid
+        && request.auth.uid in request.resource.data.acl.owners;
+    }
+
     match /users/{uid} {
       allow read: if isAdmin() || isSelf(uid);
       allow create, update, delete: if isAdmin();
     }
 
     match /users/{uid}/apps/{appId} {
-      allow read, write: if isAdmin() || (isSelf(uid) && (isCloudUser() || isOwnerUid(uid)));
+      allow read: if canUseCloud(uid);
+      allow create, update, delete: if canUseCloud(uid);
+    }
+
+    match /users/{uid}/apps/{appId}/artifacts/{artifactId} {
+      allow read: if canUseCloud(uid);
+      allow create, update: if canUseCloud(uid) && ownsIncomingArtifact(uid);
+      allow delete: if canUseCloud(uid);
     }
   }
 }

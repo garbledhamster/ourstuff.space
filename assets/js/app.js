@@ -16,7 +16,7 @@ import {
   signInWithGoogle,
   signOutCloud,
   startCloudSubscription
-} from "./cloud.js?v=cloud-auto-sync-20260523a";
+} from "./cloud.js?v=firebase-artifacts-20260523a";
 import { clearLocalFiles, deleteLocalImages, exportLocalFiles, importLocalFiles, listLocalImages, resolveLocalFileUrl, resolveLocalImageUrl, storeLocalFile, storeLocalImage } from "./localMedia.js";
 import { escapeHtml, renderMarkdown } from "./markdown.js";
 import {
@@ -60,6 +60,7 @@ const LOCAL_APP_UPDATED_AT_KEY = "ourstuff.localAppUpdatedAt.v1";
 const CLOUD_SYNC_INTERVAL_MS = 2 * 60 * 1000;
 const CLOUD_SYNC_MIN_INTERVAL_MS = 20 * 1000;
 const CLOUD_SYNC_CLOCK_SKEW_MS = 1000;
+const CLOUD_SYNC_DEBOUNCE_MS = 2500;
 const ICONIFY_SEARCH_URL = "https://api.iconify.design/search";
 const ICONIFY_PREFIXES = "tabler,lucide,ph,mdi,material-symbols";
 const ICON_PICKER_PAGE_SIZE = 48;
@@ -274,6 +275,7 @@ let dashboardPeriodGlowTimer = null;
 let localChangeTrackingSuppressed = 0;
 let cloudSyncInFlight = null;
 let cloudAutoSyncTimer = null;
+let cloudAutoSyncDebounceTimer = null;
 let lastCloudAutoSyncAttemptAt = 0;
 let cloudAutoSyncPrimedFor = "";
 const SPIRIT_PLANS = [
@@ -1008,8 +1010,20 @@ function applyCoreTooltips() {
   });
 }
 
+let appliedThemeId = "";
+
 function applyThemeVariables(themeId) {
-  return applyThemeSystemVariables(themeId, {
+  const normalizedTheme = normalizeTheme(themeId);
+  const root = document.documentElement;
+  if (
+    appliedThemeId === normalizedTheme
+    && app.dataset.theme === normalizedTheme
+    && root.classList.contains(`theme-${normalizedTheme}`)
+  ) {
+    return null;
+  }
+  appliedThemeId = normalizedTheme;
+  return applyThemeSystemVariables(normalizedTheme, {
     themes: APP_THEMES,
     fontSets: THEME_FONT_SETS,
     fallbackId: "default",
@@ -1256,7 +1270,9 @@ function saveLocalAppUpdatedAt(value = nowIso()) {
 
 function markLocalAppChanged(value = nowIso()) {
   if (localChangeTrackingSuppressed > 0) return "";
-  return saveLocalAppUpdatedAt(value);
+  const updatedAt = saveLocalAppUpdatedAt(value);
+  queueCloudSyncAfterLocalChange();
+  return updatedAt;
 }
 
 async function withLocalChangeTrackingSuppressed(action) {
@@ -1279,6 +1295,19 @@ function localAppUpdatedAt(options = {}) {
 function saveArtifactStore(store) {
   writeArtifactStore(store);
   markLocalAppChanged();
+}
+
+function queueCloudSyncAfterLocalChange() {
+  try {
+    if (!cloudHasSyncAccess()) return;
+    if (cloudAutoSyncDebounceTimer) window.clearTimeout(cloudAutoSyncDebounceTimer);
+    cloudAutoSyncDebounceTimer = window.setTimeout(() => {
+      cloudAutoSyncDebounceTimer = null;
+      void triggerCloudAutoSync("local-change", { force: true });
+    }, CLOUD_SYNC_DEBOUNCE_MS);
+  } catch {
+    // During startup, state and cloud access may not be ready yet.
+  }
 }
 
 function initialMenuOpen() {
@@ -1507,6 +1536,7 @@ async function importAppStateJson(json, options = {}) {
     artifacts: json.artifacts
   };
   const sourceUpdatedAt = normalizeIsoTimestamp(options.sourceUpdatedAt);
+  const appliedAt = sourceUpdatedAt || nowIso();
   const restore = async () => {
     persistArtifactStore(importedStore);
     await restoreImportedAppState(json.appState);
@@ -1521,13 +1551,14 @@ async function importAppStateJson(json, options = {}) {
       selectedSpiritBookKey: null
     });
   };
-  if (sourceUpdatedAt) {
-    await withLocalChangeTrackingSuppressed(restore);
-    saveLocalAppUpdatedAt(sourceUpdatedAt);
-    return;
+  await withLocalChangeTrackingSuppressed(restore);
+  saveLocalAppUpdatedAt(appliedAt);
+  if (options.replaceCloud === true && cloudHasSyncAccess()) {
+    const result = await uploadLocalStateToCloud();
+    recordCloudSyncAt(result.updatedAt || appliedAt, "Imported JSON rebuilt Firebase artifacts.");
+  } else if (!sourceUpdatedAt && options.queueCloudSync !== false) {
+    queueCloudSyncAfterLocalChange();
   }
-  await restore();
-  markLocalAppChanged();
 }
 
 function cloudReturnUrl() {
@@ -1578,9 +1609,9 @@ async function clearLocalFromCloudDelete(info) {
 
 function cloudSyncMessage(action, source = "manual") {
   const prefix = source === "manual" ? "Sync" : "Auto sync";
-  if (action === "uploaded") return `${prefix} uploaded this device's newer data.`;
-  if (action === "downloaded") return `${prefix} downloaded the newer cloud data.`;
-  if (action === "cleared") return `${prefix} applied the newer cloud deletion.`;
+  if (action === "uploaded") return `${prefix} saved this device to Firebase artifacts.`;
+  if (action === "downloaded") return `${prefix} loaded Firebase artifacts into this device.`;
+  if (action === "cleared") return `${prefix} applied the Firebase deletion.`;
   return `${prefix} checked. Already current.`;
 }
 
@@ -1600,29 +1631,20 @@ async function syncCloudWithNewestWins(options = {}) {
     const info = await getCloudStateInfo();
     const cloudUpdatedAt = cloudInfoUpdatedAt(info);
     const localUpdatedAt = localAppUpdatedAt();
-    const comparison = compareIsoTimestamps(localUpdatedAt, cloudUpdatedAt);
+    const localHasStoredData = hasStoredLocalData();
 
-    if (info?.deleted) {
-      if (!cloudUpdatedAt || comparison <= 0) {
-        const result = await clearLocalFromCloudDelete(info);
-        return finishCloudSyncResult({ action: "cleared", ...result }, source);
-      }
-      const result = await uploadLocalStateToCloud();
-      return finishCloudSyncResult({ action: "uploaded", ...result }, source);
-    }
-
-    if (info?.exists && comparison < 0) {
+    if ((source === "sign-in" || source === "interval") && info?.exists && !localHasStoredData) {
       const result = await importCloudInfoIntoLocal(info);
       return finishCloudSyncResult({ action: "downloaded", ...result }, source);
     }
 
-    if (!info?.exists || comparison > 0) {
-      const result = await uploadLocalStateToCloud();
-      return finishCloudSyncResult({ action: "uploaded", ...result }, source);
+    if (info?.deleted && !localHasStoredData) {
+      const result = await clearLocalFromCloudDelete(info);
+      return finishCloudSyncResult({ action: "cleared", ...result }, source);
     }
 
-    if (cloudUpdatedAt) saveLocalAppUpdatedAt(cloudUpdatedAt);
-    return finishCloudSyncResult({ action: "checked", updatedAt: cloudUpdatedAt || localUpdatedAt }, source);
+    const result = await uploadLocalStateToCloud();
+    return finishCloudSyncResult({ action: "uploaded", updatedAt: cloudUpdatedAt || localUpdatedAt, ...result }, source);
   })();
 
   try {
@@ -1655,7 +1677,9 @@ async function triggerCloudAutoSync(source = "interval", options = {}) {
 function configureCloudAutoSync() {
   if (!cloudHasSyncAccess()) {
     if (cloudAutoSyncTimer) window.clearInterval(cloudAutoSyncTimer);
+    if (cloudAutoSyncDebounceTimer) window.clearTimeout(cloudAutoSyncDebounceTimer);
     cloudAutoSyncTimer = null;
+    cloudAutoSyncDebounceTimer = null;
     lastCloudAutoSyncAttemptAt = 0;
     cloudAutoSyncPrimedFor = "";
     return;
@@ -1671,7 +1695,7 @@ async function syncCloudNow() {
 }
 
 async function loadCloudIntoLocalApp() {
-  const confirmed = window.confirm("Load the saved Cloud state into this browser? This replaces the current local app state. Export first if you need a backup.");
+  const confirmed = window.confirm("Load the saved Firebase artifacts into this browser? This replaces the current local app state. Export first if you need a backup.");
   if (!confirmed) return;
   const info = await getCloudStateInfo().catch(() => null);
   if (info?.json) {
@@ -1680,21 +1704,21 @@ async function loadCloudIntoLocalApp() {
     const json = await loadCloudStateJson();
     await importAppStateJson(json, { sourceUpdatedAt: cloudInfoUpdatedAt(info) || normalizeIsoTimestamp(json?.metadata?.localUpdatedAt) || nowIso() });
   }
-  recordCloudSyncAt(nowIso(), "Cloud state loaded.");
-  return { message: "Cloud state loaded." };
+  recordCloudSyncAt(nowIso(), "Firebase artifacts loaded.");
+  return { message: "Firebase artifacts loaded." };
 }
 
 async function deleteCloudData() {
-  const confirmed = window.confirm("Delete the saved cloud copy for this app and reset this browser too? This marks the cloud copy for deletion in D1, removes the Firebase copy, and clears local app data so you can import or restore a profile cleanly.");
+  const confirmed = window.confirm("Delete the Firebase artifact collection for this app and reset this browser too? Export first if you need a backup.");
   if (!confirmed) return;
   const result = await deleteCloudStateJson();
   await withLocalChangeTrackingSuppressed(() => clearAppData({ silent: true }));
   saveLocalAppUpdatedAt(cloudInfoUpdatedAt(result) || nowIso());
-  return { message: "Cloud data deleted." };
+  return { message: "Firebase artifacts deleted." };
 }
 
 async function deleteCloudAccountData() {
-  const confirmed = window.confirm("Fully delete your cloud account and reset this browser? This marks all cloud app data for deletion in D1, removes Firebase cloud data, requests Firebase account deletion, and clears local app data. Export first if you need a backup.");
+  const confirmed = window.confirm("Fully delete your cloud account and reset this browser? This removes Firebase app artifacts, requests cloud account deletion, and clears local app data. Export first if you need a backup.");
   if (!confirmed) return;
   await deleteCloudAccount();
   await withLocalChangeTrackingSuppressed(() => clearAppData({ silent: true }));
@@ -1726,6 +1750,10 @@ function hasStoredAppState() {
     || window.localStorage.getItem(DASHBOARD_IDENTITY_KEY)
     || window.localStorage.getItem(THEME_KEY)
   );
+}
+
+function hasStoredLocalData() {
+  return Boolean(window.localStorage.getItem(STORAGE_KEY) || hasStoredAppState());
 }
 
 const state = {
@@ -3798,7 +3826,12 @@ function importArtifacts() {
       if (parsed?.schemaVersion !== SCHEMA_VERSION || !Array.isArray(parsed.artifacts)) {
         throw new Error("Import file must be an Ourstuff artifact export.");
       }
-      await importAppStateJson(parsed);
+      const replaceCloud = cloudHasSyncAccess();
+      const confirmed = window.confirm(replaceCloud
+        ? "Import this JSON and rebuild your Firebase artifact collection from it? This wipes the current cloud artifacts for this app first."
+        : "Import this JSON and replace the current local app data?");
+      if (!confirmed) return;
+      await importAppStateJson(parsed, { replaceCloud });
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "Could not import data.");
     }
@@ -6256,7 +6289,7 @@ function settingsCloudHtml() {
             <span><strong>${escapeHtml(formatFileSize(localBytes))}</strong><small>Current local JSON estimate</small></span>
             <span><strong>${escapeHtml(localUpdatedAt ? new Date(localUpdatedAt).toLocaleString() : "No local changes")}</strong><small>Last local change</small></span>
             <span><strong>${escapeHtml(account.lastCloudSyncAt ? new Date(account.lastCloudSyncAt).toLocaleString() : "Not synced")}</strong><small>Last sync from this device</small></span>
-            <span><strong>${escapeHtml(isCloud ? `Every ${cloudSyncIntervalLabel()}` : "Off")}</strong><small>Auto sync / newer wins</small></span>
+            <span><strong>${escapeHtml(isCloud ? `Every ${cloudSyncIntervalLabel()}` : "Off")}</strong><small>Firebase artifact writes</small></span>
           </div>
           <div class="action-row cloud-actions">
             ${isCloud ? `<button class="primary-button" data-action="cloud-sync-now" type="button"${busyAttr}>${buttonContent("tabler:cloud-up", "Sync now")}</button>` : ""}
@@ -8705,7 +8738,7 @@ function handleAction(element) {
   if (action === "cloud-subscribe") void runCloudAction("Opening subscription checkout...", () => startCloudSubscription(cloudReturnUrl()));
   if (action === "cloud-billing") void runCloudAction("Opening billing portal...", () => openBillingPortal(cloudReturnUrl()));
   if (action === "cloud-sync-now") void runCloudAction("Syncing to Cloud...", () => syncCloudNow());
-  if (action === "cloud-load") void runCloudAction("Loading Cloud state...", () => loadCloudIntoLocalApp());
+  if (action === "cloud-load") void runCloudAction("Loading Firebase artifacts...", () => loadCloudIntoLocalApp());
   if (action === "cloud-delete-data") void runCloudAction("Deleting Cloud data...", () => deleteCloudData());
   if (action === "cloud-delete-account") void runCloudAction("Deleting Cloud account...", () => deleteCloudAccountData());
   if (action === "start-add-tracker") setState({ trackerAddArea: trackerAddKey(element.dataset.area || "", element.dataset.kind || "thought"), trackerEditKey: "", trackerDeleteKey: "" });

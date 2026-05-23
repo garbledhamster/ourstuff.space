@@ -11,7 +11,7 @@ Firebase is responsible for:
 - Email/password sign-in.
 - Optional email-link sign-in.
 - Firestore user/profile documents.
-- Firestore app-state copy documents written by the Worker after D1 accepts the source JSON.
+- Firestore per-app artifact collections written by signed-in Cloud users.
 - Firestore Security Rules.
 - Custom-claim based access control.
 
@@ -97,18 +97,19 @@ Behavior:
 
 ### 3. Firestore
 
-Use Firestore for the frontend-readable cloud copy:
+Use Firestore for the frontend-readable cloud app data:
 
 ```text
 /users/{uid}
 /users/{uid}/apps/{appId}
+/users/{uid}/apps/{appId}/artifacts/{artifactId}
 ```
 
 Create Firestore in production mode or deploy locked rules immediately.
 
 Do not use Firestore as the Stripe source of truth. Stripe events flow into Cloudflare D1 first, then the Worker writes a minimal entitlement copy into Firestore.
 
-Do not use Firestore as the app-state source of truth. App-state sync writes go through the Worker into D1 first, and the Worker mirrors a Firebase copy for app loading. If D1 says an app state or account is deleted, synced devices must treat the Firebase copy as stale.
+Do not store app data as one full JSON document. The parent app doc is metadata only, and the app data is split into artifact-shaped docs under the `artifacts` subcollection. Stripe and subscription truth still stay in D1.
 
 ### 4. Custom Claims
 
@@ -274,34 +275,39 @@ For admin:
 
 Keep Stripe customer/subscription IDs in D1 unless the frontend has a specific need. If copied to Firestore, they must be readable only by the owner user and admins.
 
-### App cloud state copy
+### App cloud artifact collection
 
 Path:
 
 ```text
 /users/{uid}/apps/{appId}
+/users/{uid}/apps/{appId}/artifacts/{artifactId}
 ```
 
-Document shape:
+Parent app metadata shape:
 
 ```json
 {
   "appId": "<APP_ID>",
-  "version": 1,
-  "updatedAt": "server timestamp",
+  "version": 2,
+  "storage": "firestore-artifacts",
+  "collection": "artifacts",
+  "deleted": false,
+  "updatedAt": "2026-05-23T00:00:00.000Z",
   "deviceId": "local-device-id",
   "jsonBytes": 12345,
-  "json": {}
+  "docCount": 42
 }
 ```
 
 Rules:
 
-- One document per app for MVP.
-- Store the complete exported app JSON under `json` only as the Worker-written copy of the D1 source row.
-- Estimate JSON size before writing.
-- Use `MAX_FIRESTORE_APPSTATE_BYTES = 900000` as the conservative frontend limit.
-- If state grows too large, future migration should use chunked documents or Cloud Storage.
+- App artifacts live under the `artifacts` subcollection.
+- Each artifact doc has `id`, `type`, `title`, `owner`, `acl`, `visibility`, `tags`, `status`, `createdAt`, `updatedAt`, `refs`, `data`, and `extraAttributes`.
+- Existing local artifacts round-trip through `data.ourstuff.artifact`.
+- App settings round-trip through `app_state` docs.
+- Importing JSON while Cloud is active deletes the existing artifact docs first, then writes the imported structure.
+- Use `MAX_FIRESTORE_APPSTATE_BYTES = 900000` as the conservative per-document guard. If individual assets exceed it, move those blobs to Firebase Storage.
 
 ## Firestore Security Rules
 
@@ -337,6 +343,15 @@ service cloud.firestore {
     match /users/{uid}/apps/{appId} {
       allow read, write: if isAdmin() || (isSelf(uid) && isCloudUser());
     }
+
+    match /users/{uid}/apps/{appId}/artifacts/{artifactId} {
+      allow read: if isAdmin() || (isSelf(uid) && isCloudUser());
+      allow create, update: if isAdmin()
+        || (isSelf(uid) && isCloudUser()
+          && request.resource.data.owner == uid
+          && request.auth.uid in request.resource.data.acl.owners);
+      allow delete: if isAdmin() || (isSelf(uid) && isCloudUser());
+    }
   }
 }
 ```
@@ -344,7 +359,7 @@ service cloud.firestore {
 Notes:
 
 - Backend writes `/users/{uid}`.
-- Frontend writes only `/users/{uid}/apps/{appId}`.
+- Frontend writes only `/users/{uid}/apps/{appId}` and that app's `artifacts` subcollection.
 - Non-cloud signed-in users cannot sync.
 - Signed-out users cannot access cloud docs.
 - Users cannot access other users' docs.
@@ -436,15 +451,14 @@ Require cloud/admin claim
 ↓
 Export full app JSON
 ↓
-Estimate byte size
+Convert export into artifact docs
 ↓
-Block if too large
+Block any oversized artifact doc
 ↓
-POST to Worker /api/cloud/apps/{appId}/state
+Write /users/{uid}/apps/{appId} metadata
 ↓
-Worker writes D1 app_states as the source of truth
+Wipe and rewrite /users/{uid}/apps/{appId}/artifacts/*
 ↓
-Worker mirrors /users/{uid}/apps/{appId}
 ```
 
 ```text
@@ -454,9 +468,9 @@ Require signed-in user
 ↓
 Require cloud/admin claim
 ↓
-GET Worker /api/cloud/apps/{appId}/state
+/users/{uid}/apps/{appId}/artifacts/*
 ↓
-Worker reads D1 app_states and deletion markers
+Rebuild the normal JSON export shape
 ↓
 Import json into local app state
 ```
@@ -466,11 +480,11 @@ First sign-in rule:
 ```text
 User signs in on a device
 ↓
-Frontend checks Worker /api/cloud/apps/{appId}/state
+Frontend checks /users/{uid}/apps/{appId} and its artifacts collection
 ↓
-If D1 has existing cloud data from another device, prompt to import
+If Firebase has existing cloud data and this browser has no stored local data, import it
 ↓
-If user declines, warn that syncing this device will replace cloud data and recommend export first
+If this browser already has local data, auto sync uploads this device instead of downloading over local changes
 ```
 
 ## Firebase MCP Task Prompts

@@ -12,6 +12,30 @@ const DEVICE_ID_KEY = "ourstuff.cloudDeviceId.v1";
 const LAST_SYNC_KEY = "ourstuff.lastCloudSyncAt.v1";
 const LOCAL_DEMO_SESSION_KEY = "ourstuff.localCloudDemoSession.v1";
 const LOCAL_DEMO_STATE_KEY = "ourstuff.localCloudDemoState.v1";
+const CLOUD_STORAGE_VERSION = 2;
+const CLOUD_SCHEMA_VERSION = 1;
+const CLOUD_ARTIFACTS_COLLECTION = "artifacts";
+const CLOUD_STATE_DOC_PREFIX = "__ourstuff_state__";
+const CLOUD_LOCAL_FILE_DOC_PREFIX = "__ourstuff_file__";
+const CLOUD_BATCH_LIMIT = 450;
+const CLOUD_APP_STATE_KEYS = [
+  "bodyTracker",
+  "spiritProgress",
+  "lifePlanner",
+  "thoughtSettings",
+  "goalSettings",
+  "dashboardIdentity",
+  "theme"
+];
+const CLOUD_APP_STATE_TITLES = {
+  bodyTracker: "Body tracker state",
+  spiritProgress: "Spirit progress state",
+  lifePlanner: "Life planner state",
+  thoughtSettings: "Thought settings",
+  goalSettings: "Goal settings",
+  dashboardIdentity: "Dashboard identity settings",
+  theme: "Interface theme"
+};
 
 const INACTIVE_ENTITLEMENT = {
   role: "member",
@@ -222,9 +246,6 @@ export async function openBillingPortal(returnUrl = currentReturnUrl()) {
 export async function saveCloudStateJson(json) {
   requireCloudEntitlement();
   const jsonBytes = estimateJsonBytes(json);
-  if (jsonBytes > MAX_FIRESTORE_APPSTATE_BYTES) {
-    throw new Error(`Cloud sync is limited to ${MAX_FIRESTORE_APPSTATE_BYTES} bytes for now.`);
-  }
 
   if (cloudState.isLocalDemo) {
     const savedAt = new Date().toISOString();
@@ -243,25 +264,13 @@ export async function saveCloudStateJson(json) {
 
   const user = requireSignedInFirebaseUser();
   const savedAt = new Date().toISOString();
-  const idToken = await user.getIdToken();
-  const response = await fetch(`${PAYMENTS_WORKER_URL}/api/cloud/apps/${encodeURIComponent(APP_ID)}/state`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${idToken}`
-    },
-    body: JSON.stringify({
-      deviceId: getDeviceId(),
-      json
-    })
+  const result = await replaceCloudArtifactCollection(user.uid, json, {
+    updatedAt: savedAt,
+    deviceId: getDeviceId()
   });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(result?.error?.message || "Cloud state save failed.");
-  }
   const syncedAt = normalizeSyncTimestamp(result?.updatedAt || savedAt);
   saveLastCloudSyncAt(syncedAt);
-  emitCloudState({ lastCloudSyncAt: syncedAt, message: "Cloud state saved.", error: "" });
+  emitCloudState({ lastCloudSyncAt: syncedAt, message: "Firebase artifacts saved.", error: "" });
   return { ...result, updatedAt: syncedAt, jsonBytes };
 }
 
@@ -278,14 +287,7 @@ export async function loadCloudStateJson() {
   }
 
   const user = requireSignedInFirebaseUser();
-  const idToken = await user.getIdToken();
-  const response = await fetch(`${PAYMENTS_WORKER_URL}/api/cloud/apps/${encodeURIComponent(APP_ID)}/state`, {
-    headers: { authorization: `Bearer ${idToken}` }
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(data?.error?.message || "Cloud state load failed.");
-  }
+  const data = await readCloudArtifactCollection(user.uid);
   if (data.deleted) {
     throw new Error("Cloud state has been deleted.");
   }
@@ -295,7 +297,7 @@ export async function loadCloudStateJson() {
   if (!data?.json || data.appId !== APP_ID) {
     throw new Error("Saved cloud state is not valid for this app.");
   }
-  emitCloudState({ message: "Cloud state loaded.", error: "" });
+  emitCloudState({ message: "Firebase artifacts loaded.", error: "" });
   return data.json;
 }
 
@@ -316,15 +318,7 @@ export async function getCloudStateInfo() {
   }
 
   const user = requireSignedInFirebaseUser();
-  const idToken = await user.getIdToken();
-  const response = await fetch(`${PAYMENTS_WORKER_URL}/api/cloud/apps/${encodeURIComponent(APP_ID)}/state`, {
-    headers: { authorization: `Bearer ${idToken}` }
-  });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(result?.error?.message || "Cloud state check failed.");
-  }
-  return result;
+  return await readCloudArtifactCollection(user.uid);
 }
 
 export function recordCloudSyncAt(value = new Date().toISOString(), message = "Cloud state synced.") {
@@ -344,16 +338,11 @@ export async function deleteCloudStateJson() {
   }
 
   const user = requireSignedInFirebaseUser();
-  const idToken = await user.getIdToken();
-  const response = await fetch(`${PAYMENTS_WORKER_URL}/api/cloud/apps/${encodeURIComponent(APP_ID)}/state`, {
-    method: "DELETE",
-    headers: { authorization: `Bearer ${idToken}` }
+  const result = await deleteCloudArtifactCollection(user.uid, {
+    updatedAt: new Date().toISOString(),
+    deviceId: getDeviceId()
   });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(result?.error?.message || "Cloud state delete failed.");
-  }
-  emitCloudState({ message: "Cloud state marked for deletion.", error: "" });
+  emitCloudState({ message: "Firebase artifacts deleted.", error: "" });
   return result;
 }
 
@@ -366,6 +355,10 @@ export async function deleteCloudAccount() {
   }
 
   const user = requireSignedInFirebaseUser();
+  await deleteCloudArtifactCollection(user.uid, {
+    updatedAt: new Date().toISOString(),
+    deviceId: getDeviceId()
+  });
   const idToken = await user.getIdToken();
   const response = await fetch(`${PAYMENTS_WORKER_URL}/api/cloud/account`, {
     method: "DELETE",
@@ -377,6 +370,492 @@ export async function deleteCloudAccount() {
   }
   emitCloudState(signedOutState("Cloud account deletion requested."));
   return result;
+}
+
+async function replaceCloudArtifactCollection(uid, json, options = {}) {
+  const modules = await ensureFirebase();
+  const updatedAt = normalizeSyncTimestamp(options.updatedAt) || new Date().toISOString();
+  const deviceId = options.deviceId || getDeviceId();
+  const normalized = normalizeExportJson(json, { updatedAt, deviceId });
+  const docs = appJsonToCloudArtifactDocs(normalized, uid, { updatedAt, deviceId });
+  assertCloudDocsWithinLimit(docs);
+
+  const collectionRef = userAppArtifactsCollectionRef(modules, uid);
+  await deleteCollectionDocs(modules, collectionRef);
+  await writeCollectionDocs(modules, collectionRef, docs);
+
+  const appDoc = userAppDocRef(modules, uid);
+  const jsonBytes = estimateJsonBytes(normalized);
+  await modules.setDoc(appDoc, {
+    appId: APP_ID,
+    version: CLOUD_STORAGE_VERSION,
+    schemaVersion: normalized.schemaVersion,
+    storage: "firestore-artifacts",
+    collection: CLOUD_ARTIFACTS_COLLECTION,
+    deleted: false,
+    rootId: normalized.rootId,
+    updatedAt,
+    deviceId,
+    jsonBytes,
+    docCount: docs.length,
+    artifactCount: normalized.artifacts.length
+  }, { merge: true });
+
+  return {
+    appId: APP_ID,
+    exists: true,
+    deleted: false,
+    storage: "firestore-artifacts",
+    collection: CLOUD_ARTIFACTS_COLLECTION,
+    updatedAt,
+    deviceId,
+    jsonBytes,
+    docCount: docs.length,
+    artifactCount: normalized.artifacts.length
+  };
+}
+
+async function readCloudArtifactCollection(uid) {
+  const modules = await ensureFirebase();
+  const appSnapshot = await modules.getDoc(userAppDocRef(modules, uid));
+  const appData = appSnapshot.exists() ? appSnapshot.data() : {};
+  const updatedAt = normalizeSyncTimestampFromFirestore(appData?.updatedAt);
+  if (appData?.deleted === true) {
+    return {
+      appId: APP_ID,
+      exists: false,
+      deleted: true,
+      storage: "firestore-artifacts",
+      collection: CLOUD_ARTIFACTS_COLLECTION,
+      updatedAt,
+      deviceId: appData?.deviceId || "",
+      jsonBytes: Number(appData?.jsonBytes) || 0,
+      docCount: 0,
+      json: null
+    };
+  }
+
+  const snapshot = await modules.getDocs(userAppArtifactsCollectionRef(modules, uid));
+  const docs = snapshot.docs.map((docSnapshot) => ({
+    id: docSnapshot.id,
+    ...docSnapshot.data()
+  }));
+  const exists = docs.length > 0;
+  const json = exists ? cloudArtifactDocsToAppJson(docs, appData) : null;
+  return {
+    appId: APP_ID,
+    exists,
+    deleted: false,
+    storage: "firestore-artifacts",
+    collection: CLOUD_ARTIFACTS_COLLECTION,
+    updatedAt: updatedAt || normalizeSyncTimestamp(json?.metadata?.localUpdatedAt),
+    deviceId: appData?.deviceId || "",
+    jsonBytes: Number(appData?.jsonBytes) || (json ? estimateJsonBytes(json) : 0),
+    docCount: docs.length,
+    artifactCount: json?.artifacts?.length || 0,
+    json
+  };
+}
+
+async function deleteCloudArtifactCollection(uid, options = {}) {
+  const modules = await ensureFirebase();
+  const updatedAt = normalizeSyncTimestamp(options.updatedAt) || new Date().toISOString();
+  const deviceId = options.deviceId || getDeviceId();
+  const collectionRef = userAppArtifactsCollectionRef(modules, uid);
+  const deletedDocs = await deleteCollectionDocs(modules, collectionRef);
+  await modules.setDoc(userAppDocRef(modules, uid), {
+    appId: APP_ID,
+    version: CLOUD_STORAGE_VERSION,
+    schemaVersion: CLOUD_SCHEMA_VERSION,
+    storage: "firestore-artifacts",
+    collection: CLOUD_ARTIFACTS_COLLECTION,
+    deleted: true,
+    rootId: "ourstuff-root",
+    updatedAt,
+    deviceId,
+    jsonBytes: 0,
+    docCount: 0,
+    artifactCount: 0
+  }, { merge: true });
+  return {
+    appId: APP_ID,
+    exists: false,
+    deleted: true,
+    storage: "firestore-artifacts",
+    collection: CLOUD_ARTIFACTS_COLLECTION,
+    updatedAt,
+    deviceId,
+    deletedDocs
+  };
+}
+
+function userAppDocRef(modules, uid) {
+  return modules.doc(firebaseDb, "users", uid, "apps", APP_ID);
+}
+
+function userAppArtifactsCollectionRef(modules, uid) {
+  return modules.collection(firebaseDb, "users", uid, "apps", APP_ID, CLOUD_ARTIFACTS_COLLECTION);
+}
+
+async function deleteCollectionDocs(modules, collectionRef) {
+  const snapshot = await modules.getDocs(collectionRef);
+  let batch = modules.writeBatch(firebaseDb);
+  let operationCount = 0;
+  let deletedCount = 0;
+
+  for (const docSnapshot of snapshot.docs) {
+    batch.delete(docSnapshot.ref);
+    operationCount += 1;
+    deletedCount += 1;
+    if (operationCount >= CLOUD_BATCH_LIMIT) {
+      await batch.commit();
+      batch = modules.writeBatch(firebaseDb);
+      operationCount = 0;
+    }
+  }
+
+  if (operationCount > 0) await batch.commit();
+  return deletedCount;
+}
+
+async function writeCollectionDocs(modules, collectionRef, docs) {
+  let batch = modules.writeBatch(firebaseDb);
+  let operationCount = 0;
+
+  for (const item of docs) {
+    batch.set(modules.doc(collectionRef, item.id), item);
+    operationCount += 1;
+    if (operationCount >= CLOUD_BATCH_LIMIT) {
+      await batch.commit();
+      batch = modules.writeBatch(firebaseDb);
+      operationCount = 0;
+    }
+  }
+
+  if (operationCount > 0) await batch.commit();
+}
+
+function normalizeExportJson(json, context = {}) {
+  const updatedAt = normalizeSyncTimestamp(context.updatedAt) || new Date().toISOString();
+  const metadata = json?.metadata && typeof json.metadata === "object" ? json.metadata : {};
+  return {
+    schemaVersion: json?.schemaVersion === CLOUD_SCHEMA_VERSION ? CLOUD_SCHEMA_VERSION : CLOUD_SCHEMA_VERSION,
+    rootId: String(json?.rootId || "ourstuff-root"),
+    artifacts: Array.isArray(json?.artifacts) ? json.artifacts.map(jsonSafe) : [],
+    metadata: {
+      ...jsonSafe(metadata),
+      localUpdatedAt: normalizeSyncTimestamp(metadata.localUpdatedAt) || updatedAt,
+      cloudStorage: "firestore-artifacts",
+      deviceId: context.deviceId || metadata.deviceId || ""
+    },
+    appState: json?.appState && typeof json.appState === "object" ? jsonSafe(json.appState) : {}
+  };
+}
+
+function appJsonToCloudArtifactDocs(json, uid, context = {}) {
+  const updatedAt = normalizeSyncTimestamp(context.updatedAt) || new Date().toISOString();
+  const docs = [];
+
+  json.artifacts.forEach((artifact, index) => {
+    docs.push(localArtifactToCloudDoc(artifact, uid, {
+      order: index,
+      rootId: json.rootId,
+      updatedAt
+    }));
+  });
+
+  CLOUD_APP_STATE_KEYS.forEach((stateKey, index) => {
+    if (!Object.prototype.hasOwnProperty.call(json.appState, stateKey)) return;
+    docs.push(appStateToCloudDoc(stateKey, json.appState[stateKey], uid, {
+      order: index,
+      updatedAt
+    }));
+  });
+
+  const localFiles = Array.isArray(json.appState?.localFiles) ? json.appState.localFiles : [];
+  localFiles.forEach((file, index) => {
+    docs.push(localFileToCloudDoc(file, uid, {
+      order: index,
+      updatedAt
+    }));
+  });
+
+  return docs;
+}
+
+function localArtifactToCloudDoc(artifact, uid, context = {}) {
+  const safeArtifact = jsonSafe(artifact || {});
+  const dashboard = String(safeArtifact.dashboard || "Dashboard");
+  const type = String(safeArtifact.type || "note");
+  const createdAt = normalizeSyncTimestamp(safeArtifact.created) || context.updatedAt;
+  const updatedAt = normalizeSyncTimestamp(safeArtifact.edited) || createdAt || context.updatedAt;
+  const title = String(safeArtifact.title || "Untitled");
+  const status = String(safeArtifact.properties?.status || "active");
+  const id = firestoreDocId(safeArtifact.id, `artifact-${context.order || 0}`);
+
+  return cloudDocBase({
+    id,
+    uid,
+    type,
+    title,
+    tags: uniqueStrings(["ourstuff", APP_ID, dashboard.toLowerCase(), type]),
+    status,
+    createdAt,
+    updatedAt,
+    refs: {
+      assets: collectLocalAssetRefs(safeArtifact),
+      sources: [],
+      links: []
+    },
+    data: {
+      core: {
+        text: String(safeArtifact.body || ""),
+        context: {
+          appId: APP_ID,
+          dashboard,
+          parentId: safeArtifact.parentId || null,
+          childIds: Array.isArray(safeArtifact.childIds) ? safeArtifact.childIds : []
+        }
+      },
+      ourstuff: {
+        kind: "artifact",
+        rootId: context.rootId || "ourstuff-root",
+        order: Number(context.order) || 0,
+        dashboard,
+        parentId: safeArtifact.parentId || null,
+        artifact: safeArtifact
+      }
+    },
+    extraAttributes: {
+      extraAttribute1: dashboard,
+      extraAttribute2: type,
+      extraAttribute3: status,
+      extraAttribute4: Boolean(safeArtifact.parentId),
+      extraAttribute5: APP_ID
+    }
+  });
+}
+
+function appStateToCloudDoc(stateKey, value, uid, context = {}) {
+  const updatedAt = context.updatedAt || new Date().toISOString();
+  const title = CLOUD_APP_STATE_TITLES[stateKey] || `${stateKey} state`;
+  return cloudDocBase({
+    id: `${CLOUD_STATE_DOC_PREFIX}${firestoreDocId(stateKey, "state")}`,
+    uid,
+    type: "app_state",
+    title,
+    tags: uniqueStrings(["ourstuff", APP_ID, "settings", stateKey]),
+    status: "active",
+    createdAt: updatedAt,
+    updatedAt,
+    refs: { assets: [], sources: [], links: [] },
+    data: {
+      core: {
+        text: title,
+        context: { appId: APP_ID, stateKey }
+      },
+      ourstuff: {
+        kind: "appState",
+        order: Number(context.order) || 0,
+        stateKey,
+        value: jsonSafe(value)
+      }
+    },
+    extraAttributes: {
+      extraAttribute1: "settings",
+      extraAttribute2: stateKey,
+      extraAttribute3: "",
+      extraAttribute4: false,
+      extraAttribute5: APP_ID
+    }
+  });
+}
+
+function localFileToCloudDoc(file, uid, context = {}) {
+  const safeFile = jsonSafe(file || {});
+  const fileId = firestoreDocId(safeFile.id, `local-file-${context.order || 0}`);
+  const updatedAt = normalizeSyncTimestamp(safeFile.created) || context.updatedAt || new Date().toISOString();
+  return cloudDocBase({
+    id: `${CLOUD_LOCAL_FILE_DOC_PREFIX}${fileId}`,
+    uid,
+    type: "asset",
+    title: String(safeFile.name || safeFile.id || "Local file"),
+    tags: uniqueStrings(["ourstuff", APP_ID, "local-file", String(safeFile.type || "").split("/")[0]]),
+    status: "active",
+    createdAt: updatedAt,
+    updatedAt,
+    refs: { assets: [safeFile.id].filter(Boolean), sources: [], links: [] },
+    data: {
+      core: {
+        text: String(safeFile.name || safeFile.id || "Local file"),
+        context: {
+          appId: APP_ID,
+          stateKey: "localFiles",
+          type: safeFile.type || "",
+          size: Number(safeFile.size) || 0
+        }
+      },
+      ourstuff: {
+        kind: "localFile",
+        order: Number(context.order) || 0,
+        stateKey: "localFiles",
+        file: safeFile
+      }
+    },
+    extraAttributes: {
+      extraAttribute1: "asset",
+      extraAttribute2: "localFiles",
+      extraAttribute3: safeFile.type || "",
+      extraAttribute4: false,
+      extraAttribute5: APP_ID
+    }
+  });
+}
+
+function cloudDocBase({ id, uid, type, title, tags, status, createdAt, updatedAt, refs, data, extraAttributes }) {
+  return jsonSafe({
+    id,
+    type,
+    title,
+    owner: uid,
+    acl: { owners: [uid], editors: [], viewers: [] },
+    visibility: "private",
+    primaryProjectId: null,
+    projectIds: [],
+    tags,
+    status,
+    schemaVersion: CLOUD_SCHEMA_VERSION,
+    createdAt,
+    updatedAt,
+    refs,
+    data,
+    extraAttributes
+  });
+}
+
+function cloudArtifactDocsToAppJson(docs, appData = {}) {
+  const artifactRows = [];
+  const stateRows = [];
+  const localFileRows = [];
+
+  docs.forEach((doc, index) => {
+    const ourstuff = doc?.data?.ourstuff || {};
+    if (ourstuff.kind === "artifact" && ourstuff.artifact) {
+      artifactRows.push({
+        order: numberOrFallback(ourstuff.order, index),
+        artifact: jsonSafe(ourstuff.artifact)
+      });
+      return;
+    }
+    if (ourstuff.kind === "appState" && ourstuff.stateKey) {
+      stateRows.push({
+        order: numberOrFallback(ourstuff.order, index),
+        key: String(ourstuff.stateKey),
+        value: jsonSafe(ourstuff.value)
+      });
+      return;
+    }
+    if (ourstuff.kind === "localFile" && ourstuff.file) {
+      localFileRows.push({
+        order: numberOrFallback(ourstuff.order, index),
+        file: jsonSafe(ourstuff.file)
+      });
+      return;
+    }
+    if (!String(doc?.id || "").startsWith("__ourstuff_")) {
+      artifactRows.push({
+        order: index,
+        artifact: cloudDocToLocalArtifact(doc)
+      });
+    }
+  });
+
+  const appState = {};
+  stateRows
+    .sort((a, b) => a.order - b.order)
+    .forEach((row) => {
+      appState[row.key] = row.value;
+    });
+  appState.localFiles = localFileRows
+    .sort((a, b) => a.order - b.order)
+    .map((row) => row.file);
+
+  return {
+    schemaVersion: CLOUD_SCHEMA_VERSION,
+    rootId: String(appData?.rootId || "ourstuff-root"),
+    artifacts: artifactRows
+      .sort((a, b) => a.order - b.order)
+      .map((row) => row.artifact),
+    metadata: {
+      localUpdatedAt: normalizeSyncTimestampFromFirestore(appData?.updatedAt) || new Date().toISOString(),
+      cloudStorage: "firestore-artifacts",
+      deviceId: appData?.deviceId || "",
+      docCount: docs.length
+    },
+    appState
+  };
+}
+
+function cloudDocToLocalArtifact(doc) {
+  const created = normalizeSyncTimestampFromFirestore(doc?.createdAt) || new Date().toISOString();
+  const edited = normalizeSyncTimestampFromFirestore(doc?.updatedAt) || created;
+  const ourstuff = doc?.data?.ourstuff || {};
+  return {
+    id: String(doc?.id || `artifact-${Date.now()}`),
+    type: String(doc?.type || "note"),
+    dashboard: String(ourstuff.dashboard || "Mind"),
+    parentId: ourstuff.parentId || null,
+    title: String(doc?.title || "Untitled"),
+    body: String(doc?.data?.core?.text || ""),
+    created,
+    edited,
+    childIds: Array.isArray(ourstuff.childIds) ? ourstuff.childIds : [],
+    properties: ourstuff.properties || { status: String(doc?.status || "active") },
+    analysis: ourstuff.analysis || {}
+  };
+}
+
+function assertCloudDocsWithinLimit(docs) {
+  const oversized = docs.find((doc) => estimateJsonBytes(doc) > MAX_FIRESTORE_APPSTATE_BYTES);
+  if (!oversized) return;
+  throw new Error(`Firebase artifact "${oversized.title || oversized.id}" is too large to sync as one document.`);
+}
+
+function collectLocalAssetRefs(artifact) {
+  const refs = new Set();
+  const text = JSON.stringify(artifact || {});
+  const matcher = /ourstuff-asset:([a-z0-9_.:-]+)/gi;
+  let match = matcher.exec(text);
+  while (match) {
+    refs.add(match[1]);
+    match = matcher.exec(text);
+  }
+  return Array.from(refs);
+}
+
+function firestoreDocId(value, fallback) {
+  return String(value || fallback || "doc")
+    .replace(/\//g, "_")
+    .slice(0, 512) || "doc";
+}
+
+function jsonSafe(value) {
+  return JSON.parse(JSON.stringify(value ?? null));
+}
+
+function uniqueStrings(values) {
+  return Array.from(new Set(values.map((value) => String(value || "").trim()).filter(Boolean)));
+}
+
+function numberOrFallback(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function normalizeSyncTimestampFromFirestore(value) {
+  if (value?.toDate) return value.toDate().toISOString();
+  if (typeof value?.seconds === "number") return new Date(value.seconds * 1000).toISOString();
+  return normalizeSyncTimestamp(value);
 }
 
 export function estimateJsonBytes(json) {
