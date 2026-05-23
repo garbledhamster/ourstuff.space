@@ -1,5 +1,18 @@
 import { dashboardCards, today } from "./data.js";
 import { donationModalHtml, bindDonationFlow } from "./donations.js";
+import {
+  estimateJsonBytes,
+  getCloudAccountState,
+  initCloudAccount,
+  loadCloudStateJson,
+  openBillingPortal,
+  saveCloudStateJson,
+  signInToCloud,
+  signInWithEmailPassword,
+  signInWithGoogle,
+  signOutCloud,
+  startCloudSubscription
+} from "./cloud.js?v=cloud-subscriptions-20260523a";
 import { clearLocalFiles, deleteLocalImages, exportLocalFiles, importLocalFiles, listLocalImages, resolveLocalFileUrl, resolveLocalImageUrl, storeLocalFile, storeLocalImage } from "./localMedia.js";
 import { escapeHtml, renderMarkdown } from "./markdown.js";
 import {
@@ -125,6 +138,15 @@ const COMPENDIUM_ONE_QUERY = "(max-width: 520px)";
 const COMPENDIUM_ROWS_PER_PAGE = 2;
 const DASHBOARD_LABELS = ["Mind", "Body", "Spirit", "Life"];
 const DASHBOARD_RETURN_TIP = "dashboard-return";
+const COMPENDIUM_GRID_TIP = "compendium-grid";
+const GOAL_FREQUENCY_OPTIONS = [
+  { id: "daily", label: "Daily", days: 1 },
+  { id: "weekly", label: "Weekly", days: 7 },
+  { id: "bi-weekly", label: "Bi Weekly", days: 14 },
+  { id: "monthly", label: "Monthly", days: 30 },
+  { id: "yearly", label: "Yearly", days: 365 },
+  { id: "custom", label: "Custom", days: 10 }
+];
 const DEFAULT_DASHBOARD_IDENTITY = {
   displayMode: "numbers",
   showNumbers: true,
@@ -727,10 +749,25 @@ function normalizeTracker(tracker, dashboard, index, fallbackType = "Thought") {
   };
 }
 
+function normalizeGoalFrequency(value) {
+  const fallback = GOAL_FREQUENCY_OPTIONS[0];
+  const optionIds = new Set(GOAL_FREQUENCY_OPTIONS.map((option) => option.id));
+  const frequency = optionIds.has(value?.frequency) ? value.frequency : fallback.id;
+  const customDays = Math.min(365, Math.max(1, Math.round(Number(value?.customDays) || GOAL_FREQUENCY_OPTIONS.find((option) => option.id === "custom")?.days || 10)));
+  return { frequency, customDays };
+}
+
+function goalFrequencyOptionsHtml(value) {
+  const { frequency } = normalizeGoalFrequency(value);
+  return GOAL_FREQUENCY_OPTIONS.map((option) => `<option value="${escapeHtml(option.id)}"${frequency === option.id ? " selected" : ""}>${escapeHtml(option.label)}</option>`).join("");
+}
+
 function normalizeGoalTracker(goal, dashboard, index) {
   const normalized = normalizeTracker(goal, dashboard, index, "Goal");
+  const frequency = normalizeGoalFrequency(goal);
   return {
     ...normalized,
+    ...frequency,
     enabled: typeof goal?.enabled === "boolean" ? goal.enabled : true
   };
 }
@@ -1184,6 +1221,15 @@ async function exportAppState() {
   };
 }
 
+async function exportAppStateJson() {
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    rootId: state.artifactStore?.rootId || "ourstuff-root",
+    artifacts: Array.isArray(state.artifactStore?.artifacts) ? state.artifactStore.artifacts : [],
+    appState: await exportAppState()
+  };
+}
+
 async function restoreImportedAppState(appState) {
   if (!appState) return;
   const bodyTracker = appState?.bodyTracker
@@ -1215,6 +1261,51 @@ async function restoreImportedAppState(appState) {
   if (Array.isArray(appState.localFiles)) {
     await importLocalFiles(appState.localFiles);
   }
+}
+
+async function importAppStateJson(json) {
+  if (json?.schemaVersion !== SCHEMA_VERSION || !Array.isArray(json.artifacts)) {
+    throw new Error("Cloud state is not a valid Ourstuff app export.");
+  }
+  const importedStore = {
+    schemaVersion: json.schemaVersion,
+    rootId: json.rootId || "ourstuff-root",
+    artifacts: json.artifacts
+  };
+  persistArtifactStore(importedStore);
+  await restoreImportedAppState(json.appState);
+  setState({
+    active: "Dashboard",
+    flipped: null,
+    mindMode: "grid",
+    artifactMode: "grid",
+    selectedCompendiumId: null,
+    selectedSectionId: null,
+    selectedArtifactId: null,
+    selectedSpiritBookKey: null
+  });
+}
+
+function cloudReturnUrl() {
+  return `${window.location.origin}${window.location.pathname}`;
+}
+
+async function syncCloudNow() {
+  const json = await exportAppStateJson();
+  await saveCloudStateJson(json);
+}
+
+async function loadCloudIntoLocalApp() {
+  const confirmed = window.confirm("Load the saved Cloud state into this browser? This replaces the current local app state. Export first if you need a backup.");
+  if (!confirmed) return;
+  const json = await loadCloudStateJson();
+  await importAppStateJson(json);
+}
+
+async function signInWithEmailForm(options = {}) {
+  const email = document.getElementById("cloud-email")?.value || "";
+  const password = document.getElementById("cloud-password")?.value || "";
+  await signInWithEmailPassword(email, password, options);
 }
 
 function hasStoredAppState() {
@@ -1268,6 +1359,7 @@ const state = {
   bodyTracker: loadBodyTracker(),
   trackerSettings: loadTrackerSettings(),
   goalSettings: loadGoalSettings(),
+  cloud: getCloudAccountState(),
   spiritPlan: null,
   spiritPlanError: "",
   spiritPlanId: "ten-year",
@@ -1907,7 +1999,7 @@ function addTracker(area, kind = "thought") {
         id: makeId(`${area.toLowerCase()}-tracker`),
         label,
         icon,
-        ...(normalizedKind === "goal" ? { enabled: true } : {})
+        ...(normalizedKind === "goal" ? { enabled: true, ...normalizeGoalFrequency({}) } : {})
       }
     ]
   };
@@ -1927,6 +2019,8 @@ function updateTracker(area, id, kind = "thought", options = {}) {
   const iconInput = document.getElementById(trackerFieldId(`${area}-${id}`, "icon"))?.value.trim();
   const isGoal = normalizedKind === "goal";
   const enabledInput = isGoal ? document.getElementById(trackerFieldId(`${area}-${id}`, "enabled")) : null;
+  const frequencyInput = isGoal ? document.getElementById(trackerFieldId(`${area}-${id}`, "frequency")) : null;
+  const customDaysInput = isGoal ? document.getElementById(trackerFieldId(`${area}-${id}`, "custom-days")) : null;
   const currentSettings = trackerSettingsForKind(normalizedKind);
   const current = (currentSettings?.[area] || []).find((tracker) => tracker.id === id);
   if (!current || !label) {
@@ -1942,7 +2036,13 @@ function updateTracker(area, id, kind = "thought", options = {}) {
           ...tracker,
           label,
           icon,
-          ...(isGoal ? { enabled: Boolean(enabledInput?.checked) } : {})
+          ...(isGoal ? {
+            enabled: Boolean(enabledInput?.checked),
+            ...normalizeGoalFrequency({
+              frequency: frequencyInput?.value,
+              customDays: customDaysInput?.value
+            })
+          } : {})
         }
         : tracker
     ))
@@ -2051,6 +2151,22 @@ function trackerKindForNote(note) {
 function thoughtNoteWithTimestamp(note, timestamp) {
   const date = new Date(timestamp);
   if (!note || Number.isNaN(date.getTime())) return note;
+  if (note.properties?.role === "body-log") {
+    const dateKey = dateKeyFromDate(date);
+    const audit = Array.isArray(note.properties?.audit) ? note.properties.audit : [];
+    return {
+      ...note,
+      created: timestamp,
+      properties: {
+        ...(note.properties || {}),
+        dateKey,
+        bodyLoggedAt: timestamp,
+        audit: audit.map((entry) => entry.action === "created"
+          ? { ...entry, at: timestamp, dateKey }
+          : entry)
+      }
+    };
+  }
   const kind = trackerKindForNote(note);
   const config = trackerKindConfig(kind);
   const label = note.properties?.[config.labelProp] || state.thoughtToast?.label || note.title;
@@ -2954,6 +3070,33 @@ function setState(next) {
   render();
 }
 
+function setCloudStatus(patch) {
+  setState({
+    cloud: {
+      ...state.cloud,
+      ...patch,
+      entitlement: {
+        ...(state.cloud?.entitlement || {}),
+        ...(patch.entitlement || {})
+      }
+    }
+  });
+}
+
+async function runCloudAction(message, action) {
+  setCloudStatus({ busy: true, message, error: "" });
+  try {
+    await action();
+    setCloudStatus({ ...getCloudAccountState(), busy: false });
+  } catch (error) {
+    setCloudStatus({
+      ...getCloudAccountState(),
+      busy: false,
+      error: error instanceof Error ? error.message : "Cloud action failed."
+    });
+  }
+}
+
 function isReady() {
   return Boolean(state.artifactStore);
 }
@@ -3280,7 +3423,7 @@ async function clearAppData() {
 }
 
 async function restoreFactoryDefaults() {
-  const confirmed = window.confirm("Restore factory defaults with the original mock data and show tips again? This replaces local app data unless you have an export.");
+  const confirmed = window.confirm("Restore the Self Help Defaults with the original starter data, tips, orbs, goals, and app structure? This replaces local app data unless you have an export.");
   if (!confirmed) return;
   const seedStore = await loadSeedStore();
   window.localStorage.removeItem(STORAGE_KEY);
@@ -3786,6 +3929,7 @@ function addDashboardNote(dashboard) {
     properties: isLife ? {
       role: "life-journal",
       status: "active",
+      isNewDraft: true,
       dateKey: todayDateKey(),
       mood: "steady",
       energy: "medium",
@@ -3800,7 +3944,8 @@ function addDashboardNote(dashboard) {
       ]
     } : {
       role: "dashboard-note",
-      status: "active"
+      status: "active",
+      isNewDraft: true
     },
     analysis: {}
   };
@@ -3839,6 +3984,7 @@ function saveDashboardNote(id, title, body) {
     edited: now,
     properties: {
       ...(current.properties || {}),
+      isNewDraft: false,
       audit: [
         ...((current.properties?.audit || []).slice(-20)),
         auditEntryForSave(current, title, body)
@@ -3846,6 +3992,20 @@ function saveDashboardNote(id, title, body) {
     }
   }));
   setState({ selectedArtifactId: id, artifactMode: "viewer" });
+}
+
+function closeArtifactEditor() {
+  const current = findArtifact(state.artifactStore, state.selectedArtifactId);
+  if (state.artifactMode === "editor" && current?.properties?.isNewDraft) {
+    persistArtifactStore(removeArtifact(state.artifactStore, current.id));
+    setState({
+      selectedArtifactId: null,
+      artifactMode: "grid",
+      artifactReturnActive: ""
+    });
+    return;
+  }
+  setState({ artifactMode: "viewer" });
 }
 
 function saveLifeJournalNote(id) {
@@ -3861,6 +4021,7 @@ function saveLifeJournalNote(id) {
     ...(current.properties || {}),
     role: "life-journal",
     status: "active",
+    isNewDraft: false,
     dateKey,
     mood,
     energy,
@@ -3896,8 +4057,7 @@ function deleteDashboardNote(id) {
 function appendBodyLogNote(title, body, properties = {}) {
   if (!state.artifactStore) return;
   const now = nowIso();
-
-  persistArtifactStore(upsertArtifact(state.artifactStore, {
+  const note = {
     id: makeId("artifact"),
     type: "note",
     dashboard: "Body",
@@ -3911,10 +4071,41 @@ function appendBodyLogNote(title, body, properties = {}) {
       role: "body-log",
       status: "active",
       source: "body-tracker",
+      dateKey: dateKeyFromValue(now),
+      audit: [
+        {
+          at: now,
+          action: "created",
+          title,
+          dateKey: dateKeyFromValue(now)
+        }
+      ],
       ...properties
     },
     analysis: {}
-  }));
+  };
+
+  persistArtifactStore(upsertArtifact(state.artifactStore, note));
+  return note;
+}
+
+function showBodyTimerLogToast(note, summaryAction, metric = "") {
+  if (!note) {
+    render();
+    return;
+  }
+  showThoughtToast({
+    kind: "thought",
+    dashboard: "Body",
+    label: note.title,
+    noteId: note.id,
+    timestamp: note.created || nowIso(),
+    metric,
+    noun: "timer",
+    summaryAction,
+    detailLabel: "Quick note",
+    detailPlaceholder: "Add timer detail"
+  });
 }
 
 function workoutLogNoteArtifact(workout) {
@@ -3999,11 +4190,16 @@ function startBodyTimer(key = state.bodyTimerMode) {
   };
   setBodyTimerState(key, nextTimer);
   saveBodyTracker();
-  appendBodyLogNote(
+  const note = appendBodyLogNote(
     `${config.shortLabel} started`,
-    `## ${config.label} started\n\nStarted: ${currentTimestampLabel()}\n\n- Label: ${nextTimer.label}\n- Target: ${bodyTimerTargetInputValue(key, nextTimer)} ${config.targetUnit}`
+    `## ${config.label} started\n\nStarted: ${currentTimestampLabel()}\n\n- Label: ${nextTimer.label}\n- Target: ${bodyTimerTargetInputValue(key, nextTimer)} ${config.targetUnit}`,
+    {
+      sourceType: "timer",
+      timerKey: key,
+      timerAction: "started"
+    }
   );
-  render();
+  showBodyTimerLogToast(note, "started", `${bodyTimerTargetInputValue(key, nextTimer)} ${config.targetUnit} target`);
 }
 
 function stopBodyTimer(key = state.bodyTimerMode) {
@@ -4018,11 +4214,17 @@ function stopBodyTimer(key = state.bodyTimerMode) {
   };
   setBodyTimerState(key, nextTimer);
   saveBodyTracker();
-  appendBodyLogNote(
+  const note = appendBodyLogNote(
     `${config.shortLabel} stopped`,
-    `## ${config.label} stopped\n\nStopped: ${currentTimestampLabel()}\n\n- Label: ${nextTimer.label}\n- Completed hours: ${completedHours.toFixed(1)}\n- Target: ${bodyTimerTargetInputValue(key, nextTimer)} ${config.targetUnit}`
+    `## ${config.label} stopped\n\nStopped: ${currentTimestampLabel()}\n\n- Label: ${nextTimer.label}\n- Completed hours: ${completedHours.toFixed(1)}\n- Target: ${bodyTimerTargetInputValue(key, nextTimer)} ${config.targetUnit}`,
+    {
+      sourceType: "timer",
+      timerKey: key,
+      timerAction: "stopped",
+      completedHours
+    }
   );
-  render();
+  showBodyTimerLogToast(note, "stopped", `${completedHours.toFixed(1)} hours`);
 }
 
 function saveBodyFastSettings() {
@@ -4624,13 +4826,14 @@ function thoughtToastHtml() {
   const hasQuickNote = quickNote.trim().length > 0;
   const toastDate = thoughtDateInputValue(toast.timestamp);
   const toastTime = thoughtTimeInputValue(toast.timestamp);
-  const summaryAction = kind === "goal" ? "checked" : "saved";
-  const detailLabel = kind === "goal" ? "Progress note" : "Quick note";
-  const detailPlaceholder = kind === "goal" ? "Add progress detail" : "Add a detail";
+  const summaryAction = toast.summaryAction || (kind === "goal" ? "checked" : "saved");
+  const summaryNoun = toast.noun || config.noun;
+  const detailLabel = toast.detailLabel || (kind === "goal" ? "Progress note" : "Quick note");
+  const detailPlaceholder = toast.detailPlaceholder || (kind === "goal" ? "Add progress detail" : "Add a detail");
   return `
     <aside class="thought-toast" role="status" aria-live="polite">
       <div class="thought-toast-summary">
-        <strong>${escapeHtml(toast.dashboard)} ${escapeHtml(config.noun)} ${summaryAction}</strong>
+        <strong>${escapeHtml(toast.dashboard)} ${escapeHtml(summaryNoun)} ${escapeHtml(summaryAction)}</strong>
         <small><span>${escapeHtml(toast.label)}</span><span id="thought-toast-summary-time">${escapeHtml(thoughtTimestampLabel(toast.timestamp))}</span>${toast.metric ? `<span>${escapeHtml(toast.metric)}</span>` : ""}</small>
       </div>
       <label class="thought-toast-input-label">
@@ -4650,8 +4853,8 @@ function thoughtToastHtml() {
       <button class="icon-button thought-toast-action" data-action="${hasQuickNote ? "submit-thought-toast-note" : "open-thought-toast-note"}" data-id="${escapeHtml(toast.noteId)}" type="button" aria-label="${hasQuickNote ? (kind === "goal" ? "Submit progress note" : "Submit quick note") : "Open note"}" title="${hasQuickNote ? "Submit" : "Open Note"}">
         ${iconHtml(hasQuickNote ? "tabler:device-floppy" : "tabler:external-link")}
       </button>
-      <button class="icon-button danger-button thought-toast-delete" data-action="delete-thought-toast-note" data-id="${escapeHtml(toast.noteId)}" type="button" aria-label="Delete ${escapeHtml(config.noun)} note" title="Delete ${escapeHtml(config.noun)} note">${iconHtml("tabler:trash")}</button>
-      <button class="icon-button" data-action="dismiss-thought-toast" type="button" aria-label="Dismiss ${escapeHtml(config.noun)} popup" title="Dismiss">${iconHtml("tabler:x")}</button>
+      <button class="icon-button danger-button thought-toast-delete" data-action="delete-thought-toast-note" data-id="${escapeHtml(toast.noteId)}" type="button" aria-label="Delete ${escapeHtml(summaryNoun)} note" title="Delete ${escapeHtml(summaryNoun)} note">${iconHtml("tabler:trash")}</button>
+      <button class="icon-button" data-action="dismiss-thought-toast" type="button" aria-label="Dismiss ${escapeHtml(summaryNoun)} popup" title="Dismiss">${iconHtml("tabler:x")}</button>
     </aside>
   `;
 }
@@ -5013,8 +5216,6 @@ function sidebarHtml(compendium) {
           <span aria-hidden="true">/</span>
           <button class="sidebar-text-link" data-action="reset-tips" type="button">Reset tips</button>
           <span aria-hidden="true">/</span>
-          <button class="sidebar-text-link" data-action="factory-defaults" type="button">Factory Defaults</button>
-          <span aria-hidden="true">/</span>
           <button class="sidebar-text-link" data-action="clear-app-data" type="button">Clear Data</button>
         </div>
       </div>
@@ -5047,16 +5248,109 @@ function sidebarPagedItemsHtml(section, itemsHtml) {
   `;
 }
 
+function pathCrumbButton(label, action, attrs = {}, className = "") {
+  const attrHtml = Object.entries({ "data-action": action, ...attrs })
+    .map(([key, value]) => ` ${key}="${escapeHtml(value)}"`)
+    .join("");
+  return `<button${className ? ` class="${escapeHtml(className)}"` : ""}${attrHtml}>${escapeHtml(label)}</button>`;
+}
+
+function pathCrumbText(label, className = "truncate muted") {
+  return `<span class="${escapeHtml(className)}">${escapeHtml(label)}</span>`;
+}
+
+function bodyPathCrumbs() {
+  if (state.active !== "Body") return [];
+  const crumbs = [];
+  const mode = ["timers", "nutrition", "workout", "notes"].includes(state.bodyMode) ? state.bodyMode : "timers";
+  const modeLabels = {
+    timers: "Timers",
+    nutrition: "Nutrition",
+    workout: "Workout",
+    notes: "Notes"
+  };
+  crumbs.push(pathCrumbButton(modeLabels[mode], "set-body-mode", { "data-mode": mode }));
+  if (mode === "timers") {
+    const timer = bodyTimerConfig(state.bodyTimerMode);
+    crumbs.push(pathCrumbButton(timer.label, "set-body-timer-mode", { "data-mode": timer.key }));
+  }
+  if (mode === "nutrition") {
+    const nutritionMode = state.bodyNutritionMode === "goals" ? "goals" : "daily";
+    const nutritionLabel = nutritionMode === "goals" ? "Nutrition Goals" : "Daily Tracker";
+    crumbs.push(pathCrumbButton(nutritionLabel, "set-body-nutrition-mode", { "data-mode": nutritionMode }));
+  }
+  const note = findArtifact(state.artifactStore, state.selectedArtifactId);
+  if (note?.dashboard === "Body") crumbs.push(pathCrumbText(note.title));
+  return crumbs;
+}
+
+function lifePathCrumbs() {
+  if (state.active !== "Life") return [];
+  const crumbs = [];
+  const tool = ["todo", "projects", "calendar"].includes(state.lifeTool) ? state.lifeTool : "calendar";
+  const toolLabels = {
+    calendar: "Calendar",
+    todo: "Todo List",
+    projects: "Projects"
+  };
+  crumbs.push(pathCrumbButton(toolLabels[tool], "set-life-tool", { "data-tool": tool }));
+  if (tool === "calendar") {
+    const mode = ["day", "week", "month", "list"].includes(state.lifeMode) ? state.lifeMode : "month";
+    const modeLabels = {
+      month: "Month",
+      week: "Week",
+      day: "Day",
+      list: "List"
+    };
+    crumbs.push(pathCrumbButton(modeLabels[mode], "set-life-mode", { "data-mode": mode }));
+  }
+  if (tool === "projects") {
+    const project = selectedLifeProject();
+    const phase = selectedLifePhase(project);
+    const task = selectedLifeTask(phase);
+    if (project) crumbs.push(pathCrumbButton(project.title, "select-life-project", { "data-id": project.id }, "truncate"));
+    if (phase) crumbs.push(pathCrumbButton(phase.title, "select-life-phase", { "data-id": phase.id }, "truncate"));
+    if (task) crumbs.push(pathCrumbButton(task.title, "select-life-task", { "data-task-id": task.id }, "truncate"));
+  }
+  const note = findArtifact(state.artifactStore, state.selectedArtifactId);
+  if (note?.dashboard === "Life") crumbs.push(pathCrumbText(note.title));
+  return crumbs;
+}
+
+function spiritPathCrumbs(spiritBook) {
+  if (state.active !== "Spirit") return [];
+  const crumbs = [];
+  const years = spiritYears();
+  const activeYear = spiritBook?.year || (years.includes(state.spiritYear) ? state.spiritYear : years[0]);
+  if (activeYear) crumbs.push(pathCrumbButton(`Year ${activeYear}`, "set-spirit-year", { "data-year": activeYear }));
+  if (spiritBook) crumbs.push(pathCrumbText(spiritBook.title));
+  const note = findArtifact(state.artifactStore, state.selectedArtifactId);
+  if (note?.dashboard === "Spirit") crumbs.push(pathCrumbText(note.title));
+  return crumbs;
+}
+
+function pathBarExtraCrumbs(spiritBook) {
+  if (state.active === "Body") return bodyPathCrumbs();
+  if (state.active === "Life") return lifePathCrumbs();
+  if (state.active === "Spirit") return spiritPathCrumbs(spiritBook);
+  return [];
+}
+
+function pathBarCrumbsHtml(crumbs) {
+  return crumbs.map((crumb) => `<span>/</span>${crumb}`).join("");
+}
+
 function pathBarHtml(compendium, section, spiritBook) {
   const activeLabel = DASHBOARD_LABELS.includes(state.active) ? dashboardDisplayLabel(state.active) : state.active;
+  const extraCrumbs = pathBarExtraCrumbs(spiritBook);
   return `
-    <nav class="path-bar" aria-label="Current location" tabindex="0">
+    <nav class="path-bar" aria-label="Current location" tabindex="0"${extraCrumbs.length ? " data-focus-current=\"true\"" : ""}>
       <button class="dashboard-home-link" data-action="home">Dashboard</button>
       ${state.dismissedTips?.includes(DASHBOARD_RETURN_TIP) ? "" : `<button class="info-tip path-dashboard-tip" data-action="dismiss-tip" data-tip="${DASHBOARD_RETURN_TIP}" type="button"><span>click the dashboard link here anytime to return to the dashboard</span><i aria-hidden="true"></i></button>`}
       ${state.active !== "Dashboard" ? `<span>/</span><button data-action="dashboard-root">${escapeHtml(activeLabel)}</button>` : ""}
       ${compendium ? `<span>/</span><button class="truncate" data-action="compendium-root">${escapeHtml(compendium.title)}</button>` : ""}
       ${section ? `<span>/</span><span class="truncate muted">${escapeHtml(section.title)}</span>` : ""}
-      ${spiritBook ? `<span>/</span><span class="truncate muted">${escapeHtml(spiritBook.title)}</span>` : ""}
+      ${state.active === "Mind" ? "" : pathBarCrumbsHtml(extraCrumbs)}
     </nav>
   `;
 }
@@ -5198,17 +5492,18 @@ function dashboardAnalyticsHtml() {
 
 function settingsHtml() {
   const requestedTab = state.settingsTab === "dashboard" ? "interface" : state.settingsTab;
-  const tab = ["getting-started", "thoughts", "goals", "interface"].includes(requestedTab)
+  const tab = ["getting-started", "thoughts", "goals", "interface", "cloud"].includes(requestedTab)
     ? requestedTab
     : "getting-started";
   const panels = {
     "getting-started": settingsGettingStartedHtml(),
     thoughts: settingsThoughtsHtml(),
     goals: settingsGoalsHtml(),
-    interface: settingsInterfaceHtml()
+    interface: settingsInterfaceHtml(),
+    cloud: settingsCloudHtml()
   };
   return panelHtml(`
-    ${headerHtml("Settings", "Getting started, Thoughts, Goals, and Interface setup.")}
+    ${headerHtml("Settings", "Getting started, Thoughts, Goals, Interface, and Cloud setup.")}
     <div class="settings-page">
       ${settingsTabsHtml(tab)}
       ${panels[tab]}
@@ -5221,7 +5516,8 @@ function settingsTabsHtml(activeTab) {
       ["getting-started", "Getting Started", "tabler:sparkles"],
       ["thoughts", "Thoughts", "tabler:message-circle"],
       ["goals", "Goals", "tabler:target-arrow"],
-      ["interface", "Interface", "tabler:layout-dashboard"]
+      ["interface", "Interface", "tabler:layout-dashboard"],
+      ["cloud", "Cloud", "tabler:cloud"]
     ];
   return `
     <nav class="settings-tabs" aria-label="Settings tabs">
@@ -5240,6 +5536,16 @@ function settingsGettingStartedHtml() {
       <section class="getting-started-intro">
         <h3>Build a clear picture of your life</h3>
         <p>This space works best when it becomes a steady record of what you are learning, how you are taking care of yourself, what gives you direction, and what is actually happening day to day. Small entries are enough. The value comes from returning to them and seeing the pattern.</p>
+      </section>
+      <section class="getting-started-defaults">
+        <div class="getting-started-defaults-main">
+          <span class="getting-started-defaults-icon" aria-hidden="true">${iconHtml("fluent:person-heart-24-regular")}</span>
+          <div>
+            <h3>Self Help Defaults</h3>
+            <p>Start from the supportive default setup with the original sample notes, orbs, goals, tips, and app structure restored. This is the guided starter state for someone using the app to get steady when life feels scattered.</p>
+          </div>
+        </div>
+        <button class="primary-button" data-action="factory-defaults" type="button">${buttonContent("fluent:person-heart-24-regular", "Use Self Help Defaults")}</button>
       </section>
       <div class="getting-started-grid">
         <article>
@@ -5404,6 +5710,82 @@ function settingsInterfaceHtml() {
   `;
 }
 
+function settingsCloudHtml() {
+  const account = state.cloud || getCloudAccountState();
+  const entitlement = account.entitlement || {};
+  const signedIn = account.mode === "signed-in" && account.user;
+  const isCloud = entitlement.cloud === true || entitlement.admin === true;
+  const username = signedIn
+    ? (account.user.displayName || account.user.email || "Signed in")
+    : "";
+  const statusLabel = signedIn
+    ? (entitlement.admin ? "Admin / Cloud enabled" : isCloud ? "Cloud sync active" : "Cloud sync inactive")
+    : "Signed out";
+  const localBytes = estimateJsonBytes({
+    schemaVersion: SCHEMA_VERSION,
+    rootId: state.artifactStore?.rootId || "ourstuff-root",
+    artifacts: state.artifactStore?.artifacts || [],
+    appState: {
+      bodyTracker: state.bodyTracker,
+      spiritProgress: state.spiritProgress,
+      lifePlanner: state.lifePlanner,
+      thoughtSettings: state.trackerSettings,
+      goalSettings: state.goalSettings,
+      dashboardIdentity: state.dashboardIdentity,
+      theme: state.theme
+    }
+  });
+  const busyAttr = account.busy ? " disabled" : "";
+  return `
+    <div class="settings-tab-panel cloud-settings">
+      <section class="interface-settings-section cloud-account-section">
+        <div class="body-card-heading">
+          <div>
+            <h3>Cloud</h3>
+            <p>Local use is free. Cloud sync requires a subscription.</p>
+          </div>
+          <span class="cloud-status-pill${isCloud ? " is-active" : ""}">${escapeHtml(statusLabel)}</span>
+        </div>
+        ${signedIn ? `
+          <div class="cloud-account-card">
+            <span class="cloud-account-avatar">${iconHtml(account.isLocalDemo ? "tabler:cloud-check" : "tabler:user-circle")}</span>
+            <div>
+              <strong>Signed in as ${escapeHtml(username)}</strong>
+              <small>${escapeHtml(account.isLocalDemo ? "Local subscribed demo" : account.user.email || "Firebase account")}</small>
+            </div>
+          </div>
+          <div class="cloud-sync-grid">
+            <span><strong>${escapeHtml(formatFileSize(localBytes))}</strong><small>Current local JSON estimate</small></span>
+            <span><strong>${escapeHtml(account.lastCloudSyncAt ? new Date(account.lastCloudSyncAt).toLocaleString() : "Not synced")}</strong><small>Last sync from this device</small></span>
+          </div>
+          <div class="action-row cloud-actions">
+            ${isCloud ? `<button class="primary-button" data-action="cloud-sync-now" type="button"${busyAttr}>${buttonContent("tabler:cloud-up", "Sync now")}</button>` : ""}
+            ${isCloud ? `<button class="secondary-button" data-action="cloud-load" type="button"${busyAttr}>${buttonContent("tabler:cloud-down", "Load cloud")}</button>` : ""}
+            ${!isCloud ? `<button class="primary-button" data-action="cloud-subscribe" type="button"${busyAttr}>${buttonContent("tabler:credit-card", "Subscribe")}</button>` : ""}
+            ${account.billingCapable ? `<button class="secondary-button" data-action="cloud-billing" type="button"${busyAttr}>${buttonContent("tabler:receipt", "Manage Billing")}</button>` : ""}
+            <button class="secondary-button" data-action="cloud-sign-out" type="button"${busyAttr}>${buttonContent("tabler:logout", "Sign out")}</button>
+          </div>
+        ` : `
+          <div class="action-row cloud-actions">
+            <button class="primary-button" data-action="cloud-sign-in" type="button"${busyAttr}>${buttonContent("tabler:login-2", "Sign in / Upgrade")}</button>
+            <button class="secondary-button" data-action="cloud-google-sign-in" type="button"${busyAttr}>${buttonContent("tabler:brand-google", "Google")}</button>
+          </div>
+          <div class="cloud-email-form" aria-label="Email sign in">
+            <label class="body-field">Email<input id="cloud-email" type="email" autocomplete="email" placeholder="you@example.com"></label>
+            <label class="body-field">Password<input id="cloud-password" type="password" autocomplete="current-password" placeholder="Password"></label>
+            <div class="action-row cloud-actions">
+              <button class="secondary-button" data-action="cloud-email-sign-in" type="button"${busyAttr}>${buttonContent("tabler:mail", "Email sign in")}</button>
+              <button class="secondary-button" data-action="cloud-email-create" type="button"${busyAttr}>${buttonContent("tabler:user-plus", "Create account")}</button>
+            </div>
+          </div>
+        `}
+        ${account.message ? `<p class="cloud-status-message">${escapeHtml(account.message)}</p>` : ""}
+        ${account.error ? `<p class="cloud-status-message cloud-status-message--error">${escapeHtml(account.error)}</p>` : ""}
+      </section>
+    </div>
+  `;
+}
+
 function trackerAddFormHtml(area, kind = "thought") {
   const normalizedKind = trackerKind(kind);
   const config = trackerKindConfig(normalizedKind);
@@ -5442,6 +5824,9 @@ function trackerEditFormHtml(area, kind = "thought") {
   const fieldId = trackerFieldId(`${area}-${id}`, "icon");
   const enableFieldId = trackerFieldId(`${area}-${id}`, "enabled");
   const isGoal = normalizedKind === "goal";
+  const frequencyFieldId = trackerFieldId(`${area}-${id}`, "frequency");
+  const customDaysFieldId = trackerFieldId(`${area}-${id}`, "custom-days");
+  const goalFrequency = normalizeGoalFrequency(tracker);
   return `
     <div class="tracker-edit-form" data-tracker-edit-form data-area="${escapeHtml(area)}" data-id="${escapeHtml(id)}" data-kind="${normalizedKind}">
       <div class="tracker-edit-heading">
@@ -5472,6 +5857,21 @@ function trackerEditFormHtml(area, kind = "thought") {
             </label>`
             : ""}
         </div>
+        ${isGoal ? `
+          <div class="goal-frequency-editor">
+            <label class="body-field">Frequency
+              <select class="tracker-frequency-input" id="${escapeHtml(frequencyFieldId)}">
+                ${goalFrequencyOptionsHtml(tracker)}
+              </select>
+            </label>
+            <label class="body-field goal-frequency-custom">Custom span
+              <span class="goal-frequency-slider-row">
+                <input class="tracker-frequency-input goal-frequency-range" id="${escapeHtml(customDaysFieldId)}" type="range" min="1" max="365" step="1" value="${escapeHtml(goalFrequency.customDays)}"${goalFrequency.frequency === "custom" ? "" : " disabled"}>
+                <output for="${escapeHtml(customDaysFieldId)}">${escapeHtml(`${goalFrequency.customDays} day${goalFrequency.customDays === 1 ? "" : "s"}`)}</output>
+              </span>
+            </label>
+          </div>
+        ` : ""}
       </div>
     </div>
   `;
@@ -5929,6 +6329,10 @@ function lifeCalendarEvents() {
 function renderLifeMonthCalendar() {
   const calendarEl = document.getElementById("life-fullcalendar");
   if (!calendarEl || state.active !== "Life" || state.lifeMode !== "month") return;
+  if (isMobileViewport()) {
+    calendarEl.innerHTML = lifeMobileMonthAgendaHtml();
+    return;
+  }
   if (!window.FullCalendar?.Calendar) {
     calendarEl.innerHTML = lifeMonthFallbackHtml();
     return;
@@ -5964,6 +6368,32 @@ function renderLifeMonthCalendar() {
     }
   });
   calendar.render();
+}
+
+function lifeMobileMonthAgendaHtml() {
+  const now = new Date();
+  const month = now.getMonth();
+  const year = now.getFullYear();
+  const days = Array.from({ length: new Date(year, month + 1, 0).getDate() }, (_, index) => {
+    const date = new Date(year, month, index + 1);
+    const dateKey = dateKeyFromDate(date);
+    return { dateKey, events: eventsForDate(dateKey) };
+  });
+  return `
+    <div class="life-mobile-month-agenda" aria-label="${escapeHtml(new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" }).format(now))} agenda">
+      ${days.map(({ dateKey, events }) => `
+        <section class="life-mobile-month-day${events.length ? " has-events" : ""}">
+          <div class="life-mobile-month-date">
+            <strong>${escapeHtml(new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(new Date(`${dateKey}T12:00:00`)))}</strong>
+            <span>${escapeHtml(String(Number(dateKey.slice(-2))))}</span>
+          </div>
+          <div class="life-mobile-month-events">
+            ${events.length ? events.map((event) => lifeEventRowHtml(event, "mobile-month")).join("") : "<p>No activity</p>"}
+          </div>
+        </section>
+      `).join("")}
+    </div>
+  `;
 }
 
 function eventsForDate(dateKey) {
@@ -6744,6 +7174,30 @@ function compendiumTitleHtml(compendium, className = "compendium-tile-title") {
   return `<span class="${className}${compendiumTitleSizeClass(displayTitle.text)}" title="${escapeHtml(title)}">${escapeHtml(displayTitle.text)}</span>`;
 }
 
+function compendiumPickerPopoverHtml(perPage) {
+  return `
+    <div class="compendium-picker-popover" role="dialog" aria-label="All compendiums">
+      <div class="compendium-picker-header">
+        <div>
+          <strong>Compendiums</strong>
+          <p>Organize your knowledge with a compendium.</p>
+        </div>
+        <button class="icon-button compendium-picker-add" data-action="new-compendium" type="button" aria-label="Add Compendium" title="Add Compendium">${iconHtml("tabler:plus")}</button>
+      </div>
+      ${state.compendiums.length ? `
+        <div class="compendium-picker-grid">
+          ${state.compendiums.map((compendium, index) => `
+            <button class="compendium-picker-tile" data-action="select-mind-compendium" data-id="${compendium.id}" data-index="${index}" data-per-page="${perPage}" type="button">
+              <b>${String(index + 1).padStart(2, "0")}</b>
+              ${compendiumTitleHtml(compendium, "compendium-picker-title")}
+            </button>
+          `).join("")}
+        </div>
+      ` : `<div class="compendium-picker-empty"><strong>No compendiums yet.</strong><span>Add one to start building the grid.</span></div>`}
+    </div>
+  `;
+}
+
 function mindGridHtml() {
   const columns = mindCompendiumColumns();
   const perPage = mindCompendiumsPerPage();
@@ -6753,8 +7207,8 @@ function mindGridHtml() {
   const page = mindCompendiumPage(maxPage);
   const hasPrev = shouldPage && page > 0;
   const hasNext = shouldPage && page < maxPage;
-  const currentStart = page * perPage + 1;
-  const currentEnd = Math.min(state.compendiums.length, currentStart + perPage - 1);
+  const currentStart = state.compendiums.length ? page * perPage + 1 : 0;
+  const currentEnd = state.compendiums.length ? Math.min(state.compendiums.length, currentStart + perPage - 1) : 0;
   return panelHtml(`
     <div class="scroll-area mind-grid-scroll">
       ${headerHtml(dashboardDisplayLabel("Mind"), "Organize your knowledge with a compendium.", "", { titleHtml: dashboardHeaderTitleHtml("Mind") })}
@@ -6788,35 +7242,17 @@ function mindGridHtml() {
             ${shouldPage ? `<button class="compendium-rotator-edge compendium-rotator-edge--next${hasNext ? " is-available" : ""}" data-action="mind-compendium-page" data-direction="next" data-max-page="${maxPage}" type="button" aria-label="Next compendiums"${hasNext ? "" : " disabled"}>
               ${iconHtml("tabler:chevron-right")}
             </button>` : ""}
-            ${state.mindCompendiumPickerOpen ? `
-              <div class="compendium-picker-popover" role="dialog" aria-label="All compendiums">
-                <div class="compendium-picker-header">
-                  <strong>Compendiums</strong>
-                  <p>Organize your knowledge with a compendium.</p>
-                </div>
-                <div class="compendium-picker-grid">
-                  ${state.compendiums.map((compendium, index) => `
-                    <button class="compendium-picker-tile" data-action="select-mind-compendium" data-id="${compendium.id}" data-index="${index}" data-per-page="${perPage}" type="button">
-                      <b>${String(index + 1).padStart(2, "0")}</b>
-                      ${compendiumTitleHtml(compendium, "compendium-picker-title")}
-                    </button>
-                  `).join("")}
-                </div>
-                <div class="compendium-picker-actions">
-                  <button class="secondary-button" data-action="new-compendium" type="button">${buttonContent("tabler:plus", "Add Compendium")}</button>
-                </div>
-              </div>
-            ` : ""}
+            ${state.mindCompendiumPickerOpen ? compendiumPickerPopoverHtml(perPage) : ""}
           </div>
         </section>
-      ` : `<div class="compendium-empty-wrap">${emptyStateHtml("No compendiums yet.", `Add the first compendium to begin organizing ${dashboardDisplayLabel("Mind")}.`)}</div>`}
+      ` : `<div class="compendium-empty-wrap">${emptyStateHtml("No compendiums yet.", `Add the first compendium to begin organizing ${dashboardDisplayLabel("Mind")}.`)}${state.mindCompendiumPickerOpen ? compendiumPickerPopoverHtml(perPage) : ""}</div>`}
       <div class="compendium-grid-controls">
         <button class="reader-page-indicator compendium-page-indicator" data-action="toggle-mind-compendium-picker" type="button" aria-label="${state.mindCompendiumPickerOpen ? "Close compendium overview" : "Open compendium overview"}" aria-expanded="${state.mindCompendiumPickerOpen ? "true" : "false"}">
           <span class="reader-page-dot reader-page-dot--side${hasPrev ? " is-available" : ""}" aria-hidden="true"></span>
           <span class="reader-page-dot reader-page-dot--current" aria-label="Compendiums ${currentStart} through ${currentEnd} of ${state.compendiums.length}"></span>
           <span class="reader-page-dot reader-page-dot--side${hasNext ? " is-available" : ""}" aria-hidden="true"></span>
         </button>
-        <p>click here for a grid view</p>
+        ${state.dismissedTips?.includes(COMPENDIUM_GRID_TIP) ? "" : `<button class="compendium-grid-tooltip" data-action="dismiss-tip" data-tip="${COMPENDIUM_GRID_TIP}" type="button">click here for a grid view<i aria-hidden="true"></i></button>`}
       </div>
     </div>
   `);
@@ -6948,9 +7384,14 @@ function dashboardNoteEditorHtml(note) {
     saveAction: "save-artifact-note",
     cancelAction: "artifact-viewer",
     id: note.id,
+    statusLabel: note.properties?.isNewDraft ? "Unsaved" : "Saved",
     valueTitle: note.title,
     valueBody: note.body
   });
+}
+
+function editorSaveStatusHtml(label) {
+  return label ? `<span class="editor-save-status">(${escapeHtml(label)})</span>` : "";
 }
 
 function lifeJournalEditorHtml(note) {
@@ -6973,6 +7414,7 @@ function lifeJournalEditorHtml(note) {
       </div>
     `)}
     <form class="editor-form life-editor-form">
+      ${editorSaveStatusHtml(note.properties?.isNewDraft ? "Unsaved" : "Saved")}
       <input id="editor-title" value="${escapeHtml(note.title)}" aria-label="Title">
       <div class="life-editor-grid">
         <label class="body-field">Date<input id="life-entry-date" type="date" value="${escapeHtml(note.properties?.dateKey || todayDateKey())}"></label>
@@ -7013,7 +7455,7 @@ function lifeJournalEditorHtml(note) {
   `);
 }
 
-function editorHtml({ title, subtitle, saveAction, cancelAction, id, valueTitle, valueBody }) {
+function editorHtml({ title, subtitle, saveAction, cancelAction, id, statusLabel = "", valueTitle, valueBody }) {
   return panelHtml(`
     ${headerHtml(title, subtitle, `
       <div class="action-row">
@@ -7024,6 +7466,7 @@ function editorHtml({ title, subtitle, saveAction, cancelAction, id, valueTitle,
       </div>
     `)}
     <form class="editor-form">
+      ${editorSaveStatusHtml(statusLabel)}
       <input id="editor-title" value="${escapeHtml(valueTitle)}" aria-label="Title">
       <div class="editor-body-wrap has-image-button">
         <textarea id="editor-body" aria-label="Body">${escapeHtml(valueBody)}</textarea>
@@ -7220,6 +7663,28 @@ function bindTrackerEditorAutoSave() {
       input.addEventListener("change", saveOpenEditor);
     });
     form.querySelector(".tracker-enabled-toggle input")?.addEventListener("change", saveOpenEditor);
+    const frequencySelect = form.querySelector(".tracker-frequency-input[id$='-frequency']");
+    const customRange = form.querySelector(".goal-frequency-range");
+    const customOutput = form.querySelector(".goal-frequency-slider-row output");
+    const syncFrequencyControls = () => {
+      if (!customRange) return;
+      const isCustom = frequencySelect?.value === "custom";
+      customRange.disabled = !isCustom;
+      if (customOutput) {
+        const days = Math.max(1, Math.round(Number(customRange.value) || 1));
+        customOutput.textContent = `${days} day${days === 1 ? "" : "s"}`;
+      }
+    };
+    frequencySelect?.addEventListener("change", () => {
+      syncFrequencyControls();
+      saveOpenEditor();
+    });
+    customRange?.addEventListener("input", () => {
+      syncFrequencyControls();
+      scheduleSave();
+    });
+    customRange?.addEventListener("change", saveOpenEditor);
+    syncFrequencyControls();
   });
 }
 
@@ -7258,8 +7723,18 @@ function bindPathBarOverflow() {
   const pathBar = app.querySelector(".path-bar");
   if (!pathBar) return;
   const refresh = () => updatePathBarOverflow(pathBar);
+  const focusCurrent = () => {
+    if (pathBar.dataset.focusCurrent !== "true" || pathBar.dataset.currentFocused === "true") return;
+    const maxScroll = Math.max(0, pathBar.scrollWidth - pathBar.clientWidth);
+    if (maxScroll > 0) pathBar.scrollLeft = maxScroll;
+    pathBar.dataset.currentFocused = "true";
+    refresh();
+  };
   refresh();
-  requestAnimationFrame(refresh);
+  requestAnimationFrame(() => {
+    focusCurrent();
+    refresh();
+  });
   pathBar.addEventListener("scroll", refresh, { passive: true });
   pathBar.addEventListener("wheel", (event) => {
     if (pathBar.scrollWidth <= pathBar.clientWidth) return;
@@ -7631,6 +8106,15 @@ function handleAction(element) {
   }
   if (action === "close-settings") goHome();
   if (action === "set-settings-tab") setState({ settingsTab: element.dataset.tab === "dashboard" ? "interface" : element.dataset.tab || "getting-started", trackerAddArea: "", trackerEditKey: "", trackerDeleteKey: "" });
+  if (action === "cloud-sign-in") void runCloudAction("Signing in...", () => signInToCloud());
+  if (action === "cloud-google-sign-in") void runCloudAction("Opening Google sign-in...", () => signInWithGoogle());
+  if (action === "cloud-email-sign-in") void runCloudAction("Signing in...", () => signInWithEmailForm());
+  if (action === "cloud-email-create") void runCloudAction("Creating account...", () => signInWithEmailForm({ create: true }));
+  if (action === "cloud-sign-out") void runCloudAction("Signing out...", () => signOutCloud());
+  if (action === "cloud-subscribe") void runCloudAction("Opening subscription checkout...", () => startCloudSubscription(cloudReturnUrl()));
+  if (action === "cloud-billing") void runCloudAction("Opening billing portal...", () => openBillingPortal(cloudReturnUrl()));
+  if (action === "cloud-sync-now") void runCloudAction("Syncing to Cloud...", () => syncCloudNow());
+  if (action === "cloud-load") void runCloudAction("Loading Cloud state...", () => loadCloudIntoLocalApp());
   if (action === "start-add-tracker") setState({ trackerAddArea: trackerAddKey(element.dataset.area || "", element.dataset.kind || "thought"), trackerEditKey: "", trackerDeleteKey: "" });
   if (action === "cancel-add-tracker") setState({ trackerAddArea: "" });
   if (action === "start-edit-tracker") {
@@ -7733,7 +8217,7 @@ function handleAction(element) {
   if (action === "edit-section") setState({ mindMode: "section-editor" });
   if (action === "section-viewer") setState({ mindMode: "section-viewer" });
   if (action === "edit-artifact-note") setState({ artifactMode: "editor" });
-  if (action === "artifact-viewer") setState({ artifactMode: "viewer" });
+  if (action === "artifact-viewer") closeArtifactEditor();
   if (action === "close-artifact-viewer") closeArtifactViewer();
   if (action === "save-compendium") saveCompendium(element.dataset.id, editorTitle(), editorBody());
   if (action === "save-section") saveSection(element.dataset.id, editorTitle(), editorBody());
@@ -7764,6 +8248,10 @@ function updateBodyTimerDom() {
 
 applyEnvironmentClasses();
 render();
+void initCloudAccount((cloud) => {
+  state.cloud = cloud;
+  render();
+});
 
 const installedAppMedia = window.matchMedia?.(INSTALLED_APP_QUERY);
 const mobileViewportMedia = window.matchMedia?.(MOBILE_MENU_QUERY);

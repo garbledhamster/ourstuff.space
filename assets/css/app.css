@@ -288,6 +288,9 @@ select option:checked {
 :root.theme-consolas .thoughts-settings-intro,
 :root.theme-consolas .thoughts-settings-section,
 :root.theme-consolas .interface-settings-section,
+:root.theme-consolas .cloud-account-card,
+:root.theme-consolas .cloud-sync-grid span,
+:root.theme-consolas .cloud-status-pill,
 :root.theme-consolas .getting-started-grid article,
 :root.theme-consolas .compendium-tile,
 :root.theme-consolas .compendium-picker-popover,
@@ -1328,9 +1331,9 @@ select option:checked {
   gap: 6px;
   width: 100%;
   min-height: 76px;
-  border: 1px solid var(--border-soft);
-  border-radius: 12px;
-  background: var(--theme-control, rgba(15, 23, 42, 0.72));
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   padding: 8px;
 }
 
@@ -1731,6 +1734,7 @@ select option:checked {
 }
 
 .getting-started-intro,
+.getting-started-defaults,
 .getting-started-rhythm,
 .getting-started-grid article {
   border: 1px solid var(--border-soft);
@@ -1740,6 +1744,7 @@ select option:checked {
 }
 
 .getting-started-intro h3,
+.getting-started-defaults h3,
 .getting-started-rhythm h3,
 .getting-started-grid h3 {
   margin: 0 0 8px;
@@ -1748,11 +1753,38 @@ select option:checked {
 }
 
 .getting-started-intro p,
+.getting-started-defaults p,
 .getting-started-rhythm p,
 .getting-started-grid p {
   margin: 0;
   color: var(--muted);
   line-height: 1.55;
+}
+
+.getting-started-defaults {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+}
+
+.getting-started-defaults-main {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+}
+
+.getting-started-defaults-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border: 1px solid color-mix(in srgb, var(--accent) 52%, var(--border-soft));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  font-size: 1.45rem;
 }
 
 .getting-started-grid {
@@ -1795,7 +1827,7 @@ select option:checked {
 
 .settings-tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   border: 1px solid var(--border-soft);
   border-radius: 16px;
@@ -1821,6 +1853,12 @@ select option:checked {
 }
 
 .interface-settings {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.cloud-settings {
   display: grid;
   align-content: start;
   gap: 14px;
@@ -2148,6 +2186,117 @@ select option:checked {
   border-color: #94a3b8;
   background: #1e293b;
   color: #fff;
+}
+
+.cloud-account-section {
+  display: grid;
+  gap: 14px;
+}
+
+.cloud-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: var(--theme-control);
+  color: var(--muted);
+  padding: 6px 12px;
+  font-family: var(--font-label);
+  font-size: 0.72rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.cloud-status-pill.is-active {
+  border-color: color-mix(in srgb, var(--success) 62%, var(--border-soft));
+  background: color-mix(in srgb, var(--success) 18%, var(--theme-control));
+  color: #dcfce7;
+}
+
+.cloud-account-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: var(--theme-control);
+  padding: 12px;
+}
+
+.cloud-account-avatar {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 20%, var(--surface));
+  color: var(--accent);
+}
+
+.cloud-account-avatar .button-icon {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+.cloud-account-card strong,
+.cloud-sync-grid strong {
+  display: block;
+  color: var(--text);
+  font-family: var(--font-label);
+  font-size: 0.88rem;
+  line-height: 1.2;
+}
+
+.cloud-account-card small,
+.cloud-sync-grid small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.25;
+}
+
+.cloud-sync-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.cloud-sync-grid span {
+  min-width: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: var(--theme-control);
+  padding: 10px;
+}
+
+.cloud-email-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.cloud-email-form .action-row {
+  grid-column: 1 / -1;
+}
+
+.cloud-actions {
+  flex-wrap: wrap;
+}
+
+.cloud-status-message {
+  min-height: 1.2rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.cloud-status-message--error {
+  color: var(--danger);
 }
 
 .thoughts-settings-sections {
@@ -2655,6 +2804,45 @@ select option:checked {
   color: var(--muted);
   font-size: 0.68rem;
   text-align: center;
+}
+
+.goal-frequency-editor {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.38fr) minmax(0, 1fr);
+  gap: 10px;
+  width: 100%;
+}
+
+.goal-frequency-custom {
+  min-width: 0;
+}
+
+.goal-frequency-slider-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.goal-frequency-range {
+  width: 100%;
+  min-width: 0;
+  accent-color: var(--thought-color, var(--accent));
+}
+
+.goal-frequency-range:disabled {
+  opacity: 0.48;
+}
+
+.goal-frequency-slider-row output {
+  min-width: 58px;
+  color: var(--text);
+  font-family: var(--font-label);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .tracker-edit-heading {
@@ -3487,9 +3675,17 @@ select option:checked {
 }
 
 .compendium-picker-header {
-  display: grid;
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
   gap: 3px;
   padding: 2px 4px 4px;
+}
+
+.compendium-picker-header > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
 }
 
 .compendium-picker-header strong {
@@ -3505,6 +3701,30 @@ select option:checked {
   color: var(--muted);
   font-size: 0.82rem;
   line-height: 1.35;
+}
+
+.compendium-picker-add {
+  flex: 0 0 auto;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+}
+
+.compendium-picker-empty {
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  min-height: 172px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.compendium-picker-empty strong {
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 1rem;
 }
 
 .compendium-picker-popover::-webkit-scrollbar {
@@ -3695,6 +3915,7 @@ select option:checked {
 }
 
 .compendium-empty-wrap {
+  position: relative;
   display: grid;
   justify-self: center;
   width: min(100%, 648px);
@@ -3706,11 +3927,41 @@ select option:checked {
   min-height: 318px;
 }
 
-.compendium-grid-controls p {
-  margin: 0;
+.compendium-grid-tooltip {
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--accent) 48%, var(--border-soft));
+  border-radius: 10px;
+  background: rgba(2, 6, 23, 0.94);
   color: var(--muted);
+  padding: 7px 9px;
+  font-family: var(--font-label);
   font-size: 0.78rem;
+  font-weight: 900;
   line-height: 1.2;
+}
+
+.compendium-grid-tooltip i {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% - 1px);
+  width: 10px;
+  height: 10px;
+  background: rgba(2, 6, 23, 0.94);
+  border-left: 1px solid color-mix(in srgb, var(--accent) 48%, var(--border-soft));
+  border-top: 1px solid color-mix(in srgb, var(--accent) 48%, var(--border-soft));
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.compendium-grid-tooltip:hover,
+.compendium-grid-tooltip:focus-visible {
+  color: #fff;
+  border-color: var(--accent);
+  outline: none;
+}
+
+.compendium-grid-tooltip.is-dismissed {
+  opacity: 0.58;
+  text-decoration: line-through;
 }
 
 .section-list {
@@ -4871,9 +5122,8 @@ select option:checked {
   flex-direction: column;
   width: 100%;
   max-width: 100%;
-  aspect-ratio: 1 / 1;
+  min-height: 118px;
   min-width: 0;
-  min-height: 0;
   overflow: hidden;
 }
 
@@ -4887,7 +5137,7 @@ select option:checked {
 
 .life-fullcalendar .fc-daygrid-day-events {
   display: grid;
-  gap: 2px;
+  gap: 4px;
   width: 100%;
   max-width: 100%;
   flex: 1 1 auto;
@@ -4897,7 +5147,7 @@ select option:checked {
   margin: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 0 1px 2px 0;
+  padding: 2px 3px 5px;
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
   -webkit-mask-image: linear-gradient(to bottom, #000 90%, transparent 100%);
@@ -4918,7 +5168,8 @@ select option:checked {
   margin-left: auto;
   color: #fff;
   font-weight: 900;
-  padding: 7px 8px 2px;
+  padding: 8px 10px 4px;
+  font-size: 0.9rem;
   text-align: right;
 }
 
@@ -4938,9 +5189,9 @@ select option:checked {
 
 .life-fullcalendar .fc-event {
   display: block;
-  max-width: calc(100% - 4px);
+  max-width: calc(100% - 6px);
   min-width: 0;
-  margin: 1px 2px;
+  margin: 1px 3px;
   border: 1px solid var(--border-soft);
   border-radius: 5px;
   background: rgba(2, 6, 23, 0.74);
@@ -4956,11 +5207,11 @@ select option:checked {
 .life-fc-event-inner {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 1px;
+  gap: 2px;
   min-width: 0;
   max-width: 100%;
-  padding: 2px 3px;
-  line-height: 1.05;
+  padding: 5px 6px;
+  line-height: 1.15;
   overflow: hidden;
 }
 
@@ -4969,7 +5220,7 @@ select option:checked {
   overflow: hidden;
   color: var(--faint);
   font-family: var(--font-label);
-  font-size: 0.52rem;
+  font-size: 0.64rem;
   font-weight: 900;
   letter-spacing: 0;
   line-height: 1.1;
@@ -4983,7 +5234,7 @@ select option:checked {
   max-width: 100%;
   overflow: hidden;
   color: #e2e8f0;
-  font-size: 0.64rem;
+  font-size: 0.78rem;
   font-weight: 900;
   letter-spacing: 0;
   line-height: 1.1;
@@ -4995,6 +5246,70 @@ select option:checked {
 
 .life-fc-event-inner em {
   display: none;
+}
+
+.life-mobile-month-agenda {
+  display: grid;
+  gap: 8px;
+  max-height: min(64vh, 620px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.life-mobile-month-day {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.58);
+  padding: 10px;
+}
+
+.life-mobile-month-day.has-events {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border-soft));
+  background: rgba(15, 23, 42, 0.82);
+}
+
+.life-mobile-month-date {
+  display: grid;
+  place-items: center;
+  align-self: start;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: #020617;
+  padding: 6px 4px;
+}
+
+.life-mobile-month-date strong {
+  color: var(--faint);
+  font-family: var(--font-label);
+  font-size: 0.58rem;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.life-mobile-month-date span {
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.life-mobile-month-events {
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 48px;
+}
+
+.life-mobile-month-events > p {
+  margin: 0;
+  color: var(--faint);
+  font-size: 0.78rem;
 }
 
 .life-month-grid {
@@ -5133,6 +5448,21 @@ select option:checked {
 .life-date-list {
   display: grid;
   gap: 10px;
+}
+
+.life-event-list .empty-state,
+.life-date-list .empty-state {
+  height: auto;
+  min-height: 96px;
+  align-content: center;
+  padding: 28px 20px;
+}
+
+.life-event-list .empty-state p,
+.life-date-list .empty-state p {
+  max-width: 34rem;
+  margin: 10px auto 0;
+  line-height: 1.45;
 }
 
 .life-date-list {
@@ -5888,6 +6218,23 @@ button.life-event-row:hover {
   grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
+.editor-form:has(.editor-save-status) {
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.editor-save-status {
+  display: block;
+  margin: 0 0 -6px 2px;
+  color: var(--faint);
+  font-family: var(--font-label);
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .editor-form input,
 .editor-form textarea,
 .field-label input {
@@ -6129,7 +6476,11 @@ button.life-event-row:hover {
 :root.theme-palette:not(.theme-consolas) .thoughts-settings-intro,
 :root.theme-palette:not(.theme-consolas) .thoughts-settings-section,
 :root.theme-palette:not(.theme-consolas) .interface-settings-section,
+:root.theme-palette:not(.theme-consolas) .cloud-account-card,
+:root.theme-palette:not(.theme-consolas) .cloud-sync-grid span,
+:root.theme-palette:not(.theme-consolas) .cloud-status-pill,
 :root.theme-palette:not(.theme-consolas) .getting-started-intro,
+:root.theme-palette:not(.theme-consolas) .getting-started-defaults,
 :root.theme-palette:not(.theme-consolas) .getting-started-rhythm,
 :root.theme-palette:not(.theme-consolas) .getting-started-grid article,
 :root.theme-palette:not(.theme-consolas) .dashboard-analytics,
@@ -6336,6 +6687,11 @@ button.life-event-row:hover {
   border-color: var(--border-strong);
 }
 
+:root.theme-palette:not(.theme-consolas) .dashboard-chart-switcher {
+  border: 0;
+  background: transparent;
+}
+
 :root.theme-palette:not(.theme-consolas) .theme-choice,
 :root.theme-palette:not(.theme-consolas) .getting-started-grid article,
 :root.theme-palette:not(.theme-consolas) .body-card,
@@ -6384,6 +6740,7 @@ button.life-event-row:hover {
 :root.theme-palette:not(.theme-consolas) .dashboard-bar-value,
 :root.theme-palette:not(.theme-consolas) .panel-header h2,
 :root.theme-palette:not(.theme-consolas) .getting-started-intro h3,
+:root.theme-palette:not(.theme-consolas) .getting-started-defaults h3,
 :root.theme-palette:not(.theme-consolas) .getting-started-rhythm h3,
 :root.theme-palette:not(.theme-consolas) .getting-started-grid h3,
 :root.theme-palette:not(.theme-consolas) .thoughts-settings-intro h3,
@@ -6422,6 +6779,7 @@ button.life-event-row:hover {
 :root.theme-palette:not(.theme-consolas) .panel-header p,
 :root.theme-palette:not(.theme-consolas) .path-bar span,
 :root.theme-palette:not(.theme-consolas) .getting-started-intro p,
+:root.theme-palette:not(.theme-consolas) .getting-started-defaults p,
 :root.theme-palette:not(.theme-consolas) .getting-started-rhythm p,
 :root.theme-palette:not(.theme-consolas) .getting-started-grid p,
 :root.theme-palette:not(.theme-consolas) .getting-started-grid span,
@@ -6554,6 +6912,7 @@ button.life-event-row:hover {
 :root.theme-consolas .spirit-pill-row em,
 :root.theme-consolas .spirit-focus-grid p,
 :root.theme-consolas .getting-started-intro,
+:root.theme-consolas .getting-started-defaults,
 :root.theme-consolas .getting-started-rhythm,
 :root.theme-consolas .getting-started-grid article,
 :root.theme-consolas .body-card,
@@ -6623,6 +6982,11 @@ button.life-event-row:hover {
   color: var(--text);
 }
 
+:root.theme-consolas .dashboard-chart-switcher {
+  border: 0;
+  background: transparent;
+}
+
 :root.theme-consolas .donation-modal {
   background: rgba(5, 5, 5, 0.82);
 }
@@ -6641,6 +7005,7 @@ button.life-event-row:hover {
 :root.theme-consolas .spirit-lookup-link,
 :root.theme-consolas .spirit-focus-grid p,
 :root.theme-consolas .getting-started-intro h3,
+:root.theme-consolas .getting-started-defaults h3,
 :root.theme-consolas .getting-started-rhythm h3,
 :root.theme-consolas .getting-started-grid h3,
 :root.theme-consolas .body-card-heading h3,
@@ -6690,6 +7055,7 @@ button.life-event-row:hover {
 :root.theme-consolas .spirit-pill-row small,
 :root.theme-consolas .spirit-pill-row em,
 :root.theme-consolas .getting-started-intro p,
+:root.theme-consolas .getting-started-defaults p,
 :root.theme-consolas .getting-started-rhythm p,
 :root.theme-consolas .getting-started-grid p,
 :root.theme-consolas .getting-started-grid span,
@@ -7391,6 +7757,10 @@ button.life-event-row:hover {
     grid-template-columns: 1fr;
   }
 
+  .goal-frequency-editor {
+    grid-template-columns: 1fr;
+  }
+
   .icon-picker-overlay {
     align-items: end;
     justify-items: stretch;
@@ -7486,6 +7856,15 @@ button.life-event-row:hover {
     grid-template-columns: 1fr;
   }
 
+  .getting-started-defaults {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .getting-started-defaults .primary-button {
+    width: 100%;
+  }
+
   .reader-heading {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -7579,39 +7958,8 @@ button.life-event-row:hover {
 
   .life-fullcalendar .fc-daygrid-day-frame {
     aspect-ratio: auto;
-    height: clamp(64px, 18vw, 82px);
+    height: auto;
     min-height: 0;
-  }
-
-  .life-fullcalendar .fc-daygrid-day-number {
-    padding: 5px 5px 1px;
-    font-size: 0.72rem;
-    line-height: 1;
-  }
-
-  .life-fullcalendar .fc-daygrid-day-events {
-    gap: 1px;
-    padding: 0 0 2px;
-  }
-
-  .life-fullcalendar .fc-event {
-    max-width: calc(100% - 2px);
-    margin: 1px;
-    border-radius: 4px;
-  }
-
-  .life-fc-event-inner {
-    padding: 2px;
-  }
-
-  .life-fc-event-inner span {
-    display: none;
-  }
-
-  .life-fc-event-inner strong {
-    font-size: 0.56rem;
-    line-height: 1.08;
-    overflow-wrap: anywhere;
   }
 
   .life-month-heading {

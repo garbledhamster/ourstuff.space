@@ -2,140 +2,737 @@
 
 ## Goal
 
-Use one Cloudflare Worker as the secure payments backend for all `*.ourstuff.space` sites.
+Use one shared Cloudflare Worker as the secure payments and entitlement backend for all `*.ourstuff.space` apps.
 
-Sites can be hosted anywhere, including GitHub Pages. The sites should only show UI and collect user intent. The Worker owns all payment rules, Stripe calls, webhook verification, and redirect decisions.
+The frontend apps may be hosted on GitHub Pages or another static host. Frontend apps collect user intent only. The Worker owns:
 
-## Current Worker
+- Stripe Checkout creation.
+- Stripe subscription creation.
+- Stripe Billing Portal session creation.
+- Stripe webhook verification.
+- Donation fulfillment records.
+- Subscription entitlement records.
+- D1 writes.
+- Firebase token verification.
+- Firebase profile/entitlement copy updates.
+- Firebase custom-claim updates.
 
-Worker:
+Keep this system simple and secure. Do not leak PII.
+
+## Required Services
+
+This document is limited to these services:
+
+- Firebase
+- Stripe
+- Cloudflare Workers
+- Cloudflare D1
+
+Do not add unrelated services unless explicitly requested.
+
+## Configuration Placeholders
+
+Do not commit real secrets, personal account names, personal URLs, emails, or raw identifiers.
+
+Use placeholders in docs and examples:
 
 ```text
-https://stripe-worker-api.jrice.workers.dev
+<PAYMENTS_WORKER_URL>
+<FIREBASE_PROJECT_ID>
+<STRIPE_CLOUD_PRICE_ID>
+<D1_DATABASE_NAME>
+<D1_DATABASE_ID>
+<APP_DOMAIN>
+<APP_ID>
+<SITE_ID>
 ```
 
-Current test storefront:
+Runtime values belong in Cloudflare Worker env vars/secrets, Firebase Console, Stripe Dashboard, or deployment settings.
+
+## Core Architecture
 
 ```text
-https://stripe-worker-api.jrice.workers.dev/demo
-```
+Frontend app
+  -> Firebase Auth for sign-in
+  -> Firestore for app-state sync
+  -> Payments Worker for subscription/billing actions
 
-Current sandbox Stripe Price:
+Payments Worker
+  -> verifies Firebase ID tokens
+  -> creates Stripe Checkout sessions
+  -> receives Stripe webhooks
+  -> writes D1 subscription/payment records
+  -> writes Firebase entitlement copy
+  -> sets Firebase custom claims
 
-```text
-price_1TXWGsRvyjsch3IA2akwV1zf
-```
+Stripe
+  -> upstream billing system
 
-Allowed browser origins:
+D1
+  -> private backend mirror/source for app entitlement
 
-```text
-https://ourstuff.space
-https://*.ourstuff.space
+Firebase
+  -> frontend-readable identity, entitlement copy, and synced app JSON
 ```
 
 ## Security Rules
 
-Never put these in GitHub Pages or browser JavaScript:
+Never put these in GitHub Pages, browser JavaScript, or committed docs:
 
 ```text
 STRIPE_SECRET_KEY
-STRIPE_WEBHOOK_SECRETS
+STRIPE_WEBHOOK_SECRET
 API_AUTH_TOKEN
+FIREBASE_SERVICE_ACCOUNT_JSON
+FIREBASE_PRIVATE_KEY
+D1_DATABASE_ID
+OWNER_UIDS
+OWNER_EMAILS
+PII_HASH_SECRET
 ```
 
-Public sites may send only safe inputs, such as:
+Frontend may send only safe intent:
 
 ```json
 {
-  "site": "classics",
+  "site": "<SITE_ID>",
+  "appId": "<APP_ID>",
+  "returnUrl": "https://<APP_DOMAIN>/settings"
+}
+```
+
+For authenticated purchase/subscription/account actions, the frontend sends a Firebase ID token:
+
+```http
+Authorization: Bearer <FIREBASE_ID_TOKEN>
+```
+
+Do not log:
+
+- Firebase ID tokens.
+- Stripe secret keys.
+- Stripe webhook signing secrets.
+- raw webhook bodies in normal logs.
+- service account JSON.
+- raw emails.
+- payment method details.
+- full customer objects.
+
+## PII-Minimizing Data Policy
+
+Use Firebase Auth and Stripe for identity/payment details. Do not duplicate raw PII into app databases unless strictly needed.
+
+Recommended:
+
+- Use Firebase UID as the main app identity key.
+- Store Stripe customer/subscription IDs in D1, not in frontend-readable documents unless needed.
+- Store raw customer email only in Stripe/Firebase Auth, not in D1 or Firestore.
+- If a backend lookup needs an email fallback, prefer a keyed hash stored server-side only.
+- Display the signed-in user's own email/name from Firebase Auth in the UI, but do not log it.
+- Store minimal entitlement fields in Firestore.
+
+Firestore `/users/{uid}` should contain only:
+
+```json
+{
+  "role": "member",
+  "cloud": true,
+  "admin": false,
+  "subscriptionStatus": "active",
+  "plan": "cloud",
+  "createdAt": "server timestamp",
+  "updatedAt": "server timestamp"
+}
+```
+
+D1 may contain Stripe IDs and subscription status, but should avoid raw PII.
+
+## Cloudflare Worker Configuration
+
+### wrangler.toml shape
+
+Use placeholders:
+
+```toml
+name = "<PAYMENTS_WORKER_NAME>"
+main = "src/worker.ts"
+compatibility_date = "2026-05-23"
+
+[vars]
+FIREBASE_PROJECT_ID = "<FIREBASE_PROJECT_ID>"
+STRIPE_CLOUD_PRICE_ID = "<STRIPE_CLOUD_PRICE_ID>"
+APP_BASE_DOMAIN = "ourstuff.space"
+ALLOWED_ORIGINS = "https://ourstuff.space,https://*.ourstuff.space,http://localhost:4173"
+
+[[d1_databases]]
+binding = "PAYMENTS_DB"
+database_name = "<D1_DATABASE_NAME>"
+database_id = "<D1_DATABASE_ID>"
+```
+
+### Secrets
+
+Set secrets through Wrangler, not committed files:
+
+```powershell
+npx wrangler secret put STRIPE_SECRET_KEY
+npx wrangler secret put STRIPE_WEBHOOK_SECRET
+npx wrangler secret put FIREBASE_SERVICE_ACCOUNT_JSON
+npx wrangler secret put API_AUTH_TOKEN
+npx wrangler secret put OWNER_UIDS
+```
+
+Optional only if needed:
+
+```powershell
+npx wrangler secret put OWNER_EMAILS
+npx wrangler secret put PII_HASH_SECRET
+```
+
+Prefer `OWNER_UIDS` over owner email where possible.
+
+## D1 Setup
+
+Create database:
+
+```powershell
+npx wrangler d1 create <D1_DATABASE_NAME>
+```
+
+Apply schema:
+
+```powershell
+npx wrangler d1 execute <D1_DATABASE_NAME> --file=./schema.sql --remote
+```
+
+Local dev, if used:
+
+```powershell
+npx wrangler d1 execute <D1_DATABASE_NAME> --file=./schema.sql --local
+```
+
+## D1 Schema
+
+Create `schema.sql` in the Worker repo.
+
+```sql
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  firebase_uid TEXT NOT NULL,
+  stripe_customer_id TEXT NOT NULL,
+  stripe_subscription_id TEXT NOT NULL,
+  stripe_price_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  current_period_start INTEGER,
+  current_period_end INTEGER,
+  cancel_at_period_end INTEGER DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  raw_event_id TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_subscriptions_customer
+ON subscriptions(stripe_customer_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_subscriptions_subscription
+ON subscriptions(stripe_subscription_id);
+
+CREATE INDEX IF NOT EXISTS idx_subscriptions_firebase_uid
+ON subscriptions(firebase_uid);
+
+CREATE TABLE IF NOT EXISTS stripe_events (
+  stripe_event_id TEXT PRIMARY KEY,
+  type TEXT NOT NULL,
+  processed_at INTEGER NOT NULL,
+  payload_json TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS donations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  site TEXT NOT NULL,
+  stripe_checkout_session_id TEXT NOT NULL,
+  stripe_payment_intent_id TEXT,
+  amount_cents INTEGER NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'usd',
+  status TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  raw_event_id TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_donations_session
+ON donations(stripe_checkout_session_id);
+
+CREATE INDEX IF NOT EXISTS idx_donations_site
+ON donations(site);
+```
+
+Notes:
+
+- D1 is private to the Worker.
+- Frontend must never read or write D1.
+- Firestore Security Rules do not talk to D1.
+- The Worker copies only minimal entitlement state to Firebase.
+
+## Stripe Setup
+
+### Products
+
+Create a Stripe Product:
+
+```text
+Name: Cloud
+Billing: recurring monthly
+Price: 9.99 USD/month
+```
+
+Store the monthly Price ID as:
+
+```text
+STRIPE_CLOUD_PRICE_ID
+```
+
+Do not commit the real Price ID unless this repo intentionally stores public Stripe config. Prefer env/config placeholders.
+
+### Webhook Endpoint
+
+Stripe webhook URL:
+
+```text
+<PAYMENTS_WORKER_URL>/api/webhooks/stripe
+```
+
+Required events:
+
+```text
+checkout.session.completed
+checkout.session.expired
+customer.subscription.created
+customer.subscription.updated
+customer.subscription.deleted
+invoice.paid
+invoice.payment_failed
+```
+
+Rules:
+
+- Fulfillment must happen from verified webhooks.
+- The success page is display-only.
+- Do not grant access based only on a URL query parameter.
+- Deduplicate webhook events using `stripe_events`.
+
+### Billing Portal
+
+Use Stripe Customer Portal for:
+
+- update payment method
+- view invoices
+- cancel subscription
+- manage subscription
+
+Do not build custom billing management for MVP.
+
+## Worker Endpoint Contracts
+
+Current implementation note:
+
+- `C:\Codex\stripe-worker-api` implements the subscription frontend endpoints below.
+- Firebase custom claims and Firestore entitlement-copy writes are attempted only when the Worker has `FIREBASE_SERVICE_ACCOUNT_JSON` configured as a secret.
+- The frontend must treat D1/Worker entitlement as the payment source of truth and never write entitlement fields itself.
+
+### POST /api/bootstrap-user
+
+Purpose:
+
+- Verify Firebase ID token.
+- Ensure the Firebase user has correct entitlement claims.
+- Write minimal `/users/{uid}` profile/entitlement copy.
+
+Input:
+
+```http
+Authorization: Bearer <FIREBASE_ID_TOKEN>
+```
+
+Behavior:
+
+- Verify token.
+- Extract UID and verified account data.
+- If UID is in `OWNER_UIDS`, grant admin/cloud.
+- If using `OWNER_EMAILS`, require verified email before admin/cloud.
+- Otherwise look up D1 subscription by Firebase UID.
+- Compute entitlement.
+- Set Firebase custom claims.
+- Write minimal Firestore profile.
+
+Output:
+
+```json
+{
+  "uid": "<uid>",
+  "role": "member",
+  "cloud": false,
+  "admin": false,
+  "subscriptionStatus": "inactive",
+  "plan": null
+}
+```
+
+Do not return raw Stripe customer objects or raw PII.
+
+### POST /api/subscriptions/checkout
+
+Purpose:
+
+- Create Stripe Checkout session for the Cloud subscription.
+
+Input:
+
+```http
+Authorization: Bearer <FIREBASE_ID_TOKEN>
+Content-Type: application/json
+```
+
+```json
+{
+  "site": "<SITE_ID>",
+  "appId": "<APP_ID>",
+  "returnUrl": "https://<APP_DOMAIN>/settings"
+}
+```
+
+Behavior:
+
+- Verify Firebase ID token.
+- If owner/admin, do not create checkout; return current entitlement.
+- Create or reuse a Stripe customer keyed by Firebase UID metadata.
+- Create Checkout Session with `mode=subscription`.
+- Use `STRIPE_CLOUD_PRICE_ID` server-side.
+- Add metadata:
+  - `firebase_uid`
+  - `site`
+  - `app_id`
+- Add the same metadata to `subscription_data.metadata`.
+- Return only the Checkout URL.
+
+Output:
+
+```json
+{
+  "url": "https://checkout.stripe.com/..."
+}
+```
+
+### POST /api/subscriptions/portal
+
+Purpose:
+
+- Create Stripe Billing Portal session.
+
+Input:
+
+```http
+Authorization: Bearer <FIREBASE_ID_TOKEN>
+Content-Type: application/json
+```
+
+```json
+{
+  "returnUrl": "https://<APP_DOMAIN>/settings"
+}
+```
+
+Behavior:
+
+- Verify Firebase ID token.
+- Look up Stripe customer ID from D1 by Firebase UID.
+- If no customer exists, return a controlled error.
+- If owner/admin without Stripe customer, return no portal needed.
+- Return Billing Portal URL.
+
+Output:
+
+```json
+{
+  "url": "https://billing.stripe.com/..."
+}
+```
+
+### POST /api/donations/checkout
+
+Purpose:
+
+- Create anonymous or optional-auth donation Checkout session.
+
+Input:
+
+```json
+{
+  "site": "<SITE_ID>",
   "amount": 10
 }
 ```
 
-The Worker decides:
+Behavior:
 
-- which sites are allowed
-- which amounts are allowed
-- which Stripe product/price/label to use
-- where success and cancel redirects go
-- whether a Firebase user token is valid
-- whether a checkout session belongs to the current user
+- Validate site against Worker registry.
+- Validate amount against server-side presets/custom min/max.
+- Create Checkout Session with dynamic `price_data`.
+- Do not allow browser-controlled product/price IDs.
 
-## Standard Donation Flow
+### GET /api/checkout/sessions/:sessionId
 
-Example site:
+Purpose:
+
+- Return safe thank-you page display data.
+
+Output shape:
+
+```json
+{
+  "status": "paid",
+  "amount": "$10.00",
+  "site": "Site Name"
+}
+```
+
+Do not return raw customer details. If customer email is displayed, return it only for authenticated same-user purchase flows and avoid storing/logging it.
+
+### POST /api/webhooks/stripe
+
+Purpose:
+
+- Trusted Stripe fulfillment.
+
+Behavior:
+
+- Verify Stripe webhook signature using `STRIPE_WEBHOOK_SECRET`.
+- Deduplicate via `stripe_events`.
+- For donations, record safe donation status in D1.
+- For subscriptions, upsert D1 subscription record.
+- Compute entitlement.
+- Update Firebase profile copy.
+- Set Firebase custom claims.
+
+## Subscription Entitlement Logic
+
+Use this conceptual logic:
+
+```ts
+function computeEntitlement(input) {
+  if (input.isOwner === true) {
+    return {
+      role: "admin",
+      admin: true,
+      cloud: true,
+      subscriptionStatus: "owner",
+      plan: "owner"
+    };
+  }
+
+  if (input.stripeStatus === "active" || input.stripeStatus === "trialing") {
+    return {
+      role: "member",
+      admin: false,
+      cloud: true,
+      subscriptionStatus: input.stripeStatus,
+      plan: "cloud"
+    };
+  }
+
+  return {
+    role: "member",
+    admin: false,
+    cloud: false,
+    subscriptionStatus: input.stripeStatus || "inactive",
+    plan: null
+  };
+}
+```
+
+MVP status policy:
 
 ```text
-https://classics.ourstuff.space
+active      -> cloud true
+trialing    -> cloud true only if trials are intentionally enabled
+past_due    -> cloud false for MVP
+unpaid      -> cloud false
+canceled    -> cloud true only until current_period_end if Stripe reports a still-open paid period
+incomplete  -> cloud false
 ```
 
-User flow:
+Cancellation rule:
 
-1. User clicks a donate/thanks button on the site.
-2. Site opens its own styled donation UI.
-3. User chooses `$5`, `$10`, `$15`, `$20`, `$25`, `$50`, `$100`, or custom.
-4. Site sends the selected amount to the Worker.
-5. Worker validates the amount and site.
-6. Worker creates a Stripe Checkout Session.
-7. Browser redirects to Stripe.
-8. Stripe redirects back to the site thank-you page.
-9. Site asks the Worker for safe checkout details to display.
+- `cancel_at_period_end=true` must not remove access immediately.
+- The Worker stores current subscription period timestamps in D1 and keeps access active until `current_period_end`.
+- After `current_period_end`, bootstrap and sync checks must resolve the entitlement as inactive unless a Stripe renewal/update extended the period.
 
-The user experience is:
+## Firebase Update From Worker
+
+Worker must perform backend Firebase operations only from server-side code.
+
+Required backend Firebase actions:
+
+- Verify Firebase ID token from frontend requests.
+- Write `/users/{uid}` entitlement copy.
+- Set custom claims.
+
+Implementation note:
+
+- Use a Worker-compatible Firebase Admin approach.
+- Do not assume browser Firebase SDK can do admin actions.
+- If the Node Admin SDK is not compatible with the Worker runtime, use Firebase/Google REST APIs with a service-account credential stored as a Worker secret.
+
+## Firebase Custom Claims
+
+Owner/admin:
+
+```json
+{
+  "cloud": true,
+  "admin": true,
+  "role": "admin"
+}
+```
+
+Paid member:
+
+```json
+{
+  "cloud": true,
+  "admin": false,
+  "role": "member"
+}
+```
+
+Signed-in non-premium:
+
+```json
+{
+  "cloud": false,
+  "admin": false,
+  "role": "member"
+}
+```
+
+## Firestore Entitlement Copy
+
+Worker writes:
 
 ```text
-ourstuff site UI -> Stripe payment page -> ourstuff thank-you page
+/users/{uid}
 ```
 
-## Frontend Pattern
+Minimal document:
 
-Each site can use a simple button:
-
-```html
-<button id="donate-button" type="button">Donate</button>
+```json
+{
+  "role": "member",
+  "cloud": true,
+  "admin": false,
+  "subscriptionStatus": "active",
+  "plan": "cloud",
+  "createdAt": "server timestamp",
+  "updatedAt": "server timestamp"
+}
 ```
 
-The site should call the Worker when the user confirms an amount:
+Do not let the frontend write this document.
+
+## Frontend Subscription Pattern
+
+Frontend starts subscription checkout:
 
 ```js
-async function startDonation(amount) {
-  const response = await fetch("https://stripe-worker-api.jrice.workers.dev/api/donations/checkout", {
+async function startCloudSubscription({ idToken, site, appId, returnUrl }) {
+  const response = await fetch(`${PAYMENTS_WORKER_URL}/api/subscriptions/checkout`, {
     method: "POST",
     headers: {
-      "content-type": "application/json"
+      "content-type": "application/json",
+      "authorization": `Bearer ${idToken}`
     },
-    body: JSON.stringify({
-      site: "classics",
-      amount
-    })
+    body: JSON.stringify({ site, appId, returnUrl })
   });
 
   const result = await response.json();
 
   if (!response.ok) {
-    throw new Error(result?.error?.message || "Donation checkout failed");
+    throw new Error(result?.error?.message || "Subscription checkout failed");
   }
 
-  window.location.assign(result.url);
+  if (result.url) {
+    window.location.assign(result.url);
+  }
+
+  return result;
 }
 ```
 
-## Worker Donation Rules
+Frontend opens billing portal:
 
-The Worker should keep a server-side site registry:
+```js
+async function openBillingPortal({ idToken, returnUrl }) {
+  const response = await fetch(`${PAYMENTS_WORKER_URL}/api/subscriptions/portal`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "authorization": `Bearer ${idToken}`
+    },
+    body: JSON.stringify({ returnUrl })
+  });
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(result?.error?.message || "Billing portal failed");
+  }
+
+  if (result.url) {
+    window.location.assign(result.url);
+  }
+
+  return result;
+}
+```
+
+## Site Registry
+
+Worker should keep a server-side registry.
+
+Example:
 
 ```ts
-const DONATION_SITES = {
-  classics: {
-    name: "Classics",
-    origin: "https://classics.ourstuff.space",
-    successPath: "/donate/thanks",
-    cancelPath: "/"
+const SITES = {
+  main: {
+    id: "main",
+    name: "Ourstuff",
+    origin: "https://ourstuff.space",
+    donateSuccessPath: "/donate/thanks",
+    donateCancelPath: "/",
+    cloudReturnPath: "/settings"
   }
 };
 ```
 
-The Worker should validate donation amounts:
+Rules:
+
+- Browser cannot choose arbitrary success/cancel URLs.
+- Worker validates requested `site` and `returnUrl` against the registry.
+- Worker validates origins with a strict allowlist.
+
+## Donation Flow
+
+Donation flow can remain anonymous.
+
+```text
+site UI
+-> Worker /api/donations/checkout
+-> Stripe Checkout
+-> site thank-you page
+-> Worker safe checkout session lookup
+```
+
+Allowed donation amounts should be server-side:
 
 ```ts
 const presetAmounts = [5, 10, 15, 20, 25, 50, 100];
@@ -143,138 +740,118 @@ const minCustomAmount = 1;
 const maxCustomAmount = 500;
 ```
 
-Then create Stripe Checkout with dynamic `price_data`, not browser-controlled prices:
-
-```ts
-line_items: [
-  {
-    quantity: 1,
-    price_data: {
-      currency: "usd",
-      unit_amount: amount * 100,
-      product_data: {
-        name: `Donation to ${site.name}`
-      }
-    }
-  }
-]
-```
-
-Success URL:
-
-```text
-https://classics.ourstuff.space/donate/thanks?session_id={CHECKOUT_SESSION_ID}
-```
-
-Cancel URL:
-
-```text
-https://classics.ourstuff.space/
-```
-
-## Thank-You Page Pattern
-
-GitHub Pages route:
-
-```text
-/donate/thanks
-```
-
-The page reads:
-
-```js
-const sessionId = new URLSearchParams(window.location.search).get("session_id");
-```
-
-Then asks the Worker for safe display data:
-
-```js
-const response = await fetch(
-  `https://stripe-worker-api.jrice.workers.dev/api/checkout/sessions/${encodeURIComponent(sessionId)}`
-);
-```
-
-The Worker should return only safe fields:
+Frontend may send:
 
 ```json
 {
-  "status": "paid",
-  "amount": "$10.00",
-  "site": "Classics",
-  "customerEmail": "person@example.com"
+  "site": "main",
+  "amount": 10
 }
 ```
 
-The thanks page displays that using the site's normal style.
+Worker decides product name, unit amount, success URL, cancel URL, and Stripe parameters.
 
-## Firebase Auth Pattern
-
-For carts, subscriptions, or user-specific purchases:
-
-1. User signs in with Firebase on the GitHub Pages site.
-2. Site gets a Firebase ID token.
-3. Site sends it to the Worker:
-
-```http
-Authorization: Bearer FIREBASE_ID_TOKEN
-```
-
-4. Worker verifies the Firebase token.
-5. Worker stores the Firebase UID in Stripe metadata:
-
-```ts
-metadata: {
-  firebaseUid,
-  site: "classics"
-}
-```
-
-6. Success lookup only returns data if the Firebase UID matches.
-
-Donations can be anonymous. Purchases, subscriptions, and account pages should use Firebase.
-
-## Webhooks
-
-Stripe sends payment events to:
+## Subscription Flow
 
 ```text
-https://stripe-worker-api.jrice.workers.dev/api/webhooks/stripe
+User signs in with Firebase
+↓
+Frontend calls /api/bootstrap-user
+↓
+If not cloud, user clicks Subscribe
+↓
+Frontend calls /api/subscriptions/checkout with Firebase ID token
+↓
+Worker verifies token and creates Stripe Checkout Session
+↓
+Stripe redirects to success URL
+↓
+Stripe webhook reaches /api/webhooks/stripe
+↓
+Worker verifies webhook and updates D1
+↓
+Worker writes Firebase entitlement copy and custom claims
+↓
+Frontend force-refreshes token and enables cloud sync
 ```
 
-Webhook events are used for trusted fulfillment, such as:
-
-- recording donations
-- granting access
-- activating subscriptions
-- updating user purchase history
-- sending email or notifications
-
-Do not rely only on the thank-you page for fulfillment. The thank-you page is display-only.
-
-## Adding A New Site
-
-To add `classics.ourstuff.space`:
-
-1. Add a site entry in the Worker registry.
-2. Add a donate button/modal to the GitHub Pages site.
-3. Point the button to `POST /api/donations/checkout`.
-4. Add `/donate/thanks` to the site.
-5. Deploy the Worker.
-6. Test with Stripe test card:
-
-```text
-4242 4242 4242 4242
-Any future expiration
-Any CVC
-Any ZIP
-```
-
-## Deploy
+## Cloudflare Deployment
 
 From the Worker project:
 
 ```powershell
-cd C:\Codex\stripe-worker-api
 npm run typecheck
 npx wrangler deploy
 ```
+
+If there is no TypeScript setup, use the repo's existing check command.
+
+After deploy:
+
+- Confirm Worker route.
+- Confirm CORS allowlist.
+- Confirm Stripe webhook endpoint uses the deployed Worker URL.
+- Confirm D1 binding works.
+- Confirm secrets exist.
+
+## Testing
+
+### Local checks
+
+- [ ] Worker starts locally if supported.
+- [ ] D1 schema applies locally.
+- [ ] CORS allows expected local origin only.
+- [ ] CORS rejects unknown origins.
+- [ ] Donation checkout rejects bad amounts.
+- [ ] Subscription checkout rejects missing/invalid Firebase token.
+- [ ] Subscription checkout accepts valid Firebase token.
+- [ ] Webhook rejects invalid signature.
+- [ ] Webhook dedupes repeated event IDs.
+
+### Stripe test checks
+
+- [ ] Donation Checkout succeeds in test mode.
+- [ ] Subscription Checkout succeeds in test mode.
+- [ ] Webhook receives checkout/subscription events.
+- [ ] D1 subscription row is written.
+- [ ] Firebase `/users/{uid}` is updated.
+- [ ] Custom claims are set.
+- [ ] Billing Portal opens for subscribed users.
+- [ ] Canceled/unpaid subscription removes cloud access.
+
+### PII/security checks
+
+- [ ] No raw emails in repo docs.
+- [ ] No account usernames in repo docs.
+- [ ] No secret keys in repo docs.
+- [ ] No service-account JSON in repo docs.
+- [ ] No Firebase ID token logs.
+- [ ] No raw Stripe webhook body logs in normal operation.
+- [ ] D1 is not exposed to frontend.
+
+## Adding A New ourstuff.space App
+
+For a new app:
+
+1. Add the site/app to the Worker registry.
+2. Define `APP_ID` in the frontend.
+3. Use the shared Firebase project.
+4. Use the shared payments Worker.
+5. Add Link Settings Cloud UI.
+6. Add Firebase sign-in from `FIREBASE_MCP_CODEX.md`.
+7. Add full JSON app-state export/import.
+8. Save app state to `/users/{uid}/apps/{appId}`.
+9. Use `/api/bootstrap-user` after sign-in.
+10. Use `/api/subscriptions/checkout` for Cloud subscription.
+11. Use `/api/subscriptions/portal` for billing.
+12. Verify Firestore rules prevent cross-user access.
+
+## Official Reference Links
+
+- Stripe Checkout overview: https://docs.stripe.com/payments/checkout/how-checkout-works
+- Stripe subscriptions webhooks: https://docs.stripe.com/billing/subscriptions/webhooks
+- Cloudflare D1 get started: https://developers.cloudflare.com/d1/get-started/
+- Cloudflare Worker secrets: https://developers.cloudflare.com/workers/configuration/secrets/
+- Firebase MCP server: https://firebase.google.com/docs/ai-assistance/mcp-server
+- Firebase custom claims: https://firebase.google.com/docs/auth/admin/custom-claims
+- Firestore Security Rules: https://firebase.google.com/docs/firestore/security/get-started
