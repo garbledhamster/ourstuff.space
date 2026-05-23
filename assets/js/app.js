@@ -7,6 +7,8 @@ import {
   loadTheme as loadThemeSelection,
   normalizeTheme as normalizeThemeSelection,
   saveTheme as saveThemeSelection,
+  THEME_COLOR_FIELDS,
+  themeColors,
   themeFontLabel as themeSystemFontLabel,
   themePreviewStyle
 } from "./themeSystem.js";
@@ -14,8 +16,10 @@ import { autoUpdate, computePosition, flip, offset, shift } from "https://cdn.js
 import {
   artifactStoreToCompendiums,
   compendiumsToArtifactStore,
+  createEmptyStore,
   findArtifact,
   loadArtifactStore,
+  loadSeedStore,
   removeArtifact,
   rootNotesForDashboard,
   SCHEMA_VERSION,
@@ -33,6 +37,7 @@ const GOAL_SETTINGS_KEY = "ourstuff.goals.v1";
 const DASHBOARD_IDENTITY_KEY = "ourstuff.dashboardIdentity.v1";
 const SIDEBAR_WIDTH_KEY = "ourstuff.sidebarWidth.v1";
 const THEME_KEY = "ourstuff.theme.v1";
+const DISMISSED_TIPS_KEY = "ourstuff.dismissedTips.v1";
 const ICONIFY_SEARCH_CACHE_KEY = "ourstuff.iconifySearchCache.v1";
 const ICONIFY_SEARCH_URL = "https://api.iconify.design/search";
 const ICONIFY_PREFIXES = "tabler,lucide,ph,mdi,material-symbols";
@@ -119,7 +124,9 @@ const COMPENDIUM_TWO_QUERY = "(max-width: 820px)";
 const COMPENDIUM_ONE_QUERY = "(max-width: 520px)";
 const COMPENDIUM_ROWS_PER_PAGE = 2;
 const DASHBOARD_LABELS = ["Mind", "Body", "Spirit", "Life"];
+const DASHBOARD_RETURN_TIP = "dashboard-return";
 const DEFAULT_DASHBOARD_IDENTITY = {
+  displayMode: "numbers",
   showNumbers: true,
   showIcons: false,
   items: {
@@ -650,6 +657,7 @@ function cloneDefaultGoals() {
 
 function cloneDefaultDashboardIdentity() {
   return {
+    displayMode: DEFAULT_DASHBOARD_IDENTITY.displayMode,
     showNumbers: DEFAULT_DASHBOARD_IDENTITY.showNumbers,
     showIcons: DEFAULT_DASHBOARD_IDENTITY.showIcons,
     items: Object.fromEntries(DASHBOARD_LABELS.map((dashboard) => [
@@ -666,9 +674,13 @@ function normalizeIconSource(value) {
 
 function normalizeDashboardIdentity(value) {
   const defaults = cloneDefaultDashboardIdentity();
+  const displayMode = value?.displayMode === "icons" || value?.showIcons === true
+    ? "icons"
+    : "numbers";
   return {
-    showNumbers: typeof value?.showNumbers === "boolean" ? value.showNumbers : defaults.showNumbers,
-    showIcons: typeof value?.showIcons === "boolean" ? value.showIcons : defaults.showIcons,
+    displayMode,
+    showNumbers: displayMode === "numbers",
+    showIcons: displayMode === "icons",
     items: Object.fromEntries(DASHBOARD_LABELS.map((dashboard) => {
       const current = value?.items?.[dashboard] || value?.[dashboard] || {};
       const fallback = defaults.items[dashboard];
@@ -819,6 +831,28 @@ function saveTheme(theme) {
   });
 }
 
+function loadDismissedTips() {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(DISMISSED_TIPS_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveDismissedTips(tips = state.dismissedTips) {
+  window.localStorage.setItem(DISMISSED_TIPS_KEY, JSON.stringify(Array.from(new Set(tips || []))));
+}
+
+function clearDismissedTips() {
+  try {
+    window.localStorage.removeItem(DISMISSED_TIPS_KEY);
+  } catch {
+    // Tip dismissal state is optional; reset should continue if storage is blocked.
+  }
+  state.dismissedTips = [];
+}
+
 function applyThemeVariables(themeId) {
   return applyThemeSystemVariables(themeId, {
     themes: APP_THEMES,
@@ -833,6 +867,27 @@ function themeFontLabel(theme) {
     fontSets: THEME_FONT_SETS,
     fallbackFontSet: "classic"
   });
+}
+
+function themePaletteHtml(theme) {
+  const colors = themeColors(theme);
+  return `
+    <span class="theme-choice-palette" aria-label="${escapeHtml(`${theme.label} color parameters`)}">
+      ${THEME_COLOR_FIELDS.map((field) => {
+        const color = colors[field];
+        return `
+          <span
+            class="theme-choice-swatch"
+            style="--theme-swatch-color: ${escapeHtml(color)};"
+            data-theme-label="${escapeHtml(field)}"
+            data-thought-tooltip="${escapeHtml(field)}"
+            title="${escapeHtml(field)}"
+            aria-hidden="true"
+          ></span>
+        `;
+      }).join("")}
+    </span>
+  `;
 }
 
 function loadIconifySearchCache() {
@@ -1191,6 +1246,7 @@ const state = {
   lifeMode: "month",
   settingsTab: "getting-started",
   theme: loadTheme(),
+  dismissedTips: loadDismissedTips(),
   dashboardIdentity: loadDashboardIdentity(),
   trackerAddArea: "",
   trackerEditKey: "",
@@ -1393,6 +1449,10 @@ function dashboardInlineLabelHtml(dashboard) {
   if (state.dashboardIdentity?.showIcons) parts.push(iconHtml(dashboardDisplayIcon(dashboard)));
   parts.push(`<span>${escapeHtml(dashboardDisplayLabel(dashboard))}</span>`);
   return parts.join("");
+}
+
+function dashboardHeaderTitleHtml(dashboard) {
+  return `<span class="dashboard-header-title">${dashboardInlineLabelHtml(dashboard)}</span>`;
 }
 
 function isImageIconSource(value) {
@@ -3160,30 +3220,42 @@ function importArtifacts() {
 }
 
 async function clearAppData() {
-  const confirmed = window.confirm("Clear all local app data from this browser? This cannot be undone unless you have an export.");
+  const confirmed = window.confirm("Clear everything from this browser, including the mock app data and dismissed tips? This cannot be undone unless you have an export.");
   if (!confirmed) return;
-  window.localStorage.removeItem(STORAGE_KEY);
+  const emptyStore = createEmptyStore();
   window.localStorage.removeItem(BODY_TRACKER_KEY);
   window.localStorage.removeItem(SPIRIT_PROGRESS_KEY);
   window.localStorage.removeItem(LIFE_PLANNER_KEY);
   window.localStorage.removeItem(TRACKER_SETTINGS_KEY);
   window.localStorage.removeItem(GOAL_SETTINGS_KEY);
+  window.localStorage.removeItem(DASHBOARD_IDENTITY_KEY);
   window.localStorage.removeItem(SIDEBAR_WIDTH_KEY);
   window.localStorage.removeItem(THEME_KEY);
   window.localStorage.removeItem(ICONIFY_SEARCH_CACHE_KEY);
+  clearDismissedTips();
   await clearLocalFiles().catch(() => {});
-  state.artifactStore = null;
+  saveArtifactStore(emptyStore);
+  state.artifactStore = emptyStore;
   state.compendiums = [];
   state.bodyTracker = createDefaultBodyTracker();
   state.spiritProgress = {};
   state.lifePlanner = createDefaultLifePlanner();
   state.trackerSettings = cloneDefaultTrackers();
   state.goalSettings = cloneDefaultGoals();
+  state.dashboardIdentity = cloneDefaultDashboardIdentity();
   state.theme = "default";
   state.settingsTab = "getting-started";
   state.trackerAddArea = "";
   state.trackerEditKey = "";
   state.trackerDeleteKey = "";
+  state.active = "Dashboard";
+  state.flipped = null;
+  state.mindMode = "grid";
+  state.artifactMode = "grid";
+  state.selectedCompendiumId = null;
+  state.selectedSectionId = null;
+  state.selectedArtifactId = null;
+  state.selectedSpiritBookKey = null;
   state.lifeTool = "";
   state.selectedLifeProjectId = null;
   state.selectedLifePhaseId = null;
@@ -3191,14 +3263,61 @@ async function clearAppData() {
   state.galleryImages = null;
   state.gallerySelectedIds = [];
   goHome();
-  loadArtifactStore().then(async (artifactStore) => {
-    if (artifactStore.appState && !hasStoredAppState()) {
-      await restoreImportedAppState(artifactStore.appState);
-    }
-    setState({
-      artifactStore,
-      compendiums: normalizeCompendiums(artifactStoreToCompendiums(artifactStore))
-    });
+}
+
+async function restoreFactoryDefaults() {
+  const confirmed = window.confirm("Restore factory defaults with the original mock data and show tips again? This replaces local app data unless you have an export.");
+  if (!confirmed) return;
+  const seedStore = await loadSeedStore();
+  window.localStorage.removeItem(STORAGE_KEY);
+  window.localStorage.removeItem(BODY_TRACKER_KEY);
+  window.localStorage.removeItem(SPIRIT_PROGRESS_KEY);
+  window.localStorage.removeItem(LIFE_PLANNER_KEY);
+  window.localStorage.removeItem(TRACKER_SETTINGS_KEY);
+  window.localStorage.removeItem(GOAL_SETTINGS_KEY);
+  window.localStorage.removeItem(DASHBOARD_IDENTITY_KEY);
+  window.localStorage.removeItem(SIDEBAR_WIDTH_KEY);
+  window.localStorage.removeItem(THEME_KEY);
+  window.localStorage.removeItem(ICONIFY_SEARCH_CACHE_KEY);
+  clearDismissedTips();
+  await clearLocalFiles().catch(() => {});
+  state.artifactStore = seedStore;
+  state.compendiums = normalizeCompendiums(artifactStoreToCompendiums(seedStore));
+  state.bodyTracker = createDefaultBodyTracker();
+  state.spiritProgress = {};
+  state.lifePlanner = createDefaultLifePlanner();
+  state.trackerSettings = cloneDefaultTrackers();
+  state.goalSettings = cloneDefaultGoals();
+  state.dashboardIdentity = cloneDefaultDashboardIdentity();
+  state.theme = "default";
+  state.settingsTab = "getting-started";
+  state.trackerAddArea = "";
+  state.trackerEditKey = "";
+  state.trackerDeleteKey = "";
+  state.active = "Dashboard";
+  state.flipped = null;
+  state.mindMode = "grid";
+  state.artifactMode = "grid";
+  state.selectedCompendiumId = null;
+  state.selectedSectionId = null;
+  state.selectedArtifactId = null;
+  state.selectedSpiritBookKey = null;
+  state.lifeTool = "";
+  state.selectedLifeProjectId = null;
+  state.selectedLifePhaseId = null;
+  state.selectedLifeTaskId = null;
+  state.galleryImages = null;
+  state.gallerySelectedIds = [];
+  if (seedStore.appState) await restoreImportedAppState(seedStore.appState);
+  saveArtifactStore(seedStore);
+  saveDashboardIdentity(state.dashboardIdentity);
+  saveTheme(state.theme);
+  setState({
+    active: "Dashboard",
+    flipped: null,
+    artifactStore: seedStore,
+    compendiums: normalizeCompendiums(artifactStoreToCompendiums(seedStore)),
+    dismissedTips: []
   });
 }
 
@@ -4354,9 +4473,11 @@ function setTheme(theme) {
 
 function saveDashboardIdentitySettings() {
   const current = normalizeDashboardIdentity(state.dashboardIdentity);
+  const displayMode = document.querySelector("input[name='dashboard-display-mode']:checked")?.value === "icons" ? "icons" : "numbers";
   const nextIdentity = {
-    showNumbers: Boolean(document.getElementById("dashboard-show-numbers")?.checked),
-    showIcons: Boolean(document.getElementById("dashboard-show-icons")?.checked),
+    displayMode,
+    showNumbers: displayMode === "numbers",
+    showIcons: displayMode === "icons",
     items: Object.fromEntries(DASHBOARD_LABELS.map((dashboard) => {
       const label = document.getElementById(`dashboard-identity-${dashboard}-label`)?.value.trim() || DEFAULT_DASHBOARD_IDENTITY.items[dashboard].label;
       const icon = document.getElementById(`dashboard-identity-${dashboard}-icon`)?.value.trim() || current.items[dashboard]?.icon || DEFAULT_DASHBOARD_IDENTITY.items[dashboard].icon;
@@ -4370,6 +4491,29 @@ function saveDashboardIdentitySettings() {
   const normalized = normalizeDashboardIdentity(nextIdentity);
   saveDashboardIdentity(normalized);
   setState({ dashboardIdentity: normalized });
+}
+
+function resetDashboardIdentityItem(dashboard) {
+  if (!DASHBOARD_LABELS.includes(dashboard)) return;
+  const fallback = DEFAULT_DASHBOARD_IDENTITY.items[dashboard];
+  const labelInput = document.getElementById(`dashboard-identity-${dashboard}-label`);
+  if (labelInput) labelInput.value = fallback.label;
+  updateIconPickerField(`dashboard-identity-${dashboard}-icon`, fallback.icon);
+  saveDashboardIdentitySettings();
+}
+
+function dismissTip(tip, element) {
+  if (!tip) return;
+  element?.classList.add("is-dismissed");
+  const dismissedTips = Array.from(new Set([...(state.dismissedTips || []), tip]));
+  state.dismissedTips = dismissedTips;
+  saveDismissedTips(dismissedTips);
+  window.setTimeout(() => render(), 280);
+}
+
+function resetTips() {
+  clearDismissedTips();
+  render();
 }
 
 function render() {
@@ -4420,6 +4564,7 @@ function render() {
   const settingsScroll = app.querySelector(".settings-tab-panel");
   if (settingsScroll) settingsScroll.scrollTop = settingsScrollTop;
   bindActions();
+  bindDashboardIdentityAutoSave();
   bindTrackerEditorAutoSave();
   bindHeaderActionTooltips();
   bindThoughtTooltips();
@@ -4796,7 +4941,7 @@ function sidebarHtml(compendium) {
                       : item.type === "compendium"
                         ? state.selectedCompendiumId === item.id && !state.selectedSectionId
                         : state.selectedArtifactId === item.id,
-                    number: mindItems.length - index,
+                    number: index + 1,
                     parentId: item.parentId || ""
                   })).join("");
                 })()
@@ -4838,6 +4983,10 @@ function sidebarHtml(compendium) {
           <span aria-hidden="true">/</span>
           <button class="sidebar-text-link" data-action="export-artifacts" type="button">Export</button>
           <span aria-hidden="true">/</span>
+          <button class="sidebar-text-link" data-action="reset-tips" type="button">Reset tips</button>
+          <span aria-hidden="true">/</span>
+          <button class="sidebar-text-link" data-action="factory-defaults" type="button">Factory Defaults</button>
+          <span aria-hidden="true">/</span>
           <button class="sidebar-text-link" data-action="clear-app-data" type="button">Clear Data</button>
         </div>
       </div>
@@ -4874,7 +5023,8 @@ function pathBarHtml(compendium, section, spiritBook) {
   const activeLabel = DASHBOARD_LABELS.includes(state.active) ? dashboardDisplayLabel(state.active) : state.active;
   return `
     <nav class="path-bar" aria-label="Current location" tabindex="0">
-      <button data-action="home">Dashboard</button>
+      <button class="dashboard-home-link" data-action="home">Dashboard</button>
+      ${state.dismissedTips?.includes(DASHBOARD_RETURN_TIP) ? "" : `<button class="info-tip path-dashboard-tip" data-action="dismiss-tip" data-tip="${DASHBOARD_RETURN_TIP}" type="button"><span>click the dashboard link here anytime to return to the dashboard</span><i aria-hidden="true"></i></button>`}
       ${state.active !== "Dashboard" ? `<span>/</span><button data-action="dashboard-root">${escapeHtml(activeLabel)}</button>` : ""}
       ${compendium ? `<span>/</span><button class="truncate" data-action="compendium-root">${escapeHtml(compendium.title)}</button>` : ""}
       ${section ? `<span>/</span><span class="truncate muted">${escapeHtml(section.title)}</span>` : ""}
@@ -5030,9 +5180,7 @@ function settingsHtml() {
     interface: settingsInterfaceHtml()
   };
   return panelHtml(`
-    ${headerHtml("Settings", "Getting started, Thoughts, Goals, and Interface setup.", `
-      <button class="icon-button close-viewer-button" data-action="close-settings" type="button" aria-label="Close settings" title="Close">${iconHtml("tabler:x")}</button>
-    `)}
+    ${headerHtml("Settings", "Getting started, Thoughts, Goals, and Interface setup.")}
     <div class="settings-page">
       ${settingsTabsHtml(tab)}
       ${panels[tab]}
@@ -5169,17 +5317,16 @@ function settingsInterfaceHtml() {
         <div class="body-card-heading">
           <div>
             <h3>Category Icons</h3>
-            <p>Customize each category title and icon, then choose whether category cards show numbers, icons, or titles only.</p>
+            <p>Customize each category title and icon, then choose whether category labels show numbers or icons.</p>
           </div>
-          <button class="primary-button" data-action="save-dashboard-identity" type="button">${buttonContent("tabler:device-floppy", "Save")}</button>
         </div>
         <div class="dashboard-identity-toggles">
           <label class="dashboard-identity-toggle">
-            <input id="dashboard-show-numbers" type="checkbox"${identity.showNumbers ? " checked" : ""}>
+            <input name="dashboard-display-mode" value="numbers" type="radio"${identity.displayMode !== "icons" ? " checked" : ""}>
             <span>Numbers</span>
           </label>
           <label class="dashboard-identity-toggle">
-            <input id="dashboard-show-icons" type="checkbox"${identity.showIcons ? " checked" : ""}>
+            <input name="dashboard-display-mode" value="icons" type="radio"${identity.displayMode === "icons" ? " checked" : ""}>
             <span>Icons</span>
           </label>
         </div>
@@ -5198,6 +5345,7 @@ function settingsInterfaceHtml() {
                     showLabel: false
                   })}
                   <input id="dashboard-identity-${dashboard}-label" type="text" value="${escapeHtml(item.label)}" placeholder="${escapeHtml(`Enter a title for the ${DEFAULT_DASHBOARD_IDENTITY.items[dashboard].label} category...`)}">
+                  <button class="icon-button dashboard-identity-reset" data-action="reset-dashboard-identity-item" data-dashboard="${escapeHtml(dashboard)}" type="button" aria-label="Reset ${escapeHtml(item.label || dashboard)} to default" title="Reset">${iconHtml("tabler:restore")}</button>
                 </div>
               </div>
             `;
@@ -5219,6 +5367,7 @@ function settingsInterfaceHtml() {
               </span>
               <strong>${escapeHtml(theme.label)}</strong>
               <small>${escapeHtml(theme.description)} Font: ${escapeHtml(themeFontLabel(theme))}.</small>
+              ${themePaletteHtml(theme)}
             </button>
           `).join("")}
         </div>
@@ -5277,14 +5426,6 @@ function trackerEditFormHtml(area, kind = "thought") {
         </div>
       </div>
       <div class="tracker-add-form tracker-add-form--embedded">
-        ${isGoal
-          ? `
-          <label class="body-field tracker-enabled-toggle">
-            <span>Enabled</span>
-            <input id="${escapeHtml(enableFieldId)}" type="checkbox"${tracker.enabled ? " checked" : ""}>
-            <i aria-hidden="true"></i>
-          </label>`
-          : ""}
         <div class="tracker-title-icon-row" style="--identity-color: ${DASHBOARD_COLORS[area]};">
           ${iconPickerFieldHtml({
             fieldId,
@@ -5294,6 +5435,14 @@ function trackerEditFormHtml(area, kind = "thought") {
             showLabel: false
           })}
           <input class="tracker-title-input" id="${trackerFieldId(`${area}-${id}`, "label")}" data-area="${escapeHtml(area)}" data-target="${escapeHtml(target)}" type="text" value="${escapeHtml(tracker.label)}" aria-label="Button text">
+          ${isGoal
+            ? `
+            <label class="body-field tracker-enabled-toggle tracker-enabled-toggle--inline">
+              <input id="${escapeHtml(enableFieldId)}" type="checkbox"${tracker.enabled ? " checked" : ""}>
+              <i aria-hidden="true"></i>
+              <span>Enabled</span>
+            </label>`
+            : ""}
         </div>
       </div>
     </div>
@@ -5320,7 +5469,6 @@ function galleryHtml() {
         <button class="secondary-button" data-action="gallery-select-all" type="button"${count ? "" : " disabled"}>${buttonContent("tabler:checks", "Select All")}</button>
         <button class="secondary-button" data-action="gallery-clear-selection" type="button"${selectedCount ? "" : " disabled"}>${buttonContent("tabler:square", "Clear")}</button>
         ${pageActionButton("gallery-delete-selected", "tabler:trash", selectedCount ? `Delete ${selectedCount}` : "Delete selected", { danger: true, disabled: !selectedCount })}
-        <button class="icon-button close-viewer-button" data-action="close-gallery" type="button" aria-label="Close gallery" title="Close">${iconHtml("tabler:x")}</button>
       </div>
     `)}
     <div class="gallery-page">
@@ -5420,13 +5568,13 @@ function spiritHtml() {
   }
   if (state.spiritPlanError) {
     return panelHtml(`
-      ${headerHtml(dashboardDisplayLabel("Spirit"), "Personal reading plans.")}
+      ${headerHtml(dashboardDisplayLabel("Spirit"), "Personal reading plans.", "", { titleHtml: dashboardHeaderTitleHtml("Spirit") })}
       ${emptyStateHtml("Plan could not load.", state.spiritPlanError)}
     `);
   }
   if (!state.spiritPlan) {
     return panelHtml(`
-      ${headerHtml(dashboardDisplayLabel("Spirit"), "Personal reading plans.")}
+      ${headerHtml(dashboardDisplayLabel("Spirit"), "Personal reading plans.", "", { titleHtml: dashboardHeaderTitleHtml("Spirit") })}
       ${emptyStateHtml("Loading plan.", "Preparing the selected reading plan.")}
     `);
   }
@@ -5440,8 +5588,8 @@ function spiritHtml() {
   const visibleWorks = works.filter((work) => work.year === activeYear);
   const yearIndex = years.indexOf(activeYear);
 
-  const spiritNavBar = headerHtml(dashboardDisplayLabel("Spirit"), "Personal reading plans.", `
-    <div class="action-row spirit-actions">
+  const spiritControls = `
+    <div class="action-row spirit-actions spirit-selector-actions">
       <button class="secondary-button" data-action="new-artifact-note" data-dashboard="Spirit" type="button">${buttonContent("tabler:notes", "New Note")}</button>
       <label class="plan-select-label">
         <span>Plan</span>
@@ -5452,13 +5600,14 @@ function spiritHtml() {
         </select>
       </label>
     </div>
-  `);
+  `;
 
   return panelHtml(`
+    ${headerHtml(dashboardDisplayLabel("Spirit"), "Personal reading plans.", "", { titleHtml: dashboardHeaderTitleHtml("Spirit") })}
     <div class="spirit-dashboard">
-      ${spiritNavBar}
       <div class="spirit-nav-stack">
         ${dashboardOrbNavHtml("Spirit")}
+        ${spiritControls}
         <nav class="spirit-year-nav" aria-label="Plan years">
           <button class="secondary-button" data-action="spirit-prev-year" type="button"${yearIndex <= 0 ? " disabled" : ""}>Previous</button>
           <div class="spirit-year-buttons">
@@ -5852,7 +6001,7 @@ function lifeHtml() {
   }
 
   return panelHtml(`
-    ${headerHtml(dashboardDisplayLabel("Life"), "Calendar-first journal, habits, and app activity.")}
+    ${headerHtml(dashboardDisplayLabel("Life"), "Calendar-first journal, habits, and app activity.", "", { titleHtml: dashboardHeaderTitleHtml("Life") })}
     <div class="life-dashboard">
       ${dashboardOrbNavHtml("Life")}
       ${lifeToolSwitcherHtml()}
@@ -5877,6 +6026,9 @@ function lifeToolSwitcherHtml() {
           ${buttonContent(icon, label, "body-mode-label")}
         </button>
       `).join("")}
+      <button class="body-mode-button life-new-note-button" data-action="new-artifact-note" data-dashboard="Life" type="button">
+        ${buttonContent("tabler:notes", "New Note", "body-mode-label")}
+      </button>
     </nav>
   `;
 }
@@ -5928,7 +6080,6 @@ function lifeDayHtml() {
           <h3>${escapeHtml(formatDateLabel(dateKey, { weekday: true, year: true }))}</h3>
           <p>${events.length} logged event${events.length === 1 ? "" : "s"} today.</p>
         </div>
-        <button class="secondary-button" data-action="new-artifact-note" data-dashboard="Life">${buttonContent("tabler:notes", "New Note")}</button>
       </div>
       <div class="life-event-list">${events.length ? events.map(lifeEventRowHtml).join("") : emptyStateHtml("Nothing logged today.", `Create a ${dashboardDisplayLabel("Life")} note or edit anything in the app to add activity here.`)}</div>
     </section>
@@ -5950,7 +6101,6 @@ function lifeWeekHtml() {
           <h3>This Week</h3>
           <p>${total} logged event${total === 1 ? "" : "s"} this week.</p>
         </div>
-        <button class="secondary-button" data-action="new-artifact-note" data-dashboard="Life">${buttonContent("tabler:notes", "New Note")}</button>
       </div>
       <div class="life-date-list">
         ${days.map(({ dateKey, events }) => `
@@ -5973,7 +6123,6 @@ function lifeMonthHtml() {
           <h3>${new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" }).format(now)}</h3>
           <p>Calendar activity from notes, saves, and journal entries.</p>
         </div>
-        <button class="secondary-button" data-action="new-artifact-note" data-dashboard="Life">${buttonContent("tabler:notes", "New Note")}</button>
       </div>
       <div id="life-fullcalendar" class="life-fullcalendar" aria-label="${escapeHtml(dashboardDisplayLabel("Life"))} month calendar"></div>
     </section>
@@ -6489,7 +6638,7 @@ function bodyHtml() {
   };
 
   return panelHtml(`
-    ${headerHtml(dashboardDisplayLabel("Body"), "Timers, nutrition, movement, and notes.")}
+    ${headerHtml(dashboardDisplayLabel("Body"), "Timers, nutrition, movement, and notes.", "", { titleHtml: dashboardHeaderTitleHtml("Body") })}
     <div class="body-dashboard">
       ${dashboardOrbNavHtml("Body")}
       ${bodyModeSwitcherHtml()}
@@ -6570,30 +6719,31 @@ function compendiumTitleHtml(compendium, className = "compendium-tile-title") {
 function mindGridHtml() {
   const columns = mindCompendiumColumns();
   const perPage = mindCompendiumsPerPage();
+  const shouldPage = state.compendiums.length > perPage;
   const pages = chunkItems(state.compendiums, perPage);
   const maxPage = Math.max(0, pages.length - 1);
   const page = mindCompendiumPage(maxPage);
-  const hasPrev = page > 0;
-  const hasNext = page < maxPage;
+  const hasPrev = shouldPage && page > 0;
+  const hasNext = shouldPage && page < maxPage;
   const currentStart = page * perPage + 1;
   const currentEnd = Math.min(state.compendiums.length, currentStart + perPage - 1);
   return panelHtml(`
-    <div class="scroll-area">
-      ${headerHtml("Compendiums", "Organize your knowledge with a compendium.", `<button class="secondary-button" data-action="new-compendium">${buttonContent("tabler:plus", "New")}</button>`)}
+    <div class="scroll-area mind-grid-scroll">
+      ${headerHtml(dashboardDisplayLabel("Mind"), "Organize your knowledge with a compendium.", "", { titleHtml: dashboardHeaderTitleHtml("Mind") })}
       ${dashboardOrbNavHtml("Mind")}
       ${state.compendiums.length ? `
         <section class="compendium-rotator${state.mindCompendiumPickerOpen ? " is-picker-open" : ""}" aria-label="Compendiums" style="--compendium-columns: ${columns};">
-          <div class="compendium-rotator-stage">
-            <button class="compendium-rotator-edge compendium-rotator-edge--prev${hasPrev ? " is-available" : ""}" data-action="mind-compendium-page" data-direction="prev" data-max-page="${maxPage}" type="button" aria-label="Previous compendiums"${hasPrev ? "" : " disabled"}>
+          <div class="compendium-rotator-stage${shouldPage ? "" : " compendium-rotator-stage--single-page"}">
+            ${shouldPage ? `<button class="compendium-rotator-edge compendium-rotator-edge--prev${hasPrev ? " is-available" : ""}" data-action="mind-compendium-page" data-direction="prev" data-max-page="${maxPage}" type="button" aria-label="Previous compendiums"${hasPrev ? "" : " disabled"}>
               ${iconHtml("tabler:chevron-left")}
-            </button>
+            </button>` : ""}
             <div class="compendium-rotator-window">
               <div class="compendium-rotator-track" style="--compendium-page: ${page};">
                 ${pages.map((compendiums, pageIndex) => `
                   <article class="compendium-rotator-slide${pageIndex === page ? " is-active" : ""}">
                     <div class="compendium-rotator-row">
                       ${compendiums.map((compendium, itemIndex) => {
-                        const compendiumNumber = state.compendiums.length - ((pageIndex * perPage) + itemIndex);
+                        const compendiumNumber = itemIndex + 1;
                         return `
                         <button class="compendium-tile" data-action="open-compendium" data-id="${compendium.id}">
                           <b>${String(compendiumNumber).padStart(2, "0")}</b>
@@ -6607,9 +6757,9 @@ function mindGridHtml() {
                 `).join("")}
               </div>
             </div>
-            <button class="compendium-rotator-edge compendium-rotator-edge--next${hasNext ? " is-available" : ""}" data-action="mind-compendium-page" data-direction="next" data-max-page="${maxPage}" type="button" aria-label="Next compendiums"${hasNext ? "" : " disabled"}>
+            ${shouldPage ? `<button class="compendium-rotator-edge compendium-rotator-edge--next${hasNext ? " is-available" : ""}" data-action="mind-compendium-page" data-direction="next" data-max-page="${maxPage}" type="button" aria-label="Next compendiums"${hasNext ? "" : " disabled"}>
               ${iconHtml("tabler:chevron-right")}
-            </button>
+            </button>` : ""}
             ${state.mindCompendiumPickerOpen ? `
               <div class="compendium-picker-popover" role="dialog" aria-label="All compendiums">
                 <div class="compendium-picker-header">
@@ -6619,21 +6769,27 @@ function mindGridHtml() {
                 <div class="compendium-picker-grid">
                   ${state.compendiums.map((compendium, index) => `
                     <button class="compendium-picker-tile" data-action="select-mind-compendium" data-id="${compendium.id}" data-index="${index}" data-per-page="${perPage}" type="button">
-                      <b>${String(state.compendiums.length - index).padStart(2, "0")}</b>
+                      <b>${String(index + 1).padStart(2, "0")}</b>
                       ${compendiumTitleHtml(compendium, "compendium-picker-title")}
                     </button>
                   `).join("")}
                 </div>
+                <div class="compendium-picker-actions">
+                  <button class="secondary-button" data-action="new-compendium" type="button">${buttonContent("tabler:plus", "Add Compendium")}</button>
+                </div>
               </div>
             ` : ""}
           </div>
-          <button class="reader-page-indicator compendium-page-indicator" data-action="toggle-mind-compendium-picker" type="button" aria-label="${state.mindCompendiumPickerOpen ? "Close compendium overview" : "Open compendium overview"}" aria-expanded="${state.mindCompendiumPickerOpen ? "true" : "false"}">
-            <span class="reader-page-dot reader-page-dot--side${hasPrev ? " is-available" : ""}" aria-hidden="true"></span>
-            <span class="reader-page-dot reader-page-dot--current" aria-label="Compendiums ${currentStart} through ${currentEnd} of ${state.compendiums.length}"></span>
-            <span class="reader-page-dot reader-page-dot--side${hasNext ? " is-available" : ""}" aria-hidden="true"></span>
-          </button>
         </section>
-      ` : emptyStateHtml("No compendiums yet.", `Add the first compendium to begin organizing ${dashboardDisplayLabel("Mind")}.`)}
+      ` : `<div class="compendium-empty-wrap">${emptyStateHtml("No compendiums yet.", `Add the first compendium to begin organizing ${dashboardDisplayLabel("Mind")}.`)}</div>`}
+      <div class="compendium-grid-controls">
+        <button class="reader-page-indicator compendium-page-indicator" data-action="toggle-mind-compendium-picker" type="button" aria-label="${state.mindCompendiumPickerOpen ? "Close compendium overview" : "Open compendium overview"}" aria-expanded="${state.mindCompendiumPickerOpen ? "true" : "false"}">
+          <span class="reader-page-dot reader-page-dot--side${hasPrev ? " is-available" : ""}" aria-hidden="true"></span>
+          <span class="reader-page-dot reader-page-dot--current" aria-label="Compendiums ${currentStart} through ${currentEnd} of ${state.compendiums.length}"></span>
+          <span class="reader-page-dot reader-page-dot--side${hasNext ? " is-available" : ""}" aria-hidden="true"></span>
+        </button>
+        <p>click here for a grid view</p>
+      </div>
     </div>
   `);
 }
@@ -6870,12 +7026,13 @@ function panelHtml(inner) {
   return `<div class="panel">${inner}</div>`;
 }
 
-function headerHtml(title, subtitle, actions = "") {
+function headerHtml(title, subtitle, actions = "", options = {}) {
+  const renderedTitle = options.titleHtml || escapeHtml(title);
   return `
     <header class="panel-header">
       ${actions ? `<div class="panel-header-actions">${actions}</div>` : ""}
       <div class="panel-header-copy">
-        <h2>${escapeHtml(title)}</h2>
+        <h2>${renderedTitle}</h2>
         ${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ""}
       </div>
     </header>
@@ -7002,6 +7159,20 @@ function bindActions() {
         handleAction(element);
       });
     }
+  });
+}
+
+function bindDashboardIdentityAutoSave() {
+  const panel = app.querySelector(".interface-settings");
+  if (!panel) return;
+  let saveTimer = null;
+  const scheduleSave = () => {
+    window.clearTimeout(saveTimer);
+    saveTimer = window.setTimeout(saveDashboardIdentitySettings, 200);
+  };
+  panel.querySelectorAll("input[name='dashboard-display-mode'], .dashboard-identity-input-row input").forEach((input) => {
+    input.addEventListener("input", scheduleSave);
+    input.addEventListener("change", saveDashboardIdentitySettings);
   });
 }
 
@@ -7402,6 +7573,7 @@ function handleAction(element) {
   if (action === "set-dashboard-chart") setDashboardChartType(element.dataset.chart);
   if (action === "set-theme") setTheme(element.dataset.theme);
   if (action === "save-dashboard-identity") saveDashboardIdentitySettings();
+  if (action === "reset-dashboard-identity-item") resetDashboardIdentityItem(element.dataset.dashboard);
   if (action === "open-icon-picker") openIconPicker(element);
   if (action === "close-icon-picker") closeIconPicker();
   if (action === "select-icon-picker-icon") selectIconPickerIcon(element.dataset.icon);
@@ -7416,7 +7588,10 @@ function handleAction(element) {
   if (action === "open-life-activity") openActivityArtifact(element.dataset.id);
   if (action === "export-artifacts") exportArtifacts();
   if (action === "import-artifacts") importArtifacts();
+  if (action === "factory-defaults") restoreFactoryDefaults();
   if (action === "clear-app-data") clearAppData();
+  if (action === "reset-tips") resetTips();
+  if (action === "dismiss-tip") dismissTip(element.dataset.tip, element);
   if (action === "open-gallery") openGallery();
   if (action === "close-gallery") goHome();
   if (action === "gallery-select-all") selectAllGalleryImages();
