@@ -1,0 +1,106 @@
+/*
+  Portable theme adapter.
+  Copy this file with assets/js/themeSystem.js when a smaller app needs the
+  Ourstuff/Fast Track token model without this app's full stylesheet.
+*/
+
+.theme-app {
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+}
+
+.theme-display {
+  font-family: var(--font-display);
+}
+
+.theme-label {
+  font-family: var(--font-label);
+}
+
+.theme-mono {
+  font-family: var(--font-mono);
+}
+
+.theme-surface,
+.theme-panel,
+.theme-card,
+.theme-field,
+.theme-control {
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.theme-panel {
+  background: var(--panel);
+}
+
+.theme-card {
+  border-color: var(--border);
+}
+
+.theme-muted {
+  color: var(--muted);
+}
+
+.theme-faint {
+  color: var(--faint);
+}
+
+.theme-divider {
+  border-color: var(--theme-divider);
+}
+
+.theme-field {
+  background: var(--theme-select-bg);
+  color: var(--theme-select-text);
+}
+
+.theme-control {
+  background: var(--theme-control);
+  font-family: var(--font-label);
+}
+
+.theme-control:hover,
+.theme-control:focus-visible,
+.theme-control.is-active {
+  border-color: var(--border-accent);
+  background: var(--theme-control-hover);
+  color: var(--on-surface-2);
+  outline: none;
+}
+
+.theme-primary {
+  border-color: var(--border-accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.theme-primary:hover,
+.theme-primary:focus-visible {
+  background: var(--accent-2);
+  color: var(--on-accent-2);
+  outline: none;
+}
+
+.theme-danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.theme-danger:hover,
+.theme-danger:focus-visible {
+  background: var(--danger);
+  color: var(--on-danger);
+}
+
+.theme-focus-ring:focus-visible {
+  box-shadow: 0 0 0 4px var(--theme-ring);
+  outline: none;
+}
+
+.theme-shadow {
+  box-shadow: 0 12px 28px var(--theme-shadow);
+}

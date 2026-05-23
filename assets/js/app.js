@@ -1,7 +1,15 @@
-﻿import { dashboardCards, today } from "./data.js";
+import { dashboardCards, today } from "./data.js";
 import { donationModalHtml, bindDonationFlow } from "./donations.js";
 import { clearLocalFiles, deleteLocalImages, exportLocalFiles, importLocalFiles, listLocalImages, resolveLocalFileUrl, resolveLocalImageUrl, storeLocalFile, storeLocalImage } from "./localMedia.js";
 import { escapeHtml, renderMarkdown } from "./markdown.js";
+import {
+  applyThemeVariables as applyThemeSystemVariables,
+  loadTheme as loadThemeSelection,
+  normalizeTheme as normalizeThemeSelection,
+  saveTheme as saveThemeSelection,
+  themeFontLabel as themeSystemFontLabel,
+  themePreviewStyle
+} from "./themeSystem.js";
 import { autoUpdate, computePosition, flip, offset, shift } from "https://cdn.jsdelivr.net/npm/@floating-ui/dom@1.7.5/+esm";
 import {
   artifactStoreToCompendiums,
@@ -14,19 +22,88 @@ import {
   saveArtifactStore,
   STORAGE_KEY,
   upsertArtifact
-} from "./storage.js";
+} from "./storage.js?v=compendium-section-20260523a";
 
 const app = document.getElementById("app");
 const BODY_TRACKER_KEY = "ourstuff.bodyTracker.v1";
 const SPIRIT_PROGRESS_KEY = "ourstuff.spiritPlanProgress.v1";
 const LIFE_PLANNER_KEY = "ourstuff.lifePlanner.v1";
 const TRACKER_SETTINGS_KEY = "ourstuff.thoughts.v1";
+const GOAL_SETTINGS_KEY = "ourstuff.goals.v1";
+const DASHBOARD_IDENTITY_KEY = "ourstuff.dashboardIdentity.v1";
 const SIDEBAR_WIDTH_KEY = "ourstuff.sidebarWidth.v1";
 const THEME_KEY = "ourstuff.theme.v1";
 const ICONIFY_SEARCH_CACHE_KEY = "ourstuff.iconifySearchCache.v1";
 const ICONIFY_SEARCH_URL = "https://api.iconify.design/search";
 const ICONIFY_PREFIXES = "tabler,lucide,ph,mdi,material-symbols";
-const ICONIFY_DOCS_URL = "https://iconify.design/";
+const ICON_PICKER_PAGE_SIZE = 48;
+const ICON_PICKER_DEFAULT_ICONS = [
+  "tabler:circle",
+  "tabler:brain",
+  "tabler:activity",
+  "tabler:sun",
+  "tabler:calendar-heart",
+  "tabler:notes",
+  "tabler:school",
+  "tabler:bulb",
+  "tabler:question-mark",
+  "tabler:barbell",
+  "tabler:salad",
+  "tabler:droplet",
+  "tabler:moon",
+  "tabler:book",
+  "tabler:yoga",
+  "tabler:message-circle",
+  "tabler:pray",
+  "tabler:users",
+  "tabler:friends",
+  "tabler:briefcase",
+  "tabler:sparkles",
+  "tabler:heart",
+  "tabler:target-arrow",
+  "tabler:flame",
+  "tabler:leaf",
+  "tabler:mountain",
+  "tabler:plant-2",
+  "tabler:run",
+  "tabler:bike",
+  "tabler:swimming",
+  "tabler:stretching",
+  "tabler:bed",
+  "tabler:coffee",
+  "tabler:apple",
+  "tabler:chef-hat",
+  "tabler:glass-full",
+  "tabler:heartbeat",
+  "tabler:lungs",
+  "tabler:mood-smile",
+  "tabler:bolt",
+  "tabler:clock",
+  "tabler:calendar",
+  "tabler:list-check",
+  "tabler:folder",
+  "tabler:home",
+  "tabler:map-pin",
+  "tabler:world",
+  "tabler:star",
+  "tabler:flag",
+  "lucide:brain",
+  "lucide:activity",
+  "lucide:sun",
+  "lucide:calendar-heart",
+  "lucide:notebook-pen",
+  "lucide:dumbbell",
+  "lucide:droplets",
+  "lucide:sprout",
+  "ph:brain",
+  "ph:heartbeat",
+  "ph:sun",
+  "ph:calendar-heart",
+  "mdi:meditation",
+  "mdi:run-fast",
+  "mdi:home-heart",
+  "mdi:book-open-page-variant"
+];
 const RING_CIRCUMFERENCE = 502.6548245743669;
 const SIDEBAR_DEFAULT_WIDTH = 270;
 const SIDEBAR_MIN_WIDTH = 220;
@@ -38,9 +115,36 @@ const TRACKER_ORBS_PER_PAGE = TRACKER_ORBS_PER_ROW * TRACKER_ORB_ROWS;
 const THOUGHT_TOOLTIP_LONG_PRESS_MS = 480;
 const MOBILE_MENU_QUERY = "(max-width: 860px)";
 const INSTALLED_APP_QUERY = "(display-mode: standalone)";
-const COMPENDIUM_TWO_QUERY = "(max-width: 680px)";
-const COMPENDIUM_ONE_QUERY = "(max-width: 480px)";
+const COMPENDIUM_TWO_QUERY = "(max-width: 820px)";
+const COMPENDIUM_ONE_QUERY = "(max-width: 520px)";
+const COMPENDIUM_ROWS_PER_PAGE = 2;
 const DASHBOARD_LABELS = ["Mind", "Body", "Spirit", "Life"];
+const DEFAULT_DASHBOARD_IDENTITY = {
+  showNumbers: true,
+  showIcons: false,
+  items: {
+    Mind: { number: "01", label: "Mind", icon: "tabler:brain" },
+    Body: { number: "02", label: "Body", icon: "tabler:activity" },
+    Spirit: { number: "03", label: "Spirit", icon: "tabler:sun" },
+    Life: { number: "04", label: "Life", icon: "tabler:calendar-heart" }
+  }
+};
+const DASHBOARD_PERIOD_OPTIONS = [
+  { id: "day", label: "1 day", days: 1 },
+  { id: "2-days", label: "2 days", days: 2 },
+  { id: "3-days", label: "3 days", days: 3 },
+  { id: "4-days", label: "4 days", days: 4 },
+  { id: "5-days", label: "5 days", days: 5 },
+  { id: "6-days", label: "6 days", days: 6 },
+  { id: "week", label: "Week", days: 7 },
+  { id: "2-weeks", label: "2 weeks", days: 14 },
+  { id: "month", label: "Month", days: 30 },
+  { id: "3-months", label: "3 months", days: 90 },
+  { id: "year", label: "1 year", days: 365 },
+  { id: "3-years", label: "3 years", days: 365 * 3 },
+  { id: "7-years", label: "7 years", days: 365 * 7 },
+  { id: "10-years", label: "10 years", days: 365 * 10 }
+];
 const BODY_TIMER_MODES = [
   {
     key: "fasting",
@@ -111,6 +215,8 @@ let thoughtToastFadeTimer = null;
 let thoughtToastHideTimer = null;
 let thoughtTooltipCleanup = null;
 let thoughtTooltipLongPressTimer = null;
+let thoughtTooltipSuppressClickTarget = null;
+let dashboardPeriodGlowTimer = null;
 const SPIRIT_PLANS = [
   {
     id: "ten-year",
@@ -334,6 +440,7 @@ const APP_THEMES = [
     label: "Consolas",
     description: "Slate black console surface with off-white Consolas-style text and borders.",
     colorScheme: "dark",
+    contrastMode: "console",
     fontSet: "mono",
     colors: {
       primaryColor: "#efeee7",
@@ -441,48 +548,6 @@ const THEME_FONT_SETS = {
     mono: 'Consolas, "Cascadia Mono", "SFMono-Regular", "Liberation Mono", monospace'
   }
 };
-const APP_THEME_CLASSES = APP_THEMES.map((theme) => `theme-${theme.id}`);
-const THEME_STYLE_PROPERTIES = [
-  "color-scheme",
-  "--bg",
-  "--surface",
-  "--surface-2",
-  "--panel",
-  "--border",
-  "--border-soft",
-  "--border-strong",
-  "--border-muted",
-  "--border-accent",
-  "--border-accent-soft",
-  "--theme-divider",
-  "--text",
-  "--muted",
-  "--faint",
-  "--accent",
-  "--accent-2",
-  "--danger",
-  "--theme-hover",
-  "--theme-control",
-  "--theme-control-hover",
-  "--theme-select-bg",
-  "--theme-select-text",
-  "--theme-select-option-bg",
-  "--theme-select-option-text",
-  "--theme-select-option-active",
-  "--theme-select-option-active-text",
-  "--theme-ring",
-  "--theme-shadow",
-  "--on-bg",
-  "--on-surface",
-  "--on-surface-2",
-  "--on-accent",
-  "--on-accent-2",
-  "--on-danger",
-  "--font-body",
-  "--font-display",
-  "--font-label",
-  "--font-mono"
-];
 const ICON_ALIASES = {
   "tabler:lotus": "tabler:yoga",
   "tabler:hands-pray": "tabler:pray"
@@ -490,7 +555,7 @@ const ICON_ALIASES = {
 const DEFAULT_TRACKERS = {
   Mind: [
     { id: "mind-note-taking", label: "Note Making", icon: "tabler:notes" },
-    { id: "mind-lesson-learning", label: "Lesson", icon: "tabler:school" },
+    { id: "mind-compendium-learning", label: "Compendium", icon: "tabler:school" },
     { id: "mind-idea", label: "Idea", icon: "tabler:bulb" },
     { id: "mind-question", label: "Question", icon: "tabler:question-mark" }
   ],
@@ -513,14 +578,43 @@ const DEFAULT_TRACKERS = {
     { id: "life-home", label: "Clean", icon: "tabler:sparkles" }
   ]
 };
+const DEFAULT_GOALS = {
+  Mind: [
+    { id: "mind-read", label: "Read", icon: "tabler:book-2" },
+    { id: "mind-write", label: "Write", icon: "tabler:pencil" },
+    { id: "mind-learn", label: "Learn", icon: "tabler:school" },
+    { id: "mind-plan", label: "Plan", icon: "tabler:list-check" }
+  ],
+  Body: [
+    { id: "body-move", label: "Move", icon: "tabler:run" },
+    { id: "body-hydrate", label: "Hydrate", icon: "tabler:droplet" },
+    { id: "body-sleep", label: "Sleep", icon: "tabler:moon" },
+    { id: "body-nutrition", label: "Nutrition", icon: "tabler:apple" }
+  ],
+  Spirit: [
+    { id: "spirit-read", label: "Read", icon: "tabler:book" },
+    { id: "spirit-pray", label: "Pray", icon: "tabler:pray" },
+    { id: "spirit-reflect", label: "Reflect", icon: "tabler:message-circle" },
+    { id: "spirit-gratitude", label: "Gratitude", icon: "tabler:heart" }
+  ],
+  Life: [
+    { id: "life-family-goal", label: "Family", icon: "tabler:users" },
+    { id: "life-work-goal", label: "Work", icon: "tabler:briefcase" },
+    { id: "life-home-goal", label: "Home", icon: "tabler:home" },
+    { id: "life-budget", label: "Budget", icon: "tabler:coins" }
+  ]
+};
+const TRACKER_ID_MIGRATIONS = {
+  "mind-lesson-learning": "mind-compendium-learning"
+};
 const TRACKER_LABEL_MIGRATIONS = {
   "mind-note-taking": {
     from: ["Note Taking"],
     to: "Note Making"
   },
-  "mind-lesson-learning": {
-    from: ["Lesson/Learning"],
-    to: "Lesson"
+  "mind-compendium-learning": {
+    from: ["Lesson/Learning", "Lesson"],
+    to: "Compendium"
   },
   "body-exercised": {
     from: ["Exercised"],
@@ -536,11 +630,33 @@ const TRACKER_LABEL_MIGRATIONS = {
   }
 };
 
-function cloneDefaultTrackers() {
+function cloneTrackerDefaults(defaults) {
   return Object.fromEntries(DASHBOARD_LABELS.map((label) => [
     label,
-    DEFAULT_TRACKERS[label].map((tracker) => ({ ...tracker }))
+    defaults[label].map((tracker) => ({ ...tracker }))
   ]));
+}
+
+function cloneDefaultTrackers() {
+  return cloneTrackerDefaults(DEFAULT_TRACKERS);
+}
+
+function cloneDefaultGoals() {
+  return Object.fromEntries(DASHBOARD_LABELS.map((dashboard) => [
+    dashboard,
+    (DEFAULT_GOALS[dashboard] || []).map((goal) => ({ ...goal, enabled: true }))
+  ]));
+}
+
+function cloneDefaultDashboardIdentity() {
+  return {
+    showNumbers: DEFAULT_DASHBOARD_IDENTITY.showNumbers,
+    showIcons: DEFAULT_DASHBOARD_IDENTITY.showIcons,
+    items: Object.fromEntries(DASHBOARD_LABELS.map((dashboard) => [
+      dashboard,
+      { ...DEFAULT_DASHBOARD_IDENTITY.items[dashboard] }
+    ]))
+  };
 }
 
 function normalizeIconSource(value) {
@@ -548,9 +664,43 @@ function normalizeIconSource(value) {
   return ICON_ALIASES[source] || source;
 }
 
-function normalizeTracker(tracker, dashboard, index) {
-  const id = String(tracker?.id || `${dashboard.toLowerCase()}-tracker-${index}-${makeId("tracker")}`);
-  const rawLabel = String(tracker?.label || "").trim() || `Thought ${index + 1}`;
+function normalizeDashboardIdentity(value) {
+  const defaults = cloneDefaultDashboardIdentity();
+  return {
+    showNumbers: typeof value?.showNumbers === "boolean" ? value.showNumbers : defaults.showNumbers,
+    showIcons: typeof value?.showIcons === "boolean" ? value.showIcons : defaults.showIcons,
+    items: Object.fromEntries(DASHBOARD_LABELS.map((dashboard) => {
+      const current = value?.items?.[dashboard] || value?.[dashboard] || {};
+      const fallback = defaults.items[dashboard];
+      const label = String(current.label || fallback.label).trim() || fallback.label;
+      const icon = normalizeIconSource(current.icon || fallback.icon) || fallback.icon;
+      return [dashboard, { ...fallback, label, icon }];
+    }))
+  };
+}
+
+function loadDashboardIdentity() {
+  try {
+    const raw = window.localStorage.getItem(DASHBOARD_IDENTITY_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    const normalized = normalizeDashboardIdentity(parsed);
+    if (raw && JSON.stringify(parsed) !== JSON.stringify(normalized)) {
+      window.localStorage.setItem(DASHBOARD_IDENTITY_KEY, JSON.stringify(normalized));
+    }
+    return normalized;
+  } catch {
+    return cloneDefaultDashboardIdentity();
+  }
+}
+
+function saveDashboardIdentity(identity = state.dashboardIdentity) {
+  window.localStorage.setItem(DASHBOARD_IDENTITY_KEY, JSON.stringify(normalizeDashboardIdentity(identity)));
+}
+
+function normalizeTracker(tracker, dashboard, index, fallbackType = "Thought") {
+  const rawId = String(tracker?.id || `${dashboard.toLowerCase()}-tracker-${index}-${makeId("tracker")}`);
+  const id = TRACKER_ID_MIGRATIONS[rawId] || rawId;
+  const rawLabel = String(tracker?.label || "").trim() || `${fallbackType} ${index + 1}`;
   const migration = TRACKER_LABEL_MIGRATIONS[id];
   const label = migration?.from.includes(rawLabel) ? migration.to : rawLabel;
   const icon = normalizeIconSource(tracker?.icon || tracker?.source || tracker?.url || "tabler:circle") || "tabler:circle";
@@ -561,6 +711,14 @@ function normalizeTracker(tracker, dashboard, index) {
   };
 }
 
+function normalizeGoalTracker(goal, dashboard, index) {
+  const normalized = normalizeTracker(goal, dashboard, index, "Goal");
+  return {
+    ...normalized,
+    enabled: typeof goal?.enabled === "boolean" ? goal.enabled : true
+  };
+}
+
 function normalizeTrackerSettings(value) {
   const defaults = cloneDefaultTrackers();
   return Object.fromEntries(DASHBOARD_LABELS.map((dashboard) => {
@@ -568,6 +726,21 @@ function normalizeTrackerSettings(value) {
       ? value[dashboard].map((tracker, index) => normalizeTracker(tracker, dashboard, index))
       : defaults[dashboard];
     return [dashboard, trackers];
+  }));
+}
+
+function normalizeGoalSettings(value) {
+  const defaults = cloneDefaultGoals();
+  return Object.fromEntries(DASHBOARD_LABELS.map((dashboard) => {
+    const normalizedGoals = Array.isArray(value?.[dashboard])
+      ? value[dashboard].map((goal, index) => normalizeGoalTracker(goal, dashboard, index))
+      : defaults[dashboard];
+    const defaultIds = new Set((DEFAULT_GOALS[dashboard] || []).map((goal) => goal.id));
+    const allDefaultGoals = normalizedGoals.length > 0 && normalizedGoals.every((goal) => defaultIds.has(goal.id));
+    const goals = allDefaultGoals && !normalizedGoals.some((goal) => goal.enabled)
+      ? normalizedGoals.map((goal) => ({ ...goal, enabled: true }))
+      : normalizedGoals;
+    return [dashboard, goals];
   }));
 }
 
@@ -589,6 +762,24 @@ function saveTrackerSettings() {
   window.localStorage.setItem(TRACKER_SETTINGS_KEY, JSON.stringify(state.trackerSettings));
 }
 
+function loadGoalSettings() {
+  try {
+    const raw = window.localStorage.getItem(GOAL_SETTINGS_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    const normalized = parsed ? normalizeGoalSettings(parsed) : cloneDefaultGoals();
+    if (raw && JSON.stringify(parsed) !== JSON.stringify(normalized)) {
+      window.localStorage.setItem(GOAL_SETTINGS_KEY, JSON.stringify(normalized));
+    }
+    return normalized;
+  } catch {
+    return cloneDefaultGoals();
+  }
+}
+
+function saveGoalSettings() {
+  window.localStorage.setItem(GOAL_SETTINGS_KEY, JSON.stringify(state.goalSettings));
+}
+
 function loadSidebarWidth() {
   try {
     return clampSidebarWidth(window.localStorage.getItem(SIDEBAR_WIDTH_KEY));
@@ -606,164 +797,42 @@ function saveSidebarWidth(width) {
 }
 
 function normalizeTheme(value) {
-  return APP_THEMES.some((theme) => theme.id === value) ? value : "default";
+  return normalizeThemeSelection(value, {
+    themes: APP_THEMES,
+    fallbackId: "default"
+  });
 }
 
 function loadTheme() {
-  try {
-    return normalizeTheme(window.localStorage.getItem(THEME_KEY));
-  } catch {
-    return "default";
-  }
+  return loadThemeSelection({
+    storageKey: THEME_KEY,
+    themes: APP_THEMES,
+    fallbackId: "default"
+  });
 }
 
 function saveTheme(theme) {
-  try {
-    window.localStorage.setItem(THEME_KEY, normalizeTheme(theme));
-  } catch {
-    // Theme persistence is optional; the current session can still render the choice.
-  }
-}
-
-function hexToRgb(value) {
-  const hex = String(value || "").replace("#", "").trim();
-  const normalized = hex.length === 3
-    ? hex.split("").map((char) => `${char}${char}`).join("")
-    : hex.padEnd(6, "0").slice(0, 6);
-  const number = Number.parseInt(normalized, 16);
-  if (Number.isNaN(number)) return { r: 0, g: 0, b: 0 };
-  return {
-    r: (number >> 16) & 255,
-    g: (number >> 8) & 255,
-    b: number & 255
-  };
-}
-
-function colorWithAlpha(value, alpha = 1) {
-  const { r, g, b } = hexToRgb(value);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
-function relativeLuminance(value) {
-  const { r, g, b } = hexToRgb(value);
-  const channels = [r, g, b].map((channel) => {
-    const normalized = channel / 255;
-    return normalized <= 0.03928
-      ? normalized / 12.92
-      : ((normalized + 0.055) / 1.055) ** 2.4;
+  return saveThemeSelection(theme, {
+    storageKey: THEME_KEY,
+    themes: APP_THEMES,
+    fallbackId: "default"
   });
-  return (0.2126 * channels[0]) + (0.7152 * channels[1]) + (0.0722 * channels[2]);
-}
-
-function contrastRatio(colorA, colorB) {
-  const light = Math.max(relativeLuminance(colorA), relativeLuminance(colorB));
-  const dark = Math.min(relativeLuminance(colorA), relativeLuminance(colorB));
-  return (light + 0.05) / (dark + 0.05);
-}
-
-function readableTextFor(background, preferred = "#ffffff") {
-  const lightText = "#ffffff";
-  const darkText = "#000000";
-  const preferredRatio = contrastRatio(background, preferred);
-  const lightRatio = contrastRatio(background, lightText);
-  const darkRatio = contrastRatio(background, darkText);
-  if (preferredRatio >= 4.5) return preferred;
-  return lightRatio >= darkRatio ? lightText : darkText;
-}
-
-function themeById(themeId) {
-  return APP_THEMES.find((theme) => theme.id === normalizeTheme(themeId)) || APP_THEMES[0];
-}
-
-function themeFonts(theme) {
-  return {
-    ...THEME_FONT_SETS.classic,
-    ...(THEME_FONT_SETS[theme.fontSet] || {}),
-    ...(theme.fonts || {})
-  };
-}
-
-function applyThemeFontVariables(root, theme) {
-  const fonts = themeFonts(theme);
-  root.style.setProperty("--font-body", fonts.body);
-  root.style.setProperty("--font-display", fonts.display);
-  root.style.setProperty("--font-label", fonts.labelFont);
-  root.style.setProperty("--font-mono", fonts.mono);
 }
 
 function applyThemeVariables(themeId) {
-  const theme = themeById(themeId);
-  const root = document.documentElement;
-  APP_THEME_CLASSES.forEach((className) => root.classList.remove(className));
-  root.classList.toggle("theme-palette", Boolean(theme.colors));
-  root.classList.add(`theme-${theme.id}`);
-
-  THEME_STYLE_PROPERTIES.forEach((property) => root.style.removeProperty(property));
-  applyThemeFontVariables(root, theme);
-  if (!theme.colors) return;
-
-  const colors = theme.colors;
-  const lightTheme = theme.colorScheme === "light";
-  const consoleTheme = theme.id === "consolas";
-  root.style.setProperty("color-scheme", theme.colorScheme || "dark");
-  root.style.setProperty("--bg", colors.backgroundColor);
-  root.style.setProperty("--surface", colors.surfaceColor);
-  root.style.setProperty("--surface-2", colors.surfaceMutedColor);
-  root.style.setProperty("--panel", colorWithAlpha(colors.surfaceColor, lightTheme ? 0.96 : 0.92));
-  root.style.setProperty("--border", consoleTheme ? colors.primaryColor : colorWithAlpha(colors.primaryColor, lightTheme ? 0.42 : 0.48));
-  root.style.setProperty("--border-soft", colorWithAlpha(colors.primaryColor, consoleTheme ? 0.58 : lightTheme ? 0.2 : 0.26));
-  root.style.setProperty("--border-strong", consoleTheme ? colors.primaryColor : colorWithAlpha(colors.primaryColor, lightTheme ? 0.72 : 0.78));
-  root.style.setProperty("--border-muted", colorWithAlpha(colors.secondaryColor, consoleTheme ? 0.46 : lightTheme ? 0.28 : 0.3));
-  root.style.setProperty("--border-accent", colors.primaryColor);
-  root.style.setProperty("--border-accent-soft", colorWithAlpha(colors.primaryColor, consoleTheme ? 0.74 : lightTheme ? 0.54 : 0.6));
-  root.style.setProperty("--theme-divider", colorWithAlpha(colors.secondaryColor, consoleTheme ? 0.42 : lightTheme ? 0.24 : 0.22));
-  root.style.setProperty("--text", colors.textColor);
-  root.style.setProperty("--muted", colors.textMutedColor);
-  root.style.setProperty("--faint", colorWithAlpha(colors.textMutedColor, 0.72));
-  root.style.setProperty("--accent", colors.primaryColor);
-  root.style.setProperty("--accent-2", colors.secondaryColor);
-  root.style.setProperty("--danger", colors.dangerColor);
-  root.style.setProperty("--theme-hover", colors.surfaceMutedColor);
-  root.style.setProperty("--theme-control", colors.surfaceColor);
-  root.style.setProperty("--theme-control-hover", colors.surfaceMutedColor);
-  root.style.setProperty("--theme-select-bg", colors.surfaceColor);
-  root.style.setProperty("--theme-select-text", readableTextFor(colors.surfaceColor, colors.textColor));
-  root.style.setProperty("--theme-select-option-bg", colors.surfaceMutedColor);
-  root.style.setProperty("--theme-select-option-text", readableTextFor(colors.surfaceMutedColor, colors.textColor));
-  root.style.setProperty("--theme-select-option-active", colors.primaryColor);
-  root.style.setProperty("--theme-select-option-active-text", readableTextFor(colors.primaryColor, colors.textColor));
-  root.style.setProperty("--theme-ring", colorWithAlpha(colors.primaryColor, 0.34));
-  root.style.setProperty("--theme-shadow", colorWithAlpha(lightTheme ? colors.primaryColor : colors.backgroundColor, lightTheme ? 0.18 : 0.48));
-  root.style.setProperty("--on-bg", readableTextFor(colors.backgroundColor, colors.textColor));
-  root.style.setProperty("--on-surface", readableTextFor(colors.surfaceColor, colors.textColor));
-  root.style.setProperty("--on-surface-2", readableTextFor(colors.surfaceMutedColor, colors.textColor));
-  root.style.setProperty("--on-accent", readableTextFor(colors.primaryColor, colors.textColor));
-  root.style.setProperty("--on-accent-2", readableTextFor(colors.secondaryColor, colors.textColor));
-  root.style.setProperty("--on-danger", readableTextFor(colors.dangerColor, colors.textColor));
-}
-
-function themePreviewStyle(theme) {
-  const colors = theme.colors || {
-    backgroundColor: "#020617",
-    surfaceColor: "#0f172a",
-    borderColor: "#1e293b",
-    textColor: "#f8fafc",
-    textMutedColor: "#94a3b8",
-    primaryColor: "#38bdf8",
-    secondaryColor: "#22c55e"
-  };
-  return [
-    `--theme-preview-bg:${colors.surfaceColor}`,
-    `--theme-preview-border:${colorWithAlpha(colors.primaryColor, theme.colorScheme === "light" ? 0.54 : 0.62)}`,
-    `--theme-preview-text:${colors.textColor}`,
-    `--theme-preview-muted:${colors.textMutedColor}`,
-    `--theme-preview-accent:${colors.primaryColor}`,
-    `--theme-preview-secondary:${colors.secondaryColor}`
-  ].join(";");
+  return applyThemeSystemVariables(themeId, {
+    themes: APP_THEMES,
+    fontSets: THEME_FONT_SETS,
+    fallbackId: "default",
+    target: app
+  });
 }
 
 function themeFontLabel(theme) {
-  return themeFonts(theme).label;
+  return themeSystemFontLabel(theme, {
+    fontSets: THEME_FONT_SETS,
+    fallbackFontSet: "classic"
+  });
 }
 
 function loadIconifySearchCache() {
@@ -1049,6 +1118,8 @@ async function exportAppState() {
     spiritProgress: state.spiritProgress || {},
     lifePlanner: normalizeLifePlanner(state.lifePlanner || createDefaultLifePlanner()),
     thoughtSettings: normalizeTrackerSettings(state.trackerSettings || cloneDefaultTrackers()),
+    goalSettings: normalizeGoalSettings(state.goalSettings || cloneDefaultGoals()),
+    dashboardIdentity: normalizeDashboardIdentity(state.dashboardIdentity || cloneDefaultDashboardIdentity()),
     theme: normalizeTheme(state.theme),
     localFiles: await exportLocalFiles().catch(() => [])
   };
@@ -1064,17 +1135,23 @@ async function restoreImportedAppState(appState) {
     : {};
   const lifePlanner = normalizeLifePlanner(appState?.lifePlanner || createDefaultLifePlanner());
   const trackerSettings = normalizeTrackerSettings(appState?.thoughtSettings || appState?.trackerSettings || cloneDefaultTrackers());
+  const goalSettings = normalizeGoalSettings(appState?.goalSettings || appState?.goals || cloneDefaultGoals());
+  const dashboardIdentity = normalizeDashboardIdentity(appState?.dashboardIdentity || cloneDefaultDashboardIdentity());
   const theme = normalizeTheme(appState?.theme || state.theme);
 
   state.bodyTracker = bodyTracker;
   state.spiritProgress = spiritProgress;
   state.lifePlanner = lifePlanner;
   state.trackerSettings = trackerSettings;
+  state.goalSettings = goalSettings;
+  state.dashboardIdentity = dashboardIdentity;
   state.theme = theme;
   saveBodyTracker();
   saveSpiritProgress();
   saveLifePlannerStore(lifePlanner);
   saveTrackerSettings();
+  saveGoalSettings();
+  saveDashboardIdentity(dashboardIdentity);
   saveTheme(theme);
   if (Array.isArray(appState.localFiles)) {
     await importLocalFiles(appState.localFiles);
@@ -1087,6 +1164,8 @@ function hasStoredAppState() {
     || window.localStorage.getItem(SPIRIT_PROGRESS_KEY)
     || window.localStorage.getItem(LIFE_PLANNER_KEY)
     || window.localStorage.getItem(TRACKER_SETTINGS_KEY)
+    || window.localStorage.getItem(GOAL_SETTINGS_KEY)
+    || window.localStorage.getItem(DASHBOARD_IDENTITY_KEY)
     || window.localStorage.getItem(THEME_KEY)
   );
 }
@@ -1097,7 +1176,7 @@ const state = {
   artifactStore: null,
   compendiums: [],
   selectedCompendiumId: null,
-  selectedBlockId: null,
+  selectedSectionId: null,
   mindCompendiumPage: 0,
   mindCompendiumPickerOpen: false,
   compendiumReaderPages: {},
@@ -1112,19 +1191,23 @@ const state = {
   lifeMode: "month",
   settingsTab: "getting-started",
   theme: loadTheme(),
+  dashboardIdentity: loadDashboardIdentity(),
   trackerAddArea: "",
   trackerEditKey: "",
   trackerDeleteKey: "",
   suppressNextTrackerEditClick: false,
+  iconPicker: null,
   iconSearchCache: loadIconifySearchCache(),
   iconSearchInFlight: {},
   thoughtToast: null,
   thoughtCooldowns: {},
   thoughtCreateLocks: {},
   dashboardPeriod: "day",
+  dashboardPeriodGlowUntil: 0,
   dashboardChartType: "pie",
   bodyTracker: loadBodyTracker(),
   trackerSettings: loadTrackerSettings(),
+  goalSettings: loadGoalSettings(),
   spiritPlan: null,
   spiritPlanError: "",
   spiritPlanId: "ten-year",
@@ -1209,11 +1292,40 @@ function daysBetween(dateKey, compareKey = todayDateKey()) {
   return Math.floor((compare - date) / 86400000);
 }
 
+function dashboardPeriodOption(period) {
+  return DASHBOARD_PERIOD_OPTIONS.find((option) => option.id === period) || DASHBOARD_PERIOD_OPTIONS[0];
+}
+
+function dashboardPeriodIndex(period) {
+  const index = DASHBOARD_PERIOD_OPTIONS.findIndex((option) => option.id === period);
+  return index >= 0 ? index : 0;
+}
+
+function dashboardPeriodOptionForIndex(index) {
+  const nextIndex = Number.isFinite(Number(index))
+    ? Math.min(Math.max(Math.round(Number(index)), 0), DASHBOARD_PERIOD_OPTIONS.length - 1)
+    : 0;
+  return DASHBOARD_PERIOD_OPTIONS[nextIndex];
+}
+
 function eventIsInPeriod(event, period) {
   const age = daysBetween(event.dateKey);
-  if (period === "day") return age === 0;
-  if (period === "year") return age >= 0 && age < 365;
-  return age >= 0 && age < 7;
+  const option = dashboardPeriodOption(period);
+  return age >= 0 && age < option.days;
+}
+
+function itemDateKey(item) {
+  const value = item?.properties?.dateKey ||
+    item?.dateKey ||
+    item?.properties?.goalLoggedAt ||
+    item?.properties?.thoughtLoggedAt ||
+    activityTimestamp(item);
+  return value ? dateKeyFromValue(value) : "";
+}
+
+function itemIsInPeriod(item, period) {
+  const dateKey = itemDateKey(item);
+  return !dateKey || eventIsInPeriod({ dateKey }, period);
 }
 
 function iconHtml(name) {
@@ -1223,6 +1335,64 @@ function iconHtml(name) {
 
 function buttonContent(icon, label, labelClass = "button-label") {
   return `${iconHtml(icon)}<span class="${labelClass}">${label}</span>`;
+}
+
+function pageActionButton(action, icon, label, options = {}) {
+  const dataAttrs = options.data
+    ? Object.entries(options.data)
+      .filter(([, value]) => value !== undefined && value !== null && value !== "")
+      .map(([key, value]) => ` data-${key}="${escapeHtml(value)}"`)
+      .join("")
+    : "";
+  return `<button class="icon-button page-action-button${options.danger ? " danger-button" : ""}${options.className ? ` ${escapeHtml(options.className)}` : ""}" data-action="${escapeHtml(action)}"${dataAttrs} type="button" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}"${options.disabled ? " disabled" : ""}>${iconHtml(icon)}</button>`;
+}
+
+function dashboardIdentityItem(dashboard) {
+  return normalizeDashboardIdentity(state.dashboardIdentity).items[dashboard] || DEFAULT_DASHBOARD_IDENTITY.items[dashboard];
+}
+
+function dashboardDisplayLabel(dashboard) {
+  return dashboardIdentityItem(dashboard)?.label || dashboard;
+}
+
+function dashboardDisplayIcon(dashboard) {
+  return dashboardIdentityItem(dashboard)?.icon || DEFAULT_DASHBOARD_IDENTITY.items[dashboard]?.icon || "tabler:circle";
+}
+
+function dashboardDisplayNumber(dashboard) {
+  return dashboardIdentityItem(dashboard)?.number || DEFAULT_DASHBOARD_IDENTITY.items[dashboard]?.number || "";
+}
+
+function dashboardDisplayNameList() {
+  const labels = DASHBOARD_LABELS.map(dashboardDisplayLabel);
+  return labels.length > 1
+    ? `${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}`
+    : labels[0] || "";
+}
+
+function dashboardTitleHtml(dashboard) {
+  const parts = [];
+  if (state.dashboardIdentity?.showNumbers) {
+    parts.push(`<span class="dashboard-card-number">${escapeHtml(dashboardDisplayNumber(dashboard))}</span>`);
+  }
+  const labelParts = [];
+  if (state.dashboardIdentity?.showIcons) {
+    labelParts.push(`<span class="dashboard-card-icon">${iconHtml(dashboardDisplayIcon(dashboard))}</span>`);
+  }
+  const displayLabel = dashboardDisplayLabel(dashboard).toUpperCase();
+  const overflowCount = Math.max(0, displayLabel.length - 10);
+  const fontSize = Math.max(0.62, 1.12 - (overflowCount * 0.055));
+  labelParts.push(`<span class="dashboard-card-name" style="font-size: ${fontSize.toFixed(3)}rem;">${escapeHtml(displayLabel)}</span>`);
+  parts.push(`<span class="dashboard-card-label">${labelParts.join("")}</span>`);
+  return parts.join("");
+}
+
+function dashboardInlineLabelHtml(dashboard) {
+  const parts = [];
+  if (state.dashboardIdentity?.showNumbers) parts.push(`<span>${escapeHtml(dashboardDisplayNumber(dashboard))}</span>`);
+  if (state.dashboardIdentity?.showIcons) parts.push(iconHtml(dashboardDisplayIcon(dashboard)));
+  parts.push(`<span>${escapeHtml(dashboardDisplayLabel(dashboard))}</span>`);
+  return parts.join("");
 }
 
 function isImageIconSource(value) {
@@ -1268,8 +1438,51 @@ function trackerIconHtml(source) {
   return iconHtml(value || "tabler:circle");
 }
 
-function trackerEditKey(area, id) {
-  return `${area}:${id}`;
+function iconDisplayName(icon) {
+  const value = normalizeIconSource(icon);
+  if (!value) return "Pick icon";
+  if (/^<svg[\s>]/i.test(value) || isImageIconSource(value)) return "Custom";
+  return iconifyIconLabel(value) || value;
+}
+
+function iconPickerFieldHtml({
+  fieldId,
+  value,
+  title,
+  color = "var(--accent)",
+  previewId = "",
+  showLabel = true
+}) {
+  const icon = normalizeIconSource(value) || "tabler:circle";
+  const label = iconDisplayName(icon);
+  const triggerText = showLabel ? `<span class="icon-picker-trigger-label">${escapeHtml(label)}</span>` : "";
+  return `
+    <input class="icon-picker-input" id="${escapeHtml(fieldId)}" type="hidden" value="${escapeHtml(icon)}">
+    <button class="icon-picker-trigger" data-action="open-icon-picker" data-icon-field="${escapeHtml(fieldId)}" data-icon-title="${escapeHtml(title || "Choose icon")}" data-icon-color="${escapeHtml(color)}"${previewId ? ` data-icon-preview="${escapeHtml(previewId)}"` : ""} type="button" aria-label="${escapeHtml(`Choose icon: ${label}`)}" title="${escapeHtml(`Choose icon: ${label}`)}" style="--icon-picker-color: ${escapeHtml(color)};">
+      <span class="icon-picker-trigger-symbol" aria-hidden="true">${trackerIconHtml(icon)}</span>
+      ${triggerText}
+    </button>
+  `;
+}
+
+function trackerEditKey(area, id, kind = "thought") {
+  return `${trackerKind(kind)}:${area}:${id}`;
+}
+
+function parseTrackerEditKey(value) {
+  const parts = String(value || "").split(":");
+  if (parts.length >= 3) {
+    return {
+      kind: trackerKind(parts[0]),
+      area: parts[1] || "",
+      id: parts.slice(2).join(":")
+    };
+  }
+  return {
+    kind: "thought",
+    area: parts[0] || "",
+    id: parts[1] || ""
+  };
 }
 
 function iconifySearchKey(query, limit = 7) {
@@ -1332,65 +1545,257 @@ async function searchIconifyIcons(label, limit = 7) {
   return state.iconSearchInFlight[cacheKey];
 }
 
-function trackerIconSuggestionsHtml(label, area, target, selectedIcon = "") {
-  const suggestions = iconSuggestionsForLabel(label);
-  if (!suggestions.length) {
-    return `<div class="tracker-icon-suggestions is-empty">${String(label || "").trim().length >= 3 ? "Searching Iconify..." : "Type 3+ letters to search Iconify."}</div>`;
+function iconPickerSearchResults(query, limit) {
+  const normalizedQuery = String(query || "").trim().toLowerCase();
+  const selected = normalizeIconSource(state.iconPicker?.selected || "");
+  const withSelected = (icons) => {
+    const unique = [...new Set(icons.map(normalizeIconifyIcon).filter(Boolean))];
+    if (selected && !unique.includes(selected) && (!normalizedQuery || selected.toLowerCase().includes(normalizedQuery))) {
+      unique.unshift(selected);
+    }
+    return unique.slice(0, limit);
+  };
+  if (!normalizedQuery) return withSelected(ICON_PICKER_DEFAULT_ICONS);
+  if (normalizedQuery.length < 3) {
+    return withSelected(ICON_PICKER_DEFAULT_ICONS
+      .filter((icon) => icon.toLowerCase().includes(normalizedQuery))
+    );
   }
+  return withSelected(state.iconSearchCache?.[iconifySearchKey(normalizedQuery, limit)] || []);
+}
+
+function iconPickerGridHtml() {
+  const picker = state.iconPicker;
+  if (!picker) return "";
+  const selected = normalizeIconSource(picker.selected || "tabler:circle");
+  const query = String(picker.query || "").trim();
+  const limit = Math.max(ICON_PICKER_PAGE_SIZE, Number(picker.limit) || ICON_PICKER_PAGE_SIZE);
+  const icons = iconPickerSearchResults(query, limit);
+  const isSearchable = query.length >= 3;
+  const isSearching = isSearchable && Boolean(state.iconSearchInFlight?.[iconifySearchKey(query, limit)]);
+  const emptyText = query.length && query.length < 3
+    ? "Type at least 3 letters to search more icons."
+    : isSearching
+      ? "Loading icons..."
+      : "No icons found yet.";
   return `
-    <div class="tracker-icon-suggestions" aria-label="Suggested icons">
-      ${suggestions.map((suggestion) => `
-        <button class="tracker-icon-suggestion${normalizeIconSource(selectedIcon) === suggestion.icon ? " is-selected" : ""}" data-icon="${escapeHtml(suggestion.icon)}" data-area="${escapeHtml(area)}" data-target="${escapeHtml(target)}" type="button" title="${escapeHtml(suggestion.icon)}">
-          ${iconHtml(suggestion.icon)}
-          <span>${escapeHtml(iconifyIconLabel(suggestion.icon))}</span>
+    <div class="icon-picker-grid" role="listbox" aria-label="Icon choices">
+      ${icons.length ? icons.map((icon) => `
+        <button class="icon-picker-option${selected === icon ? " is-selected" : ""}" data-action="select-icon-picker-icon" data-icon="${escapeHtml(icon)}" type="button" role="option" aria-selected="${selected === icon ? "true" : "false"}" title="${escapeHtml(icon)}">
+          <span class="icon-picker-option-symbol" aria-hidden="true">${trackerIconHtml(icon)}</span>
+          <span>${escapeHtml(iconDisplayName(icon))}</span>
         </button>
-      `).join("")}
+      `).join("") : `<div class="icon-picker-empty">${escapeHtml(emptyText)}</div>`}
+    </div>
+    <button class="secondary-button icon-picker-load-more" data-action="load-more-icon-picker" type="button"${query.length && query.length < 3 ? " disabled" : ""}>
+      ${buttonContent("tabler:plus", "Load More")}
+    </button>
+  `;
+}
+
+function iconPickerOverlayHtml() {
+  const picker = state.iconPicker;
+  if (!picker) return "";
+  const selected = normalizeIconSource(picker.selected || "tabler:circle");
+  const title = picker.title || "Choose icon";
+  const color = picker.color || "var(--accent)";
+  return `
+    <div class="icon-picker-overlay" data-icon-picker-overlay>
+      <section class="icon-picker-panel" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}" style="--icon-picker-color: ${escapeHtml(color)};">
+        <header class="icon-picker-header">
+          <div class="icon-picker-current" aria-hidden="true">
+            <span data-icon-picker-current-symbol>${trackerIconHtml(selected)}</span>
+          </div>
+          <div>
+            <h2>${escapeHtml(title)}</h2>
+            <p>Search icons and pick one from the grid.</p>
+          </div>
+          <button class="icon-button icon-picker-close" data-action="close-icon-picker" type="button" aria-label="Exit icon picker" title="Exit">${iconHtml("tabler:x")}</button>
+        </header>
+        <label class="icon-picker-search">
+          <span>Search</span>
+          <input data-icon-picker-search type="search" value="${escapeHtml(picker.query || "")}" placeholder="brain, calendar, prayer, run">
+        </label>
+        <div class="icon-picker-results" data-icon-picker-results>
+          ${iconPickerGridHtml()}
+        </div>
+        <footer class="icon-picker-actions">
+          <button class="secondary-button" data-action="close-icon-picker" type="button">${buttonContent("tabler:x", "Cancel")}</button>
+          <button class="primary-button" data-action="save-icon-picker" type="button">${buttonContent("tabler:device-floppy", "Save")}</button>
+        </footer>
+      </section>
     </div>
   `;
 }
 
+function trackerKind(kind) {
+  return kind === "goal" ? "goal" : "thought";
+}
+
+function trackerKindConfig(kind) {
+  const normalized = trackerKind(kind);
+  return normalized === "goal"
+    ? {
+      kind: "goal",
+      noun: "goal",
+      plural: "goals",
+      proper: "Goal",
+      properPlural: "Goals",
+      addLabel: "Add Goal",
+      addTooltip: "Add goal",
+      emptyNameAlert: "Add a goal name.",
+      timestampVerb: "Checked",
+      role: "goal-progress",
+      labelProp: "goalLabel",
+      iconProp: "goalIcon",
+      idProp: "goalId",
+      loggedProp: "goalLoggedAt"
+    }
+    : {
+      kind: "thought",
+      noun: "thought",
+      plural: "thoughts",
+      proper: "Thought",
+      properPlural: "Thoughts",
+      addLabel: "Add Thought",
+      addTooltip: "Add thought",
+      emptyNameAlert: "Add a thought name.",
+      timestampVerb: "Logged",
+      role: "thought",
+      labelProp: "thoughtLabel",
+      iconProp: "thoughtIcon",
+      idProp: "thoughtId",
+      loggedProp: "thoughtLoggedAt"
+    };
+}
+
+function trackerSettingsForKind(kind) {
+  return trackerKind(kind) === "goal" ? state.goalSettings : state.trackerSettings;
+}
+
+function saveTrackerSettingsForKind(kind) {
+  if (trackerKind(kind) === "goal") saveGoalSettings();
+  else saveTrackerSettings();
+}
+
+function normalizeTrackerSettingsForKind(kind, settings) {
+  return trackerKind(kind) === "goal"
+    ? normalizeGoalSettings(settings)
+    : normalizeTrackerSettings(settings);
+}
+
+function trackerAddKey(area, kind = "thought") {
+  return `${trackerKind(kind)}:${area}`;
+}
+
+function isTrackerAddOpen(area, kind = "thought") {
+  const key = state.trackerAddArea || "";
+  return key === trackerAddKey(area, kind) || (trackerKind(kind) === "thought" && key === area);
+}
+
 function trackerStripHtml(dashboard, options = {}) {
-  const trackers = state.trackerSettings?.[dashboard] || [];
+  const kind = trackerKind(options.kind);
+  const isCombined = options.combined === true;
+  const config = isCombined
+    ? {
+      kind: "combined",
+      noun: "orb",
+      plural: "orbs",
+      proper: "Orb",
+      properPlural: "Orbs",
+      addLabel: "Add Orb",
+      addTooltip: "Add orb",
+      emptyNameAlert: "Add an orb name.",
+      timestampVerb: "Saved",
+      role: "thought",
+      labelProp: "thoughtLabel",
+      iconProp: "thoughtIcon",
+      idProp: "thoughtId",
+      loggedProp: "thoughtLoggedAt"
+    }
+    : trackerKindConfig(kind);
+  const normalizedKind = trackerKind(kind);
   const editable = Boolean(options.editable);
   const compact = Boolean(options.compact);
-  const entries = editable
-    ? [...trackers, { id: "__add__", label: "Add thought", icon: "tabler:plus", isAdd: true }]
-    : trackers;
-  const maxPage = Math.max(0, Math.ceil(entries.length / TRACKER_ORBS_PER_PAGE) - 1);
-  const page = trackerPage(dashboard, editable, maxPage);
-  const visibleEntries = entries.slice(page * TRACKER_ORBS_PER_PAGE, (page + 1) * TRACKER_ORBS_PER_PAGE);
+  const stripLabel = options.label || "";
+  const stripIcon = options.icon || "";
+  let entries = [];
+  let maxPage = 0;
+  let page = 0;
+  const maxVisibleOrbs = TRACKER_ORBS_PER_ROW * TRACKER_ORB_ROWS;
+  let reorderEnabled = editable;
+  if (isCombined) {
+    const thoughtTrackers = trackerSettingsForKind("thought")?.[dashboard] || [];
+    const goalTrackers = trackerSettingsForKind("goal")?.[dashboard] || [];
+    const enabledGoals = goalTrackers.filter((goal) => goal?.enabled);
+    entries = [
+      ...thoughtTrackers.map((tracker) => ({ ...tracker, trackerKind: "thought" })),
+      ...enabledGoals.map((goal) => ({ ...goal, trackerKind: "goal" }))
+    ];
+    reorderEnabled = entries.length >= maxVisibleOrbs;
+  } else {
+    const allTrackers = trackerSettingsForKind(normalizedKind)?.[dashboard] || [];
+    entries = normalizedKind === "goal"
+      ? (allTrackers.filter((tracker) => tracker?.enabled))
+      : allTrackers;
+    if (editable) {
+      entries = [...allTrackers, { id: "__add__", label: config.addTooltip, icon: "tabler:plus", isAdd: true }];
+    }
+    maxPage = Math.max(0, Math.ceil(entries.length / TRACKER_ORBS_PER_PAGE) - 1);
+    page = trackerPage(dashboard, editable, maxPage, kind);
+  }
+  const visibleEntries = isCombined
+    ? (reorderEnabled ? entries : entries.slice(0, maxVisibleOrbs))
+    : entries.slice(page * TRACKER_ORBS_PER_PAGE, (page + 1) * TRACKER_ORBS_PER_PAGE);
   return `
-    <section class="tracker-strip${compact ? " tracker-strip--compact" : ""}${editable ? " is-editable" : ""}" aria-label="${escapeHtml(dashboard)} thoughts" style="--thought-color: ${DASHBOARD_COLORS[dashboard] || DASHBOARD_COLORS.Mind};">
-      <div class="tracker-orb-row"${editable ? ` data-tracker-reorder-row data-area="${escapeHtml(dashboard)}"` : ""}>
+    <section class="tracker-strip${compact ? " tracker-strip--compact" : ""}${editable ? " is-editable" : ""}" aria-label="${escapeHtml(dashboard)} ${escapeHtml(config.plural)}" style="--thought-color: ${DASHBOARD_COLORS[dashboard] || DASHBOARD_COLORS.Mind};">
+      ${stripLabel ? `<div class="tracker-strip-heading">${stripIcon ? `${iconHtml(stripIcon)} ` : ""}<span>${escapeHtml(stripLabel)}</span></div>` : ""}
+      <div class="tracker-orb-row${isCombined ? " tracker-orb-row--combined" : ""}${reorderEnabled ? " is-reorder-enabled" : ""}" data-kind="${isCombined ? "combined" : kind}" data-area="${escapeHtml(dashboard)}" data-tracker-combined="${isCombined ? "true" : "false"}" data-tracker-draggable="${reorderEnabled ? "true" : "false"}"${editable || reorderEnabled ? ` data-tracker-reorder-row data-kind="${isCombined ? "combined" : kind}" data-area="${escapeHtml(dashboard)}"` : ""}>
         ${visibleEntries.map((tracker) => tracker.isAdd ? `
           <span class="tracker-orb-wrap">
-            <button class="tracker-orb tracker-orb--add" data-action="start-add-tracker" data-area="${escapeHtml(dashboard)}" data-thought-tooltip="Add thought" type="button" aria-label="Add ${escapeHtml(dashboard)} thought">
+            <button class="tracker-orb tracker-orb--add" data-action="start-add-tracker" data-kind="${kind}" data-area="${escapeHtml(dashboard)}" data-thought-tooltip="${escapeHtml(config.addTooltip)}" type="button" aria-label="Add ${escapeHtml(dashboard)} ${escapeHtml(config.noun)}">
               ${iconHtml("tabler:plus")}
             </button>
           </span>
-        ` : trackerOrbHtml(dashboard, tracker, editable)).join("")}
+        ` : trackerOrbHtml(dashboard, tracker, editable, tracker.trackerKind || kind, reorderEnabled)).join("")}
       </div>
       ${maxPage > 0 ? `
-        <div class="tracker-page-controls" aria-label="${escapeHtml(dashboard)} thought pages">
-          <button data-action="tracker-page" data-area="${escapeHtml(dashboard)}" data-direction="prev" data-max-page="${maxPage}" data-editable="${editable ? "true" : "false"}" type="button" aria-label="Previous ${escapeHtml(dashboard)} thoughts"${page <= 0 ? " disabled" : ""}>${iconHtml("tabler:chevron-left")}</button>
+        <div class="tracker-page-controls" aria-label="${escapeHtml(dashboard)} ${escapeHtml(config.noun)} pages">
+          <button data-action="tracker-page" data-kind="${kind}" data-area="${escapeHtml(dashboard)}" data-direction="prev" data-max-page="${maxPage}" data-editable="${editable ? "true" : "false"}" type="button" aria-label="Previous ${escapeHtml(dashboard)} ${escapeHtml(config.plural)}"${page <= 0 ? " disabled" : ""}>${iconHtml("tabler:chevron-left")}</button>
           <span>${page + 1} / ${maxPage + 1}</span>
-          <button data-action="tracker-page" data-area="${escapeHtml(dashboard)}" data-direction="next" data-max-page="${maxPage}" data-editable="${editable ? "true" : "false"}" type="button" aria-label="Next ${escapeHtml(dashboard)} thoughts"${page >= maxPage ? " disabled" : ""}>${iconHtml("tabler:chevron-right")}</button>
+          <button data-action="tracker-page" data-kind="${kind}" data-area="${escapeHtml(dashboard)}" data-direction="next" data-max-page="${maxPage}" data-editable="${editable ? "true" : "false"}" type="button" aria-label="Next ${escapeHtml(dashboard)} ${escapeHtml(config.plural)}"${page >= maxPage ? " disabled" : ""}>${iconHtml("tabler:chevron-right")}</button>
         </div>
       ` : ""}
     </section>
   `;
 }
 
-function trackerOrbHtml(dashboard, tracker, editable = false) {
-  const cooldownRemaining = editable ? 0 : thoughtCooldownRemaining(dashboard, tracker.id);
+function trackerTooltipLabel(dashboard, tracker, kind = "thought") {
+  if (trackerKind(kind) !== "goal") return tracker.label;
+  const count = goalProgressCount(dashboard, tracker.id);
+  return count ? `${tracker.label} / ${count} check${count === 1 ? "" : "s"}` : tracker.label;
+}
+
+function trackerOrbHtml(dashboard, tracker, editable = false, kind = "thought", allowReorder = false) {
+  const resolvedKind = tracker?.trackerKind || kind;
+  const normalizedKind = trackerKind(resolvedKind);
+  const config = trackerKindConfig(normalizedKind);
+  const cooldownRemaining = editable ? 0 : thoughtCooldownRemaining(dashboard, tracker.id, normalizedKind);
   const isCooling = cooldownRemaining > 0;
-  const isEditing = state.trackerEditKey === trackerEditKey(dashboard, tracker.id);
+  const isEnabled = normalizedKind !== "goal" || tracker?.enabled;
+  const isEditing = state.trackerEditKey === trackerEditKey(dashboard, tracker.id, normalizedKind);
   const actionAttrs = editable
-    ? ` data-action="start-edit-tracker" data-area="${escapeHtml(dashboard)}" data-id="${escapeHtml(tracker.id)}"`
-    : ` data-action="quick-thought" data-area="${escapeHtml(dashboard)}" data-id="${escapeHtml(tracker.id)}"`;
+    ? ` data-action="start-edit-tracker" data-kind="${normalizedKind}" data-area="${escapeHtml(dashboard)}" data-id="${escapeHtml(tracker.id)}"`
+    : isEnabled
+      ? ` data-action="${normalizedKind === "goal" ? "quick-goal" : "quick-thought"}" data-kind="${normalizedKind}" data-area="${escapeHtml(dashboard)}" data-id="${escapeHtml(tracker.id)}"`
+      : "";
+  const tooltip = normalizedKind === "goal" && !tracker?.enabled
+    ? "Enable this orb in settings to log progress"
+    : trackerTooltipLabel(dashboard, tracker, normalizedKind);
+  const isDraggable = editable || allowReorder;
   return `
-    <span class="tracker-orb-wrap"${editable ? ` data-tracker-orb-wrap data-area="${escapeHtml(dashboard)}" data-id="${escapeHtml(tracker.id)}"` : ""}>
-      <button class="tracker-orb${isCooling ? " is-cooling" : ""}${isEditing ? " is-editing" : ""}" type="button"${actionAttrs} data-thought-tooltip="${escapeHtml(tracker.label)}" aria-label="${escapeHtml(`${dashboard} thought: ${tracker.label}`)}"${isCooling ? " disabled" : ""}>
+    <span class="tracker-orb-wrap"${isDraggable ? ` data-tracker-orb-wrap data-kind="${normalizedKind}" data-area="${escapeHtml(dashboard)}" data-id="${escapeHtml(tracker.id)}"` : ""}>
+      <button class="tracker-orb${isCooling ? " is-cooling" : ""}${isEditing ? " is-editing" : ""}${isEnabled ? "" : " is-disabled"}" type="button"${actionAttrs} data-thought-tooltip="${escapeHtml(tooltip)}" aria-label="${escapeHtml(`${dashboardDisplayLabel(dashboard)} ${config.noun}: ${tracker.label}`)}"${isCooling || (!isEnabled && !editable) ? " disabled" : ""}>
         ${isCooling ? `<span class="tracker-cooldown-pie" aria-hidden="true"${thoughtCooldownPieStyle(cooldownRemaining)}></span>` : ""}
         <span class="tracker-orb-icon">${trackerIconHtml(tracker.icon)}</span>
       </button>
@@ -1398,55 +1803,89 @@ function trackerOrbHtml(dashboard, tracker, editable = false) {
   `;
 }
 
+function dashboardOrbNavHtml(dashboard) {
+  return `
+    <div class="dashboard-orb-nav" aria-label="${escapeHtml(dashboardDisplayLabel(dashboard))} orbs">
+      ${trackerStripHtml(dashboard, { combined: true, label: "", icon: "tabler:planet" })}
+    </div>
+  `;
+}
+
 function trackerFieldId(area, field) {
   return `tracker-${String(area).toLowerCase()}-${field}`;
 }
 
-function addTracker(area) {
+function addTracker(area, kind = "thought") {
   if (!DASHBOARD_LABELS.includes(area)) return;
+  const normalizedKind = trackerKind(kind);
+  const config = trackerKindConfig(normalizedKind);
   const label = document.getElementById(trackerFieldId(area, "label"))?.value.trim();
   const iconInput = document.getElementById(trackerFieldId(area, "icon"))?.value.trim();
   const icon = iconInput || firstIconSuggestion(label);
   if (!label) {
-    window.alert("Add a thought name.");
+    window.alert(config.emptyNameAlert);
     return;
   }
+  const currentSettings = trackerSettingsForKind(normalizedKind);
   const next = {
-    ...state.trackerSettings,
+    ...currentSettings,
     [area]: [
-      ...(state.trackerSettings?.[area] || []),
-      { id: makeId(`${area.toLowerCase()}-tracker`), label, icon }
+      ...(currentSettings?.[area] || []),
+      {
+        id: makeId(`${area.toLowerCase()}-tracker`),
+        label,
+        icon,
+        ...(normalizedKind === "goal" ? { enabled: true } : {})
+      }
     ]
   };
-  state.trackerSettings = normalizeTrackerSettings(next);
-  saveTrackerSettings();
+  if (normalizedKind === "goal") state.goalSettings = normalizeGoalSettings(next);
+  else state.trackerSettings = normalizeTrackerSettings(next);
+  saveTrackerSettingsForKind(normalizedKind);
   setState({ trackerAddArea: "", trackerEditKey: "", trackerDeleteKey: "" });
 }
 
-function updateTracker(area, id) {
+function updateTracker(area, id, kind = "thought", options = {}) {
   if (!DASHBOARD_LABELS.includes(area) || !id) return;
+  const closeEditor = options.close !== false;
+  const silent = Boolean(options.silent);
+  const normalizedKind = trackerKind(kind);
+  const config = trackerKindConfig(normalizedKind);
   const label = document.getElementById(trackerFieldId(`${area}-${id}`, "label"))?.value.trim();
   const iconInput = document.getElementById(trackerFieldId(`${area}-${id}`, "icon"))?.value.trim();
-  const current = (state.trackerSettings?.[area] || []).find((tracker) => tracker.id === id);
+  const isGoal = normalizedKind === "goal";
+  const enabledInput = isGoal ? document.getElementById(trackerFieldId(`${area}-${id}`, "enabled")) : null;
+  const currentSettings = trackerSettingsForKind(normalizedKind);
+  const current = (currentSettings?.[area] || []).find((tracker) => tracker.id === id);
   if (!current || !label) {
-    window.alert("Add a thought name.");
+    if (!silent) window.alert(config.emptyNameAlert);
     return;
   }
   const icon = iconInput || firstIconSuggestion(label, current.icon || "tabler:circle");
   const next = {
-    ...state.trackerSettings,
-    [area]: (state.trackerSettings?.[area] || []).map((tracker) => (
-      tracker.id === id ? { ...tracker, label, icon } : tracker
+    ...currentSettings,
+    [area]: (currentSettings?.[area] || []).map((tracker) => (
+      tracker.id === id
+        ? {
+          ...tracker,
+          label,
+          icon,
+          ...(isGoal ? { enabled: Boolean(enabledInput?.checked) } : {})
+        }
+        : tracker
     ))
   };
-  state.trackerSettings = normalizeTrackerSettings(next);
-  saveTrackerSettings();
-  setState({ trackerEditKey: "", trackerDeleteKey: "" });
+  if (normalizedKind === "goal") state.goalSettings = normalizeGoalSettings(next);
+  else state.trackerSettings = normalizeTrackerSettings(next);
+  saveTrackerSettingsForKind(normalizedKind);
+  if (closeEditor) setState({ trackerEditKey: "", trackerDeleteKey: "" });
 }
 
-function reorderTracker(area, trackerId, targetIndex) {
+function reorderTracker(area, trackerId, targetIndex, kind = "thought") {
   if (!DASHBOARD_LABELS.includes(area)) return false;
-  const trackers = state.trackerSettings?.[area] || [];
+  const normalizedKind = trackerKind(kind);
+  const currentSettings = trackerSettingsForKind(normalizedKind);
+  const trackers = currentSettings?.[area] || [];
   const fromIndex = trackers.findIndex((tracker) => tracker.id === trackerId);
   if (fromIndex < 0) return false;
 
@@ -1456,36 +1895,41 @@ function reorderTracker(area, trackerId, targetIndex) {
   nextTrackers.splice(nextIndex, 0, movedTracker);
   if (nextTrackers.map((tracker) => tracker.id).join("|") === trackers.map((tracker) => tracker.id).join("|")) return false;
 
-  state.trackerSettings = normalizeTrackerSettings({
-    ...state.trackerSettings,
+  const next = {
+    ...currentSettings,
     [area]: nextTrackers
-  });
-  saveTrackerSettings();
+  };
+  if (normalizedKind === "goal") state.goalSettings = normalizeGoalSettings(next);
+  else state.trackerSettings = normalizeTrackerSettings(next);
+  saveTrackerSettingsForKind(normalizedKind);
   setState({ trackerEditKey: "", trackerDeleteKey: "", trackerAddArea: "" });
   return true;
 }
 
-function removeTracker(area, id) {
+function removeTracker(area, id, kind = "thought") {
   if (!DASHBOARD_LABELS.includes(area) || !id) return;
+  const normalizedKind = trackerKind(kind);
+  const currentSettings = trackerSettingsForKind(normalizedKind);
   const next = {
-    ...state.trackerSettings,
-    [area]: (state.trackerSettings?.[area] || []).filter((tracker) => tracker.id !== id)
+    ...currentSettings,
+    [area]: (currentSettings?.[area] || []).filter((tracker) => tracker.id !== id)
   };
-  state.trackerSettings = normalizeTrackerSettings(next);
-  saveTrackerSettings();
+  if (normalizedKind === "goal") state.goalSettings = normalizeGoalSettings(next);
+  else state.trackerSettings = normalizeTrackerSettings(next);
+  saveTrackerSettingsForKind(normalizedKind);
   setState({
-    trackerAddArea: state.trackerAddArea === area ? "" : state.trackerAddArea,
-    trackerEditKey: state.trackerEditKey === trackerEditKey(area, id) ? "" : state.trackerEditKey,
-    trackerDeleteKey: state.trackerDeleteKey === trackerEditKey(area, id) ? "" : state.trackerDeleteKey
+    trackerAddArea: state.trackerAddArea === trackerAddKey(area, normalizedKind) ? "" : state.trackerAddArea,
+    trackerEditKey: state.trackerEditKey === trackerEditKey(area, id, normalizedKind) ? "" : state.trackerEditKey,
+    trackerDeleteKey: state.trackerDeleteKey === trackerEditKey(area, id, normalizedKind) ? "" : state.trackerDeleteKey
   });
 }
 
-function thoughtCooldownKey(area, id) {
-  return `${area}:${id}`;
+function thoughtCooldownKey(area, id, kind = "thought") {
+  return `${trackerKind(kind)}:${area}:${id}`;
 }
 
-function thoughtCooldownRemaining(area, id) {
-  const endTime = state.thoughtCooldowns?.[thoughtCooldownKey(area, id)] || 0;
+function thoughtCooldownRemaining(area, id, kind = "thought") {
+  const endTime = state.thoughtCooldowns?.[thoughtCooldownKey(area, id, kind)] || 0;
   return Math.max(0, endTime - Date.now());
 }
 
@@ -1528,13 +1972,25 @@ function thoughtTimestampFromToastControls() {
   return Number.isNaN(date.getTime()) ? state.thoughtToast?.timestamp || nowIso() : date.toISOString();
 }
 
+function trackerKindForNote(note) {
+  return note?.properties?.role === "goal-progress" ? "goal" : "thought";
+}
+
 function thoughtNoteWithTimestamp(note, timestamp) {
   const date = new Date(timestamp);
   if (!note || Number.isNaN(date.getTime())) return note;
-  const label = note.properties?.thoughtLabel || state.thoughtToast?.label || note.title;
+  const kind = trackerKindForNote(note);
+  const config = trackerKindConfig(kind);
+  const label = note.properties?.[config.labelProp] || state.thoughtToast?.label || note.title;
   const dateKey = dateKeyFromDate(date);
-  const title = `${label} ${formatEventTime(timestamp) || thoughtTimestampLabel(timestamp)}`;
-  const body = String(note.body || "").replace(/Logged: .*/, `Logged: ${thoughtTimestampLabel(timestamp)}`);
+  const title = kind === "goal"
+    ? `${label} Progress ${formatEventTime(timestamp) || thoughtTimestampLabel(timestamp)}`
+    : `${label} ${formatEventTime(timestamp) || thoughtTimestampLabel(timestamp)}`;
+  const timestampLine = `${config.timestampVerb}: ${thoughtTimestampLabel(timestamp)}`;
+  const markerPattern = new RegExp(`${config.timestampVerb}: .*`);
+  const body = markerPattern.test(String(note.body || ""))
+    ? String(note.body || "").replace(markerPattern, timestampLine)
+    : `${String(note.body || "").trimEnd()}\n${timestampLine}`;
   const audit = Array.isArray(note.properties?.audit) ? note.properties.audit : [];
   return {
     ...note,
@@ -1544,7 +2000,7 @@ function thoughtNoteWithTimestamp(note, timestamp) {
     properties: {
       ...(note.properties || {}),
       dateKey,
-      thoughtLoggedAt: timestamp,
+      [config.loggedProp]: timestamp,
       audit: audit.map((entry) => entry.action === "created"
         ? { ...entry, at: timestamp, title, dateKey }
         : entry)
@@ -1641,6 +2097,8 @@ function submitThoughtToastNote(noteId, text) {
   const now = nowIso();
   const timestamp = thoughtTimestampFromToastControls();
   const adjusted = thoughtNoteWithTimestamp(current, timestamp);
+  const kind = trackerKindForNote(adjusted);
+  const config = trackerKindConfig(kind);
   const entry = `- ${thoughtTimestampLabel(timestamp)}: ${body}`;
   persistArtifactStore(upsertArtifact(state.artifactStore, {
     ...adjusted,
@@ -1659,7 +2117,7 @@ function submitThoughtToastNote(noteId, text) {
           action: "quick-note",
           title: adjusted.title,
           dateKey: dateKeyFromValue(timestamp),
-          thoughtLabel: adjusted.properties?.thoughtLabel || ""
+          [config.labelProp]: adjusted.properties?.[config.labelProp] || ""
         }
       ]
     }
@@ -1695,20 +2153,62 @@ function deleteThoughtToastNote(noteId) {
   });
 }
 
-function quickThought(area, id) {
+function launchGoalBurst(triggerElement, color = DASHBOARD_COLORS.Mind) {
+  if (!(triggerElement instanceof HTMLElement)) return;
+  const reducedMotion = Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches);
+  const rect = triggerElement.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  const burst = document.createElement("span");
+  burst.className = "goal-confetti-burst";
+  if (reducedMotion) burst.classList.add("is-reduced-motion");
+  burst.style.left = `${rect.left + rect.width / 2}px`;
+  burst.style.top = `${rect.top + rect.height / 2}px`;
+  burst.style.setProperty("--goal-color", color || DASHBOARD_COLORS.Mind);
+  const particles = 12;
+  for (let index = 0; index < particles; index += 1) {
+    const particle = document.createElement("i");
+    const angle = (Math.PI * 2 * index) / particles;
+    const distance = (reducedMotion ? 14 : 22) + (index % 4) * (reducedMotion ? 3 : 7);
+    particle.style.setProperty("--burst-x", `${Math.cos(angle) * distance}px`);
+    particle.style.setProperty("--burst-y", `${Math.sin(angle) * distance}px`);
+    particle.style.setProperty("--burst-rotate", `${index * 37}deg`);
+    particle.style.animationDelay = `${index * 18}ms`;
+    burst.append(particle);
+  }
+  document.body.append(burst);
+  window.setTimeout(() => burst.remove(), 2100);
+}
+
+function goalProgressArtifacts(area, goalId = "") {
+  if (!state.artifactStore) return [];
+  return rootNotesForDashboard(state.artifactStore, area)
+    .filter((note) => note.properties?.role === "goal-progress")
+    .filter((note) => !goalId || note.properties?.goalId === goalId);
+}
+
+function goalProgressCount(area, goalId = "") {
+  return goalProgressArtifacts(area, goalId).length;
+}
+
+function quickTrackerEntry(area, id, kind = "thought", triggerElement = null) {
   if (!state.artifactStore || !DASHBOARD_LABELS.includes(area)) return;
-  const cooldownKey = thoughtCooldownKey(area, id);
-  if (thoughtCooldownRemaining(area, id) > 0 || state.thoughtCreateLocks[cooldownKey]) return;
-  const tracker = (state.trackerSettings?.[area] || []).find((item) => item.id === id);
-  if (!tracker) return;
+  const normalizedKind = trackerKind(kind);
+  const config = trackerKindConfig(normalizedKind);
+  const cooldownKey = thoughtCooldownKey(area, id, normalizedKind);
+  const tracker = (trackerSettingsForKind(normalizedKind)?.[area] || []).find((item) => item.id === id);
+  if (!tracker || (normalizedKind === "goal" && !tracker.enabled)) return;
+  if (thoughtCooldownRemaining(area, id, normalizedKind) > 0 || state.thoughtCreateLocks[cooldownKey]) return;
+  if (normalizedKind === "goal") launchGoalBurst(triggerElement, DASHBOARD_COLORS[area]);
   state.thoughtCreateLocks = {
     ...state.thoughtCreateLocks,
     [cooldownKey]: true
   };
   const now = nowIso();
-  const title = `${tracker.label} ${formatEventTime(now) || thoughtTimestampLabel(now)}`;
+  const title = normalizedKind === "goal"
+    ? `${tracker.label} Progress ${formatEventTime(now) || thoughtTimestampLabel(now)}`
+    : `${tracker.label} ${formatEventTime(now) || thoughtTimestampLabel(now)}`;
   const note = {
-    id: makeId("thought"),
+    id: makeId(normalizedKind === "goal" ? "goal" : "thought"),
     type: "note",
     dashboard: area,
     parentId: null,
@@ -1716,26 +2216,27 @@ function quickThought(area, id) {
     body: [
       `## ${tracker.label}`,
       "",
-      `Logged: ${thoughtTimestampLabel(now)}`,
+      `${config.timestampVerb}: ${thoughtTimestampLabel(now)}`,
       ""
     ].join("\n"),
     created: now,
     edited: now,
     childIds: [],
     properties: {
-      role: "thought",
+      role: config.role,
       status: "active",
       dateKey: todayDateKey(),
-      thoughtLabel: tracker.label,
-      thoughtIcon: tracker.icon,
-      thoughtLoggedAt: now,
+      [config.labelProp]: tracker.label,
+      [config.iconProp]: tracker.icon,
+      [config.idProp]: tracker.id,
+      [config.loggedProp]: now,
       audit: [
         {
           at: now,
           action: "created",
           title,
           dateKey: todayDateKey(),
-          thoughtLabel: tracker.label
+          [config.labelProp]: tracker.label
         }
       ]
     },
@@ -1748,11 +2249,16 @@ function quickThought(area, id) {
   persistArtifactStore(upsertArtifact(state.artifactStore, note));
   const { [cooldownKey]: _created, ...nextCreateLocks } = state.thoughtCreateLocks;
   state.thoughtCreateLocks = nextCreateLocks;
+  const progressCount = normalizedKind === "goal" ? goalProgressCount(area, tracker.id) : 0;
   showThoughtToast({
+    kind: normalizedKind,
     noteId: note.id,
     dashboard: area,
     label: tracker.label,
-    timestamp: now
+    timestamp: now,
+    metric: normalizedKind === "goal"
+      ? `${progressCount} check${progressCount === 1 ? "" : "s"}`
+      : ""
   });
   window.setTimeout(() => {
     if (state.thoughtCooldowns[cooldownKey] <= Date.now()) {
@@ -1761,6 +2267,14 @@ function quickThought(area, id) {
       render();
     }
   }, THOUGHT_COOLDOWN_MS + 50);
+}
+
+function quickThought(area, id) {
+  quickTrackerEntry(area, id, "thought");
+}
+
+function quickGoal(area, id, triggerElement = null) {
+  quickTrackerEntry(area, id, "goal", triggerElement);
 }
 
 function duckDuckGoUrl(query, options = "") {
@@ -1822,6 +2336,7 @@ function lastAuditEntry(item) {
 
 function activityTimestamp(item) {
   return lastAuditEntry(item)?.at ||
+    item?.properties?.goalLoggedAt ||
     item?.properties?.completedAt ||
     item?.properties?.startedAt ||
     item?.properties?.stoppedAt ||
@@ -1895,13 +2410,14 @@ function latestDashboardArtifact(dashboard) {
 function dashboardFlipRows(label) {
   if (label === "Mind") {
     const latestCompendium = latestByActivity(state.compendiums);
-    const latestBlock = latestByActivity(state.compendiums.flatMap((compendium) =>
-      compendium.blocks.map((block) => ({ ...block, compendiumTitle: compendium.title }))
+    const latestSection = latestByActivity(state.compendiums.flatMap((compendium) =>
+      (Array.isArray(compendium.sections) ? compendium.sections : [])
+        .map((section) => ({ ...section, compendiumTitle: compendium.title }))
     ));
-    const latest = latestBlock || latestCompendium;
+    const latest = latestSection || latestCompendium;
     return [
-      ["What", latest ? shortSummary(latest.title) : "No lesson yet"],
-      ["Where", latest?.compendiumTitle ? shortSummary(latest.compendiumTitle) : "Mind"],
+      ["What", latest ? shortSummary(latest.title) : "No compendium yet"],
+      ["Where", latest?.compendiumTitle ? shortSummary(latest.compendiumTitle) : dashboardDisplayLabel("Mind")],
       ["When", formatActivityTimestamp(activityTimestamp(latest))]
     ];
   }
@@ -1911,7 +2427,7 @@ function dashboardFlipRows(label) {
     const latestWorkout = latestByActivity(state.bodyTracker.workouts);
     const latest = latestByActivity([latestNote, latestWorkout].filter(Boolean));
     return [
-      ["What", latest ? shortSummary(latest.title) : "No body log yet"],
+      ["What", latest ? shortSummary(latest.title) : `No ${dashboardDisplayLabel("Body").toLowerCase()} log yet`],
       ["Detail", latest?.minutes ? `${latest.type || "Workout"} / ${latest.minutes} min` : shortSummary(latest?.body, state.bodyTracker.fast.active ? `Fasting ${formatDuration(getFastElapsedMs())}` : `${Math.round(Number(state.bodyTracker.nutrition.calories) || 0)} cal today`)],
       ["When", formatActivityTimestamp(activityTimestamp(latest))]
     ];
@@ -1930,7 +2446,7 @@ function dashboardFlipRows(label) {
 
   const latestNote = latestDashboardArtifact("Life");
   return [
-    ["What", latestNote ? shortSummary(latestNote.title) : "No life note yet"],
+    ["What", latestNote ? shortSummary(latestNote.title) : `No ${dashboardDisplayLabel("Life").toLowerCase()} note yet`],
     ["Detail", latestNote ? shortSummary(latestNote.body) : "Add a note"],
     ["When", formatActivityTimestamp(activityTimestamp(latestNote))]
   ];
@@ -2067,35 +2583,35 @@ function noteMetaItems(note) {
 }
 
 function compendiumSidebarArtifact(compendium) {
-  const blockBodies = Array.isArray(compendium.blocks)
-    ? compendium.blocks.map((block) => block?.body || block?.content || "").filter(Boolean)
+  const sectionBodies = Array.isArray(compendium.sections)
+    ? compendium.sections.map((section) => section?.body || section?.content || "").filter(Boolean)
     : [];
   return {
     ...compendium,
     dashboard: "Mind",
     type: "compendium",
-    body: [compendium.body, ...blockBodies].filter(Boolean).join("\n\n"),
+    body: [compendium.body, ...sectionBodies].filter(Boolean).join("\n\n"),
     properties: compendium.properties || {}
   };
 }
 
 function mindSidebarItems() {
-  const thoughts = rootNotesForDashboard(state.artifactStore, "Mind")
-    .filter((note) => note.properties?.role === "thought");
+  const quickNotes = rootNotesForDashboard(state.artifactStore, "Mind")
+    .filter((note) => ["thought", "goal-progress"].includes(note.properties?.role));
   const sections = state.compendiums.flatMap((compendium) =>
-    (compendium.blocks || []).map((block) => ({
-      ...block,
+    (compendium.sections || []).map((section) => ({
+      ...section,
       dashboard: "Mind",
       type: "mind-section",
       parentId: compendium.id,
       compendiumTitle: compendium.title,
       properties: {
-        ...(block.properties || {}),
+        ...(section.properties || {}),
         role: "compendium-section"
       }
     }))
   );
-  return newestActivityFirst([...thoughts, ...sections]);
+  return newestActivityFirst([...quickNotes, ...sections]);
 }
 
 function sidebarOrganizerHtml(item) {
@@ -2118,9 +2634,9 @@ function sidebarOrganizerHtml(item) {
 function sidebarItemHtml(item, options) {
   const number = Number(options.number) || 1;
   const typeClass = item.type === "compendium"
-    ? " sidebar-item--mind-topic"
+    ? " sidebar-item--mind-compendium"
     : item.type === "mind-section"
-      ? " sidebar-item--mind-lesson"
+      ? " sidebar-item--mind-section"
       : "";
   const labelHtml = item.compendiumTitle
     ? `<span class="sidebar-item-label"><small>${escapeHtml(item.compendiumTitle)}</small><strong>${escapeHtml(item.title)}</strong></span>`
@@ -2215,9 +2731,21 @@ function selectedCompendium() {
   return state.compendiums.find((item) => item.id === state.selectedCompendiumId) || null;
 }
 
-function selectedBlock() {
+function normalizeCompendiumSections(compendium) {
+  if (!compendium) return compendium;
+  const sections = Array.isArray(compendium.sections)
+    ? compendium.sections
+    : (Array.isArray(compendium.blocks) ? compendium.blocks : []);
+  return { ...compendium, sections };
+}
+
+function normalizeCompendiums(compendiums) {
+  return Array.isArray(compendiums) ? compendiums.map(normalizeCompendiumSections) : [];
+}
+
+function selectedSection() {
   const compendium = selectedCompendium();
-  return compendium?.blocks.find((block) => block.id === state.selectedBlockId) || null;
+  return compendium?.sections.find((section) => section.id === state.selectedSectionId) || null;
 }
 
 function spiritWorks() {
@@ -2368,7 +2896,7 @@ function toggleSidebarSection(section) {
 }
 
 function toggleAllSidebarSections() {
-  const labels = ["Mind", "Body", "Spirit", "Life"];
+  const labels = DASHBOARD_LABELS;
   const shouldExpand = !labels.every((label) => state.sidebarExpanded[label]);
   setState({
     sidebarExpanded: Object.fromEntries(labels.map((label) => [label, shouldExpand]))
@@ -2386,24 +2914,73 @@ function setSidebarPage(section, direction, maxPage) {
   });
 }
 
-function trackerPageKey(dashboard, editable = false) {
-  return `${dashboard}:${editable ? "settings" : "quick"}`;
+function trackerPageKey(dashboard, editable = false, kind = "thought") {
+  return `${trackerKind(kind)}:${dashboard}:${editable ? "settings" : "quick"}`;
 }
 
-function trackerPage(dashboard, editable = false, maxPage = 0) {
-  const page = state.trackerPages?.[trackerPageKey(dashboard, editable)] || 0;
+function trackerPage(dashboard, editable = false, maxPage = 0, kind = "thought") {
+  const page = state.trackerPages?.[trackerPageKey(dashboard, editable, kind)] || 0;
   return Math.min(Math.max(page, 0), Math.max(0, maxPage));
 }
 
-function setTrackerPage(dashboard, direction, maxPage, editable = false) {
-  const current = trackerPage(dashboard, editable, maxPage);
+function setTrackerPage(dashboard, direction, maxPage, editable = false, kind = "thought") {
+  const current = trackerPage(dashboard, editable, maxPage, kind);
   const nextPage = direction === "prev" ? current - 1 : current + 1;
   setState({
     trackerPages: {
       ...(state.trackerPages || {}),
-      [trackerPageKey(dashboard, editable)]: Math.min(Math.max(nextPage, 0), Math.max(0, maxPage))
+      [trackerPageKey(dashboard, editable, kind)]: Math.min(Math.max(nextPage, 0), Math.max(0, maxPage))
     }
   });
+}
+
+function reorderCombinedTrackers(area, trackerId, targetIndex) {
+  if (!DASHBOARD_LABELS.includes(area) || !trackerId) return;
+  const thoughtTrackers = [...((state.trackerSettings?.[area]) || [])];
+  const goalTrackers = [...((state.goalSettings?.[area]) || [])];
+  const enabledGoals = goalTrackers.filter((goal) => goal?.enabled);
+  const disabledGoals = goalTrackers.filter((goal) => !goal?.enabled);
+  const combinedTrackers = [
+    ...thoughtTrackers.map((tracker) => ({ ...tracker, trackerKind: "thought" })),
+    ...enabledGoals.map((goal) => ({ ...goal, trackerKind: "goal" }))
+  ];
+  const sourceIndex = combinedTrackers.findIndex((tracker) => tracker.id === trackerId);
+  if (sourceIndex < 0) return;
+  const resolvedTarget = Number.isFinite(Number(targetIndex)) ? Number(targetIndex) : 0;
+  const clampedTarget = Math.min(Math.max(resolvedTarget, 0), combinedTrackers.length);
+  if (sourceIndex === clampedTarget) return;
+  const reordered = [...combinedTrackers];
+  const [moved] = reordered.splice(sourceIndex, 1);
+  reordered.splice(clampedTarget, 0, moved);
+
+  const orderedThoughts = reordered
+    .filter((tracker) => tracker.trackerKind === "thought")
+    .map((tracker) => thoughtTrackers.find((entry) => entry.id === tracker.id))
+    .filter(Boolean);
+  const orderedThoughtIds = new Set(orderedThoughts.map((tracker) => tracker.id));
+  const nextThoughts = [...orderedThoughts, ...thoughtTrackers.filter((tracker) => !orderedThoughtIds.has(tracker.id))];
+
+  const orderedGoalIds = reordered
+    .filter((tracker) => tracker.trackerKind === "goal")
+    .map((tracker) => tracker.id);
+  const enabledGoalMap = new Map(enabledGoals.map((goal) => [goal.id, goal]));
+  const nextEnabledGoals = orderedGoalIds
+    .map((goalId) => enabledGoalMap.get(goalId))
+    .filter(Boolean);
+  const nextGoals = [...nextEnabledGoals, ...disabledGoals];
+
+  setState({
+    trackerSettings: {
+      ...(state.trackerSettings || {}),
+      [area]: nextThoughts
+    },
+    goalSettings: {
+      ...(state.goalSettings || {}),
+      [area]: nextGoals
+    }
+  });
+  saveTrackerSettings();
+  saveGoalSettings();
 }
 
 function clampSidebarWidth(value) {
@@ -2451,13 +3028,14 @@ function menuToggleLabel(isOpen = state.mobileMenuOpen) {
 
 function persistCompendiums() {
   if (!state.artifactStore) return;
+  state.compendiums = normalizeCompendiums(state.compendiums);
   state.artifactStore = compendiumsToArtifactStore(state.compendiums, state.artifactStore);
   saveArtifactStore(state.artifactStore);
 }
 
 function persistArtifactStore(nextStore) {
   state.artifactStore = nextStore;
-  state.compendiums = artifactStoreToCompendiums(nextStore);
+  state.compendiums = normalizeCompendiums(artifactStoreToCompendiums(nextStore));
   saveArtifactStore(nextStore);
 }
 
@@ -2519,7 +3097,7 @@ function lifeTaskItems() {
 }
 
 function setLifeTool(tool) {
-  const nextTool = ["todo", "projects", "calendar", "notes"].includes(tool) ? tool : "";
+  const nextTool = ["todo", "projects", "calendar"].includes(tool) ? tool : "calendar";
   setState({
     lifeTool: nextTool,
     artifactMode: "grid",
@@ -2570,7 +3148,7 @@ function importArtifacts() {
         mindMode: "grid",
         artifactMode: "grid",
         selectedCompendiumId: null,
-        selectedBlockId: null,
+        selectedSectionId: null,
         selectedArtifactId: null,
         selectedSpiritBookKey: null
       });
@@ -2589,6 +3167,7 @@ async function clearAppData() {
   window.localStorage.removeItem(SPIRIT_PROGRESS_KEY);
   window.localStorage.removeItem(LIFE_PLANNER_KEY);
   window.localStorage.removeItem(TRACKER_SETTINGS_KEY);
+  window.localStorage.removeItem(GOAL_SETTINGS_KEY);
   window.localStorage.removeItem(SIDEBAR_WIDTH_KEY);
   window.localStorage.removeItem(THEME_KEY);
   window.localStorage.removeItem(ICONIFY_SEARCH_CACHE_KEY);
@@ -2599,6 +3178,7 @@ async function clearAppData() {
   state.spiritProgress = {};
   state.lifePlanner = createDefaultLifePlanner();
   state.trackerSettings = cloneDefaultTrackers();
+  state.goalSettings = cloneDefaultGoals();
   state.theme = "default";
   state.settingsTab = "getting-started";
   state.trackerAddArea = "";
@@ -2617,7 +3197,7 @@ async function clearAppData() {
     }
     setState({
       artifactStore,
-      compendiums: artifactStoreToCompendiums(artifactStore)
+      compendiums: normalizeCompendiums(artifactStoreToCompendiums(artifactStore))
     });
   });
 }
@@ -2641,7 +3221,7 @@ function openGallery() {
     artifactMode: "grid",
     selectedArtifactId: null,
     selectedCompendiumId: null,
-    selectedBlockId: null,
+    selectedSectionId: null,
     selectedSpiritBookKey: null,
     galleryImages: null,
     gallerySelectedIds: []
@@ -2656,7 +3236,7 @@ function goHome() {
     mindMode: "grid",
     artifactMode: "grid",
     selectedCompendiumId: null,
-    selectedBlockId: null,
+    selectedSectionId: null,
     selectedArtifactId: null,
     selectedSpiritBookKey: null,
     gallerySelectedIds: []
@@ -2674,7 +3254,7 @@ function openDashboardCard(section) {
     mindMode: section === "Mind" ? "grid" : state.mindMode,
     artifactMode: section === "Mind" ? state.artifactMode : "grid",
     selectedCompendiumId: section === "Mind" ? null : state.selectedCompendiumId,
-    selectedBlockId: section === "Mind" ? null : state.selectedBlockId,
+    selectedSectionId: section === "Mind" ? null : state.selectedSectionId,
     selectedArtifactId: null,
     selectedSpiritBookKey: null
   });
@@ -2802,14 +3382,14 @@ function openCompendium(id) {
   setState({
     active: "Mind",
     selectedCompendiumId: id,
-    selectedBlockId: null,
+    selectedSectionId: null,
     selectedArtifactId: null,
     mindMode: "manager"
   });
 }
 
 function compendiumReaderPage(compendium) {
-  const maxPage = Math.max(0, (compendium?.blocks?.length || 0));
+  const maxPage = Math.max(0, (compendium?.sections?.length || 0));
   const page = state.compendiumReaderPages?.[compendium?.id] || 0;
   return Math.min(Math.max(page, 0), maxPage);
 }
@@ -2825,10 +3405,14 @@ function setCompendiumReaderPage(compendiumId, direction, maxPage) {
   });
 }
 
-function mindCompendiumsPerPage() {
+function mindCompendiumColumns() {
   if (window.matchMedia?.(COMPENDIUM_ONE_QUERY).matches) return 1;
   if (window.matchMedia?.(COMPENDIUM_TWO_QUERY).matches) return 2;
   return 3;
+}
+
+function mindCompendiumsPerPage() {
+  return mindCompendiumColumns() * COMPENDIUM_ROWS_PER_PAGE;
 }
 
 function chunkItems(items, size) {
@@ -2870,16 +3454,16 @@ function selectMindCompendiumFromPicker(compendiumId, index, perPage) {
   openCompendium(compendiumId);
 }
 
-function openMindSection(parentId, blockId) {
-  if (!parentId || !blockId) return;
+function openMindSection(parentId, sectionId) {
+  if (!parentId || !sectionId) return;
   const compendium = state.compendiums.find((item) => item.id === parentId);
-  if (!compendium?.blocks?.some((block) => block.id === blockId)) return;
+  if (!compendium?.sections?.some((section) => section.id === sectionId)) return;
   setState({
     active: "Mind",
     selectedCompendiumId: parentId,
-    selectedBlockId: blockId,
+    selectedSectionId: sectionId,
     selectedArtifactId: null,
-    mindMode: "block-viewer"
+    mindMode: "section-viewer"
   });
 }
 
@@ -2908,7 +3492,7 @@ function openArtifactNote(id, returnActive = "") {
     artifactMode: "viewer",
     artifactReturnActive: returnActive,
     selectedCompendiumId: null,
-    selectedBlockId: null,
+    selectedSectionId: null,
     selectedSpiritBookKey: null
   });
 }
@@ -2926,18 +3510,18 @@ function addCompendium() {
   const now = nowIso();
   const next = {
     id: makeId("compendium"),
-    title: `Untitled Lesson ${state.compendiums.length + 1}`,
-    body: "## New Lesson\n\nDescribe what this lesson is for.",
+    title: `Untitled Compendium ${state.compendiums.length + 1}`,
+    body: "## New Compendium\n\nDescribe what this compendium is for.",
     created: now,
     edited: now,
-    blocks: []
+    sections: []
   };
   state.compendiums = [...state.compendiums, next];
   persistCompendiums();
   setState({
     active: "Mind",
     selectedCompendiumId: next.id,
-    selectedBlockId: null,
+    selectedSectionId: null,
     mindMode: "compendium-editor"
   });
 }
@@ -2954,38 +3538,38 @@ function saveCompendium(id, title, body) {
 function deleteCompendium(id) {
   const compendium = state.compendiums.find((item) => item.id === id);
   if (!compendium) return;
-  if (!window.confirm(`Delete lesson "${compendium.title}" and all of its topics?`)) return;
+  if (!window.confirm(`Delete compendium "${compendium.title}" and all of its sections?`)) return;
 
   state.compendiums = state.compendiums.filter((item) => item.id !== id);
   persistCompendiums();
   setState({
     selectedCompendiumId: null,
-    selectedBlockId: null,
+    selectedSectionId: null,
     mindMode: "grid"
   });
 }
 
-function addBlock() {
+function addSection() {
   const compendium = selectedCompendium();
   if (!compendium) return;
   const now = nowIso();
-  const nextBlock = {
-    id: makeId("block"),
-    title: `Topic ${compendium.blocks.length + 1}`,
-    body: "## New Topic\n\nWrite the topic body here.",
+  const nextSection = {
+    id: makeId("section"),
+    title: `Section ${compendium.sections.length + 1}`,
+    body: "## New Section\n\nWrite the section body here.",
     created: now,
     edited: now
   };
   state.compendiums = state.compendiums.map((item) =>
     item.id === compendium.id
-      ? { ...item, edited: now, blocks: [...item.blocks, nextBlock] }
+      ? { ...item, edited: now, sections: [...item.sections, nextSection] }
       : item
   );
   persistCompendiums();
-  setState({ selectedBlockId: nextBlock.id, mindMode: "block-editor" });
+  setState({ selectedSectionId: nextSection.id, mindMode: "section-editor" });
 }
 
-function saveBlock(id, title, body) {
+function saveSection(id, title, body) {
   const compendium = selectedCompendium();
   if (!compendium) return;
   const now = nowIso();
@@ -2994,21 +3578,21 @@ function saveBlock(id, title, body) {
       ? {
           ...item,
           edited: now,
-          blocks: item.blocks.map((block) =>
-            block.id === id ? { ...block, title, body, edited: now } : block
+          sections: item.sections.map((section) =>
+            section.id === id ? { ...section, title, body, edited: now } : section
           )
         }
       : item
   );
   persistCompendiums();
-  setState({ mindMode: "block-viewer" });
+  setState({ mindMode: "section-viewer" });
 }
 
-function deleteBlock(id) {
+function deleteSection(id) {
   const compendium = selectedCompendium();
-  const block = selectedBlock();
-  if (!compendium || !block) return;
-  if (!window.confirm(`Delete topic "${block.title}"?`)) return;
+  const section = selectedSection();
+  if (!compendium || !section) return;
+  if (!window.confirm(`Delete section "${section.title}"?`)) return;
 
   const now = nowIso();
   state.compendiums = state.compendiums.map((item) =>
@@ -3016,32 +3600,32 @@ function deleteBlock(id) {
       ? {
           ...item,
           edited: now,
-          blocks: item.blocks.filter((entry) => entry.id !== id)
+          sections: item.sections.filter((entry) => entry.id !== id)
         }
       : item
   );
   persistCompendiums();
   setState({
-    selectedBlockId: null,
+    selectedSectionId: null,
     mindMode: "manager"
   });
 }
 
-function reorderCompendiumBlock(compendiumId, blockId, targetIndex) {
+function reorderCompendiumSection(compendiumId, sectionId, targetIndex) {
   let changed = false;
   state.compendiums = state.compendiums.map((compendium) => {
     if (compendium.id !== compendiumId) return compendium;
-    const fromIndex = compendium.blocks.findIndex((block) => block.id === blockId);
+    const fromIndex = compendium.sections.findIndex((section) => section.id === sectionId);
     if (fromIndex < 0) return compendium;
 
-    const blocks = [...compendium.blocks];
-    const [movedBlock] = blocks.splice(fromIndex, 1);
-    const nextIndex = Math.min(Math.max(targetIndex, 0), blocks.length);
+    const sections = [...compendium.sections];
+    const [movedSection] = sections.splice(fromIndex, 1);
+    const nextIndex = Math.min(Math.max(targetIndex, 0), sections.length);
     if (nextIndex === fromIndex) return compendium;
 
-    blocks.splice(nextIndex, 0, movedBlock);
+    sections.splice(nextIndex, 0, movedSection);
     changed = true;
-    return { ...compendium, blocks };
+    return { ...compendium, sections };
   });
   return changed;
 }
@@ -3061,8 +3645,8 @@ function addDashboardNote(dashboard) {
     type: "note",
     dashboard,
     parentId: null,
-    title: `New ${dashboard} Note`,
-    body: isLife ? "" : `## New ${dashboard} Note\n\nWrite the note here.`,
+    title: `New ${dashboardDisplayLabel(dashboard)} Note`,
+    body: isLife ? "" : `## New ${dashboardDisplayLabel(dashboard)} Note\n\nWrite the note here.`,
     created: now,
     edited: now,
     childIds: [],
@@ -3077,7 +3661,7 @@ function addDashboardNote(dashboard) {
         {
           at: now,
           action: "created",
-          title: `New ${dashboard} Note`,
+          title: `New ${dashboardDisplayLabel(dashboard)} Note`,
           dateKey: todayDateKey()
         }
       ]
@@ -3742,7 +4326,20 @@ function deleteLifeAttachment(level, attachmentId) {
 }
 
 function setDashboardPeriod(period) {
-  setState({ dashboardPeriod: ["day", "week", "year"].includes(period) ? period : "day" });
+  const nextPeriod = dashboardPeriodOption(period).id;
+  const glowUntil = Date.now() + 7000;
+  window.clearTimeout(dashboardPeriodGlowTimer);
+  dashboardPeriodGlowTimer = window.setTimeout(() => {
+    if (state.dashboardPeriodGlowUntil <= Date.now()) setState({ dashboardPeriodGlowUntil: 0 });
+  }, 7200);
+  setState({
+    dashboardPeriod: nextPeriod,
+    dashboardPeriodGlowUntil: glowUntil
+  });
+}
+
+function setDashboardPeriodByIndex(index) {
+  setDashboardPeriod(dashboardPeriodOptionForIndex(index).id);
 }
 
 function setDashboardChartType(chartType) {
@@ -3753,6 +4350,26 @@ function setTheme(theme) {
   const nextTheme = normalizeTheme(theme);
   saveTheme(nextTheme);
   setState({ theme: nextTheme });
+}
+
+function saveDashboardIdentitySettings() {
+  const current = normalizeDashboardIdentity(state.dashboardIdentity);
+  const nextIdentity = {
+    showNumbers: Boolean(document.getElementById("dashboard-show-numbers")?.checked),
+    showIcons: Boolean(document.getElementById("dashboard-show-icons")?.checked),
+    items: Object.fromEntries(DASHBOARD_LABELS.map((dashboard) => {
+      const label = document.getElementById(`dashboard-identity-${dashboard}-label`)?.value.trim() || DEFAULT_DASHBOARD_IDENTITY.items[dashboard].label;
+      const icon = document.getElementById(`dashboard-identity-${dashboard}-icon`)?.value.trim() || current.items[dashboard]?.icon || DEFAULT_DASHBOARD_IDENTITY.items[dashboard].icon;
+      return [dashboard, {
+        ...DEFAULT_DASHBOARD_IDENTITY.items[dashboard],
+        label,
+        icon: normalizeIconSource(icon)
+      }];
+    }))
+  };
+  const normalized = normalizeDashboardIdentity(nextIdentity);
+  saveDashboardIdentity(normalized);
+  setState({ dashboardIdentity: normalized });
 }
 
 function render() {
@@ -3777,7 +4394,7 @@ function render() {
   }
 
   const compendium = selectedCompendium();
-  const block = selectedBlock();
+  const section = selectedSection();
   const spiritBook = selectedSpiritBook();
   const sidebarScrollTop = app.querySelector(".sidebar-list-scroll")?.scrollTop ?? 0;
   const settingsScrollTop = app.querySelector(".settings-tab-panel")?.scrollTop ?? 0;
@@ -3790,26 +4407,31 @@ function render() {
       </button>
       ${sidebarHtml(compendium)}
       <section class="content-shell">
-        ${pathBarHtml(compendium, block, spiritBook)}
-        <div class="content-stage"${state.mobileMenuOpen ? " inert aria-hidden=\"true\"" : ""}>${contentHtml(compendium, block)}</div>
+        ${pathBarHtml(compendium, section, spiritBook)}
+        <div class="content-stage"${state.mobileMenuOpen ? " inert aria-hidden=\"true\"" : ""}>${contentHtml(compendium, section)}</div>
       </section>
     </div>
     ${donationModalHtml()}
     ${thoughtToastHtml()}
+    ${iconPickerOverlayHtml()}
   `;
   const sidebarScroll = app.querySelector(".sidebar-list-scroll");
   if (sidebarScroll) sidebarScroll.scrollTop = sidebarScrollTop;
   const settingsScroll = app.querySelector(".settings-tab-panel");
   if (settingsScroll) settingsScroll.scrollTop = settingsScrollTop;
   bindActions();
+  bindTrackerEditorAutoSave();
+  bindHeaderActionTooltips();
   bindThoughtTooltips();
   bindThoughtToastControls();
-  bindTrackerSettingsForms();
+  bindIconPickerControls();
   bindTrackerOrbSorting();
   bindSidebarResize();
   bindSidebarHorizontalScroll();
+  bindPathBarOverflow();
   bindCompendiumSectionSorting();
   bindDashboardBalanceHover();
+  bindDashboardPeriodSlider();
   bindGalleryControls();
   bindEditorMedia();
   bindLocalAssetImages();
@@ -3823,19 +4445,24 @@ function render() {
 function thoughtToastHtml() {
   const toast = state.thoughtToast;
   if (!toast) return "";
+  const kind = trackerKind(toast.kind);
+  const config = trackerKindConfig(kind);
   const quickNote = toast.quickNote || "";
   const hasQuickNote = quickNote.trim().length > 0;
   const toastDate = thoughtDateInputValue(toast.timestamp);
   const toastTime = thoughtTimeInputValue(toast.timestamp);
+  const summaryAction = kind === "goal" ? "checked" : "saved";
+  const detailLabel = kind === "goal" ? "Progress note" : "Quick note";
+  const detailPlaceholder = kind === "goal" ? "Add progress detail" : "Add a detail";
   return `
     <aside class="thought-toast" role="status" aria-live="polite">
       <div class="thought-toast-summary">
-        <strong>${escapeHtml(toast.dashboard)} thought saved</strong>
-        <small><span>${escapeHtml(toast.label)}</span><span id="thought-toast-summary-time">${escapeHtml(thoughtTimestampLabel(toast.timestamp))}</span></small>
+        <strong>${escapeHtml(toast.dashboard)} ${escapeHtml(config.noun)} ${summaryAction}</strong>
+        <small><span>${escapeHtml(toast.label)}</span><span id="thought-toast-summary-time">${escapeHtml(thoughtTimestampLabel(toast.timestamp))}</span>${toast.metric ? `<span>${escapeHtml(toast.metric)}</span>` : ""}</small>
       </div>
       <label class="thought-toast-input-label">
-        <span>Quick note</span>
-        <input class="thought-toast-input" id="thought-toast-note" type="text" value="${escapeHtml(quickNote)}" placeholder="Add a detail">
+        <span>${detailLabel}</span>
+        <input class="thought-toast-input" id="thought-toast-note" type="text" value="${escapeHtml(quickNote)}" placeholder="${detailPlaceholder}">
       </label>
       <div class="thought-toast-time-fields">
         <label>
@@ -3847,11 +4474,11 @@ function thoughtToastHtml() {
           <input class="thought-toast-input" id="thought-toast-time" type="time" value="${escapeHtml(toastTime)}">
         </label>
       </div>
-      <button class="icon-button thought-toast-action" data-action="${hasQuickNote ? "submit-thought-toast-note" : "open-thought-toast-note"}" data-id="${escapeHtml(toast.noteId)}" type="button" aria-label="${hasQuickNote ? "Submit quick note" : "Open note"}" title="${hasQuickNote ? "Submit" : "Open Note"}">
+      <button class="icon-button thought-toast-action" data-action="${hasQuickNote ? "submit-thought-toast-note" : "open-thought-toast-note"}" data-id="${escapeHtml(toast.noteId)}" type="button" aria-label="${hasQuickNote ? (kind === "goal" ? "Submit progress note" : "Submit quick note") : "Open note"}" title="${hasQuickNote ? "Submit" : "Open Note"}">
         ${iconHtml(hasQuickNote ? "tabler:device-floppy" : "tabler:external-link")}
       </button>
-      <button class="icon-button danger-button thought-toast-delete" data-action="delete-thought-toast-note" data-id="${escapeHtml(toast.noteId)}" type="button" aria-label="Delete thought note" title="Delete thought note">${iconHtml("tabler:trash")}</button>
-      <button class="icon-button" data-action="dismiss-thought-toast" type="button" aria-label="Dismiss thought popup" title="Dismiss">${iconHtml("tabler:x")}</button>
+      <button class="icon-button danger-button thought-toast-delete" data-action="delete-thought-toast-note" data-id="${escapeHtml(toast.noteId)}" type="button" aria-label="Delete ${escapeHtml(config.noun)} note" title="Delete ${escapeHtml(config.noun)} note">${iconHtml("tabler:trash")}</button>
+      <button class="icon-button" data-action="dismiss-thought-toast" type="button" aria-label="Dismiss ${escapeHtml(config.noun)} popup" title="Dismiss">${iconHtml("tabler:x")}</button>
     </aside>
   `;
 }
@@ -3868,10 +4495,12 @@ function bindThoughtToastControls() {
 
   const updateActionButton = () => {
     const value = noteInput.value.trim();
+    const kind = trackerKind(state.thoughtToast?.kind);
+    const submitLabel = kind === "goal" ? "Submit progress note" : "Submit quick note";
     if (state.thoughtToast) state.thoughtToast.quickNote = noteInput.value;
     actionButton.dataset.action = value ? "submit-thought-toast-note" : "open-thought-toast-note";
     actionButton.innerHTML = iconHtml(value ? "tabler:device-floppy" : "tabler:external-link");
-    actionButton.setAttribute("aria-label", value ? "Submit quick note" : "Open note");
+    actionButton.setAttribute("aria-label", value ? submitLabel : "Open note");
     actionButton.setAttribute("title", value ? "Submit" : "Open Note");
     pauseThoughtToastFade();
   };
@@ -3904,56 +4533,142 @@ function bindThoughtToastControls() {
   timeInput?.addEventListener("input", updateTimestamp);
 }
 
-function trackerIconInputId(area, target) {
-  if (target === "add") return trackerFieldId(area, "icon");
-  if (target.startsWith("edit-")) return trackerFieldId(`${area}-${target.replace(/^edit-/, "")}`, "icon");
-  return "";
+function openIconPicker(element) {
+  const fieldId = element.dataset.iconField || "";
+  const field = document.getElementById(fieldId);
+  if (!field) return;
+  state.iconPicker = {
+    fieldId,
+    previewId: element.dataset.iconPreview || "",
+    title: element.dataset.iconTitle || "Choose icon",
+    color: element.dataset.iconColor || "var(--accent)",
+    selected: normalizeIconSource(field.value || "tabler:circle") || "tabler:circle",
+    query: "",
+    limit: ICON_PICKER_PAGE_SIZE
+  };
+  app.querySelector("[data-icon-picker-overlay]")?.remove();
+  app.insertAdjacentHTML("beforeend", iconPickerOverlayHtml());
+  bindIconPickerControls();
 }
 
-function bindTrackerSettingsForms() {
-  app.querySelectorAll(".tracker-title-input").forEach((input) => {
-    const area = input.dataset.area || "";
-    const target = input.dataset.target || "add";
-    const slot = app.querySelector(`.tracker-suggestion-slot[data-area="${CSS.escape(area)}"][data-target="${CSS.escape(target)}"]`);
-    const iconInput = document.getElementById(trackerIconInputId(area, target));
-    if (!slot || !iconInput) return;
+function closeIconPicker() {
+  state.iconPicker = null;
+  app.querySelector("[data-icon-picker-overlay]")?.remove();
+}
 
-    const refresh = () => {
-      slot.innerHTML = trackerIconSuggestionsHtml(input.value, area, target, iconInput.value);
-      slot.querySelectorAll(".tracker-icon-suggestion").forEach((button) => {
-        button.addEventListener("click", () => {
-          iconInput.value = button.dataset.icon || "";
-          refresh();
-        });
-      });
-    };
-    const refreshFromIconify = () => {
-      const query = input.value.trim();
-      if (query.length < 3) {
-        refresh();
-        return;
-      }
-      refresh();
-      searchIconifyIcons(query).then(() => {
-        if (!document.body.contains(input) || input.value.trim() !== query) return;
-        refresh();
-      });
-    };
+function refreshIconPickerResults() {
+  const results = app.querySelector("[data-icon-picker-results]");
+  if (!results || !state.iconPicker) return;
+  results.innerHTML = iconPickerGridHtml();
+}
 
-    refreshFromIconify();
-    input.addEventListener("input", refreshFromIconify);
-    iconInput.addEventListener("input", refresh);
+function updateIconPickerCurrent() {
+  const symbol = app.querySelector("[data-icon-picker-current-symbol]");
+  if (symbol && state.iconPicker) {
+    symbol.innerHTML = trackerIconHtml(state.iconPicker.selected || "tabler:circle");
+  }
+}
+
+function selectIconPickerIcon(icon) {
+  if (!state.iconPicker) return;
+  state.iconPicker.selected = normalizeIconSource(icon || "tabler:circle") || "tabler:circle";
+  updateIconPickerCurrent();
+  refreshIconPickerResults();
+}
+
+function requestIconPickerSearch(query, limit) {
+  if (!state.iconPicker || String(query || "").trim().length < 3) return;
+  const searchPromise = searchIconifyIcons(query, limit);
+  refreshIconPickerResults();
+  searchPromise.then(() => {
+    if (!state.iconPicker || state.iconPicker.query !== query || state.iconPicker.limit !== limit) return;
+    refreshIconPickerResults();
   });
 }
 
-function trackerDropIndex(row, activeWrap, pointerX) {
-  const wraps = Array.from(row.querySelectorAll("[data-tracker-orb-wrap]"))
-    .filter((wrap) => wrap !== activeWrap);
-  const index = wraps.findIndex((wrap) => {
-    const rect = wrap.getBoundingClientRect();
-    return pointerX < rect.left + rect.width / 2;
+function updateIconPickerField(fieldId, icon) {
+  const normalized = normalizeIconSource(icon || "tabler:circle") || "tabler:circle";
+  const field = document.getElementById(fieldId);
+  if (field) {
+    field.value = normalized;
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+  app.querySelectorAll(`[data-icon-field="${CSS.escape(fieldId)}"]`).forEach((trigger) => {
+    trigger.dataset.iconTitle = trigger.dataset.iconTitle || "Choose icon";
+    trigger.setAttribute("aria-label", `Choose icon: ${iconDisplayName(normalized)}`);
+    trigger.setAttribute("title", `Choose icon: ${iconDisplayName(normalized)}`);
+    trigger.querySelector(".icon-picker-trigger-symbol")?.replaceChildren();
+    const symbol = trigger.querySelector(".icon-picker-trigger-symbol");
+    if (symbol) symbol.innerHTML = trackerIconHtml(normalized);
+    const label = trigger.querySelector(".icon-picker-trigger-label");
+    if (label) label.textContent = iconDisplayName(normalized);
+    const previewId = trigger.dataset.iconPreview || "";
+    const preview = previewId ? document.getElementById(previewId) : null;
+    if (preview) {
+      const previewIcon = preview.querySelector(".tracker-orb-icon");
+      if (previewIcon) previewIcon.innerHTML = trackerIconHtml(normalized);
+      else preview.innerHTML = trackerIconHtml(normalized);
+    }
   });
-  return index === -1 ? wraps.length : index;
+}
+
+function saveIconPickerSelection() {
+  if (!state.iconPicker) return;
+  updateIconPickerField(state.iconPicker.fieldId, state.iconPicker.selected);
+  closeIconPicker();
+}
+
+function loadMoreIconPickerIcons() {
+  if (!state.iconPicker) return;
+  state.iconPicker.limit = Math.min(192, (Number(state.iconPicker.limit) || ICON_PICKER_PAGE_SIZE) + ICON_PICKER_PAGE_SIZE);
+  refreshIconPickerResults();
+  requestIconPickerSearch(state.iconPicker.query, state.iconPicker.limit);
+}
+
+function bindIconPickerControls() {
+  const overlay = app.querySelector("[data-icon-picker-overlay]");
+  if (!overlay || !state.iconPicker) return;
+  overlay.addEventListener("click", (event) => {
+    const actionElement = event.target?.closest?.("[data-action]");
+    if (!actionElement || !overlay.contains(actionElement)) return;
+    handleAction(actionElement);
+  });
+  overlay.addEventListener("keydown", (event) => {
+    if (!["Enter", " "].includes(event.key)) return;
+    const actionElement = event.target?.closest?.("[data-action]");
+    if (!actionElement || !overlay.contains(actionElement)) return;
+    event.preventDefault();
+    handleAction(actionElement);
+  });
+  const search = overlay.querySelector("[data-icon-picker-search]");
+  if (search) {
+    search.addEventListener("input", () => {
+      state.iconPicker.query = search.value.trim();
+      state.iconPicker.limit = ICON_PICKER_PAGE_SIZE;
+      refreshIconPickerResults();
+      requestIconPickerSearch(state.iconPicker.query, state.iconPicker.limit);
+    });
+  }
+}
+
+function trackerDropIndex(row, activeWrap, pointerX, pointerY = pointerX) {
+  const allWraps = Array.from(row.querySelectorAll("[data-tracker-orb-wrap]"));
+  const wraps = allWraps.filter((wrap) => wrap !== activeWrap);
+  if (!allWraps.length) return 0;
+  if (!wraps.length) return 0;
+  const sampleRect = allWraps[0].getBoundingClientRect();
+  if (!sampleRect.width || !sampleRect.height) return 0;
+  const rowStyle = window.getComputedStyle(row);
+  const rowGap = parseFloat(rowStyle.rowGap || rowStyle.gap || "0") || 0;
+  const columnGap = parseFloat(rowStyle.columnGap || rowStyle.gap || "0") || 0;
+  const estimatedRowHeight = sampleRect.height + rowGap;
+  const estimatedColumnWidth = sampleRect.width + columnGap;
+  const firstRowWraps = allWraps.filter((wrap) => Math.abs(wrap.getBoundingClientRect().top - sampleRect.top) < 3);
+  const columns = Math.max(1, firstRowWraps.length);
+  const rowIndex = estimatedRowHeight > 0 ? Math.floor((pointerY - sampleRect.top) / estimatedRowHeight) : 0;
+  const columnIndex = estimatedColumnWidth > 0 ? Math.floor((pointerX - sampleRect.left) / estimatedColumnWidth) : 0;
+  const index = rowIndex * columns + columnIndex;
+  return Math.min(Math.max(index, 0), wraps.length);
 }
 
 function clearTrackerDropMarkers(row) {
@@ -3984,6 +4699,7 @@ function bindTrackerOrbSorting() {
       orb.addEventListener("pointerdown", (event) => {
         if (event.button !== undefined && event.button !== 0) return;
         const area = wrap.dataset.area || row.dataset.area || "";
+        const kind = wrap.dataset.kind || row.dataset.kind || "thought";
         const trackerId = wrap.dataset.id || "";
         if (!area || !trackerId) return;
 
@@ -3998,7 +4714,7 @@ function bindTrackerOrbSorting() {
           orb.setPointerCapture?.(event.pointerId);
           row.classList.add("is-reordering");
           wrap.classList.add("is-dragging");
-          targetIndex = trackerDropIndex(row, wrap, moveEvent.clientX);
+          targetIndex = trackerDropIndex(row, wrap, moveEvent.clientX, moveEvent.clientY);
           setTrackerDropMarker(row, wrap, targetIndex);
         };
 
@@ -4007,7 +4723,7 @@ function bindTrackerOrbSorting() {
           if (!isDragging && moved < 6) return;
           moveEvent.preventDefault();
           if (!isDragging) startDrag(moveEvent);
-          targetIndex = trackerDropIndex(row, wrap, moveEvent.clientX);
+          targetIndex = trackerDropIndex(row, wrap, moveEvent.clientX, moveEvent.clientY);
           setTrackerDropMarker(row, wrap, targetIndex);
         };
 
@@ -4022,7 +4738,11 @@ function bindTrackerOrbSorting() {
 
           if (!isDragging) return;
           finishEvent.preventDefault();
-          reorderTracker(area, trackerId, targetIndex ?? 0);
+          if (kind === "combined") {
+            reorderCombinedTrackers(area, trackerId, targetIndex ?? 0);
+          } else {
+            reorderTracker(area, trackerId, targetIndex ?? 0, kind);
+          }
           window.setTimeout(() => {
             state.suppressNextTrackerEditClick = false;
           }, 0);
@@ -4038,7 +4758,7 @@ function bindTrackerOrbSorting() {
 
 function focusThoughtEditor() {
   const note = findArtifact(state.artifactStore, state.selectedArtifactId);
-  if (state.artifactMode !== "editor" || note?.properties?.role !== "thought") return;
+  if (state.artifactMode !== "editor" || !["thought", "goal-progress"].includes(note?.properties?.role)) return;
   window.requestAnimationFrame(() => {
     const editor = document.getElementById("editor-body");
     if (!editor) return;
@@ -4049,25 +4769,22 @@ function focusThoughtEditor() {
 }
 
 function sidebarHtml(compendium) {
-  const sectionLabels = [
-    ["01", "Mind"],
-    ["02", "Body"],
-    ["03", "Spirit"],
-    ["04", "Life"]
-  ];
-  const allExpanded = sectionLabels.every(([, label]) => state.sidebarExpanded[label]);
+  const sectionLabels = DASHBOARD_LABELS;
+  const allExpanded = sectionLabels.every((label) => state.sidebarExpanded[label]);
   return `
     <aside class="sidebar">
       <div class="sidebar-fixed-top">
-        <button class="sidebar-toggle-all" data-action="toggle-all-sidebar-sections" type="button" aria-pressed="${allExpanded ? "true" : "false"}">
-          <span>${allExpanded ? "Collapse all" : "Expand all"}</span>
-          <span aria-hidden="true">${allExpanded ? "-" : "+"}</span>
-        </button>
+        <nav class="sidebar-menu-nav" aria-label="Menu controls">
+          <button class="sidebar-menu-nav-button" data-action="toggle-all-sidebar-sections" type="button" aria-pressed="${allExpanded ? "true" : "false"}" aria-label="${allExpanded ? "Collapse all" : "Expand all"}" title="${allExpanded ? "Collapse all" : "Expand all"}">
+            ${iconHtml(allExpanded ? "tabler:chevrons-up" : "tabler:chevrons-down")}
+          </button>
+          ${dashboardPeriodSliderHtml("sidebar-period-slider")}
+        </nav>
       </div>
       <div class="sidebar-list-scroll">
         <div class="sidebar-groups">
           ${sectionLabels
-            .map(([number, label]) => {
+            .map((label) => {
               const expanded = state.sidebarExpanded[label];
               const items = label === "Mind"
                 ? (() => {
@@ -4075,9 +4792,9 @@ function sidebarHtml(compendium) {
                   return mindItems.map((item, index) => sidebarItemHtml(item, {
                     action: item.type === "mind-section" ? "open-mind-section" : "open-artifact-note",
                     active: item.type === "mind-section"
-                      ? state.selectedBlockId === item.id
+                      ? state.selectedSectionId === item.id
                       : item.type === "compendium"
-                        ? state.selectedCompendiumId === item.id && !state.selectedBlockId
+                        ? state.selectedCompendiumId === item.id && !state.selectedSectionId
                         : state.selectedArtifactId === item.id,
                     number: mindItems.length - index,
                     parentId: item.parentId || ""
@@ -4098,7 +4815,7 @@ function sidebarHtml(compendium) {
               return `
               <section class="sidebar-group${expanded ? " is-expanded" : " is-collapsed"}">
                 <button class="sidebar-group-toggle" data-action="toggle-sidebar-section" data-section="${label}" type="button" aria-expanded="${expanded ? "true" : "false"}">
-                  <span>${number} ${label}</span>
+                  <span class="dashboard-inline-title">${dashboardInlineLabelHtml(label)}</span>
                   <span class="sidebar-group-chevron" aria-hidden="true">${expanded ? "-" : "+"}</span>
                 </button>
                 <div class="sidebar-group-items"${expanded ? "" : " hidden"}>
@@ -4153,23 +4870,24 @@ function sidebarPagedItemsHtml(section, itemsHtml) {
   `;
 }
 
-function pathBarHtml(compendium, block, spiritBook) {
+function pathBarHtml(compendium, section, spiritBook) {
+  const activeLabel = DASHBOARD_LABELS.includes(state.active) ? dashboardDisplayLabel(state.active) : state.active;
   return `
-    <nav class="path-bar" aria-label="Current location">
+    <nav class="path-bar" aria-label="Current location" tabindex="0">
       <button data-action="home">Dashboard</button>
-      ${state.active !== "Dashboard" ? `<span>/</span><button data-action="dashboard-root">${escapeHtml(state.active)}</button>` : ""}
+      ${state.active !== "Dashboard" ? `<span>/</span><button data-action="dashboard-root">${escapeHtml(activeLabel)}</button>` : ""}
       ${compendium ? `<span>/</span><button class="truncate" data-action="compendium-root">${escapeHtml(compendium.title)}</button>` : ""}
-      ${block ? `<span>/</span><span class="truncate muted">${escapeHtml(block.title)}</span>` : ""}
+      ${section ? `<span>/</span><span class="truncate muted">${escapeHtml(section.title)}</span>` : ""}
       ${spiritBook ? `<span>/</span><span class="truncate muted">${escapeHtml(spiritBook.title)}</span>` : ""}
     </nav>
   `;
 }
 
-function contentHtml(compendium, block) {
+function contentHtml(compendium, section) {
   if (state.active === "Dashboard") return dashboardGridHtml();
   if (state.active === "Settings") return settingsHtml();
   if (state.active === "Gallery") return galleryHtml();
-  if (state.active === "Mind") return mindHtml(compendium, block);
+  if (state.active === "Mind") return mindHtml(compendium, section);
   if (state.active === "Body") return bodyHtml();
   if (state.active === "Spirit") return spiritHtml();
   if (state.active === "Life") return lifeHtml();
@@ -4182,11 +4900,11 @@ function dashboardGridHtml() {
       ${dashboardAnalyticsHtml()}
       <div class="dashboard-divider" aria-hidden="true"></div>
       <div class="dashboard-grid">
-        ${dashboardCards.map(([number, label]) => `
+        ${DASHBOARD_LABELS.map((label) => `
           <button class="dashboard-card${state.flipped === label ? " is-flipped" : ""}" data-action="open-dashboard-card" data-section="${label}" data-balance-key="${label}" style="--card-color: ${DASHBOARD_COLORS[label]};">
             <span class="dashboard-card-inner">
               <span class="dashboard-card-face dashboard-card-front">
-                <span class="dashboard-card-title">${number} ${label.toUpperCase()}</span>
+                <span class="dashboard-card-title">${dashboardTitleHtml(label)}</span>
               </span>
               <span class="dashboard-card-face dashboard-card-back-face">
                 ${dashboardCardBackHtml(label)}
@@ -4199,11 +4917,33 @@ function dashboardGridHtml() {
   `;
 }
 
+function dashboardPeriodSliderHtml(extraClass = "") {
+  const periodOption = dashboardPeriodOption(state.dashboardPeriod);
+  const periodIndex = dashboardPeriodIndex(periodOption.id);
+  const periodProgress = DASHBOARD_PERIOD_OPTIONS.length > 1
+    ? Math.round((periodIndex / (DASHBOARD_PERIOD_OPTIONS.length - 1)) * 100)
+    : 0;
+  const recentClass = state.dashboardPeriodGlowUntil > Date.now() ? " is-period-recent" : "";
+  return `
+    <label class="dashboard-period-slider${extraClass ? ` ${extraClass}` : ""}${recentClass}">
+      <span class="dashboard-period-slider-top">
+        <span class="dashboard-period-slider-value">${escapeHtml(periodOption.label)}</span>
+      </span>
+      <input class="dashboard-period-range" data-dashboard-period-slider type="range" min="0" max="${DASHBOARD_PERIOD_OPTIONS.length - 1}" step="1" value="${periodIndex}" aria-label="Balance range" aria-valuetext="${escapeHtml(periodOption.label)}" style="--period-progress: ${periodProgress}%;">
+      <span class="dashboard-period-slider-scale" aria-hidden="true">
+        <span>1d</span>
+        <span>10y</span>
+      </span>
+    </label>
+  `;
+}
+
 function dashboardAnalyticsHtml() {
-  const labels = ["Mind", "Body", "Spirit", "Life"];
+  const labels = DASHBOARD_LABELS;
   const pieLabels = ["Body", "Spirit", "Life", "Mind"];
   const chartType = state.dashboardChartType === "bar" ? "bar" : "pie";
-  const events = lifeEvents().filter((event) => eventIsInPeriod(event, state.dashboardPeriod));
+  const periodOption = dashboardPeriodOption(state.dashboardPeriod);
+  const events = lifeEvents().filter((event) => eventIsInPeriod(event, periodOption.id));
   const counts = Object.fromEntries(labels.map((label) => [label, 0]));
   events.forEach((event) => {
     if (counts[event.dashboard] !== undefined) counts[event.dashboard] += 1;
@@ -4216,7 +4956,7 @@ function dashboardAnalyticsHtml() {
     cursor += value;
     return { label, value, start };
   });
-  const periodLabel = state.dashboardPeriod === "day" ? "today" : state.dashboardPeriod === "year" ? "this year" : "this week";
+  const periodLabel = periodOption.id === "day" ? "today" : `the last ${periodOption.label.toLowerCase()}`;
   const ideal = total ? total / labels.length : 0;
   const imbalance = total ? labels.map((label) => Math.abs(counts[label] - ideal)).reduce((sum, value) => sum + value, 0) / total : 0;
   const balanceScore = Math.max(0, Math.round((1 - imbalance) * 100));
@@ -4226,12 +4966,12 @@ function dashboardAnalyticsHtml() {
       <div class="dashboard-bar-chart" role="img" aria-label="Balance bar chart">
         ${labels.map((label) => {
           const count = counts[label];
+          const displayLabel = dashboardDisplayLabel(label);
           const barSize = count ? Math.max(10, Math.round((count / maxCount) * 100)) : 5;
           return `
-            <button class="dashboard-bar-button" data-action="open-dashboard-direct" data-section="${label}" data-balance-key="${label}" type="button" aria-label="Open ${label}, ${count} event${count === 1 ? "" : "s"}" style="--bar-color: ${DASHBOARD_COLORS[label]}; --bar-size: ${barSize}%;">
+            <button class="dashboard-bar-button" data-action="open-dashboard-direct" data-section="${label}" data-balance-key="${label}" type="button" aria-label="Open ${escapeHtml(displayLabel)}, ${count} event${count === 1 ? "" : "s"}" style="--bar-color: ${DASHBOARD_COLORS[label]}; --bar-size: ${barSize}%;">
               <span class="dashboard-bar-value">${count}</span>
               <span class="dashboard-bar-track" aria-hidden="true"><span class="dashboard-bar-fill"></span></span>
-              <span class="dashboard-bar-label">${label}</span>
             </button>
           `;
         }).join("")}
@@ -4241,7 +4981,7 @@ function dashboardAnalyticsHtml() {
       <div class="dashboard-pie">
         <svg class="dashboard-pie-chart" viewBox="0 0 148 148" aria-label="Open balance section">
           ${segments.map(({ label, value, start }) => `
-            <circle class="dashboard-pie-segment" data-action="open-dashboard-direct" data-section="${label}" data-balance-key="${label}" tabindex="0" role="button" aria-label="Open ${label}" cx="74" cy="74" r="57" pathLength="100" style="--segment-color: ${DASHBOARD_COLORS[label]}; --segment-start: ${start}; --segment-size: ${value};"></circle>
+            <circle class="dashboard-pie-segment" data-action="open-dashboard-direct" data-section="${label}" data-balance-key="${label}" tabindex="0" role="button" aria-label="Open ${escapeHtml(dashboardDisplayLabel(label))}" cx="74" cy="74" r="57" pathLength="100" style="--segment-color: ${DASHBOARD_COLORS[label]}; --segment-start: ${start}; --segment-size: ${value};"></circle>
           `).join("")}
         </svg>
         <span>${total}</span>
@@ -4254,7 +4994,7 @@ function dashboardAnalyticsHtml() {
       <div class="dashboard-analytics-header">
         <div>
           <h2>Balance</h2>
-          <p>Mind, Body, Spirit, and Life activity for ${periodLabel}.</p>
+          <p>${escapeHtml(dashboardDisplayNameList())} activity for ${periodLabel}.</p>
         </div>
       </div>
       <div class="dashboard-analytics-body">
@@ -4262,17 +5002,13 @@ function dashboardAnalyticsHtml() {
           ${chartHtml}
           <strong>${balanceScore}% balanced</strong>
           <div class="dashboard-chart-controls">
+            ${dashboardPeriodSliderHtml()}
             <div class="dashboard-chart-switcher" role="group" aria-label="Balance chart type">
               ${[
                 ["pie", "tabler:chart-pie", "Pie"],
                 ["bar", "tabler:chart-bar", "Bar"]
               ].map(([type, icon, label]) => `
                 <button class="${chartType === type ? "is-active" : ""}" data-action="set-dashboard-chart" data-chart="${type}" type="button" aria-pressed="${chartType === type ? "true" : "false"}" title="${label} chart">${buttonContent(icon, label)}</button>
-              `).join("")}
-            </div>
-            <div class="dashboard-period-toggle" role="group" aria-label="Balance period">
-              ${["day", "week", "year"].map((period) => `
-                <button class="${state.dashboardPeriod === period ? "is-active" : ""}" data-action="set-dashboard-period" data-period="${period}" type="button" aria-pressed="${state.dashboardPeriod === period ? "true" : "false"}">${period}</button>
               `).join("")}
             </div>
           </div>
@@ -4290,7 +5026,7 @@ function settingsHtml() {
   const panels = {
     "getting-started": settingsGettingStartedHtml(),
     thoughts: settingsThoughtsHtml(),
-    goals: settingsComingSoonHtml("Goals"),
+    goals: settingsGoalsHtml(),
     interface: settingsInterfaceHtml()
   };
   return panelHtml(`
@@ -4305,12 +5041,12 @@ function settingsHtml() {
 }
 
 function settingsTabsHtml(activeTab) {
-  const tabs = [
-    ["getting-started", "Getting Started", "tabler:sparkles"],
-    ["thoughts", "Thoughts", "tabler:message-circle"],
-    ["goals", "Goals", "tabler:target-arrow"],
-    ["interface", "Interface", "tabler:layout-dashboard"]
-  ];
+    const tabs = [
+      ["getting-started", "Getting Started", "tabler:sparkles"],
+      ["thoughts", "Thoughts", "tabler:message-circle"],
+      ["goals", "Goals", "tabler:target-arrow"],
+      ["interface", "Interface", "tabler:layout-dashboard"]
+    ];
   return `
     <nav class="settings-tabs" aria-label="Settings tabs">
       ${tabs.map(([tab, label, icon]) => `
@@ -4331,32 +5067,32 @@ function settingsGettingStartedHtml() {
       </section>
       <div class="getting-started-grid">
         <article>
-          <span>01</span>
-          <h3>Mind</h3>
-          <p>Use Mind for ideas, notes, books, concepts, plans, and anything you want to understand more clearly. Start rough, then shape notes into sections when an idea becomes reusable.</p>
+          <span>${dashboardInlineLabelHtml("Mind")}</span>
+          <h3>${escapeHtml(dashboardDisplayLabel("Mind"))}</h3>
+          <p>Use ${escapeHtml(dashboardDisplayLabel("Mind"))} for ideas, notes, books, concepts, plans, and anything you want to understand more clearly. Start rough, then shape notes into sections when an idea becomes reusable.</p>
         </article>
         <article>
-          <span>02</span>
-          <h3>Body</h3>
-          <p>Use Body for fasting, food, workouts, sleep signals, symptoms, and physical routines. The goal is not perfect tracking; it is enough detail to notice what helps and what tends to throw you off.</p>
+          <span>${dashboardInlineLabelHtml("Body")}</span>
+          <h3>${escapeHtml(dashboardDisplayLabel("Body"))}</h3>
+          <p>Use ${escapeHtml(dashboardDisplayLabel("Body"))} for fasting, food, workouts, sleep signals, symptoms, and physical routines. The goal is not perfect tracking; it is enough detail to notice what helps and what tends to throw you off.</p>
         </article>
         <article>
-          <span>03</span>
-          <h3>Spirit</h3>
-          <p>Use Spirit for reading, meaning, values, gratitude, prayer, reflection, and the longer questions you want to live with. Mark progress and keep notes close to the works or practices that prompted them.</p>
+          <span>${dashboardInlineLabelHtml("Spirit")}</span>
+          <h3>${escapeHtml(dashboardDisplayLabel("Spirit"))}</h3>
+          <p>Use ${escapeHtml(dashboardDisplayLabel("Spirit"))} for reading, meaning, values, gratitude, prayer, reflection, and the longer questions you want to live with. Mark progress and keep notes close to the works or practices that prompted them.</p>
         </article>
         <article>
-          <span>04</span>
-          <h3>Life</h3>
-          <p>Use Life as the calendar and journal layer. Log the day, mark habits, and record what changed. The calendar helps you see when you worked on something and how steady the rhythm has been.</p>
+          <span>${dashboardInlineLabelHtml("Life")}</span>
+          <h3>${escapeHtml(dashboardDisplayLabel("Life"))}</h3>
+          <p>Use ${escapeHtml(dashboardDisplayLabel("Life"))} as the calendar and journal layer. Log the day, mark habits, and record what changed. The calendar helps you see when you worked on something and how steady the rhythm has been.</p>
         </article>
       </div>
       <section class="getting-started-rhythm">
         <h3>A simple rhythm</h3>
         <div>
-          <p><strong>Capture:</strong> Put the thing where it belongs. A thought goes to Mind. A workout goes to Body. A reading note goes to Spirit. A day summary goes to Life.</p>
+          <p><strong>Capture:</strong> Put the thing where it belongs. A thought goes to ${escapeHtml(dashboardDisplayLabel("Mind"))}. A workout goes to ${escapeHtml(dashboardDisplayLabel("Body"))}. A reading note goes to ${escapeHtml(dashboardDisplayLabel("Spirit"))}. A day summary goes to ${escapeHtml(dashboardDisplayLabel("Life"))}.</p>
           <p><strong>Check:</strong> Use the dashboard balance chart to see what has been getting attention lately. It is a signal, not a score.</p>
-          <p><strong>Connect:</strong> Use the Life calendar to see how scattered edits become a visible thread across days.</p>
+          <p><strong>Connect:</strong> Use the ${escapeHtml(dashboardDisplayLabel("Life"))} calendar to see how scattered edits become a visible thread across days.</p>
           <p><strong>Return:</strong> Edit notes as your understanding changes. The audit trail keeps the history visible so the record shows growth instead of only the final version.</p>
         </div>
       </section>
@@ -4370,22 +5106,21 @@ function settingsThoughtsHtml() {
       <section class="thoughts-settings-intro">
         <div>
           <h3>Thought Orbs</h3>
-          <p>Click an orb in Mind, Body, Spirit, or Life to open a new thought note for that exact thought type.</p>
+          <p>Click an orb in ${escapeHtml(dashboardDisplayNameList())} to open a new thought note for that exact thought type.</p>
         </div>
-        <a class="settings-inline-link" href="${ICONIFY_DOCS_URL}" target="_blank" rel="noopener noreferrer">${buttonContent("tabler:external-link", "Iconify")}</a>
       </section>
       <div class="thoughts-settings-sections">
         ${DASHBOARD_LABELS.map((dashboard) => `
           <section class="thoughts-settings-section" style="--thought-color: ${DASHBOARD_COLORS[dashboard]};">
             <div class="body-card-heading">
               <div>
-                <h3>${escapeHtml(dashboard)}</h3>
+                <h3>${escapeHtml(dashboardDisplayLabel(dashboard))}</h3>
                 <p>${escapeHtml((state.trackerSettings?.[dashboard] || []).length)} thought orb${(state.trackerSettings?.[dashboard] || []).length === 1 ? "" : "s"}</p>
               </div>
             </div>
             ${trackerStripHtml(dashboard, { editable: true, compact: true })}
-            ${trackerEditFormHtml(dashboard)}
-            ${trackerAddFormHtml(dashboard)}
+            ${trackerEditFormHtml(dashboard, "thought")}
+            ${trackerAddFormHtml(dashboard, "thought")}
           </section>
         `).join("")}
       </div>
@@ -4393,9 +5128,82 @@ function settingsThoughtsHtml() {
   `;
 }
 
+function settingsGoalsHtml() {
+  return `
+    <div class="settings-tab-panel thoughts-settings goals-settings">
+      <section class="thoughts-settings-intro">
+        <div>
+          <h3>Goal Orbs</h3>
+          <p>Enable or edit a goal orb in ${escapeHtml(dashboardDisplayNameList())} before it can log progress.</p>
+        </div>
+      </section>
+      <div class="thoughts-settings-sections">
+        ${DASHBOARD_LABELS.map((dashboard) => {
+          const goals = state.goalSettings?.[dashboard] || [];
+          const enabledGoals = goals.filter((goal) => goal?.enabled);
+          const checks = goalProgressCount(dashboard);
+          const orbLabel = goals.length === 1 ? "orb" : "orbs";
+          return `
+          <section class="thoughts-settings-section" style="--thought-color: ${DASHBOARD_COLORS[dashboard]};">
+            <div class="body-card-heading">
+              <div>
+                <h3>${escapeHtml(dashboardDisplayLabel(dashboard))}</h3>
+                <p>${escapeHtml(`${enabledGoals.length}`)} of ${escapeHtml(`${goals.length}`)} ${escapeHtml(`${orbLabel}`)} enabled / ${escapeHtml(checks)} check${checks === 1 ? "" : "s"}</p>
+              </div>
+            </div>
+            ${trackerStripHtml(dashboard, { editable: true, compact: true, kind: "goal" })}
+            ${trackerEditFormHtml(dashboard, "goal")}
+            ${trackerAddFormHtml(dashboard, "goal")}
+          </section>
+        `; }).join("")}
+      </div>
+    </div>
+  `;
+}
+
 function settingsInterfaceHtml() {
+  const identity = normalizeDashboardIdentity(state.dashboardIdentity);
   return `
     <div class="settings-tab-panel interface-settings">
+      <section class="interface-settings-section">
+        <div class="body-card-heading">
+          <div>
+            <h3>Category Icons</h3>
+            <p>Customize each category title and icon, then choose whether category cards show numbers, icons, or titles only.</p>
+          </div>
+          <button class="primary-button" data-action="save-dashboard-identity" type="button">${buttonContent("tabler:device-floppy", "Save")}</button>
+        </div>
+        <div class="dashboard-identity-toggles">
+          <label class="dashboard-identity-toggle">
+            <input id="dashboard-show-numbers" type="checkbox"${identity.showNumbers ? " checked" : ""}>
+            <span>Numbers</span>
+          </label>
+          <label class="dashboard-identity-toggle">
+            <input id="dashboard-show-icons" type="checkbox"${identity.showIcons ? " checked" : ""}>
+            <span>Icons</span>
+          </label>
+        </div>
+        <div class="dashboard-identity-grid">
+          ${DASHBOARD_LABELS.map((dashboard) => {
+            const item = identity.items[dashboard];
+            const fieldId = `dashboard-identity-${dashboard}-icon`;
+            return `
+              <div class="dashboard-identity-card" style="--identity-color: ${DASHBOARD_COLORS[dashboard]};">
+                <div class="dashboard-identity-input-row">
+                  ${iconPickerFieldHtml({
+                    fieldId,
+                    value: item.icon,
+                    title: `${item.label || dashboard} icon`,
+                    color: DASHBOARD_COLORS[dashboard],
+                    showLabel: false
+                  })}
+                  <input id="dashboard-identity-${dashboard}-label" type="text" value="${escapeHtml(item.label)}" placeholder="${escapeHtml(`Enter a title for the ${DEFAULT_DASHBOARD_IDENTITY.items[dashboard].label} category...`)}">
+                </div>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      </section>
       <section class="interface-settings-section">
         <div class="body-card-heading">
           <div>
@@ -4419,53 +5227,73 @@ function settingsInterfaceHtml() {
   `;
 }
 
-function trackerAddFormHtml(area) {
-  if (state.trackerAddArea !== area) return "";
+function trackerAddFormHtml(area, kind = "thought") {
+  const normalizedKind = trackerKind(kind);
+  const config = trackerKindConfig(normalizedKind);
+  if (!isTrackerAddOpen(area, normalizedKind)) return "";
+  const fieldId = trackerFieldId(area, "icon");
+  const labelFieldId = trackerFieldId(area, "label");
   return `
     <div class="tracker-add-form">
-      <label class="body-field">Thought name<input class="tracker-title-input" id="${trackerFieldId(area, "label")}" data-area="${escapeHtml(area)}" data-target="add" type="text" placeholder="Example: Gratitude"></label>
-      <input class="tracker-icon-input" id="${trackerFieldId(area, "icon")}" type="hidden" value="">
-      <div class="tracker-suggestion-slot" data-area="${escapeHtml(area)}" data-target="add">
-        ${trackerIconSuggestionsHtml("", area, "add")}
+      <div class="tracker-title-icon-row" style="--identity-color: ${DASHBOARD_COLORS[area]};">
+        ${iconPickerFieldHtml({
+          fieldId,
+          value: "tabler:circle",
+          title: `${dashboardDisplayLabel(area)} ${config.noun} icon`,
+          color: DASHBOARD_COLORS[area],
+          showLabel: false
+        })}
+        <input class="tracker-title-input" id="${labelFieldId}" data-area="${escapeHtml(area)}" data-target="add" type="text" placeholder="${escapeHtml(`${config.proper} name`)}" aria-label="${escapeHtml(`${config.proper} name`)}">
       </div>
       <div class="action-row body-actions">
         <button class="secondary-button" data-action="cancel-add-tracker" type="button">${buttonContent("tabler:x", "Cancel")}</button>
-        <button class="primary-button" data-action="save-tracker" data-area="${escapeHtml(area)}" type="button">${buttonContent("tabler:plus", "Add Thought")}</button>
+        <button class="primary-button" data-action="save-tracker" data-kind="${normalizedKind}" data-area="${escapeHtml(area)}" type="button">${buttonContent("tabler:plus", config.addLabel)}</button>
       </div>
     </div>
   `;
 }
 
-function trackerEditFormHtml(area) {
-  const [activeArea, id] = String(state.trackerEditKey || "").split(":");
-  if (activeArea !== area || !id) return "";
-  const tracker = (state.trackerSettings?.[area] || []).find((item) => item.id === id);
+function trackerEditFormHtml(area, kind = "thought") {
+  const normalizedKind = trackerKind(kind);
+  const parsedKey = parseTrackerEditKey(state.trackerEditKey);
+  if (parsedKey.kind !== normalizedKind || parsedKey.area !== area || !parsedKey.id) return "";
+  const id = parsedKey.id;
+  const tracker = (trackerSettingsForKind(normalizedKind)?.[area] || []).find((item) => item.id === id);
   if (!tracker) return "";
   const target = `edit-${id}`;
-  const confirmDelete = state.trackerDeleteKey === trackerEditKey(area, id);
+  const confirmDelete = state.trackerDeleteKey === trackerEditKey(area, id, normalizedKind);
+  const fieldId = trackerFieldId(`${area}-${id}`, "icon");
+  const enableFieldId = trackerFieldId(`${area}-${id}`, "enabled");
+  const isGoal = normalizedKind === "goal";
   return `
-    <div class="tracker-edit-form">
+    <div class="tracker-edit-form" data-tracker-edit-form data-area="${escapeHtml(area)}" data-id="${escapeHtml(id)}" data-kind="${normalizedKind}">
       <div class="tracker-edit-heading">
         <strong>Edit ${escapeHtml(tracker.label)}</strong>
-        <button class="icon-button" data-action="cancel-edit-tracker" type="button" aria-label="Close thought editor" title="Close">${iconHtml("tabler:x")}</button>
-      </div>
-      <div class="tracker-edit-preview">
-        <span class="tracker-orb tracker-orb--preview">
-          <span class="tracker-orb-icon">${trackerIconHtml(tracker.icon)}</span>
-        </span>
+        <div class="tracker-edit-heading-actions">
+          ${confirmDelete
+            ? `<button class="icon-button" data-action="cancel-remove-tracker" type="button" aria-label="Keep ${escapeHtml(tracker.label)}" title="Keep">${iconHtml("tabler:arrow-back-up")}</button><button class="icon-button danger-button" data-action="remove-tracker" data-kind="${normalizedKind}" data-area="${escapeHtml(area)}" data-id="${escapeHtml(id)}" type="button" aria-label="Confirm delete ${escapeHtml(tracker.label)}" title="Confirm Delete">${iconHtml("tabler:trash")}</button>`
+            : `<button class="icon-button danger-button" data-action="request-remove-tracker" data-kind="${normalizedKind}" data-area="${escapeHtml(area)}" data-id="${escapeHtml(id)}" type="button" aria-label="Delete ${escapeHtml(tracker.label)}" title="Delete">${iconHtml("tabler:trash")}</button>`}
+          <button class="icon-button" data-action="cancel-edit-tracker" type="button" aria-label="Close ${escapeHtml(trackerKindConfig(normalizedKind).noun)} editor" title="Close">${iconHtml("tabler:x")}</button>
+        </div>
       </div>
       <div class="tracker-add-form tracker-add-form--embedded">
-        <label class="body-field">Button text<input class="tracker-title-input" id="${trackerFieldId(`${area}-${id}`, "label")}" data-area="${escapeHtml(area)}" data-target="${escapeHtml(target)}" type="text" value="${escapeHtml(tracker.label)}"></label>
-        <input class="tracker-icon-input" id="${trackerFieldId(`${area}-${id}`, "icon")}" type="hidden" value="${escapeHtml(tracker.icon)}">
-        <div class="tracker-suggestion-slot" data-area="${escapeHtml(area)}" data-target="${escapeHtml(target)}">
-          ${trackerIconSuggestionsHtml(tracker.label, area, target, tracker.icon)}
-        </div>
-        <div class="action-row body-actions">
-          <button class="secondary-button" data-action="cancel-edit-tracker" type="button">${buttonContent("tabler:x", "Cancel")}</button>
-          <button class="primary-button" data-action="save-edit-tracker" data-area="${escapeHtml(area)}" data-id="${escapeHtml(id)}" type="button">${buttonContent("tabler:device-floppy", "Save")}</button>
-          ${confirmDelete
-            ? `<button class="secondary-button" data-action="cancel-remove-tracker" type="button">${buttonContent("tabler:arrow-back-up", "Keep")}</button><button class="secondary-button danger-button" data-action="remove-tracker" data-area="${escapeHtml(area)}" data-id="${escapeHtml(id)}" type="button">${buttonContent("tabler:trash", "Confirm Delete")}</button>`
-            : `<button class="secondary-button danger-button" data-action="request-remove-tracker" data-area="${escapeHtml(area)}" data-id="${escapeHtml(id)}" type="button">${buttonContent("tabler:trash", "Delete")}</button>`}
+        ${isGoal
+          ? `
+          <label class="body-field tracker-enabled-toggle">
+            <span>Enabled</span>
+            <input id="${escapeHtml(enableFieldId)}" type="checkbox"${tracker.enabled ? " checked" : ""}>
+            <i aria-hidden="true"></i>
+          </label>`
+          : ""}
+        <div class="tracker-title-icon-row" style="--identity-color: ${DASHBOARD_COLORS[area]};">
+          ${iconPickerFieldHtml({
+            fieldId,
+            value: tracker.icon,
+            title: `${tracker.label} icon`,
+            color: DASHBOARD_COLORS[area],
+            showLabel: false
+          })}
+          <input class="tracker-title-input" id="${trackerFieldId(`${area}-${id}`, "label")}" data-area="${escapeHtml(area)}" data-target="${escapeHtml(target)}" type="text" value="${escapeHtml(tracker.label)}" aria-label="Button text">
         </div>
       </div>
     </div>
@@ -4491,7 +5319,7 @@ function galleryHtml() {
       <div class="action-row">
         <button class="secondary-button" data-action="gallery-select-all" type="button"${count ? "" : " disabled"}>${buttonContent("tabler:checks", "Select All")}</button>
         <button class="secondary-button" data-action="gallery-clear-selection" type="button"${selectedCount ? "" : " disabled"}>${buttonContent("tabler:square", "Clear")}</button>
-        <button class="secondary-button danger-button" data-action="gallery-delete-selected" type="button"${selectedCount ? "" : " disabled"}>${buttonContent("tabler:trash", `Delete ${selectedCount || ""}`.trim() || "Delete")}</button>
+        ${pageActionButton("gallery-delete-selected", "tabler:trash", selectedCount ? `Delete ${selectedCount}` : "Delete selected", { danger: true, disabled: !selectedCount })}
         <button class="icon-button close-viewer-button" data-action="close-gallery" type="button" aria-label="Close gallery" title="Close">${iconHtml("tabler:x")}</button>
       </div>
     `)}
@@ -4592,13 +5420,13 @@ function spiritHtml() {
   }
   if (state.spiritPlanError) {
     return panelHtml(`
-      ${headerHtml("Spirit", "Personal reading plans.")}
+      ${headerHtml(dashboardDisplayLabel("Spirit"), "Personal reading plans.")}
       ${emptyStateHtml("Plan could not load.", state.spiritPlanError)}
     `);
   }
   if (!state.spiritPlan) {
     return panelHtml(`
-      ${headerHtml("Spirit", "Personal reading plans.")}
+      ${headerHtml(dashboardDisplayLabel("Spirit"), "Personal reading plans.")}
       ${emptyStateHtml("Loading plan.", "Preparing the selected reading plan.")}
     `);
   }
@@ -4612,33 +5440,37 @@ function spiritHtml() {
   const visibleWorks = works.filter((work) => work.year === activeYear);
   const yearIndex = years.indexOf(activeYear);
 
-  return panelHtml(`
-    ${headerHtml("Spirit", "Personal reading plans.", `
-      <div class="action-row spirit-actions">
-        <button class="secondary-button" data-action="new-artifact-note" data-dashboard="Spirit" type="button">${buttonContent("tabler:notes", "New Note")}</button>
-        <label class="plan-select-label">
-          <span>Plan</span>
-          <select class="plan-select" data-action="select-spirit-plan" aria-label="Select reading plan">
-            ${SPIRIT_PLANS.map((plan) => `
-              <option value="${escapeHtml(plan.id)}"${state.spiritPlanId === plan.id ? " selected" : ""}>${escapeHtml(plan.label)}</option>
-            `).join("")}
-          </select>
-        </label>
-      </div>
-    `)}
-    <div class="spirit-dashboard">
-      ${trackerStripHtml("Spirit")}
-      <nav class="spirit-year-nav" aria-label="Plan years">
-        <button class="secondary-button" data-action="spirit-prev-year" type="button"${yearIndex <= 0 ? " disabled" : ""}>Previous</button>
-        <div class="spirit-year-buttons">
-          ${years.map((year) => `
-            <button class="spirit-year-button${year === activeYear ? " is-active" : ""}" data-action="set-spirit-year" data-year="${year}" type="button" aria-pressed="${year === activeYear ? "true" : "false"}">
-              ${escapeHtml(year)}
-            </button>
+  const spiritNavBar = headerHtml(dashboardDisplayLabel("Spirit"), "Personal reading plans.", `
+    <div class="action-row spirit-actions">
+      <button class="secondary-button" data-action="new-artifact-note" data-dashboard="Spirit" type="button">${buttonContent("tabler:notes", "New Note")}</button>
+      <label class="plan-select-label">
+        <span>Plan</span>
+        <select class="plan-select" data-action="select-spirit-plan" aria-label="Select reading plan">
+          ${SPIRIT_PLANS.map((plan) => `
+            <option value="${escapeHtml(plan.id)}"${state.spiritPlanId === plan.id ? " selected" : ""}>${escapeHtml(plan.label)}</option>
           `).join("")}
-        </div>
-        <button class="secondary-button" data-action="spirit-next-year" type="button"${yearIndex >= years.length - 1 ? " disabled" : ""}>Next</button>
-      </nav>
+        </select>
+      </label>
+    </div>
+  `);
+
+  return panelHtml(`
+    <div class="spirit-dashboard">
+      ${spiritNavBar}
+      <div class="spirit-nav-stack">
+        ${dashboardOrbNavHtml("Spirit")}
+        <nav class="spirit-year-nav" aria-label="Plan years">
+          <button class="secondary-button" data-action="spirit-prev-year" type="button"${yearIndex <= 0 ? " disabled" : ""}>Previous</button>
+          <div class="spirit-year-buttons">
+            ${years.map((year) => `
+              <button class="spirit-year-button${year === activeYear ? " is-active" : ""}" data-action="set-spirit-year" data-year="${year}" type="button" aria-pressed="${year === activeYear ? "true" : "false"}">
+                ${escapeHtml(year)}
+              </button>
+            `).join("")}
+          </div>
+          <button class="secondary-button" data-action="spirit-next-year" type="button"${yearIndex >= years.length - 1 ? " disabled" : ""}>Next</button>
+        </nav>
+      </div>
       <div class="scroll-area spirit-scroll">
         <div class="spirit-reading-list">
           ${visibleWorks.map((work, index) => spiritReadingRowHtml(work, index)).join("")}
@@ -4711,11 +5543,11 @@ function spiritBookHtml(work) {
 function dashboardArtifactHtml(dashboard) {
   const note = findArtifact(state.artifactStore, state.selectedArtifactId);
   if (state.artifactMode === "editor" && note) return dashboardNoteEditorHtml(note);
-  if (state.artifactMode === "viewer" && note) return artifactReaderHtml(note, `${dashboard} note`);
+  if (state.artifactMode === "viewer" && note) return artifactReaderHtml(note, `${dashboardDisplayLabel(dashboard)} note`);
 
   const notes = rootNotesForDashboard(state.artifactStore, dashboard);
   return panelHtml(`
-    ${headerHtml(`${dashboard} Notes`, "Shared artifacts stored in the local browser first, ready for later analysis across the full root database.", `<button class="secondary-button" data-action="new-artifact-note" data-dashboard="${dashboard}">${buttonContent("tabler:notes", "New Note")}</button>`)}
+    ${headerHtml(`${dashboardDisplayLabel(dashboard)} Notes`, "Shared artifacts stored in the local browser first, ready for later analysis across the full root database.", `<button class="secondary-button" data-action="new-artifact-note" data-dashboard="${dashboard}">${buttonContent("tabler:notes", "New Note")}</button>`)}
     ${notes.length ? `
       <div class="scroll-area">
         <div class="section-list">
@@ -4724,7 +5556,7 @@ function dashboardArtifactHtml(dashboard) {
               <span>${String(index + 1).padStart(2, "0")}</span>
               <strong>${escapeHtml(noteItem.title)}</strong>
               <small>${escapeHtml(shortSummary(noteItem.body, "No note text yet"))}</small>
-              <em>${iconHtml("tabler:notes")} ${escapeHtml(noteItem.dashboard)}</em>
+              <em>${iconHtml("tabler:notes")} ${escapeHtml(dashboardDisplayLabel(noteItem.dashboard))}</em>
             </button>
           `).join("")}
         </div>
@@ -4736,9 +5568,9 @@ function dashboardArtifactHtml(dashboard) {
 function artifactViewerActions(note) {
   return `
     <div class="action-row">
-      <button class="secondary-button" data-action="edit-artifact-note">${buttonContent("tabler:pencil", "Edit")}</button>
-      <button class="secondary-button danger-button" data-action="delete-artifact-note" data-id="${note.id}">${buttonContent("tabler:trash", "Delete")}</button>
-      <button class="icon-button close-viewer-button" data-action="close-artifact-viewer" type="button" aria-label="Close note" title="Close">${iconHtml("tabler:x")}</button>
+      ${pageActionButton("edit-artifact-note", "tabler:pencil", "Edit note")}
+      ${pageActionButton("delete-artifact-note", "tabler:trash", "Delete note", { danger: true, data: { id: note.id } })}
+      ${pageActionButton("close-artifact-viewer", "tabler:x", "Close note", { className: "close-viewer-button" })}
     </div>
   `;
 }
@@ -4783,7 +5615,11 @@ function lifeEvents() {
     const minuteKey = Number.isNaN(new Date(timestamp).getTime())
       ? String(timestamp)
       : new Date(timestamp).toISOString().slice(0, 16);
-    const title = event.role === "thought" && event.thoughtLabel ? event.thoughtLabel : event.title;
+    const title = event.role === "thought" && event.thoughtLabel
+      ? event.thoughtLabel
+      : event.role === "goal-progress" && event.goalLabel
+        ? event.goalLabel
+        : event.title;
     const eventKey = [
       event.artifactId,
       event.dashboard,
@@ -4814,6 +5650,23 @@ function lifeEvents() {
       });
       return;
     }
+    if (artifact.properties?.role === "goal-progress") {
+      const timestamp = artifact.properties?.goalLoggedAt || artifact.created || artifact.edited;
+      addEvent({
+        id: `${artifact.id}-goal`,
+        artifactId: artifact.id,
+        title: artifact.title,
+        role: "goal-progress",
+        goalLabel: artifact.properties?.goalLabel || "",
+        dashboard: artifact.dashboard,
+        type: artifact.type,
+        action: "created",
+        changed: [],
+        dateKey: dateKeyFromValue(artifact.properties?.dateKey || timestamp),
+        timestamp
+      });
+      return;
+    }
     const auditEntries = Array.isArray(artifact.properties?.audit) ? artifact.properties.audit : [];
     if (auditEntries.length) {
       auditEntries.forEach((entry) => {
@@ -4823,6 +5676,7 @@ function lifeEvents() {
           title: artifact.title,
           role: artifact.properties?.role || "",
           thoughtLabel: artifact.properties?.thoughtLabel || "",
+          goalLabel: artifact.properties?.goalLabel || "",
           dashboard: artifact.dashboard,
           type: artifact.type,
           action: entry.action || "edited",
@@ -4840,6 +5694,7 @@ function lifeEvents() {
         title: artifact.title,
         role: artifact.properties?.role || "",
         thoughtLabel: artifact.properties?.thoughtLabel || "",
+        goalLabel: artifact.properties?.goalLabel || "",
         dashboard: artifact.dashboard,
         type: artifact.type,
         action: "created",
@@ -4855,6 +5710,7 @@ function lifeEvents() {
         title: artifact.title,
         role: artifact.properties?.role || "",
         thoughtLabel: artifact.properties?.thoughtLabel || "",
+        goalLabel: artifact.properties?.goalLabel || "",
         dashboard: artifact.dashboard,
         type: artifact.type,
         action: "edited",
@@ -4869,6 +5725,7 @@ function lifeEvents() {
 
 function lifeCalendarEventTitle(event) {
   if (event.role === "thought" && event.thoughtLabel) return event.thoughtLabel;
+  if (event.role === "goal-progress" && event.goalLabel) return event.goalLabel;
   return event.title;
 }
 
@@ -4947,7 +5804,7 @@ function lifeNotes() {
 }
 
 function lifeEventRowHtml(event, variant = "") {
-  const label = `${event.dashboard} ${event.action}`;
+  const label = `${dashboardDisplayLabel(event.dashboard)} ${event.action}`;
   const meta = event.changed.length ? event.changed.join(", ") : event.type;
   const time = formatEventTime(event.timestamp);
   const inner = `
@@ -4981,8 +5838,8 @@ function lifeHtml() {
   if (state.artifactMode === "editor" && note?.dashboard === "Life" && note.properties?.role === "life-journal") return lifeJournalEditorHtml(note);
   if (state.artifactMode === "editor" && note) return dashboardNoteEditorHtml(note);
   if (state.artifactMode === "viewer" && note) {
-    if (note.dashboard !== "Life") return artifactReaderHtml(note, `${note.dashboard} note`);
-    if (note.properties?.role !== "life-journal") return artifactReaderHtml(note, "Life thought");
+    if (note.dashboard !== "Life") return artifactReaderHtml(note, `${dashboardDisplayLabel(note.dashboard)} note`);
+    if (note.properties?.role !== "life-journal") return artifactReaderHtml(note, `${dashboardDisplayLabel("Life")} thought`);
     return panelHtml(`
       ${headerHtml(note.title, "", artifactViewerActions(note))}
       <div class="life-reader-grid">
@@ -4995,9 +5852,9 @@ function lifeHtml() {
   }
 
   return panelHtml(`
-    ${headerHtml("Life", "Calendar-first journal, habits, and app activity.")}
+    ${headerHtml(dashboardDisplayLabel("Life"), "Calendar-first journal, habits, and app activity.")}
     <div class="life-dashboard">
-      ${trackerStripHtml("Life")}
+      ${dashboardOrbNavHtml("Life")}
       ${lifeToolSwitcherHtml()}
       <div class="life-mode-panel">
         ${lifePanelHtml()}
@@ -5007,15 +5864,14 @@ function lifeHtml() {
 }
 
 function lifeToolSwitcherHtml() {
-  const activeTool = state.lifeTool || "calendar";
+  const activeTool = ["todo", "projects", "calendar"].includes(state.lifeTool) ? state.lifeTool : "calendar";
   const modes = [
     ["calendar", "Calendar", "tabler:calendar-month"],
     ["todo", "Todo List", "tabler:checkbox"],
-    ["projects", "Projects", "tabler:folders"],
-    ["notes", "Notes", "tabler:notes"]
+    ["projects", "Projects", "tabler:folders"]
   ];
   return `
-    <nav class="life-mode-switcher life-tool-switcher" aria-label="Life tools">
+    <nav class="life-mode-switcher life-tool-switcher" aria-label="${escapeHtml(dashboardDisplayLabel("Life"))} tools">
       ${modes.map(([mode, label, icon]) => `
         <button class="body-mode-button${activeTool === mode ? " is-active" : ""}" data-action="set-life-tool" data-tool="${mode}" type="button" aria-pressed="${activeTool === mode ? "true" : "false"}">
           ${buttonContent(icon, label, "body-mode-label")}
@@ -5044,10 +5900,9 @@ function lifeCalendarModeSwitcherHtml() {
 }
 
 function lifePanelHtml() {
-  const tool = state.lifeTool || "calendar";
+  const tool = ["todo", "projects", "calendar"].includes(state.lifeTool) ? state.lifeTool : "calendar";
   if (tool === "todo") return lifeTodoHtml();
   if (tool === "projects") return lifeProjectsHtml();
-  if (tool === "notes") return lifeNotesHtml();
   return `
     <div class="life-calendar-viewer">
       ${lifeCalendarModeSwitcherHtml()}
@@ -5075,7 +5930,7 @@ function lifeDayHtml() {
         </div>
         <button class="secondary-button" data-action="new-artifact-note" data-dashboard="Life">${buttonContent("tabler:notes", "New Note")}</button>
       </div>
-      <div class="life-event-list">${events.length ? events.map(lifeEventRowHtml).join("") : emptyStateHtml("Nothing logged today.", "Create a Life note or edit anything in the app to add activity here.")}</div>
+      <div class="life-event-list">${events.length ? events.map(lifeEventRowHtml).join("") : emptyStateHtml("Nothing logged today.", `Create a ${dashboardDisplayLabel("Life")} note or edit anything in the app to add activity here.`)}</div>
     </section>
   `;
 }
@@ -5120,7 +5975,7 @@ function lifeMonthHtml() {
         </div>
         <button class="secondary-button" data-action="new-artifact-note" data-dashboard="Life">${buttonContent("tabler:notes", "New Note")}</button>
       </div>
-      <div id="life-fullcalendar" class="life-fullcalendar" aria-label="Life month calendar"></div>
+      <div id="life-fullcalendar" class="life-fullcalendar" aria-label="${escapeHtml(dashboardDisplayLabel("Life"))} month calendar"></div>
     </section>
   `;
 }
@@ -5140,9 +5995,11 @@ function lifeMonthFallbackHtml() {
           const inMonth = date.getMonth() === month;
           return `
             <article class="life-month-day${inMonth ? "" : " is-muted"}">
-              <span>${date.getDate()}</span>
-              <strong>${events.length ? `${events.length} event${events.length === 1 ? "" : "s"}` : ""}</strong>
-              ${events.slice(0, 3).map((event) => `<small><em>${escapeHtml(formatEventTime(event.timestamp))}</em><span>${escapeHtml(event.dashboard)} ${escapeHtml(event.action)}</span></small>`).join("")}
+              <span class="life-month-day-date">${date.getDate()}</span>
+              <div class="life-month-day-items">
+                <strong>${events.length ? `${events.length} event${events.length === 1 ? "" : "s"}` : ""}</strong>
+                ${events.slice(0, 3).map((event) => `<small><em>${escapeHtml(formatEventTime(event.timestamp))}</em><span>${escapeHtml(dashboardDisplayLabel(event.dashboard))} ${escapeHtml(event.action)}</span></small>`).join("")}
+              </div>
             </article>
           `;
         }).join("")}
@@ -5424,14 +6281,14 @@ function lifeNotesHtml() {
             </button>
           `).join("")}
         </div>
-      ` : emptyStateHtml("No Life notes yet.", "Add a journal note to track a day, habit, goal, or reflection.")}
+        ` : emptyStateHtml(`No ${dashboardDisplayLabel("Life")} notes yet.`, "Add a journal note to track a day, habit, goal, or reflection.")}
     </section>
   `;
 }
 
 function bodyTimerSwitcherHtml() {
   return `
-    <nav class="body-mode-switcher body-timer-switcher" aria-label="Body timers">
+    <nav class="body-mode-switcher body-timer-switcher" aria-label="${escapeHtml(dashboardDisplayLabel("Body"))} timers">
       ${BODY_TIMER_MODES.map(({ key, label, icon }) => `
         <button class="body-mode-button${state.bodyTimerMode === key ? " is-active" : ""}" data-action="set-body-timer-mode" data-mode="${key}" type="button" aria-pressed="${state.bodyTimerMode === key ? "true" : "false"}">
           ${buttonContent(icon, label, "body-mode-label")}
@@ -5575,7 +6432,7 @@ function bodyNutritionHtml(nutrition, nutritionDashOffset) {
 function bodyHtml() {
   const note = findArtifact(state.artifactStore, state.selectedArtifactId);
   if (state.artifactMode === "editor" && note) return dashboardNoteEditorHtml(note);
-  if (state.artifactMode === "viewer" && note) return artifactReaderHtml(note, "Body note");
+  if (state.artifactMode === "viewer" && note) return artifactReaderHtml(note, `${dashboardDisplayLabel("Body")} note`);
 
   const notes = rootNotesForDashboard(state.artifactStore, "Body");
   const nutrition = state.bodyTracker.nutrition;
@@ -5591,7 +6448,7 @@ function bodyHtml() {
         <div class="body-card-heading">
           <div>
             <h3>Notes</h3>
-            <p>These are Body artifacts and appear under Body in the left menu.</p>
+            <p>These are ${escapeHtml(dashboardDisplayLabel("Body"))} artifacts and appear under ${escapeHtml(dashboardDisplayLabel("Body"))} in the left menu.</p>
           </div>
           <button class="secondary-button" data-action="new-artifact-note" data-dashboard="Body">${buttonContent("tabler:notes", "New Note")}</button>
         </div>
@@ -5606,7 +6463,7 @@ function bodyHtml() {
               </button>
             `).join("")}
           </div>
-        ` : emptyStateHtml("No Body notes yet.", "Add a note to track fasting, meals, symptoms, workouts, or measurements.")}
+        ` : emptyStateHtml(`No ${dashboardDisplayLabel("Body")} notes yet.`, "Add a note to track fasting, meals, symptoms, workouts, or measurements.")}
       </section>`,
 
     workout: `
@@ -5627,14 +6484,14 @@ function bodyHtml() {
         <div class="action-row body-actions">
           <button class="primary-button" data-action="add-body-workout">${buttonContent("tabler:notes", "Save Workout Note")}</button>
         </div>
-        <p class="body-card-note">Saved workouts become Body notes with the workout details written into the note.</p>
+        <p class="body-card-note">Saved workouts become ${escapeHtml(dashboardDisplayLabel("Body"))} notes with the workout details written into the note.</p>
       </section>`
   };
 
   return panelHtml(`
-    ${headerHtml("Body", "Timers, nutrition, movement, and notes.")}
+    ${headerHtml(dashboardDisplayLabel("Body"), "Timers, nutrition, movement, and notes.")}
     <div class="body-dashboard">
-      ${trackerStripHtml("Body")}
+      ${dashboardOrbNavHtml("Body")}
       ${bodyModeSwitcherHtml()}
       <div class="body-mode-panel">
         ${panels[state.bodyMode] || panels.timers}
@@ -5651,7 +6508,7 @@ function bodyModeSwitcherHtml() {
     ["notes", "Notes", "tabler:notes"]
   ];
   return `
-    <nav class="body-mode-switcher" aria-label="Body tools">
+    <nav class="body-mode-switcher body-tool-switcher" aria-label="${escapeHtml(dashboardDisplayLabel("Body"))} tools">
       ${modes.map(([mode, label, icon]) => `
         <button class="body-mode-button${state.bodyMode === mode ? " is-active" : ""}" data-action="set-body-mode" data-mode="${mode}" type="button" aria-pressed="${state.bodyMode === mode ? "true" : "false"}">
           ${buttonContent(icon, label, "body-mode-label")}
@@ -5661,22 +6518,22 @@ function bodyModeSwitcherHtml() {
   `;
 }
 
-function mindHtml(compendium, block) {
+function mindHtml(compendium, section) {
   const note = findArtifact(state.artifactStore, state.selectedArtifactId);
   if (state.artifactMode === "editor" && note?.dashboard === "Mind") return dashboardNoteEditorHtml(note);
-  if (state.artifactMode === "viewer" && note?.dashboard === "Mind") return artifactReaderHtml(note, "Mind note");
+  if (state.artifactMode === "viewer" && note?.dashboard === "Mind") return artifactReaderHtml(note, `${dashboardDisplayLabel("Mind")} note`);
   if (state.mindMode === "compendium-editor" && compendium) return compendiumEditorHtml(compendium);
-  if (state.mindMode === "block-editor" && block) return blockEditorHtml(block);
-  if (state.mindMode === "block-viewer" && block) {
+  if (state.mindMode === "section-editor" && section) return sectionEditorHtml(section);
+  if (state.mindMode === "section-viewer" && section) {
     return panelHtml(`
-      ${headerHtml(block.title, "", `
+      ${headerHtml(section.title, "", `
         <div class="action-row">
-          <button class="secondary-button" data-action="edit-block">${buttonContent("tabler:pencil", "Edit")}</button>
-          <button class="secondary-button danger-button" data-action="delete-block" data-id="${block.id}">${buttonContent("tabler:trash", "Delete")}</button>
-          <button class="icon-button close-viewer-button" data-action="manager" type="button" aria-label="Close topic viewer" title="Close">${iconHtml("tabler:x")}</button>
+          ${pageActionButton("edit-section", "tabler:pencil", "Edit section")}
+          ${pageActionButton("delete-section", "tabler:trash", "Delete section", { danger: true, data: { id: section.id } })}
+          ${pageActionButton("manager", "tabler:x", "Close section viewer", { className: "close-viewer-button" })}
         </div>
       `)}
-      <div class="reader-panel"><div class="markdown-body">${readerBodyHtml(block.title, block.body)}</div></div>
+      <div class="reader-panel"><div class="markdown-body">${readerBodyHtml(section.title, section.body)}</div></div>
     `);
   }
   if (state.mindMode === "reader" && compendium) return compendiumReaderHtml(compendium);
@@ -5705,13 +6562,13 @@ function compendiumTitleSizeClass(title) {
 }
 
 function compendiumTitleHtml(compendium, className = "compendium-tile-title") {
-  const title = String(compendium?.title || "Untitled lesson");
+  const title = String(compendium?.title || "Untitled compendium");
   const displayTitle = truncatedWordsText(title, 15);
   return `<span class="${className}${compendiumTitleSizeClass(displayTitle.text)}" title="${escapeHtml(title)}">${escapeHtml(displayTitle.text)}</span>`;
 }
 
 function mindGridHtml() {
-  const mindNotes = rootNotesForDashboard(state.artifactStore, "Mind");
+  const columns = mindCompendiumColumns();
   const perPage = mindCompendiumsPerPage();
   const pages = chunkItems(state.compendiums, perPage);
   const maxPage = Math.max(0, pages.length - 1);
@@ -5721,13 +6578,13 @@ function mindGridHtml() {
   const currentStart = page * perPage + 1;
   const currentEnd = Math.min(state.compendiums.length, currentStart + perPage - 1);
   return panelHtml(`
-    ${headerHtml("Lessons", "Learning AI just got easier, pick your lesson of interest, and work through the topics.", `<button class="secondary-button" data-action="new-compendium">${buttonContent("tabler:plus", "New")}</button>`)}
-    ${trackerStripHtml("Mind")}
     <div class="scroll-area">
+      ${headerHtml("Compendiums", "Organize your knowledge with a compendium.", `<button class="secondary-button" data-action="new-compendium">${buttonContent("tabler:plus", "New")}</button>`)}
+      ${dashboardOrbNavHtml("Mind")}
       ${state.compendiums.length ? `
-        <section class="compendium-rotator${state.mindCompendiumPickerOpen ? " is-picker-open" : ""}" aria-label="Lessons" style="--compendiums-per-page: ${perPage};">
+        <section class="compendium-rotator${state.mindCompendiumPickerOpen ? " is-picker-open" : ""}" aria-label="Compendiums" style="--compendium-columns: ${columns};">
           <div class="compendium-rotator-stage">
-            <button class="compendium-rotator-edge compendium-rotator-edge--prev${hasPrev ? " is-available" : ""}" data-action="mind-compendium-page" data-direction="prev" data-max-page="${maxPage}" type="button" aria-label="Previous lessons"${hasPrev ? "" : " disabled"}>
+            <button class="compendium-rotator-edge compendium-rotator-edge--prev${hasPrev ? " is-available" : ""}" data-action="mind-compendium-page" data-direction="prev" data-max-page="${maxPage}" type="button" aria-label="Previous compendiums"${hasPrev ? "" : " disabled"}>
               ${iconHtml("tabler:chevron-left")}
             </button>
             <div class="compendium-rotator-window">
@@ -5736,12 +6593,12 @@ function mindGridHtml() {
                   <article class="compendium-rotator-slide${pageIndex === page ? " is-active" : ""}">
                     <div class="compendium-rotator-row">
                       ${compendiums.map((compendium, itemIndex) => {
-                        const lessonNumber = state.compendiums.length - ((pageIndex * perPage) + itemIndex);
+                        const compendiumNumber = state.compendiums.length - ((pageIndex * perPage) + itemIndex);
                         return `
                         <button class="compendium-tile" data-action="open-compendium" data-id="${compendium.id}">
-                          <b>${String(lessonNumber).padStart(2, "0")}</b>
+                          <b>${String(compendiumNumber).padStart(2, "0")}</b>
                           ${compendiumTitleHtml(compendium)}
-                          <small>${compendium.blocks.length} topic${compendium.blocks.length === 1 ? "" : "s"}</small>
+                          <small>${compendium.sections.length} section${compendium.sections.length === 1 ? "" : "s"}</small>
                           <em>edited ${escapeHtml(compendium.edited)}</em>
                         </button>
                       `; }).join("")}
@@ -5750,14 +6607,14 @@ function mindGridHtml() {
                 `).join("")}
               </div>
             </div>
-            <button class="compendium-rotator-edge compendium-rotator-edge--next${hasNext ? " is-available" : ""}" data-action="mind-compendium-page" data-direction="next" data-max-page="${maxPage}" type="button" aria-label="Next lessons"${hasNext ? "" : " disabled"}>
+            <button class="compendium-rotator-edge compendium-rotator-edge--next${hasNext ? " is-available" : ""}" data-action="mind-compendium-page" data-direction="next" data-max-page="${maxPage}" type="button" aria-label="Next compendiums"${hasNext ? "" : " disabled"}>
               ${iconHtml("tabler:chevron-right")}
             </button>
             ${state.mindCompendiumPickerOpen ? `
-              <div class="compendium-picker-popover" role="dialog" aria-label="All lessons">
+              <div class="compendium-picker-popover" role="dialog" aria-label="All compendiums">
                 <div class="compendium-picker-header">
-                  <strong>Lessons</strong>
-                  <p>Learning AI just got easier, pick your lesson of interest, and work through the topics.</p>
+                  <strong>Compendiums</strong>
+                  <p>Organize your knowledge with a compendium.</p>
                 </div>
                 <div class="compendium-picker-grid">
                   ${state.compendiums.map((compendium, index) => `
@@ -5770,33 +6627,13 @@ function mindGridHtml() {
               </div>
             ` : ""}
           </div>
-          <button class="reader-page-indicator compendium-page-indicator" data-action="toggle-mind-compendium-picker" type="button" aria-label="${state.mindCompendiumPickerOpen ? "Close lesson overview" : "Open lesson overview"}" aria-expanded="${state.mindCompendiumPickerOpen ? "true" : "false"}">
+          <button class="reader-page-indicator compendium-page-indicator" data-action="toggle-mind-compendium-picker" type="button" aria-label="${state.mindCompendiumPickerOpen ? "Close compendium overview" : "Open compendium overview"}" aria-expanded="${state.mindCompendiumPickerOpen ? "true" : "false"}">
             <span class="reader-page-dot reader-page-dot--side${hasPrev ? " is-available" : ""}" aria-hidden="true"></span>
-            <span class="reader-page-dot reader-page-dot--current" aria-label="Lessons ${currentStart} through ${currentEnd} of ${state.compendiums.length}"></span>
+            <span class="reader-page-dot reader-page-dot--current" aria-label="Compendiums ${currentStart} through ${currentEnd} of ${state.compendiums.length}"></span>
             <span class="reader-page-dot reader-page-dot--side${hasNext ? " is-available" : ""}" aria-hidden="true"></span>
           </button>
         </section>
-      ` : emptyStateHtml("No lessons yet.", "Add the first lesson to begin organizing Mind.")}
-      ${mindNotes.length ? `
-        <section class="mind-thought-section">
-          <div class="body-card-heading">
-            <div>
-              <h3>Thoughts</h3>
-              <p>Quick notes opened from the Mind thought orbs.</p>
-            </div>
-          </div>
-          <div class="section-list body-notes-list">
-            ${newestCreatedFirst(mindNotes).map((noteItem, index) => `
-              <button class="section-row" data-action="open-artifact-note" data-id="${noteItem.id}">
-                <span>${String(index + 1).padStart(2, "0")}</span>
-                <strong>${escapeHtml(noteItem.title)}</strong>
-                <small>${escapeHtml(shortSummary(noteItem.body, "No thought text yet"))}</small>
-                <em>${iconHtml(noteItem.properties?.thoughtIcon || "tabler:message-circle")} ${escapeHtml(noteItem.properties?.thoughtLabel || "Thought")}</em>
-              </button>
-            `).join("")}
-          </div>
-        </section>
-      ` : ""}
+      ` : emptyStateHtml("No compendiums yet.", `Add the first compendium to begin organizing ${dashboardDisplayLabel("Mind")}.`)}
     </div>
   `);
 }
@@ -5805,14 +6642,14 @@ function compendiumManagerHtml(compendium) {
   const actions = `
     <div class="action-row">
       <button class="secondary-button" data-action="reader">${buttonContent("tabler:book-2", "Read")}</button>
-      <button class="secondary-button" data-action="edit-compendium">${buttonContent("tabler:pencil", "Edit")}</button>
-      <button class="secondary-button" data-action="add-block">${buttonContent("tabler:plus", "Add")}</button>
-      <button class="secondary-button danger-button" data-action="delete-compendium" data-id="${compendium.id}">${buttonContent("tabler:trash", "Delete")}</button>
+      ${pageActionButton("edit-compendium", "tabler:pencil", "Edit compendium")}
+      <button class="secondary-button" data-action="add-section">${buttonContent("tabler:plus", "Add")}</button>
+      ${pageActionButton("delete-compendium", "tabler:trash", "Delete compendium", { danger: true, data: { id: compendium.id } })}
     </div>
   `;
   return panelHtml(`
-    ${headerHtml(compendium.title, "Topics are ordered bottom to top. Start at 01 and work upward.", actions)}
-    ${compendium.blocks.length ? sectionListHtml(compendium) : emptyStateHtml("No topics yet.", "Add the first topic to begin building the lesson.")}
+    ${headerHtml(compendium.title, "Sections are ordered bottom to top. Start at 01 and work upward.", actions)}
+    ${compendium.sections.length ? sectionListHtml(compendium) : emptyStateHtml("No sections yet.", "Add the first section to begin building the compendium.")}
   `);
 }
 
@@ -5820,9 +6657,9 @@ function sectionListHtml(compendium) {
   return `
     <div class="scroll-area">
       <div class="section-list" data-section-sort-list data-compendium-id="${escapeHtml(compendium.id)}">
-        ${compendium.blocks.map((section, index) => `
-          <button class="section-row" data-action="open-block" data-id="${escapeHtml(section.id)}" data-section-row>
-            <span class="section-number-handle" data-section-drag-handle data-id="${escapeHtml(section.id)}" title="Drag to reorder" aria-label="Drag topic ${String(compendium.blocks.length - index).padStart(2, "0")} to reorder">${String(compendium.blocks.length - index).padStart(2, "0")}</span>
+        ${compendium.sections.map((section, index) => `
+          <button class="section-row" data-action="open-section" data-id="${escapeHtml(section.id)}" data-section-row>
+            <span class="section-number-handle" data-section-drag-handle data-id="${escapeHtml(section.id)}" title="Drag to reorder" aria-label="Drag section ${String(compendium.sections.length - index).padStart(2, "0")} to reorder">${String(compendium.sections.length - index).padStart(2, "0")}</span>
             <strong>${escapeHtml(section.title)}</strong>
             <small>${escapeHtml(section.body.replace(/[#>*`-]/g, ""))}</small>
           </button>
@@ -5843,11 +6680,11 @@ function compendiumReaderHtml(compendium) {
         </section>
       `
     },
-    ...compendium.blocks.map((section) => ({
+    ...compendium.sections.map((section) => ({
       key: section.id,
       body: `
         <section class="reader-section">
-          <button class="reader-section-title" data-action="open-block" data-id="${section.id}">${escapeHtml(section.title)}</button>
+          <button class="reader-section-title" data-action="open-section" data-id="${section.id}">${escapeHtml(section.title)}</button>
           <div class="markdown-body">${renderMarkdown(section.body)}</div>
         </section>
       `
@@ -5890,8 +6727,8 @@ function compendiumReaderHtml(compendium) {
 
 function compendiumEditorHtml(compendium) {
   return editorHtml({
-    title: "Edit Lesson",
-    subtitle: "Title and body. Topics are managed inside the lesson.",
+    title: "Edit Compendium",
+    subtitle: "Title and body. Sections are managed inside the compendium.",
     saveAction: "save-compendium",
     cancelAction: "manager",
     id: compendium.id,
@@ -5900,24 +6737,30 @@ function compendiumEditorHtml(compendium) {
   });
 }
 
-function blockEditorHtml(block) {
+function sectionEditorHtml(section) {
   return editorHtml({
-    title: "Edit Topic",
-    subtitle: "This can be a chapter, part, terms list, index, or any future lesson unit.",
-    saveAction: "save-block",
-    cancelAction: "block-viewer",
-    id: block.id,
-    valueTitle: block.title,
-    valueBody: block.body
+    title: "Edit Section",
+    subtitle: "This can be a chapter, part, terms list, index, or any future compendium unit.",
+    saveAction: "save-section",
+    cancelAction: "section-viewer",
+    id: section.id,
+    valueTitle: section.title,
+    valueBody: section.body
   });
 }
 
 function dashboardNoteEditorHtml(note) {
   if (note.dashboard === "Life" && note.properties?.role === "life-journal") return lifeJournalEditorHtml(note);
   const isThought = note.properties?.role === "thought";
+  const isGoalProgress = note.properties?.role === "goal-progress";
+  const dashboardName = dashboardDisplayLabel(note.dashboard);
   return editorHtml({
-    title: isThought ? "Edit Thought" : "Edit Note",
-    subtitle: isThought ? `${note.dashboard} thought / ${note.properties?.thoughtLabel || "Quick thought"}` : `${note.dashboard} artifact note. It uses the same root schema as every dashboard.`,
+    title: isGoalProgress ? "Edit Goal Progress" : isThought ? "Edit Thought" : "Edit Note",
+    subtitle: isGoalProgress
+      ? `${dashboardName} goal / ${note.properties?.goalLabel || "Goal progress"}`
+      : isThought
+        ? `${dashboardName} thought / ${note.properties?.thoughtLabel || "Quick thought"}`
+        : `${dashboardName} artifact note. It uses the same root schema as every dashboard.`,
     saveAction: "save-artifact-note",
     cancelAction: "artifact-viewer",
     id: note.id,
@@ -5939,10 +6782,10 @@ function lifeJournalEditorHtml(note) {
     ["Sleep", "tabler:moon"]
   ];
   return panelHtml(`
-    ${headerHtml("Edit Life Note", "Journal entry with quick habit markers.", `
+      ${headerHtml("Edit Life Note", "Journal entry with quick habit markers.", `
       <div class="action-row">
-        <button class="secondary-button danger-button" data-action="delete-artifact-note" data-id="${note.id}">${buttonContent("tabler:trash", "Delete")}</button>
-        <button class="icon-button close-viewer-button" data-action="artifact-viewer" type="button" aria-label="Close editor" title="Close">${iconHtml("tabler:x")}</button>
+        ${pageActionButton("delete-artifact-note", "tabler:trash", "Delete note", { danger: true, data: { id: note.id } })}
+        ${pageActionButton("artifact-viewer", "tabler:x", "Close editor", { className: "close-viewer-button" })}
       </div>
     `)}
     <form class="editor-form life-editor-form">
@@ -5990,10 +6833,10 @@ function editorHtml({ title, subtitle, saveAction, cancelAction, id, valueTitle,
   return panelHtml(`
     ${headerHtml(title, subtitle, `
       <div class="action-row">
-        ${saveAction === "save-artifact-note" ? `<button class="secondary-button danger-button" data-action="delete-artifact-note" data-id="${id}">${buttonContent("tabler:trash", "Delete")}</button>` : ""}
-        ${saveAction === "save-compendium" ? `<button class="secondary-button danger-button" data-action="delete-compendium" data-id="${id}">${buttonContent("tabler:trash", "Delete")}</button>` : ""}
-        ${saveAction === "save-block" ? `<button class="secondary-button danger-button" data-action="delete-block" data-id="${id}">${buttonContent("tabler:trash", "Delete")}</button>` : ""}
-        <button class="icon-button close-viewer-button" data-action="${cancelAction}" type="button" aria-label="Close editor" title="Close">${iconHtml("tabler:x")}</button>
+        ${saveAction === "save-artifact-note" ? pageActionButton("delete-artifact-note", "tabler:trash", "Delete note", { danger: true, data: { id } }) : ""}
+        ${saveAction === "save-compendium" ? pageActionButton("delete-compendium", "tabler:trash", "Delete compendium", { danger: true, data: { id } }) : ""}
+        ${saveAction === "save-section" ? pageActionButton("delete-section", "tabler:trash", "Delete section", { danger: true, data: { id } }) : ""}
+        ${pageActionButton(cancelAction, "tabler:x", "Close editor", { className: "close-viewer-button" })}
       </div>
     `)}
     <form class="editor-form">
@@ -6030,11 +6873,11 @@ function panelHtml(inner) {
 function headerHtml(title, subtitle, actions = "") {
   return `
     <header class="panel-header">
-      <div>
+      ${actions ? `<div class="panel-header-actions">${actions}</div>` : ""}
+      <div class="panel-header-copy">
         <h2>${escapeHtml(title)}</h2>
         ${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ""}
       </div>
-      ${actions}
     </header>
   `;
 }
@@ -6101,15 +6944,48 @@ function bindThoughtTooltips() {
     element.addEventListener("pointerdown", (event) => {
       if (event.pointerType !== "touch") return;
       window.clearTimeout(thoughtTooltipLongPressTimer);
-      thoughtTooltipLongPressTimer = window.setTimeout(() => showThoughtTooltip(element), THOUGHT_TOOLTIP_LONG_PRESS_MS);
+      thoughtTooltipSuppressClickTarget = null;
+      thoughtTooltipLongPressTimer = window.setTimeout(() => {
+        thoughtTooltipSuppressClickTarget = element;
+        showThoughtTooltip(element);
+      }, THOUGHT_TOOLTIP_LONG_PRESS_MS);
     });
     element.addEventListener("pointerup", () => window.clearTimeout(thoughtTooltipLongPressTimer));
     element.addEventListener("pointercancel", hideThoughtTooltip);
+    element.addEventListener("click", (event) => {
+      if (thoughtTooltipSuppressClickTarget !== element) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      thoughtTooltipSuppressClickTarget = null;
+      hideThoughtTooltip();
+    }, { capture: true });
+  });
+}
+
+function headerActionLabel(button) {
+  return (
+    button.dataset.thoughtTooltip ||
+    button.getAttribute("aria-label") ||
+    button.getAttribute("title") ||
+    button.querySelector(".button-label, .body-mode-label")?.textContent?.trim() ||
+    button.textContent?.trim() ||
+    ""
+  ).trim();
+}
+
+function bindHeaderActionTooltips() {
+  app.querySelectorAll(".panel-header-actions button").forEach((button) => {
+    const label = headerActionLabel(button);
+    if (!label) return;
+    button.dataset.thoughtTooltip = label;
+    if (!button.getAttribute("aria-label")) button.setAttribute("aria-label", label);
+    if (!button.getAttribute("title")) button.setAttribute("title", label);
   });
 }
 
 function bindActions() {
   app.querySelectorAll("[data-action]").forEach((element) => {
+    if (element.closest("[data-icon-picker-overlay]")) return;
     const action = element.dataset.action;
     if (action === "open-donation") return;
     if (action === "select-spirit-plan") {
@@ -6126,6 +7002,25 @@ function bindActions() {
         handleAction(element);
       });
     }
+  });
+}
+
+function bindTrackerEditorAutoSave() {
+  app.querySelectorAll("[data-tracker-edit-form]").forEach((form) => {
+    const area = form.dataset.area || "";
+    const id = form.dataset.id || "";
+    const kind = form.dataset.kind || "thought";
+    let saveTimer = null;
+    const saveOpenEditor = () => updateTracker(area, id, kind, { close: false, silent: true });
+    const scheduleSave = () => {
+      window.clearTimeout(saveTimer);
+      saveTimer = window.setTimeout(saveOpenEditor, 250);
+    };
+    form.querySelectorAll(".tracker-title-input, .icon-picker-input").forEach((input) => {
+      input.addEventListener("input", scheduleSave);
+      input.addEventListener("change", saveOpenEditor);
+    });
+    form.querySelector(".tracker-enabled-toggle input")?.addEventListener("change", saveOpenEditor);
   });
 }
 
@@ -6153,6 +7048,34 @@ function bindSidebarHorizontalScroll() {
   });
 }
 
+function updatePathBarOverflow(pathBar) {
+  if (!pathBar) return;
+  const maxScroll = Math.max(0, pathBar.scrollWidth - pathBar.clientWidth);
+  pathBar.classList.toggle("is-overflow-left", pathBar.scrollLeft > 1);
+  pathBar.classList.toggle("is-overflow-right", pathBar.scrollLeft < maxScroll - 1);
+}
+
+function bindPathBarOverflow() {
+  const pathBar = app.querySelector(".path-bar");
+  if (!pathBar) return;
+  const refresh = () => updatePathBarOverflow(pathBar);
+  refresh();
+  requestAnimationFrame(refresh);
+  pathBar.addEventListener("scroll", refresh, { passive: true });
+  pathBar.addEventListener("wheel", (event) => {
+    if (pathBar.scrollWidth <= pathBar.clientWidth) return;
+    event.preventDefault();
+    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+    pathBar.scrollBy({ left: delta, behavior: "smooth" });
+    requestAnimationFrame(refresh);
+  }, { passive: false });
+  window.addEventListener("resize", refresh, { passive: true });
+  if (typeof ResizeObserver !== "undefined") {
+    const observer = new ResizeObserver(refresh);
+    observer.observe(pathBar);
+  }
+}
+
 function sectionDropIndex(list, activeRow, pointerY) {
   const rows = Array.from(list.querySelectorAll("[data-section-row]"))
     .filter((row) => row !== activeRow);
@@ -6176,7 +7099,7 @@ function renumberSectionRows(list) {
     const handle = row.querySelector("[data-section-drag-handle]");
     if (handle) {
       handle.textContent = number;
-      handle.setAttribute("aria-label", `Drag topic ${number} to reorder`);
+      handle.setAttribute("aria-label", `Drag section ${number} to reorder`);
     }
   });
 }
@@ -6206,8 +7129,8 @@ function bindCompendiumSectionSorting() {
       if (event.button !== undefined && event.button !== 0) return;
       const activeRow = handle.closest("[data-section-row]");
       const compendiumId = list.dataset.compendiumId;
-      const blockId = activeRow?.dataset.id;
-      if (!activeRow || !compendiumId || !blockId) return;
+      const sectionId = activeRow?.dataset.id;
+      if (!activeRow || !compendiumId || !sectionId) return;
 
       event.preventDefault();
       event.stopPropagation();
@@ -6223,7 +7146,7 @@ function bindCompendiumSectionSorting() {
         moveEvent.preventDefault();
         scrollSectionListWhileDragging(scrollArea, moveEvent.clientY);
         const targetIndex = sectionDropIndex(list, activeRow, moveEvent.clientY);
-        if (!reorderCompendiumBlock(compendiumId, blockId, targetIndex)) return;
+        if (!reorderCompendiumSection(compendiumId, sectionId, targetIndex)) return;
         moveSectionRow(list, activeRow, targetIndex);
         renumberSectionRows(list);
         moved = true;
@@ -6262,6 +7185,27 @@ function bindDashboardBalanceHover() {
     element.addEventListener("pointerleave", () => setLinkedHover(key, false));
     element.addEventListener("focusin", () => setLinkedHover(key, true));
     element.addEventListener("focusout", () => setLinkedHover(key, false));
+  });
+}
+
+function bindDashboardPeriodSlider() {
+  app.querySelectorAll("[data-dashboard-period-slider]").forEach((input) => {
+    const updatePreview = () => {
+      const option = dashboardPeriodOptionForIndex(input.value);
+      const index = dashboardPeriodIndex(option.id);
+      const progress = DASHBOARD_PERIOD_OPTIONS.length > 1
+        ? Math.round((index / (DASHBOARD_PERIOD_OPTIONS.length - 1)) * 100)
+        : 0;
+      input.style.setProperty("--period-progress", `${progress}%`);
+      input.setAttribute("aria-valuetext", option.label);
+      input.closest(".dashboard-period-slider")?.querySelector(".dashboard-period-slider-value")?.replaceChildren(option.label);
+    };
+    input.addEventListener("input", () => {
+      updatePreview();
+      const option = dashboardPeriodOptionForIndex(input.value);
+      if (option.id !== state.dashboardPeriod) setDashboardPeriod(option.id);
+    });
+    input.addEventListener("change", () => setDashboardPeriodByIndex(input.value));
   });
 }
 
@@ -6425,14 +7369,14 @@ function handleAction(element) {
   if (action === "home") goHome();
   if (action === "dashboard-root") {
     if (state.active === "Mind") {
-      setState({ active: "Mind", mindMode: "grid", selectedCompendiumId: null, selectedBlockId: null });
+      setState({ active: "Mind", mindMode: "grid", selectedCompendiumId: null, selectedSectionId: null });
     } else if (state.active === "Spirit") {
       setState({ selectedSpiritBookKey: null, artifactMode: "grid", selectedArtifactId: null });
     } else {
       setState({ artifactMode: "grid", selectedArtifactId: null });
     }
   }
-  if (action === "compendium-root") setState({ mindMode: "manager", selectedBlockId: null });
+  if (action === "compendium-root") setState({ mindMode: "manager", selectedSectionId: null });
   if (action === "toggle-mobile-menu") {
     if (state.suppressNextMenuToggle) {
       state.suppressNextMenuToggle = false;
@@ -6443,7 +7387,7 @@ function handleAction(element) {
   if (action === "toggle-sidebar-section") toggleSidebarSection(element.dataset.section);
   if (action === "toggle-all-sidebar-sections") toggleAllSidebarSections();
   if (action === "sidebar-page") setSidebarPage(element.dataset.section, element.dataset.direction, Number(element.dataset.maxPage || 0));
-  if (action === "tracker-page") setTrackerPage(element.dataset.area, element.dataset.direction, Number(element.dataset.maxPage || 0), element.dataset.editable === "true");
+  if (action === "tracker-page") setTrackerPage(element.dataset.area, element.dataset.direction, Number(element.dataset.maxPage || 0), element.dataset.editable === "true", element.dataset.kind || "thought");
   if (action === "open-dashboard-card") openDashboardCard(element.dataset.section);
   if (action === "open-dashboard-direct") {
     setState({
@@ -6457,6 +7401,12 @@ function handleAction(element) {
   if (action === "set-dashboard-period") setDashboardPeriod(element.dataset.period);
   if (action === "set-dashboard-chart") setDashboardChartType(element.dataset.chart);
   if (action === "set-theme") setTheme(element.dataset.theme);
+  if (action === "save-dashboard-identity") saveDashboardIdentitySettings();
+  if (action === "open-icon-picker") openIconPicker(element);
+  if (action === "close-icon-picker") closeIconPicker();
+  if (action === "select-icon-picker-icon") selectIconPickerIcon(element.dataset.icon);
+  if (action === "save-icon-picker") saveIconPickerSelection();
+  if (action === "load-more-icon-picker") loadMoreIconPickerIcons();
   if (action === "open-compendium") openCompendium(element.dataset.id);
   if (action === "mind-compendium-page") setMindCompendiumPage(element.dataset.direction, Number(element.dataset.maxPage || 0));
   if (action === "toggle-mind-compendium-picker") toggleMindCompendiumPicker();
@@ -6479,7 +7429,7 @@ function handleAction(element) {
       artifactMode: "grid",
       selectedArtifactId: null,
       selectedCompendiumId: null,
-      selectedBlockId: null,
+      selectedSectionId: null,
       selectedSpiritBookKey: null,
       trackerAddArea: "",
       trackerEditKey: "",
@@ -6488,22 +7438,23 @@ function handleAction(element) {
   }
   if (action === "close-settings") goHome();
   if (action === "set-settings-tab") setState({ settingsTab: element.dataset.tab === "dashboard" ? "interface" : element.dataset.tab || "getting-started", trackerAddArea: "", trackerEditKey: "", trackerDeleteKey: "" });
-  if (action === "start-add-tracker") setState({ trackerAddArea: element.dataset.area || "", trackerEditKey: "", trackerDeleteKey: "" });
+  if (action === "start-add-tracker") setState({ trackerAddArea: trackerAddKey(element.dataset.area || "", element.dataset.kind || "thought"), trackerEditKey: "", trackerDeleteKey: "" });
   if (action === "cancel-add-tracker") setState({ trackerAddArea: "" });
   if (action === "start-edit-tracker") {
     if (state.suppressNextTrackerEditClick) {
       state.suppressNextTrackerEditClick = false;
       return;
     }
-    setState({ trackerEditKey: trackerEditKey(element.dataset.area, element.dataset.id), trackerDeleteKey: "", trackerAddArea: "" });
+    setState({ trackerEditKey: trackerEditKey(element.dataset.area, element.dataset.id, element.dataset.kind || "thought"), trackerDeleteKey: "", trackerAddArea: "" });
   }
   if (action === "cancel-edit-tracker") setState({ trackerEditKey: "", trackerDeleteKey: "" });
-  if (action === "save-edit-tracker") updateTracker(element.dataset.area, element.dataset.id);
-  if (action === "request-remove-tracker") setState({ trackerDeleteKey: trackerEditKey(element.dataset.area, element.dataset.id) });
+  if (action === "save-edit-tracker") updateTracker(element.dataset.area, element.dataset.id, element.dataset.kind || "thought");
+  if (action === "request-remove-tracker") setState({ trackerDeleteKey: trackerEditKey(element.dataset.area, element.dataset.id, element.dataset.kind || "thought") });
   if (action === "cancel-remove-tracker") setState({ trackerDeleteKey: "" });
-  if (action === "save-tracker") addTracker(element.dataset.area);
-  if (action === "remove-tracker") removeTracker(element.dataset.area, element.dataset.id);
+  if (action === "save-tracker") addTracker(element.dataset.area, element.dataset.kind || "thought");
+  if (action === "remove-tracker") removeTracker(element.dataset.area, element.dataset.id, element.dataset.kind || "thought");
   if (action === "quick-thought") quickThought(element.dataset.area, element.dataset.id);
+  if (action === "quick-goal") quickGoal(element.dataset.area, element.dataset.id, element);
   if (action === "open-thought-toast-note") {
     const noteId = element.dataset.id || state.thoughtToast?.noteId;
     const dashboard = state.thoughtToast?.dashboard || findArtifact(state.artifactStore, noteId)?.dashboard || "";
@@ -6519,7 +7470,7 @@ function handleAction(element) {
   if (action === "new-compendium") addCompendium();
   if (action === "new-artifact-note") addDashboardNote(element.dataset.dashboard);
   if (action === "delete-compendium") deleteCompendium(element.dataset.id);
-  if (action === "delete-block") deleteBlock(element.dataset.id);
+  if (action === "delete-section") deleteSection(element.dataset.id);
   if (action === "delete-artifact-note") deleteDashboardNote(element.dataset.id);
   if (action === "save-body-fast-settings") saveBodyFastSettings();
   if (action === "start-body-fast") startBodyFast();
@@ -6584,15 +7535,15 @@ function handleAction(element) {
   if (action === "manager") setState({ mindMode: "manager" });
   if (action === "compendium-reader-page") setCompendiumReaderPage(element.dataset.id, element.dataset.direction, Number(element.dataset.maxPage || 0));
   if (action === "edit-compendium") setState({ mindMode: "compendium-editor" });
-  if (action === "add-block") addBlock();
-  if (action === "open-block") setState({ selectedBlockId: element.dataset.id, mindMode: "block-viewer" });
-  if (action === "edit-block") setState({ mindMode: "block-editor" });
-  if (action === "block-viewer") setState({ mindMode: "block-viewer" });
+  if (action === "add-section") addSection();
+  if (action === "open-section") setState({ selectedSectionId: element.dataset.id, mindMode: "section-viewer" });
+  if (action === "edit-section") setState({ mindMode: "section-editor" });
+  if (action === "section-viewer") setState({ mindMode: "section-viewer" });
   if (action === "edit-artifact-note") setState({ artifactMode: "editor" });
   if (action === "artifact-viewer") setState({ artifactMode: "viewer" });
   if (action === "close-artifact-viewer") closeArtifactViewer();
   if (action === "save-compendium") saveCompendium(element.dataset.id, editorTitle(), editorBody());
-  if (action === "save-block") saveBlock(element.dataset.id, editorTitle(), editorBody());
+  if (action === "save-section") saveSection(element.dataset.id, editorTitle(), editorBody());
   if (action === "save-artifact-note") saveDashboardNote(element.dataset.id, editorTitle(), editorBody());
 }
 
@@ -6640,7 +7591,7 @@ loadArtifactStore().then(async (artifactStore) => {
   }
   setState({
     artifactStore,
-    compendiums: artifactStoreToCompendiums(artifactStore)
+    compendiums: normalizeCompendiums(artifactStoreToCompendiums(artifactStore))
   });
 });
 

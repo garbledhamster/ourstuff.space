@@ -46,6 +46,12 @@ export function saveArtifactStore(store) {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
 }
 
+function compendiumSections(compendium) {
+  return Array.isArray(compendium.sections)
+    ? compendium.sections
+    : (Array.isArray(compendium.blocks) ? compendium.blocks : []);
+}
+
 export function artifactStoreToCompendiums(store) {
   return store.artifacts
     .filter((artifact) => artifact.type === "compendium" && artifact.dashboard === "Mind")
@@ -55,15 +61,15 @@ export function artifactStoreToCompendiums(store) {
       body: compendium.body,
       created: compendium.created,
       edited: compendium.edited,
-      blocks: store.artifacts
+      sections: store.artifacts
         .filter((artifact) => artifact.parentId === compendium.id && artifact.type === "note")
         .sort((a, b) => compendium.childIds.indexOf(a.id) - compendium.childIds.indexOf(b.id))
-        .map((block) => ({
-          id: block.id,
-          title: block.title,
-          body: block.body,
-          created: block.created,
-          edited: block.edited
+        .map((section) => ({
+          id: section.id,
+          title: section.title,
+          body: section.body,
+          created: section.created,
+          edited: section.edited
         }))
     }));
 }
@@ -82,6 +88,7 @@ export function compendiumsToArtifactStore(compendiums, previousStore) {
 
   compendiums.forEach((compendium) => {
     const previous = previousById.get(compendium.id);
+    const sections = compendiumSections(compendium);
     artifacts.push({
       id: compendium.id,
       type: "compendium",
@@ -91,28 +98,28 @@ export function compendiumsToArtifactStore(compendiums, previousStore) {
       body: compendium.body,
       created: compendium.created,
       edited: compendium.edited,
-      childIds: compendium.blocks.map((block) => block.id),
+      childIds: sections.map((section) => section.id),
       properties: previous?.properties || { status: "active" },
       analysis: previous?.analysis || {}
     });
 
-    compendium.blocks.forEach((block) => {
-      const previousBlock = previousById.get(block.id);
+    sections.forEach((section) => {
+      const previousSection = previousById.get(section.id);
       artifacts.push({
-        id: block.id,
+        id: section.id,
         type: "note",
         dashboard: "Mind",
         parentId: compendium.id,
-        title: block.title,
-        body: block.body,
-        created: block.created,
-        edited: block.edited,
+        title: section.title,
+        body: section.body,
+        created: section.created,
+        edited: section.edited,
         childIds: [],
-        properties: previousBlock?.properties || {
+        properties: previousSection?.properties || {
           role: "compendium-section",
           status: "active"
         },
-        analysis: previousBlock?.analysis || {}
+        analysis: previousSection?.analysis || {}
       });
     });
   });

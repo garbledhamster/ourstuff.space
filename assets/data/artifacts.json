@@ -11,7 +11,7 @@
       "body": "## Purpose\n\nA compendium for organizing bird knowledge into readable sections.\n\nThis can eventually become an exportable book-like artifact.",
       "created": "2026-05-17",
       "edited": "2026-05-17",
-      "childIds": ["block-1", "block-2", "block-3"],
+      "childIds": ["section-1", "section-2", "section-3"],
       "properties": {
         "source": "preview.jsx",
         "status": "active"
@@ -19,7 +19,7 @@
       "analysis": {}
     },
     {
-      "id": "block-1",
+      "id": "section-1",
       "type": "note",
       "dashboard": "Mind",
       "parentId": "compendium-1",
@@ -35,7 +35,7 @@
       "analysis": {}
     },
     {
-      "id": "block-2",
+      "id": "section-2",
       "type": "note",
       "dashboard": "Mind",
       "parentId": "compendium-1",
@@ -51,7 +51,7 @@
       "analysis": {}
     },
     {
-      "id": "block-3",
+      "id": "section-3",
       "type": "note",
       "dashboard": "Mind",
       "parentId": "compendium-1",
@@ -75,7 +75,7 @@
       "body": "## Purpose\n\nA working compendium for collecting durable concepts and turning scattered notes into structured knowledge.",
       "created": "2026-05-17",
       "edited": "2026-05-17",
-      "childIds": ["block-4"],
+      "childIds": ["section-4"],
       "properties": {
         "source": "preview.jsx",
         "status": "active"
@@ -83,7 +83,7 @@
       "analysis": {}
     },
     {
-      "id": "block-4",
+      "id": "section-4",
       "type": "note",
       "dashboard": "Mind",
       "parentId": "compendium-2",
