@@ -24,8 +24,21 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
+    function hasCloudProfile(uid) {
+      return isSelf(uid)
+        && exists(/databases/$(database)/documents/users/$(uid))
+        && (
+          get(/databases/$(database)/documents/users/$(uid)).data.cloud == true
+          || get(/databases/$(database)/documents/users/$(uid)).data.admin == true
+        );
+    }
+
     function canUseCloud(uid) {
-      return isAdmin() || (isSelf(uid) && (isCloudUser() || isOwnerUid(uid)));
+      return isAdmin()
+        || (
+          isSelf(uid)
+          && (isCloudUser() || isOwnerUid(uid) || hasCloudProfile(uid))
+        );
     }
 
     function ownsIncomingArtifact(uid) {
