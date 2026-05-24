@@ -149,7 +149,7 @@ Rules:
 
 - Frontend must never set custom claims.
 - Worker/backend sets custom claims after verifying identity and entitlement.
-- Firestore app-data rules may use the backend-written `/users/{uid}` entitlement copy as a fallback when custom claims have not propagated, because frontend clients cannot write that profile document.
+- Firestore app-data rules allow a signed-in user to read/write only their own app metadata and artifact docs. Frontend Cloud controls still depend on Worker/bootstrap entitlement, while profile/entitlement fields remain backend/admin-written.
 - Prefer `OWNER_UIDS` in backend env/secrets for owner bootstrap.
 - If `OWNER_EMAILS` is used, it must be server-only and must require `email_verified === true`.
 - Do not commit owner identifiers to repo files.

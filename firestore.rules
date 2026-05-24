@@ -10,39 +10,18 @@ service cloud.firestore {
       return signedIn() && request.auth.token.admin == true;
     }
 
-    function isCloudUser() {
-      return signedIn() && request.auth.token.cloud == true;
-    }
-
-    function isOwnerUid(uid) {
-      return signedIn()
-        && request.auth.uid == uid
-        && uid in ["hLyXXFx6MTYx3Hu35MESD0Gw77C2"];
-    }
-
     function isSelf(uid) {
       return signedIn() && request.auth.uid == uid;
     }
 
-    function hasCloudProfile(uid) {
-      return isSelf(uid)
-        && exists(/databases/$(database)/documents/users/$(uid))
-        && (
-          get(/databases/$(database)/documents/users/$(uid)).data.cloud == true
-          || get(/databases/$(database)/documents/users/$(uid)).data.admin == true
-        );
-    }
-
     function canUseCloud(uid) {
-      return isAdmin()
-        || (
-          isSelf(uid)
-          && (isCloudUser() || isOwnerUid(uid) || hasCloudProfile(uid))
-        );
+      return isAdmin() || isSelf(uid);
     }
 
     function ownsIncomingArtifact(uid) {
       return request.resource.data.owner == uid
+        && request.resource.data.acl is map
+        && request.resource.data.acl.owners is list
         && request.auth.uid in request.resource.data.acl.owners;
     }
 
