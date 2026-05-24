@@ -22,7 +22,7 @@ import {
 	signInWithGoogle,
 	signOutCloud,
 	startCloudSubscription,
-} from "./cloud.js?v=storage-quota-20260523a";
+} from "./cloud.js?v=account-sync-20260523b";
 import { CLOUD_STORAGE_LIMIT_BYTES } from "./config.js?v=storage-quota-20260523a";
 import { today } from "./data.js";
 import { bindDonationFlow, donationModalHtml } from "./donations.js";
@@ -79,6 +79,7 @@ const THEME_KEY = "ourstuff.theme.v1";
 const DISMISSED_TIPS_KEY = "ourstuff.dismissedTips.v1";
 const ICONIFY_SEARCH_CACHE_KEY = "ourstuff.iconifySearchCache.v1";
 const LOCAL_APP_UPDATED_AT_KEY = "ourstuff.localAppUpdatedAt.v1";
+const LOCAL_APP_OWNER_KEY = "ourstuff.localAppOwner.v1";
 const CLOUD_SYNC_INTERVAL_MS = 2 * 60 * 1000;
 const CLOUD_SYNC_MIN_INTERVAL_MS = 20 * 1000;
 const CLOUD_SYNC_CLOCK_SKEW_MS = 1000;
@@ -1566,6 +1567,101 @@ function localAppUpdatedAt(options = {}) {
 	return derived;
 }
 
+function localCloudOwnerId(cloud = state.cloud) {
+	if (cloud?.mode !== "signed-in" || !cloud.user?.uid) return "";
+	return `${cloud.isLocalDemo ? "local-demo" : "firebase"}:${cloud.user.uid}`;
+}
+
+function loadLocalAppOwner() {
+	try {
+		return String(window.localStorage.getItem(LOCAL_APP_OWNER_KEY) || "").trim();
+	} catch {
+		return "";
+	}
+}
+
+function saveLocalAppOwner(ownerId = localCloudOwnerId()) {
+	const normalized = String(ownerId || "").trim();
+	try {
+		if (normalized) window.localStorage.setItem(LOCAL_APP_OWNER_KEY, normalized);
+		else window.localStorage.removeItem(LOCAL_APP_OWNER_KEY);
+	} catch {
+		// Owner tracking prevents cross-account writes, but sync can still fall back to timestamps.
+	}
+	return normalized;
+}
+
+function removeLocalAppStorageKeys() {
+	[
+		STORAGE_KEY,
+		BODY_TRACKER_KEY,
+		SPIRIT_PROGRESS_KEY,
+		LIFE_PLANNER_KEY,
+		TRACKER_SETTINGS_KEY,
+		GOAL_SETTINGS_KEY,
+		DASHBOARD_IDENTITY_KEY,
+		THEME_KEY,
+		ICONIFY_SEARCH_CACHE_KEY,
+		LOCAL_APP_UPDATED_AT_KEY,
+	].forEach((key) => {
+		try {
+			window.localStorage.removeItem(key);
+		} catch {
+			// Local reset should keep going even if one optional key is blocked.
+		}
+	});
+	clearDismissedTips();
+}
+
+async function resetLocalAppForAccountSwitch(ownerId) {
+	const emptyStore = createEmptyStore();
+	removeLocalAppStorageKeys();
+	await clearLocalFiles({ deleteRemote: false }).catch(() => {});
+	state.artifactStore = emptyStore;
+	state.compendiums = [];
+	state.bodyTracker = createDefaultBodyTracker();
+	state.spiritProgress = {};
+	state.lifePlanner = createDefaultLifePlanner();
+	state.trackerSettings = cloneDefaultTrackers();
+	state.goalSettings = cloneDefaultGoals();
+	state.dashboardIdentity = cloneDefaultDashboardIdentity();
+	state.theme = "default";
+	state.localAppUpdatedAt = "";
+	state.settingsTab = "getting-started";
+	state.trackerAddArea = "";
+	state.trackerEditKey = "";
+	state.trackerDeleteKey = "";
+	state.active = "Dashboard";
+	state.flipped = null;
+	state.mindMode = "grid";
+	state.artifactMode = "grid";
+	state.selectedCompendiumId = null;
+	state.selectedSectionId = null;
+	state.selectedArtifactId = null;
+	state.selectedSpiritBookKey = null;
+	state.lifeTool = "";
+	state.selectedLifeProjectId = null;
+	state.selectedLifePhaseId = null;
+	state.selectedLifeTaskId = null;
+	state.galleryImages = null;
+	state.gallerySelectedIds = [];
+	state.cloudStorageUsage = null;
+	saveLocalAppOwner(ownerId);
+	render();
+}
+
+async function ensureLocalAccountBoundary(cloud = state.cloud) {
+	const ownerId = localCloudOwnerId(cloud);
+	if (!ownerId) return false;
+	const previousOwner = loadLocalAppOwner();
+	if (previousOwner && previousOwner !== ownerId && hasStoredLocalData()) {
+		await resetLocalAppForAccountSwitch(ownerId);
+		return true;
+	}
+	if (!previousOwner && !hasStoredLocalData()) saveLocalAppOwner(ownerId);
+	return false;
+}
+
 function saveArtifactStore(store) {
 	writeArtifactStore(store);
 	markLocalAppChanged();
@@ -1882,6 +1978,7 @@ async function importAppStateJson(json, options = {}) {
 	};
 	await withLocalChangeTrackingSuppressed(restore);
 	saveLocalAppUpdatedAt(appliedAt);
+	saveLocalAppOwner();
 	if (options.replaceCloud === true && cloudHasSyncAccess()) {
 		const result = await uploadLocalStateToCloud();
 		recordCloudSyncAt(
@@ -2231,6 +2328,7 @@ async function uploadLocalStateToCloud() {
 	const result = await saveCloudStateJson(json, { storageBytes });
 	const updatedAt = normalizeIsoTimestamp(result?.updatedAt) || nowIso();
 	saveLocalAppUpdatedAt(updatedAt);
+	saveLocalAppOwner();
 	scheduleCloudStorageUsageRefresh({ force: true });
 	return { updatedAt };
 }
@@ -2282,13 +2380,31 @@ async function syncCloudWithNewestWins(options = {}) {
 	if (cloudSyncInFlight) return cloudSyncInFlight;
 
 	cloudSyncInFlight = (async () => {
+		const hadLocalOwner = Boolean(loadLocalAppOwner());
+		const accountSwitched = await ensureLocalAccountBoundary(state.cloud);
 		const info = await getCloudStateInfo();
 		const cloudUpdatedAt = cloudInfoUpdatedAt(info);
 		const localUpdatedAt = localAppUpdatedAt();
 		const localHasStoredData = hasStoredLocalData();
+		const syncComparison = _compareIsoTimestamps(
+			cloudUpdatedAt,
+			localUpdatedAt,
+		);
 
 		if (
-			(source === "sign-in" || source === "interval") &&
+			source === "sign-in" &&
+			info?.exists &&
+			(accountSwitched ||
+				!hadLocalOwner ||
+				!localHasStoredData ||
+				syncComparison >= 0)
+		) {
+			const result = await importCloudInfoIntoLocal(info);
+			return finishCloudSyncResult({ action: "downloaded", ...result }, source);
+		}
+
+		if (
+			source === "interval" &&
 			info?.exists &&
 			!localHasStoredData
 		) {
@@ -2296,9 +2412,41 @@ async function syncCloudWithNewestWins(options = {}) {
 			return finishCloudSyncResult({ action: "downloaded", ...result }, source);
 		}
 
-		if (info?.deleted && !localHasStoredData) {
+		if (info?.exists && localHasStoredData && syncComparison > 0) {
+			const result = await importCloudInfoIntoLocal(info);
+			return finishCloudSyncResult({ action: "downloaded", ...result }, source);
+		}
+
+		if (info?.exists && localHasStoredData && syncComparison === 0) {
+			saveLocalAppOwner();
+			return finishCloudSyncResult(
+				{ action: "checked", updatedAt: cloudUpdatedAt || localUpdatedAt },
+				source,
+			);
+		}
+
+		if (info?.deleted && (!localHasStoredData || syncComparison >= 0)) {
 			const result = await clearLocalFromCloudDelete(info);
 			return finishCloudSyncResult({ action: "cleared", ...result }, source);
+		}
+
+		if (!info?.exists && !localHasStoredData) {
+			saveLocalAppOwner();
+			return finishCloudSyncResult(
+				{ action: "checked", updatedAt: cloudUpdatedAt || localUpdatedAt },
+				source,
+			);
+		}
+
+		if (
+			!hadLocalOwner &&
+			(source === "sign-in" || source === "interval") &&
+			!info?.exists
+		) {
+			return finishCloudSyncResult(
+				{ action: "checked", updatedAt: cloudUpdatedAt || localUpdatedAt },
+				source,
+			);
 		}
 
 		const result = await uploadLocalStateToCloud();
@@ -7614,14 +7762,14 @@ function dashboardAnalyticsHtml() {
           <strong>${balanceScore}% balanced</strong>
           <div class="dashboard-chart-controls">
             ${dashboardPeriodSliderHtml()}
-            <div class="dashboard-chart-switcher" role="group" aria-label="Balance chart type">
+            <div class="dashboard-chart-switcher" role="tablist" aria-label="Balance chart type">
               ${[
 								["pie", "tabler:chart-pie", "Pie"],
 								["bar", "tabler:chart-bar", "Bar"],
 							]
 								.map(
 									([type, icon, label]) => `
-                <button class="${chartType === type ? "is-active" : ""}" data-action="set-dashboard-chart" data-chart="${type}" type="button" aria-pressed="${chartType === type ? "true" : "false"}" title="${label} chart">${buttonContent(icon, label)}</button>
+                <button class="${chartType === type ? "is-active" : ""}" data-action="set-dashboard-chart" data-chart="${type}" type="button" role="tab" aria-selected="${chartType === type ? "true" : "false"}" aria-pressed="${chartType === type ? "true" : "false"}" title="${label} chart">${buttonContent(icon, label)}</button>
               `,
 								)
 								.join("")}

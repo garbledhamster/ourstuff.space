@@ -63,7 +63,7 @@ let cloudState = {
 	profile: null,
 	entitlement: { ...INACTIVE_ENTITLEMENT },
 	deviceId: getDeviceId(),
-	lastCloudSyncAt: loadLastCloudSyncAt(),
+	lastCloudSyncAt: loadLastCloudSyncAt(""),
 	message: "",
 	error: "",
 	isLocalDemo: false,
@@ -320,7 +320,10 @@ export async function saveCloudStateJson(json, options = {}) {
 				json,
 			}),
 		);
-		saveLastCloudSyncAt(savedAt);
+		saveLastCloudSyncAt(
+			savedAt,
+			cloudState.user?.uid || "local-demo-subscribed-user",
+		);
 		emitCloudState({
 			lastCloudSyncAt: savedAt,
 			message: "Local demo cloud state saved.",
@@ -337,7 +340,7 @@ export async function saveCloudStateJson(json, options = {}) {
 		storageBytes: options.storageBytes,
 	});
 	const syncedAt = normalizeSyncTimestamp(result?.updatedAt || savedAt);
-	saveLastCloudSyncAt(syncedAt);
+	saveLastCloudSyncAt(syncedAt, user.uid);
 	emitCloudState({
 		lastCloudSyncAt: syncedAt,
 		message: "Firebase artifacts saved.",
@@ -1211,6 +1214,7 @@ async function handleFirebaseAuthChange(user) {
 		user: firebaseUserProfile(user),
 		firebaseAvailable: true,
 		isLocalDemo: false,
+		lastCloudSyncAt: loadLastCloudSyncAt(user.uid),
 		message: "Checking Cloud subscription...",
 		error: "",
 	});
@@ -1232,6 +1236,7 @@ async function handleFirebaseAuthChange(user) {
 		firebaseAvailable: true,
 		isLocalDemo: false,
 		billingCapable: Boolean(entitlement.cloud && !entitlement.admin),
+		lastCloudSyncAt: loadLastCloudSyncAt(user.uid),
 		message: entitlement.cloud ? "Cloud sync active." : "Cloud sync inactive.",
 		error: bootstrap?.error || "",
 	});
@@ -1306,7 +1311,7 @@ function localDemoState(user, message) {
 		billingCapable: false,
 		message,
 		error: "",
-		lastCloudSyncAt: loadLastCloudSyncAt(),
+		lastCloudSyncAt: loadLastCloudSyncAt(user?.uid),
 	};
 }
 
@@ -1391,17 +1396,36 @@ function getDeviceId() {
 	}
 }
 
-function loadLastCloudSyncAt() {
+function currentCloudUserUid() {
 	try {
+		return cloudState?.user?.uid || "";
+	} catch {
+		return "";
+	}
+}
+
+function lastCloudSyncStorageKey(uid = "") {
+	const normalized = String(uid || "").trim();
+	return normalized ? `${LAST_SYNC_KEY}:${normalized}` : LAST_SYNC_KEY;
+}
+
+function loadLastCloudSyncAt(uid = "") {
+	try {
+		const normalized = String(uid || "").trim();
+		if (normalized)
+			return window.localStorage.getItem(lastCloudSyncStorageKey(normalized)) || "";
 		return window.localStorage.getItem(LAST_SYNC_KEY) || "";
 	} catch {
 		return "";
 	}
 }
 
-function saveLastCloudSyncAt(value) {
+function saveLastCloudSyncAt(value, uid = "") {
 	try {
-		window.localStorage.setItem(LAST_SYNC_KEY, value);
+		window.localStorage.setItem(
+			lastCloudSyncStorageKey(uid || currentCloudUserUid()),
+			value,
+		);
 	} catch {
 		// Sync still succeeds if the convenience timestamp cannot be persisted.
 	}

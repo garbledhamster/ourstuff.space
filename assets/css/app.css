@@ -1406,35 +1406,35 @@ select option:checked {
 
 .dashboard-chart-controls {
 	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	align-items: center;
+	grid-template-columns: minmax(0, 1fr);
+	align-items: stretch;
 	width: min(100%, 492px);
-	gap: 8px;
+	gap: 7px;
 }
 
 .dashboard-chart-switcher {
-	display: flex;
-	gap: 6px;
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0;
 	width: 100%;
-	min-height: 76px;
+	min-height: 0;
 	border: 0;
 	border-radius: 0;
 	background: transparent;
-	padding: 8px;
+	padding: 0;
 }
 
 .dashboard-chart-switcher button {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	flex: 1 1 0;
 	gap: 5px;
-	min-height: 32px;
-	border: 1px solid transparent;
-	border-radius: 8px;
-	background: transparent;
+	min-height: 38px;
+	border: 1px solid var(--border-soft);
+	border-radius: 8px 8px 0 0;
+	background: var(--theme-control, rgba(15, 23, 42, 0.72));
 	color: var(--muted);
-	padding: 4px 10px;
+	padding: 7px 10px;
 	font-family: var(--font-label);
 	font-size: 0.72rem;
 	font-weight: 900;
@@ -1442,11 +1442,19 @@ select option:checked {
 	text-transform: uppercase;
 }
 
+.dashboard-chart-switcher button + button {
+	margin-left: -1px;
+}
+
 .dashboard-chart-switcher button:hover,
 .dashboard-chart-switcher button.is-active {
-	border-color: var(--border);
+	position: relative;
+	z-index: 1;
+	border-color: var(--border-strong);
+	border-bottom-color: var(--accent);
 	background: var(--theme-control-hover, #1e293b);
 	color: var(--on-surface-2, #fff);
+	box-shadow: inset 0 -2px 0 var(--accent);
 }
 
 .dashboard-chart-switcher .button-icon {
@@ -1458,13 +1466,13 @@ select option:checked {
 	display: grid;
 	gap: 7px;
 	width: 100%;
-	min-height: 76px;
-	border: 1px solid var(--border-soft);
-	border-radius: 12px;
-	background: var(--theme-control, rgba(15, 23, 42, 0.72));
+	min-height: 0;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
 	color: var(--text);
-	padding: 8px 10px 9px;
-	box-shadow: 0 10px 22px var(--theme-shadow, rgba(2, 6, 23, 0.22));
+	padding: 0 2px;
+	box-shadow: none;
 }
 
 .dashboard-period-slider-top,
@@ -7526,9 +7534,12 @@ button.life-event-row:hover {
 	border-color: var(--border-strong);
 }
 
-:root.theme-palette:not(.theme-consolas) .dashboard-chart-switcher {
+:root.theme-palette:not(.theme-consolas) .dashboard-chart-switcher,
+:root.theme-palette:not(.theme-consolas) .dashboard-period-slider,
+:root.theme-palette:not(.theme-consolas) .dashboard-period-slider:focus-within {
 	border: 0;
 	background: transparent;
+	box-shadow: none;
 }
 
 :root.theme-palette:not(.theme-consolas) .theme-choice,
@@ -7839,9 +7850,12 @@ button.life-event-row:hover {
 	color: var(--text);
 }
 
-:root.theme-consolas .dashboard-chart-switcher {
+:root.theme-consolas .dashboard-chart-switcher,
+:root.theme-consolas .dashboard-period-slider,
+:root.theme-consolas .dashboard-period-slider:focus-within {
 	border: 0;
 	background: transparent;
+	box-shadow: none;
 }
 
 :root.theme-consolas .donation-modal {
@@ -8060,6 +8074,13 @@ button.life-event-row:hover {
 	border-color: var(--border);
 	background: #111;
 	color: var(--text);
+}
+
+:root.theme-consolas .dashboard-period-slider,
+:root.theme-consolas .dashboard-period-slider:focus-within {
+	border: 0;
+	background: transparent;
+	box-shadow: none;
 }
 
 :root.theme-consolas .reader-section-title {
