@@ -5,22 +5,22 @@
 */
 
 .theme-app {
-  min-height: 100dvh;
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-body);
+	min-height: 100dvh;
+	background: var(--bg);
+	color: var(--text);
+	font-family: var(--font-body);
 }
 
 .theme-display {
-  font-family: var(--font-display);
+	font-family: var(--font-display);
 }
 
 .theme-label {
-  font-family: var(--font-label);
+	font-family: var(--font-label);
 }
 
 .theme-mono {
-  font-family: var(--font-mono);
+	font-family: var(--font-mono);
 }
 
 .theme-surface,
@@ -28,92 +28,94 @@
 .theme-card,
 .theme-field,
 .theme-control {
-  border: 1px solid var(--border-soft);
-  background: var(--surface);
-  color: var(--text);
+	border: 1px solid var(--border-soft);
+	background: var(--surface);
+	color: var(--text);
 }
 
 .theme-panel {
-  background: var(--panel);
+	background: var(--panel);
 }
 
 .theme-card {
-  border-color: var(--border);
+	border-color: var(--border);
 }
 
 .theme-muted {
-  color: var(--muted);
+	color: var(--muted);
 }
 
 .theme-faint {
-  color: var(--faint);
+	color: var(--faint);
 }
 
 .theme-divider {
-  border-color: var(--theme-divider);
+	border-color: var(--theme-divider);
 }
 
 .theme-field {
-  background: var(--theme-select-bg);
-  color: var(--theme-select-text);
+	background: var(--theme-select-bg);
+	color: var(--theme-select-text);
 }
 
 .theme-control {
-  background: var(--theme-control);
-  font-family: var(--font-label);
+	background: var(--theme-control);
+	font-family: var(--font-label);
 }
 
 .theme-control:hover,
 .theme-control:focus-visible,
 .theme-control.is-active {
-  border-color: var(--border-accent);
-  background: var(--theme-control-hover);
-  color: var(--on-surface-2);
-  outline: none;
+	border-color: var(--border-accent);
+	background: var(--theme-control-hover);
+	color: var(--on-surface-2);
+	outline: none;
 }
 
 .theme-primary {
-  border-color: var(--border-accent);
-  background: var(--accent);
-  color: var(--on-accent);
+	border-color: var(--border-accent);
+	background: var(--accent);
+	color: var(--on-accent);
 }
 
 .theme-primary:hover,
 .theme-primary:focus-visible {
-  background: var(--accent-2);
-  color: var(--on-accent-2);
-  outline: none;
+	background: var(--accent-2);
+	color: var(--on-accent-2);
+	outline: none;
 }
 
 .theme-danger {
-  border-color: var(--danger);
-  color: var(--danger);
+	border-color: var(--danger);
+	color: var(--danger);
 }
 
 .theme-danger:hover,
 .theme-danger:focus-visible {
-  background: var(--danger);
-  color: var(--on-danger);
+	background: var(--danger);
+	color: var(--on-danger);
 }
 
 .theme-focus-ring:focus-visible {
-  box-shadow: 0 0 0 4px var(--theme-ring);
-  outline: none;
+	box-shadow: 0 0 0 4px var(--theme-ring);
+	outline: none;
 }
 
 .theme-shadow {
-  box-shadow: 0 12px 28px var(--theme-shadow);
+	box-shadow: 0 12px 28px var(--theme-shadow);
 }
 
 .theme-tooltip {
-  border: 1px solid color-mix(in srgb, var(--accent) 58%, var(--border));
-  background: color-mix(in srgb, var(--surface) 94%, var(--bg));
-  color: var(--on-surface, var(--text));
-  box-shadow: 0 14px 36px var(--theme-shadow), 0 0 0 1px var(--theme-ring) inset;
-  font-family: var(--font-label);
+	border: 1px solid color-mix(in srgb, var(--accent) 58%, var(--border));
+	background: color-mix(in srgb, var(--surface) 94%, var(--bg));
+	color: var(--on-surface, var(--text));
+	box-shadow:
+		0 14px 36px var(--theme-shadow),
+		0 0 0 1px var(--theme-ring) inset;
+	font-family: var(--font-label);
 }
 
 .theme-tooltip-dot {
-  background: var(--accent);
-  box-shadow: 0 0 16px var(--accent);
+	background: var(--accent);
+	box-shadow: 0 0 16px var(--accent);
 }

@@ -1,51 +1,71 @@
-import { dashboardCards, today } from "./data.js";
-import { donationModalHtml, bindDonationFlow } from "./donations.js";
 import {
-  deleteCloudAccount,
-  deleteCloudStateJson,
-  estimateCloudStateStorageUsage,
-  estimateJsonBytes,
-  getCloudAccountState,
-  getCloudStateInfo,
-  initCloudAccount,
-  loadCloudStateJson,
-  openBillingPortal,
-  recordCloudSyncAt,
-  saveCloudStateJson,
-  signInToCloud,
-  signInWithEmailPassword,
-  signInWithGoogle,
-  signOutCloud,
-  startCloudSubscription
+	autoUpdate,
+	computePosition,
+	flip,
+	offset,
+	shift,
+} from "https://cdn.jsdelivr.net/npm/@floating-ui/dom@1.7.5/+esm";
+import {
+	deleteCloudAccount,
+	deleteCloudStateJson,
+	estimateCloudStateStorageUsage,
+	estimateJsonBytes,
+	getCloudAccountState,
+	getCloudStateInfo,
+	initCloudAccount,
+	loadCloudStateJson,
+	openBillingPortal,
+	recordCloudSyncAt,
+	saveCloudStateJson,
+	signInToCloud,
+	signInWithEmailPassword,
+	signInWithGoogle,
+	signOutCloud,
+	startCloudSubscription,
 } from "./cloud.js?v=storage-quota-20260523a";
 import { CLOUD_STORAGE_LIMIT_BYTES } from "./config.js?v=storage-quota-20260523a";
-import { clearLocalFiles, configureCloudMedia, deleteLocalImages, exportLocalFiles, importLocalFiles, listLocalFiles, listLocalImages, migrateLocalMediaToCloud, resolveLocalFile, resolveLocalFileUrl, resolveLocalImageUrl, storeLocalFile, storeLocalImage, storeLocalImageFromDataUrl } from "./localMedia.js?v=gallery-downloads-20260523a";
+import { today } from "./data.js";
+import { bindDonationFlow, donationModalHtml } from "./donations.js";
+import {
+	clearLocalFiles,
+	configureCloudMedia,
+	deleteLocalImages,
+	exportLocalFiles,
+	importLocalFiles,
+	listLocalFiles,
+	listLocalImages,
+	migrateLocalMediaToCloud,
+	resolveLocalFile,
+	resolveLocalImageUrl,
+	storeLocalFile,
+	storeLocalImage,
+	storeLocalImageFromDataUrl,
+} from "./localMedia.js?v=gallery-downloads-20260523a";
 import { escapeHtml, renderMarkdown } from "./markdown.js";
 import {
-  applyThemeVariables as applyThemeSystemVariables,
-  loadTheme as loadThemeSelection,
-  normalizeTheme as normalizeThemeSelection,
-  saveTheme as saveThemeSelection,
-  THEME_COLOR_FIELDS,
-  themeColors,
-  themeFontLabel as themeSystemFontLabel,
-  themePreviewStyle
-} from "./themeSystem.js";
-import { autoUpdate, computePosition, flip, offset, shift } from "https://cdn.jsdelivr.net/npm/@floating-ui/dom@1.7.5/+esm";
-import {
-  artifactStoreToCompendiums,
-  compendiumsToArtifactStore,
-  createEmptyStore,
-  findArtifact,
-  loadArtifactStore,
-  loadSeedStore,
-  removeArtifact,
-  rootNotesForDashboard,
-  SCHEMA_VERSION,
-  saveArtifactStore as writeArtifactStore,
-  STORAGE_KEY,
-  upsertArtifact
+	artifactStoreToCompendiums,
+	compendiumsToArtifactStore,
+	createEmptyStore,
+	findArtifact,
+	loadArtifactStore,
+	loadSeedStore,
+	removeArtifact,
+	rootNotesForDashboard,
+	SCHEMA_VERSION,
+	STORAGE_KEY,
+	upsertArtifact,
+	saveArtifactStore as writeArtifactStore,
 } from "./storage.js?v=compendium-section-20260523a";
+import {
+	applyThemeVariables as applyThemeSystemVariables,
+	loadTheme as loadThemeSelection,
+	normalizeTheme as normalizeThemeSelection,
+	saveTheme as saveThemeSelection,
+	THEME_COLOR_FIELDS,
+	themeColors,
+	themePreviewStyle,
+	themeFontLabel as themeSystemFontLabel,
+} from "./themeSystem.js";
 
 const app = document.getElementById("app");
 const BODY_TRACKER_KEY = "ourstuff.bodyTracker.v1";
@@ -67,71 +87,71 @@ const ICONIFY_SEARCH_URL = "https://api.iconify.design/search";
 const ICONIFY_PREFIXES = "tabler,lucide,ph,mdi,material-symbols";
 const ICON_PICKER_PAGE_SIZE = 48;
 const ICON_PICKER_DEFAULT_ICONS = [
-  "tabler:circle",
-  "tabler:brain",
-  "tabler:activity",
-  "tabler:sun",
-  "tabler:calendar-heart",
-  "tabler:notes",
-  "tabler:school",
-  "tabler:bulb",
-  "tabler:question-mark",
-  "tabler:barbell",
-  "tabler:salad",
-  "tabler:droplet",
-  "tabler:moon",
-  "tabler:book",
-  "tabler:yoga",
-  "tabler:message-circle",
-  "tabler:pray",
-  "tabler:users",
-  "tabler:friends",
-  "tabler:briefcase",
-  "tabler:sparkles",
-  "tabler:heart",
-  "tabler:target-arrow",
-  "tabler:flame",
-  "tabler:leaf",
-  "tabler:mountain",
-  "tabler:plant-2",
-  "tabler:run",
-  "tabler:bike",
-  "tabler:swimming",
-  "tabler:stretching",
-  "tabler:bed",
-  "tabler:coffee",
-  "tabler:apple",
-  "tabler:chef-hat",
-  "tabler:glass-full",
-  "tabler:heartbeat",
-  "tabler:lungs",
-  "tabler:mood-smile",
-  "tabler:bolt",
-  "tabler:clock",
-  "tabler:calendar",
-  "tabler:list-check",
-  "tabler:folder",
-  "tabler:home",
-  "tabler:map-pin",
-  "tabler:world",
-  "tabler:star",
-  "tabler:flag",
-  "lucide:brain",
-  "lucide:activity",
-  "lucide:sun",
-  "lucide:calendar-heart",
-  "lucide:notebook-pen",
-  "lucide:dumbbell",
-  "lucide:droplets",
-  "lucide:sprout",
-  "ph:brain",
-  "ph:heartbeat",
-  "ph:sun",
-  "ph:calendar-heart",
-  "mdi:meditation",
-  "mdi:run-fast",
-  "mdi:home-heart",
-  "mdi:book-open-page-variant"
+	"tabler:circle",
+	"tabler:brain",
+	"tabler:activity",
+	"tabler:sun",
+	"tabler:calendar-heart",
+	"tabler:notes",
+	"tabler:school",
+	"tabler:bulb",
+	"tabler:question-mark",
+	"tabler:barbell",
+	"tabler:salad",
+	"tabler:droplet",
+	"tabler:moon",
+	"tabler:book",
+	"tabler:yoga",
+	"tabler:message-circle",
+	"tabler:pray",
+	"tabler:users",
+	"tabler:friends",
+	"tabler:briefcase",
+	"tabler:sparkles",
+	"tabler:heart",
+	"tabler:target-arrow",
+	"tabler:flame",
+	"tabler:leaf",
+	"tabler:mountain",
+	"tabler:plant-2",
+	"tabler:run",
+	"tabler:bike",
+	"tabler:swimming",
+	"tabler:stretching",
+	"tabler:bed",
+	"tabler:coffee",
+	"tabler:apple",
+	"tabler:chef-hat",
+	"tabler:glass-full",
+	"tabler:heartbeat",
+	"tabler:lungs",
+	"tabler:mood-smile",
+	"tabler:bolt",
+	"tabler:clock",
+	"tabler:calendar",
+	"tabler:list-check",
+	"tabler:folder",
+	"tabler:home",
+	"tabler:map-pin",
+	"tabler:world",
+	"tabler:star",
+	"tabler:flag",
+	"lucide:brain",
+	"lucide:activity",
+	"lucide:sun",
+	"lucide:calendar-heart",
+	"lucide:notebook-pen",
+	"lucide:dumbbell",
+	"lucide:droplets",
+	"lucide:sprout",
+	"ph:brain",
+	"ph:heartbeat",
+	"ph:sun",
+	"ph:calendar-heart",
+	"mdi:meditation",
+	"mdi:run-fast",
+	"mdi:home-heart",
+	"mdi:book-open-page-variant",
 ];
 const RING_CIRCUMFERENCE = 502.6548245743669;
 const SIDEBAR_DEFAULT_WIDTH = 270;
@@ -152,118 +172,197 @@ const DASHBOARD_RETURN_TIP = "dashboard-return";
 const COMPENDIUM_GRID_TIP = "compendium-grid";
 const SIMPLE_TOOLTIP_WORD_LIMIT = 7;
 const GUIDED_TIP_SEQUENCE = [
-  { id: DASHBOARD_RETURN_TIP, selector: ".dashboard-home-link", label: "Return to dashboard", placement: "bottom", when: () => state.active !== "Dashboard" },
-  { id: "dashboard-balance-tip", selector: ".dashboard-analytics", label: "Check your balance", placement: "bottom" },
-  { id: "dashboard-range-tip", selector: ".dashboard-period-slider:not(.sidebar-period-slider)", label: "Change time range", placement: "top" },
-  { id: "dashboard-chart-tip", selector: ".dashboard-chart-switcher", label: "Switch chart style", placement: "top" },
-  { id: "dashboard-card-tip", selector: ".dashboard-card", label: "Open a core area", placement: "top" },
-  { id: "sidebar-menu-tip", selector: ".mobile-menu-toggle", label: "Open side menu", placement: "bottom" },
-  { id: "sidebar-sections-tip", selector: ".sidebar-group-toggle", label: "Open side sections", placement: "top" },
-  { id: "sidebar-settings-tip", selector: ".sidebar-text-link[data-action='open-settings']", label: "Customize the interface", placement: "top" },
-  { id: "dashboard-orbs-tip", selector: ".dashboard-orb-nav .tracker-orb:not(.tracker-orb--add)", label: "Tap orbs to log", placement: "top" },
-  { id: "dashboard-tools-tip", selector: ".body-tool-switcher .body-mode-button, .life-tool-switcher .body-mode-button, .spirit-year-button", label: "Switch tools here", placement: "top" },
-  { id: COMPENDIUM_GRID_TIP, selector: ".compendium-page-indicator", label: "Open overview", placement: "top" }
+	{
+		id: DASHBOARD_RETURN_TIP,
+		selector: ".dashboard-home-link",
+		label: "Return to dashboard",
+		placement: "bottom",
+		when: () => state.active !== "Dashboard",
+	},
+	{
+		id: "dashboard-balance-tip",
+		selector: ".dashboard-analytics",
+		label: "Check your balance",
+		placement: "bottom",
+	},
+	{
+		id: "dashboard-range-tip",
+		selector: ".dashboard-period-slider:not(.sidebar-period-slider)",
+		label: "Change time range",
+		placement: "top",
+	},
+	{
+		id: "dashboard-chart-tip",
+		selector: ".dashboard-chart-switcher",
+		label: "Switch chart style",
+		placement: "top",
+	},
+	{
+		id: "dashboard-card-tip",
+		selector: ".dashboard-card",
+		label: "Open a core area",
+		placement: "top",
+	},
+	{
+		id: "sidebar-menu-tip",
+		selector: ".mobile-menu-toggle",
+		label: "Open side menu",
+		placement: "bottom",
+	},
+	{
+		id: "sidebar-sections-tip",
+		selector: ".sidebar-group-toggle",
+		label: "Open side sections",
+		placement: "top",
+	},
+	{
+		id: "sidebar-settings-tip",
+		selector: ".sidebar-text-link[data-action='open-settings']",
+		label: "Customize the interface",
+		placement: "top",
+	},
+	{
+		id: "dashboard-orbs-tip",
+		selector: ".dashboard-orb-nav .tracker-orb:not(.tracker-orb--add)",
+		label: "Tap orbs to log",
+		placement: "top",
+	},
+	{
+		id: "dashboard-tools-tip",
+		selector:
+			".body-tool-switcher .body-mode-button, .life-tool-switcher .body-mode-button, .spirit-year-button",
+		label: "Switch tools here",
+		placement: "top",
+	},
+	{
+		id: COMPENDIUM_GRID_TIP,
+		selector: ".compendium-page-indicator",
+		label: "Open overview",
+		placement: "top",
+	},
 ];
 const GOAL_FREQUENCY_OPTIONS = [
-  { id: "daily", label: "Daily", days: 1 },
-  { id: "weekly", label: "Weekly", days: 7 },
-  { id: "bi-weekly", label: "Bi Weekly", days: 14 },
-  { id: "monthly", label: "Monthly", days: 30 },
-  { id: "yearly", label: "Yearly", days: 365 },
-  { id: "custom", label: "Custom", days: 10 }
+	{ id: "daily", label: "Daily", days: 1 },
+	{ id: "weekly", label: "Weekly", days: 7 },
+	{ id: "bi-weekly", label: "Bi Weekly", days: 14 },
+	{ id: "monthly", label: "Monthly", days: 30 },
+	{ id: "yearly", label: "Yearly", days: 365 },
+	{ id: "custom", label: "Custom", days: 10 },
 ];
 const DEFAULT_DASHBOARD_IDENTITY = {
-  displayMode: "numbers",
-  showNumbers: true,
-  showIcons: false,
-  items: {
-    Mind: { number: "01", label: "Mind", icon: "tabler:brain", color: "#38bdf8" },
-    Body: { number: "02", label: "Body", icon: "tabler:activity", color: "#22c55e" },
-    Spirit: { number: "03", label: "Spirit", icon: "tabler:sun", color: "#f59e0b" },
-    Life: { number: "04", label: "Life", icon: "tabler:calendar-heart", color: "#f472b6" }
-  }
+	displayMode: "numbers",
+	showNumbers: true,
+	showIcons: false,
+	items: {
+		Mind: {
+			number: "01",
+			label: "Mind",
+			icon: "tabler:brain",
+			color: "#38bdf8",
+		},
+		Body: {
+			number: "02",
+			label: "Body",
+			icon: "tabler:activity",
+			color: "#22c55e",
+		},
+		Spirit: {
+			number: "03",
+			label: "Spirit",
+			icon: "tabler:sun",
+			color: "#f59e0b",
+		},
+		Life: {
+			number: "04",
+			label: "Life",
+			icon: "tabler:calendar-heart",
+			color: "#f472b6",
+		},
+	},
 };
 const DASHBOARD_PERIOD_OPTIONS = [
-  { id: "day", label: "1 day", days: 1 },
-  { id: "2-days", label: "2 days", days: 2 },
-  { id: "3-days", label: "3 days", days: 3 },
-  { id: "4-days", label: "4 days", days: 4 },
-  { id: "5-days", label: "5 days", days: 5 },
-  { id: "6-days", label: "6 days", days: 6 },
-  { id: "week", label: "Week", days: 7 },
-  { id: "2-weeks", label: "2 weeks", days: 14 },
-  { id: "month", label: "Month", days: 30 },
-  { id: "3-months", label: "3 months", days: 90 },
-  { id: "year", label: "1 year", days: 365 },
-  { id: "3-years", label: "3 years", days: 365 * 3 },
-  { id: "7-years", label: "7 years", days: 365 * 7 },
-  { id: "10-years", label: "10 years", days: 365 * 10 }
+	{ id: "day", label: "1 day", days: 1 },
+	{ id: "2-days", label: "2 days", days: 2 },
+	{ id: "3-days", label: "3 days", days: 3 },
+	{ id: "4-days", label: "4 days", days: 4 },
+	{ id: "5-days", label: "5 days", days: 5 },
+	{ id: "6-days", label: "6 days", days: 6 },
+	{ id: "week", label: "Week", days: 7 },
+	{ id: "2-weeks", label: "2 weeks", days: 14 },
+	{ id: "month", label: "Month", days: 30 },
+	{ id: "3-months", label: "3 months", days: 90 },
+	{ id: "year", label: "1 year", days: 365 },
+	{ id: "3-years", label: "3 years", days: 365 * 3 },
+	{ id: "7-years", label: "7 years", days: 365 * 7 },
+	{ id: "10-years", label: "10 years", days: 365 * 10 },
 ];
 const BODY_TIMER_MODES = [
-  {
-    key: "fasting",
-    stateKey: "fast",
-    label: "Fasting",
-    shortLabel: "Fast",
-    icon: "tabler:clock-hour-4",
-    defaultLabel: "Manual fast",
-    defaultTargetHours: 16,
-    targetLabel: "Target hours",
-    targetUnit: "hours",
-    activeText: "Active fast",
-    idleText: "No active fast",
-    startText: "Start Fast",
-    stopText: "Stop Fast",
-    emptyText: "Start a fast to track elapsed time against your target."
-  },
-  {
-    key: "sleep",
-    stateKey: "sleep",
-    label: "Sleep",
-    shortLabel: "Sleep",
-    icon: "tabler:moon",
-    defaultLabel: "Sleep session",
-    defaultTargetHours: 8,
-    targetLabel: "Target hours",
-    targetUnit: "hours",
-    activeText: "Sleeping",
-    idleText: "No active sleep",
-    startText: "Start Sleep",
-    stopText: "Stop Sleep",
-    emptyText: "Start a sleep timer to track your rest window."
-  },
-  {
-    key: "exercise",
-    stateKey: "exercise",
-    label: "Exercise",
-    shortLabel: "Exercise",
-    icon: "tabler:barbell",
-    defaultLabel: "Exercise session",
-    defaultTargetHours: 1,
-    targetLabel: "Target minutes",
-    targetUnit: "minutes",
-    activeText: "Exercising",
-    idleText: "No active exercise",
-    startText: "Start Exercise",
-    stopText: "Stop Exercise",
-    emptyText: "Start an exercise timer for strength, mobility, or focused movement."
-  },
-  {
-    key: "cardio",
-    stateKey: "cardio",
-    label: "Cardio",
-    shortLabel: "Cardio",
-    icon: "tabler:run",
-    defaultLabel: "Cardio session",
-    defaultTargetHours: 0.5,
-    targetLabel: "Target minutes",
-    targetUnit: "minutes",
-    activeText: "Cardio active",
-    idleText: "No active cardio",
-    startText: "Start Cardio",
-    stopText: "Stop Cardio",
-    emptyText: "Start a cardio timer for walks, runs, bike rides, or conditioning."
-  }
+	{
+		key: "fasting",
+		stateKey: "fast",
+		label: "Fasting",
+		shortLabel: "Fast",
+		icon: "tabler:clock-hour-4",
+		defaultLabel: "Manual fast",
+		defaultTargetHours: 16,
+		targetLabel: "Target hours",
+		targetUnit: "hours",
+		activeText: "Active fast",
+		idleText: "No active fast",
+		startText: "Start Fast",
+		stopText: "Stop Fast",
+		emptyText: "Start a fast to track elapsed time against your target.",
+	},
+	{
+		key: "sleep",
+		stateKey: "sleep",
+		label: "Sleep",
+		shortLabel: "Sleep",
+		icon: "tabler:moon",
+		defaultLabel: "Sleep session",
+		defaultTargetHours: 8,
+		targetLabel: "Target hours",
+		targetUnit: "hours",
+		activeText: "Sleeping",
+		idleText: "No active sleep",
+		startText: "Start Sleep",
+		stopText: "Stop Sleep",
+		emptyText: "Start a sleep timer to track your rest window.",
+	},
+	{
+		key: "exercise",
+		stateKey: "exercise",
+		label: "Exercise",
+		shortLabel: "Exercise",
+		icon: "tabler:barbell",
+		defaultLabel: "Exercise session",
+		defaultTargetHours: 1,
+		targetLabel: "Target minutes",
+		targetUnit: "minutes",
+		activeText: "Exercising",
+		idleText: "No active exercise",
+		startText: "Start Exercise",
+		stopText: "Stop Exercise",
+		emptyText:
+			"Start an exercise timer for strength, mobility, or focused movement.",
+	},
+	{
+		key: "cardio",
+		stateKey: "cardio",
+		label: "Cardio",
+		shortLabel: "Cardio",
+		icon: "tabler:run",
+		defaultLabel: "Cardio session",
+		defaultTargetHours: 0.5,
+		targetLabel: "Target minutes",
+		targetUnit: "minutes",
+		activeText: "Cardio active",
+		idleText: "No active cardio",
+		startText: "Start Cardio",
+		stopText: "Stop Cardio",
+		emptyText:
+			"Start a cardio timer for walks, runs, bike rides, or conditioning.",
+	},
 ];
 let thoughtToastFadeTimer = null;
 let thoughtToastHideTimer = null;
@@ -284,772 +383,911 @@ let cloudStorageUsageRefreshTimer = null;
 let cloudStorageUsageRefreshInFlight = false;
 let cloudStorageUsageSignature = "";
 const SPIRIT_PLANS = [
-  {
-    id: "ten-year",
-    label: "Western Paganism",
-    url: "/assets/data/bookclub.json"
-  }
+	{
+		id: "ten-year",
+		label: "Western Paganism",
+		url: "/assets/data/bookclub.json",
+	},
 ];
 const DASHBOARD_COLORS = {
-  Mind: "#38bdf8",
-  Body: "#22c55e",
-  Spirit: "#f59e0b",
-  Life: "#f472b6"
+	Mind: "#38bdf8",
+	Body: "#22c55e",
+	Spirit: "#f59e0b",
+	Life: "#f472b6",
 };
 const ICON_PICKER_COLOR_PRESETS = [
-  "#38bdf8", "#0ea5e9", "#22c55e", "#84cc16", "#f59e0b", "#f97316",
-  "#ef4444", "#f43f5e", "#f472b6", "#a855f7", "#6366f1", "#14b8a6",
-  "#eab308", "#fb7185", "#94a3b8", "#f8fafc"
+	"#38bdf8",
+	"#0ea5e9",
+	"#22c55e",
+	"#84cc16",
+	"#f59e0b",
+	"#f97316",
+	"#ef4444",
+	"#f43f5e",
+	"#f472b6",
+	"#a855f7",
+	"#6366f1",
+	"#14b8a6",
+	"#eab308",
+	"#fb7185",
+	"#94a3b8",
+	"#f8fafc",
 ];
 const APP_THEMES = [
-  {
-    id: "default",
-    label: "Default",
-    description: "Original Ourstuff dark interface.",
-    fontSet: "classic"
-  },
-  {
-    id: "midnight",
-    label: "Midnight",
-    description: "Fast Track's deep slate theme with cyan accents.",
-    colorScheme: "dark",
-    fontSet: "midnight",
-    colors: {
-      primaryColor: "#06b6d4",
-      secondaryColor: "#0891b2",
-      backgroundColor: "#020617",
-      surfaceColor: "#0f172a",
-      surfaceMutedColor: "#1e293b",
-      borderColor: "#1e293b",
-      textColor: "#f8fafc",
-      textMutedColor: "#94a3b8",
-      dangerColor: "#dc2626"
-    }
-  },
-  {
-    id: "ocean",
-    label: "Ocean",
-    description: "Blue-green shell with bright sky highlights.",
-    colorScheme: "dark",
-    fontSet: "ocean",
-    colors: {
-      primaryColor: "#38bdf8",
-      secondaryColor: "#0ea5e9",
-      backgroundColor: "#071a2b",
-      surfaceColor: "#0b2942",
-      surfaceMutedColor: "#123a5a",
-      borderColor: "#1e3a5f",
-      textColor: "#e0f2fe",
-      textMutedColor: "#94a3b8",
-      dangerColor: "#f97316"
-    }
-  },
-  {
-    id: "sunrise",
-    label: "Sunrise",
-    description: "Warm rose and orange Fast Track palette.",
-    colorScheme: "dark",
-    fontSet: "sunrise",
-    colors: {
-      primaryColor: "#fb7185",
-      secondaryColor: "#f97316",
-      backgroundColor: "#1f0f1a",
-      surfaceColor: "#2a1523",
-      surfaceMutedColor: "#3b1c2e",
-      borderColor: "#4b2237",
-      textColor: "#fff1f2",
-      textMutedColor: "#fda4af",
-      dangerColor: "#f87171"
-    }
-  },
-  {
-    id: "light",
-    label: "Light",
-    description: "Clean white Fast Track palette with blue accents.",
-    colorScheme: "light",
-    fontSet: "minimal",
-    colors: {
-      primaryColor: "#2563eb",
-      secondaryColor: "#1d4ed8",
-      backgroundColor: "#ffffff",
-      surfaceColor: "#f8fafc",
-      surfaceMutedColor: "#f8fafc",
-      borderColor: "#e2e8f0",
-      textColor: "#000000",
-      textMutedColor: "#000000",
-      dangerColor: "#dc2626"
-    }
-  },
-  {
-    id: "monokai",
-    label: "Monokai (Dark)",
-    description: "Editor-like green and cyan on warm charcoal.",
-    colorScheme: "dark",
-    fontSet: "code",
-    colors: {
-      primaryColor: "#a6e22e",
-      secondaryColor: "#66d9ef",
-      backgroundColor: "#272822",
-      surfaceColor: "#2d2e28",
-      surfaceMutedColor: "#3e3d32",
-      borderColor: "#49483e",
-      textColor: "#f8f8f2",
-      textMutedColor: "#a1a1a1",
-      dangerColor: "#f92672"
-    }
-  },
-  {
-    id: "monokaiLight",
-    label: "Monokai (Light)",
-    description: "Light editor palette with teal and violet accents.",
-    colorScheme: "light",
-    fontSet: "softCode",
-    colors: {
-      primaryColor: "#2aa198",
-      secondaryColor: "#6c71c4",
-      backgroundColor: "#faf7ef",
-      surfaceColor: "#fffdf7",
-      surfaceMutedColor: "#f3eee3",
-      borderColor: "#e7decd",
-      textColor: "#2b2b2b",
-      textMutedColor: "#6b6b6b",
-      dangerColor: "#dc322f"
-    }
-  },
-  {
-    id: "sand",
-    label: "Sand",
-    description: "Soft parchment surfaces with amber and teal accents.",
-    colorScheme: "light",
-    fontSet: "warm",
-    colors: {
-      primaryColor: "#c17d3b",
-      secondaryColor: "#2c6e6f",
-      backgroundColor: "#f7f1e3",
-      surfaceColor: "#fffaf0",
-      surfaceMutedColor: "#efe4cf",
-      borderColor: "#e0d2b8",
-      textColor: "#2f2a24",
-      textMutedColor: "#6b5f52",
-      dangerColor: "#b42318"
-    }
-  },
-  {
-    id: "yellow",
-    label: "Yellow",
-    description: "Dark shell with strong yellow highlights.",
-    colorScheme: "dark",
-    fontSet: "utility",
-    colors: {
-      primaryColor: "#facc15",
-      secondaryColor: "#f59e0b",
-      backgroundColor: "#0b0f19",
-      surfaceColor: "#121a2a",
-      surfaceMutedColor: "#18233a",
-      borderColor: "#23324f",
-      textColor: "#fff7cc",
-      textMutedColor: "#f5e6a8",
-      dangerColor: "#ef4444"
-    }
-  },
-  {
-    id: "forest",
-    label: "Forest (Green)",
-    description: "Dark green surfaces with bright leaf accents.",
-    colorScheme: "dark",
-    fontSet: "humanist",
-    colors: {
-      primaryColor: "#22c55e",
-      secondaryColor: "#16a34a",
-      backgroundColor: "#06130b",
-      surfaceColor: "#0b1f13",
-      surfaceMutedColor: "#0f2a19",
-      borderColor: "#173b25",
-      textColor: "#ecfdf5",
-      textMutedColor: "#86efac",
-      dangerColor: "#ef4444"
-    }
-  },
-  {
-    id: "cobalt",
-    label: "Cobalt (Blue)",
-    description: "Deep navy Fast Track palette with blue accents.",
-    colorScheme: "dark",
-    fontSet: "technical",
-    colors: {
-      primaryColor: "#3b82f6",
-      secondaryColor: "#2563eb",
-      backgroundColor: "#070a14",
-      surfaceColor: "#0b1224",
-      surfaceMutedColor: "#0f1a33",
-      borderColor: "#1b2a55",
-      textColor: "#eff6ff",
-      textMutedColor: "#93c5fd",
-      dangerColor: "#f43f5e"
-    }
-  },
-  {
-    id: "twilight",
-    label: "Twilight",
-    description: "Purple night palette with cyan secondary accents.",
-    colorScheme: "dark",
-    fontSet: "editorial",
-    colors: {
-      primaryColor: "#8b5cf6",
-      secondaryColor: "#22d3ee",
-      backgroundColor: "#07051a",
-      surfaceColor: "#120a2b",
-      surfaceMutedColor: "#1a123a",
-      borderColor: "#2b1b55",
-      textColor: "#f5f3ff",
-      textMutedColor: "#c4b5fd",
-      dangerColor: "#fb7185"
-    }
-  },
-  {
-    id: "consolas",
-    label: "Consolas",
-    description: "Slate black console surface with off-white Consolas-style text and borders.",
-    colorScheme: "dark",
-    contrastMode: "console",
-    fontSet: "mono",
-    colors: {
-      primaryColor: "#efeee7",
-      secondaryColor: "#d6d3c9",
-      backgroundColor: "#050505",
-      surfaceColor: "#080808",
-      surfaceMutedColor: "#111111",
-      borderColor: "#efeee7",
-      textColor: "#f1f0e8",
-      textMutedColor: "#d6d3c9",
-      dangerColor: "#f0b7b7"
-    }
-  }
+	{
+		id: "default",
+		label: "Default",
+		description: "Original Ourstuff dark interface.",
+		fontSet: "classic",
+	},
+	{
+		id: "midnight",
+		label: "Midnight",
+		description: "Fast Track's deep slate theme with cyan accents.",
+		colorScheme: "dark",
+		fontSet: "midnight",
+		colors: {
+			primaryColor: "#06b6d4",
+			secondaryColor: "#0891b2",
+			backgroundColor: "#020617",
+			surfaceColor: "#0f172a",
+			surfaceMutedColor: "#1e293b",
+			borderColor: "#1e293b",
+			textColor: "#f8fafc",
+			textMutedColor: "#94a3b8",
+			dangerColor: "#dc2626",
+		},
+	},
+	{
+		id: "ocean",
+		label: "Ocean",
+		description: "Blue-green shell with bright sky highlights.",
+		colorScheme: "dark",
+		fontSet: "ocean",
+		colors: {
+			primaryColor: "#38bdf8",
+			secondaryColor: "#0ea5e9",
+			backgroundColor: "#071a2b",
+			surfaceColor: "#0b2942",
+			surfaceMutedColor: "#123a5a",
+			borderColor: "#1e3a5f",
+			textColor: "#e0f2fe",
+			textMutedColor: "#94a3b8",
+			dangerColor: "#f97316",
+		},
+	},
+	{
+		id: "sunrise",
+		label: "Sunrise",
+		description: "Warm rose and orange Fast Track palette.",
+		colorScheme: "dark",
+		fontSet: "sunrise",
+		colors: {
+			primaryColor: "#fb7185",
+			secondaryColor: "#f97316",
+			backgroundColor: "#1f0f1a",
+			surfaceColor: "#2a1523",
+			surfaceMutedColor: "#3b1c2e",
+			borderColor: "#4b2237",
+			textColor: "#fff1f2",
+			textMutedColor: "#fda4af",
+			dangerColor: "#f87171",
+		},
+	},
+	{
+		id: "light",
+		label: "Light",
+		description: "Clean white Fast Track palette with blue accents.",
+		colorScheme: "light",
+		fontSet: "minimal",
+		colors: {
+			primaryColor: "#2563eb",
+			secondaryColor: "#1d4ed8",
+			backgroundColor: "#ffffff",
+			surfaceColor: "#f8fafc",
+			surfaceMutedColor: "#f8fafc",
+			borderColor: "#e2e8f0",
+			textColor: "#000000",
+			textMutedColor: "#000000",
+			dangerColor: "#dc2626",
+		},
+	},
+	{
+		id: "monokai",
+		label: "Monokai (Dark)",
+		description: "Editor-like green and cyan on warm charcoal.",
+		colorScheme: "dark",
+		fontSet: "code",
+		colors: {
+			primaryColor: "#a6e22e",
+			secondaryColor: "#66d9ef",
+			backgroundColor: "#272822",
+			surfaceColor: "#2d2e28",
+			surfaceMutedColor: "#3e3d32",
+			borderColor: "#49483e",
+			textColor: "#f8f8f2",
+			textMutedColor: "#a1a1a1",
+			dangerColor: "#f92672",
+		},
+	},
+	{
+		id: "monokaiLight",
+		label: "Monokai (Light)",
+		description: "Light editor palette with teal and violet accents.",
+		colorScheme: "light",
+		fontSet: "softCode",
+		colors: {
+			primaryColor: "#2aa198",
+			secondaryColor: "#6c71c4",
+			backgroundColor: "#faf7ef",
+			surfaceColor: "#fffdf7",
+			surfaceMutedColor: "#f3eee3",
+			borderColor: "#e7decd",
+			textColor: "#2b2b2b",
+			textMutedColor: "#6b6b6b",
+			dangerColor: "#dc322f",
+		},
+	},
+	{
+		id: "sand",
+		label: "Sand",
+		description: "Soft parchment surfaces with amber and teal accents.",
+		colorScheme: "light",
+		fontSet: "warm",
+		colors: {
+			primaryColor: "#c17d3b",
+			secondaryColor: "#2c6e6f",
+			backgroundColor: "#f7f1e3",
+			surfaceColor: "#fffaf0",
+			surfaceMutedColor: "#efe4cf",
+			borderColor: "#e0d2b8",
+			textColor: "#2f2a24",
+			textMutedColor: "#6b5f52",
+			dangerColor: "#b42318",
+		},
+	},
+	{
+		id: "yellow",
+		label: "Yellow",
+		description: "Dark shell with strong yellow highlights.",
+		colorScheme: "dark",
+		fontSet: "utility",
+		colors: {
+			primaryColor: "#facc15",
+			secondaryColor: "#f59e0b",
+			backgroundColor: "#0b0f19",
+			surfaceColor: "#121a2a",
+			surfaceMutedColor: "#18233a",
+			borderColor: "#23324f",
+			textColor: "#fff7cc",
+			textMutedColor: "#f5e6a8",
+			dangerColor: "#ef4444",
+		},
+	},
+	{
+		id: "forest",
+		label: "Forest (Green)",
+		description: "Dark green surfaces with bright leaf accents.",
+		colorScheme: "dark",
+		fontSet: "humanist",
+		colors: {
+			primaryColor: "#22c55e",
+			secondaryColor: "#16a34a",
+			backgroundColor: "#06130b",
+			surfaceColor: "#0b1f13",
+			surfaceMutedColor: "#0f2a19",
+			borderColor: "#173b25",
+			textColor: "#ecfdf5",
+			textMutedColor: "#86efac",
+			dangerColor: "#ef4444",
+		},
+	},
+	{
+		id: "cobalt",
+		label: "Cobalt (Blue)",
+		description: "Deep navy Fast Track palette with blue accents.",
+		colorScheme: "dark",
+		fontSet: "technical",
+		colors: {
+			primaryColor: "#3b82f6",
+			secondaryColor: "#2563eb",
+			backgroundColor: "#070a14",
+			surfaceColor: "#0b1224",
+			surfaceMutedColor: "#0f1a33",
+			borderColor: "#1b2a55",
+			textColor: "#eff6ff",
+			textMutedColor: "#93c5fd",
+			dangerColor: "#f43f5e",
+		},
+	},
+	{
+		id: "twilight",
+		label: "Twilight",
+		description: "Purple night palette with cyan secondary accents.",
+		colorScheme: "dark",
+		fontSet: "editorial",
+		colors: {
+			primaryColor: "#8b5cf6",
+			secondaryColor: "#22d3ee",
+			backgroundColor: "#07051a",
+			surfaceColor: "#120a2b",
+			surfaceMutedColor: "#1a123a",
+			borderColor: "#2b1b55",
+			textColor: "#f5f3ff",
+			textMutedColor: "#c4b5fd",
+			dangerColor: "#fb7185",
+		},
+	},
+	{
+		id: "consolas",
+		label: "Consolas",
+		description:
+			"Slate black console surface with off-white Consolas-style text and borders.",
+		colorScheme: "dark",
+		contrastMode: "console",
+		fontSet: "mono",
+		colors: {
+			primaryColor: "#efeee7",
+			secondaryColor: "#d6d3c9",
+			backgroundColor: "#050505",
+			surfaceColor: "#080808",
+			surfaceMutedColor: "#111111",
+			borderColor: "#efeee7",
+			textColor: "#f1f0e8",
+			textMutedColor: "#d6d3c9",
+			dangerColor: "#f0b7b7",
+		},
+	},
 ];
 const THEME_FONT_SETS = {
-  classic: {
-    label: "Classic",
-    body: '"Aptos", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif',
-    display: 'Georgia, "Times New Roman", serif',
-    labelFont: '"Bahnschrift", "Aptos", "Segoe UI", system-ui, sans-serif',
-    mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
-  },
-  midnight: {
-    label: "Midnight UI",
-    body: '"Segoe UI Variable Text", "Aptos", "Segoe UI", system-ui, sans-serif',
-    display: '"Aptos Display", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif',
-    labelFont: '"Bahnschrift", "Segoe UI Variable Text", "Aptos", system-ui, sans-serif',
-    mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
-  },
-  ocean: {
-    label: "Rounded",
-    body: 'Corbel, "Candara", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
-    display: '"Trebuchet MS", Corbel, "Segoe UI Variable Display", system-ui, sans-serif',
-    labelFont: '"Trebuchet MS", "Bahnschrift", Corbel, system-ui, sans-serif',
-    mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
-  },
-  sunrise: {
-    label: "Editorial Warm",
-    body: 'Candara, "Segoe UI Variable Text", "Aptos", system-ui, sans-serif',
-    display: 'Constantia, Georgia, "Palatino Linotype", serif',
-    labelFont: '"Franklin Gothic Medium", "Bahnschrift", "Aptos", system-ui, sans-serif',
-    mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
-  },
-  minimal: {
-    label: "Minimal",
-    body: '"Segoe UI Variable Text", "Aptos", "Segoe UI", system-ui, sans-serif',
-    display: '"Segoe UI Variable Display", "Aptos Display", "Segoe UI", system-ui, sans-serif',
-    labelFont: '"Segoe UI Variable Small", "Bahnschrift", "Segoe UI", system-ui, sans-serif',
-    mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
-  },
-  editorial: {
-    label: "Editorial",
-    body: '"Aptos", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif',
-    display: 'Georgia, "Iowan Old Style", "Palatino Linotype", serif',
-    labelFont: '"Bahnschrift", "Aptos", "Segoe UI", system-ui, sans-serif',
-    mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
-  },
-  warm: {
-    label: "Parchment",
-    body: 'Constantia, Cambria, Georgia, "Times New Roman", serif',
-    display: '"Palatino Linotype", "Book Antiqua", Georgia, serif',
-    labelFont: '"Trebuchet MS", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
-    mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
-  },
-  humanist: {
-    label: "Humanist",
-    body: '"Candara", "Segoe UI Variable Text", "Aptos", system-ui, sans-serif',
-    display: '"Cambria", Georgia, "Times New Roman", serif',
-    labelFont: '"Bahnschrift", "Candara", "Segoe UI", system-ui, sans-serif',
-    mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
-  },
-  utility: {
-    label: "Utility",
-    body: 'Verdana, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
-    display: '"Arial Black", Impact, "Aptos Display", system-ui, sans-serif',
-    labelFont: 'Tahoma, Verdana, "Segoe UI", system-ui, sans-serif',
-    mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
-  },
-  technical: {
-    label: "Technical",
-    body: '"Segoe UI Variable Text", "Aptos", "Segoe UI", system-ui, sans-serif',
-    display: '"Century Gothic", "Aptos Display", "Segoe UI Variable Display", system-ui, sans-serif',
-    labelFont: '"Bahnschrift", "Century Gothic", "Segoe UI", system-ui, sans-serif',
-    mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
-  },
-  code: {
-    label: "Code",
-    body: '"Cascadia Code", "Cascadia Mono", Consolas, "Liberation Mono", monospace',
-    display: '"Cascadia Code", "Cascadia Mono", Consolas, "Liberation Mono", monospace',
-    labelFont: '"Cascadia Mono", Consolas, "Liberation Mono", monospace',
-    mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
-  },
-  softCode: {
-    label: "Soft Code",
-    body: '"Cascadia Mono", "Lucida Console", Consolas, monospace',
-    display: '"Segoe UI Variable Display", "Aptos Display", "Cascadia Mono", system-ui, sans-serif',
-    labelFont: '"Cascadia Mono", "Lucida Console", Consolas, monospace',
-    mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
-  },
-  mono: {
-    label: "Mono",
-    body: 'Consolas, "Cascadia Mono", "SFMono-Regular", "Liberation Mono", monospace',
-    display: 'Consolas, "Cascadia Mono", "SFMono-Regular", "Liberation Mono", monospace',
-    labelFont: 'Consolas, "Cascadia Mono", "SFMono-Regular", "Liberation Mono", monospace',
-    mono: 'Consolas, "Cascadia Mono", "SFMono-Regular", "Liberation Mono", monospace'
-  }
+	classic: {
+		label: "Classic",
+		body: '"Aptos", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif',
+		display: 'Georgia, "Times New Roman", serif',
+		labelFont: '"Bahnschrift", "Aptos", "Segoe UI", system-ui, sans-serif',
+		mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace',
+	},
+	midnight: {
+		label: "Midnight UI",
+		body: '"Segoe UI Variable Text", "Aptos", "Segoe UI", system-ui, sans-serif',
+		display:
+			'"Aptos Display", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif',
+		labelFont:
+			'"Bahnschrift", "Segoe UI Variable Text", "Aptos", system-ui, sans-serif',
+		mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace',
+	},
+	ocean: {
+		label: "Rounded",
+		body: 'Corbel, "Candara", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
+		display:
+			'"Trebuchet MS", Corbel, "Segoe UI Variable Display", system-ui, sans-serif',
+		labelFont: '"Trebuchet MS", "Bahnschrift", Corbel, system-ui, sans-serif',
+		mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace',
+	},
+	sunrise: {
+		label: "Editorial Warm",
+		body: 'Candara, "Segoe UI Variable Text", "Aptos", system-ui, sans-serif',
+		display: 'Constantia, Georgia, "Palatino Linotype", serif',
+		labelFont:
+			'"Franklin Gothic Medium", "Bahnschrift", "Aptos", system-ui, sans-serif',
+		mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace',
+	},
+	minimal: {
+		label: "Minimal",
+		body: '"Segoe UI Variable Text", "Aptos", "Segoe UI", system-ui, sans-serif',
+		display:
+			'"Segoe UI Variable Display", "Aptos Display", "Segoe UI", system-ui, sans-serif',
+		labelFont:
+			'"Segoe UI Variable Small", "Bahnschrift", "Segoe UI", system-ui, sans-serif',
+		mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace',
+	},
+	editorial: {
+		label: "Editorial",
+		body: '"Aptos", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif',
+		display: 'Georgia, "Iowan Old Style", "Palatino Linotype", serif',
+		labelFont: '"Bahnschrift", "Aptos", "Segoe UI", system-ui, sans-serif',
+		mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace',
+	},
+	warm: {
+		label: "Parchment",
+		body: 'Constantia, Cambria, Georgia, "Times New Roman", serif',
+		display: '"Palatino Linotype", "Book Antiqua", Georgia, serif',
+		labelFont:
+			'"Trebuchet MS", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
+		mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace',
+	},
+	humanist: {
+		label: "Humanist",
+		body: '"Candara", "Segoe UI Variable Text", "Aptos", system-ui, sans-serif',
+		display: '"Cambria", Georgia, "Times New Roman", serif',
+		labelFont: '"Bahnschrift", "Candara", "Segoe UI", system-ui, sans-serif',
+		mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace',
+	},
+	utility: {
+		label: "Utility",
+		body: 'Verdana, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
+		display: '"Arial Black", Impact, "Aptos Display", system-ui, sans-serif',
+		labelFont: 'Tahoma, Verdana, "Segoe UI", system-ui, sans-serif',
+		mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace',
+	},
+	technical: {
+		label: "Technical",
+		body: '"Segoe UI Variable Text", "Aptos", "Segoe UI", system-ui, sans-serif',
+		display:
+			'"Century Gothic", "Aptos Display", "Segoe UI Variable Display", system-ui, sans-serif',
+		labelFont:
+			'"Bahnschrift", "Century Gothic", "Segoe UI", system-ui, sans-serif',
+		mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace',
+	},
+	code: {
+		label: "Code",
+		body: '"Cascadia Code", "Cascadia Mono", Consolas, "Liberation Mono", monospace',
+		display:
+			'"Cascadia Code", "Cascadia Mono", Consolas, "Liberation Mono", monospace',
+		labelFont: '"Cascadia Mono", Consolas, "Liberation Mono", monospace',
+		mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace',
+	},
+	softCode: {
+		label: "Soft Code",
+		body: '"Cascadia Mono", "Lucida Console", Consolas, monospace',
+		display:
+			'"Segoe UI Variable Display", "Aptos Display", "Cascadia Mono", system-ui, sans-serif',
+		labelFont: '"Cascadia Mono", "Lucida Console", Consolas, monospace',
+		mono: '"Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace',
+	},
+	mono: {
+		label: "Mono",
+		body: 'Consolas, "Cascadia Mono", "SFMono-Regular", "Liberation Mono", monospace',
+		display:
+			'Consolas, "Cascadia Mono", "SFMono-Regular", "Liberation Mono", monospace',
+		labelFont:
+			'Consolas, "Cascadia Mono", "SFMono-Regular", "Liberation Mono", monospace',
+		mono: 'Consolas, "Cascadia Mono", "SFMono-Regular", "Liberation Mono", monospace',
+	},
 };
 const ICON_ALIASES = {
-  "tabler:lotus": "tabler:yoga",
-  "tabler:hands-pray": "tabler:pray"
+	"tabler:lotus": "tabler:yoga",
+	"tabler:hands-pray": "tabler:pray",
 };
 const DEFAULT_TRACKERS = {
-  Mind: [
-    { id: "mind-note-taking", label: "Note Making", icon: "tabler:notes" },
-    { id: "mind-compendium-learning", label: "Compendium", icon: "tabler:school" },
-    { id: "mind-idea", label: "Idea", icon: "tabler:bulb" },
-    { id: "mind-question", label: "Question", icon: "tabler:question-mark" }
-  ],
-  Body: [
-    { id: "body-exercised", label: "Workout", icon: "tabler:barbell" },
-    { id: "body-ate-healthy", label: "Ate Healthy", icon: "tabler:salad" },
-    { id: "body-drank-water", label: "Drank Water", icon: "tabler:droplet" },
-    { id: "body-slept-well", label: "Sleep", icon: "tabler:moon" }
-  ],
-  Spirit: [
-    { id: "spirit-studied", label: "Studied", icon: "tabler:book" },
-    { id: "spirit-meditated", label: "Meditated", icon: "tabler:yoga" },
-    { id: "spirit-reflection", label: "Reflection", icon: "tabler:message-circle" },
-    { id: "spirit-prayer", label: "Prayer", icon: "tabler:pray" }
-  ],
-  Life: [
-    { id: "life-family", label: "Family", icon: "tabler:users" },
-    { id: "life-friends", label: "Friends", icon: "tabler:friends" },
-    { id: "life-work", label: "Work", icon: "tabler:briefcase" },
-    { id: "life-home", label: "Clean", icon: "tabler:sparkles" }
-  ]
+	Mind: [
+		{ id: "mind-note-taking", label: "Note Making", icon: "tabler:notes" },
+		{
+			id: "mind-compendium-learning",
+			label: "Compendium",
+			icon: "tabler:school",
+		},
+		{ id: "mind-idea", label: "Idea", icon: "tabler:bulb" },
+		{ id: "mind-question", label: "Question", icon: "tabler:question-mark" },
+	],
+	Body: [
+		{ id: "body-exercised", label: "Workout", icon: "tabler:barbell" },
+		{ id: "body-ate-healthy", label: "Ate Healthy", icon: "tabler:salad" },
+		{ id: "body-drank-water", label: "Drank Water", icon: "tabler:droplet" },
+		{ id: "body-slept-well", label: "Sleep", icon: "tabler:moon" },
+	],
+	Spirit: [
+		{ id: "spirit-studied", label: "Studied", icon: "tabler:book" },
+		{ id: "spirit-meditated", label: "Meditated", icon: "tabler:yoga" },
+		{
+			id: "spirit-reflection",
+			label: "Reflection",
+			icon: "tabler:message-circle",
+		},
+		{ id: "spirit-prayer", label: "Prayer", icon: "tabler:pray" },
+	],
+	Life: [
+		{ id: "life-family", label: "Family", icon: "tabler:users" },
+		{ id: "life-friends", label: "Friends", icon: "tabler:friends" },
+		{ id: "life-work", label: "Work", icon: "tabler:briefcase" },
+		{ id: "life-home", label: "Clean", icon: "tabler:sparkles" },
+	],
 };
 const DEFAULT_GOALS = {
-  Mind: [
-    { id: "mind-read", label: "Read", icon: "tabler:book-2" },
-    { id: "mind-write", label: "Write", icon: "tabler:pencil" },
-    { id: "mind-learn", label: "Learn", icon: "tabler:school" },
-    { id: "mind-plan", label: "Plan", icon: "tabler:list-check" }
-  ],
-  Body: [
-    { id: "body-move", label: "Move", icon: "tabler:run" },
-    { id: "body-hydrate", label: "Hydrate", icon: "tabler:droplet" },
-    { id: "body-sleep", label: "Sleep", icon: "tabler:moon" },
-    { id: "body-nutrition", label: "Nutrition", icon: "tabler:apple" }
-  ],
-  Spirit: [
-    { id: "spirit-read", label: "Read", icon: "tabler:book" },
-    { id: "spirit-pray", label: "Pray", icon: "tabler:pray" },
-    { id: "spirit-reflect", label: "Reflect", icon: "tabler:message-circle" },
-    { id: "spirit-gratitude", label: "Gratitude", icon: "tabler:heart" }
-  ],
-  Life: [
-    { id: "life-family-goal", label: "Family", icon: "tabler:users" },
-    { id: "life-work-goal", label: "Work", icon: "tabler:briefcase" },
-    { id: "life-home-goal", label: "Home", icon: "tabler:home" },
-    { id: "life-budget", label: "Budget", icon: "tabler:coins" }
-  ]
+	Mind: [
+		{ id: "mind-read", label: "Read", icon: "tabler:book-2" },
+		{ id: "mind-write", label: "Write", icon: "tabler:pencil" },
+		{ id: "mind-learn", label: "Learn", icon: "tabler:school" },
+		{ id: "mind-plan", label: "Plan", icon: "tabler:list-check" },
+	],
+	Body: [
+		{ id: "body-move", label: "Move", icon: "tabler:run" },
+		{ id: "body-hydrate", label: "Hydrate", icon: "tabler:droplet" },
+		{ id: "body-sleep", label: "Sleep", icon: "tabler:moon" },
+		{ id: "body-nutrition", label: "Nutrition", icon: "tabler:apple" },
+	],
+	Spirit: [
+		{ id: "spirit-read", label: "Read", icon: "tabler:book" },
+		{ id: "spirit-pray", label: "Pray", icon: "tabler:pray" },
+		{ id: "spirit-reflect", label: "Reflect", icon: "tabler:message-circle" },
+		{ id: "spirit-gratitude", label: "Gratitude", icon: "tabler:heart" },
+	],
+	Life: [
+		{ id: "life-family-goal", label: "Family", icon: "tabler:users" },
+		{ id: "life-work-goal", label: "Work", icon: "tabler:briefcase" },
+		{ id: "life-home-goal", label: "Home", icon: "tabler:home" },
+		{ id: "life-budget", label: "Budget", icon: "tabler:coins" },
+	],
 };
 const TRACKER_ID_MIGRATIONS = {
-  "mind-lesson-learning": "mind-compendium-learning"
+	"mind-lesson-learning": "mind-compendium-learning",
 };
 const TRACKER_LABEL_MIGRATIONS = {
-  "mind-note-taking": {
-    from: ["Note Taking"],
-    to: "Note Making"
-  },
-  "mind-compendium-learning": {
-    from: ["Lesson/Learning", "Lesson"],
-    to: "Compendium"
-  },
-  "body-exercised": {
-    from: ["Exercised"],
-    to: "Workout"
-  },
-  "body-slept-well": {
-    from: ["Slept Well"],
-    to: "Sleep"
-  },
-  "life-home": {
-    from: ["Home"],
-    to: "Clean"
-  }
+	"mind-note-taking": {
+		from: ["Note Taking"],
+		to: "Note Making",
+	},
+	"mind-compendium-learning": {
+		from: ["Lesson/Learning", "Lesson"],
+		to: "Compendium",
+	},
+	"body-exercised": {
+		from: ["Exercised"],
+		to: "Workout",
+	},
+	"body-slept-well": {
+		from: ["Slept Well"],
+		to: "Sleep",
+	},
+	"life-home": {
+		from: ["Home"],
+		to: "Clean",
+	},
 };
 
 function cloneTrackerDefaults(defaults) {
-  return Object.fromEntries(DASHBOARD_LABELS.map((label) => [
-    label,
-    defaults[label].map((tracker) => ({ ...tracker }))
-  ]));
+	return Object.fromEntries(
+		DASHBOARD_LABELS.map((label) => [
+			label,
+			defaults[label].map((tracker) => ({ ...tracker })),
+		]),
+	);
 }
 
 function cloneDefaultTrackers() {
-  return cloneTrackerDefaults(DEFAULT_TRACKERS);
+	return cloneTrackerDefaults(DEFAULT_TRACKERS);
 }
 
 function cloneDefaultGoals() {
-  return Object.fromEntries(DASHBOARD_LABELS.map((dashboard) => [
-    dashboard,
-    (DEFAULT_GOALS[dashboard] || []).map((goal) => ({ ...goal, enabled: true }))
-  ]));
+	return Object.fromEntries(
+		DASHBOARD_LABELS.map((dashboard) => [
+			dashboard,
+			(DEFAULT_GOALS[dashboard] || []).map((goal) => ({
+				...goal,
+				enabled: true,
+			})),
+		]),
+	);
 }
 
 function createEmptyTrackerSettings() {
-  return Object.fromEntries(DASHBOARD_LABELS.map((dashboard) => [dashboard, []]));
+	return Object.fromEntries(
+		DASHBOARD_LABELS.map((dashboard) => [dashboard, []]),
+	);
 }
 
 function cloneDefaultDashboardIdentity() {
-  return {
-    displayMode: DEFAULT_DASHBOARD_IDENTITY.displayMode,
-    showNumbers: DEFAULT_DASHBOARD_IDENTITY.showNumbers,
-    showIcons: DEFAULT_DASHBOARD_IDENTITY.showIcons,
-    items: Object.fromEntries(DASHBOARD_LABELS.map((dashboard) => [
-      dashboard,
-      { ...DEFAULT_DASHBOARD_IDENTITY.items[dashboard] }
-    ]))
-  };
+	return {
+		displayMode: DEFAULT_DASHBOARD_IDENTITY.displayMode,
+		showNumbers: DEFAULT_DASHBOARD_IDENTITY.showNumbers,
+		showIcons: DEFAULT_DASHBOARD_IDENTITY.showIcons,
+		items: Object.fromEntries(
+			DASHBOARD_LABELS.map((dashboard) => [
+				dashboard,
+				{ ...DEFAULT_DASHBOARD_IDENTITY.items[dashboard] },
+			]),
+		),
+	};
 }
 
 function normalizeIconSource(value) {
-  const source = String(value || "").trim();
-  return ICON_ALIASES[source] || source;
+	const source = String(value || "").trim();
+	return ICON_ALIASES[source] || source;
 }
 
 function normalizeHexColor(value, fallback = "") {
-  const raw = String(value || "").trim();
-  const expanded = raw.replace(/^#([0-9a-f]{3})$/i, (_, hex) => `#${hex.split("").map((char) => `${char}${char}`).join("")}`);
-  if (/^#[0-9a-f]{6}$/i.test(expanded)) return expanded.toLowerCase();
-  return fallback;
+	const raw = String(value || "").trim();
+	const expanded = raw.replace(
+		/^#([0-9a-f]{3})$/i,
+		(_, hex) =>
+			`#${hex
+				.split("")
+				.map((char) => `${char}${char}`)
+				.join("")}`,
+	);
+	if (/^#[0-9a-f]{6}$/i.test(expanded)) return expanded.toLowerCase();
+	return fallback;
 }
 
 function normalizeDashboardIdentity(value) {
-  const defaults = cloneDefaultDashboardIdentity();
-  const displayMode = value?.displayMode === "icons" || value?.showIcons === true
-    ? "icons"
-    : "numbers";
-  return {
-    displayMode,
-    showNumbers: displayMode === "numbers",
-    showIcons: displayMode === "icons",
-    items: Object.fromEntries(DASHBOARD_LABELS.map((dashboard) => {
-      const current = value?.items?.[dashboard] || value?.[dashboard] || {};
-      const fallback = defaults.items[dashboard];
-      const label = String(current.label || fallback.label).trim() || fallback.label;
-      const icon = normalizeIconSource(current.icon || fallback.icon) || fallback.icon;
-      const color = normalizeHexColor(current.color, fallback.color || DASHBOARD_COLORS[dashboard] || DASHBOARD_COLORS.Mind);
-      return [dashboard, { ...fallback, label, icon, color }];
-    }))
-  };
+	const defaults = cloneDefaultDashboardIdentity();
+	const displayMode =
+		value?.displayMode === "icons" || value?.showIcons === true
+			? "icons"
+			: "numbers";
+	return {
+		displayMode,
+		showNumbers: displayMode === "numbers",
+		showIcons: displayMode === "icons",
+		items: Object.fromEntries(
+			DASHBOARD_LABELS.map((dashboard) => {
+				const current = value?.items?.[dashboard] || value?.[dashboard] || {};
+				const fallback = defaults.items[dashboard];
+				const label =
+					String(current.label || fallback.label).trim() || fallback.label;
+				const icon =
+					normalizeIconSource(current.icon || fallback.icon) || fallback.icon;
+				const color = normalizeHexColor(
+					current.color,
+					fallback.color ||
+						DASHBOARD_COLORS[dashboard] ||
+						DASHBOARD_COLORS.Mind,
+				);
+				return [dashboard, { ...fallback, label, icon, color }];
+			}),
+		),
+	};
 }
 
 function loadDashboardIdentity() {
-  try {
-    const raw = window.localStorage.getItem(DASHBOARD_IDENTITY_KEY);
-    const parsed = raw ? JSON.parse(raw) : null;
-    const normalized = normalizeDashboardIdentity(parsed);
-    if (raw && JSON.stringify(parsed) !== JSON.stringify(normalized)) {
-      window.localStorage.setItem(DASHBOARD_IDENTITY_KEY, JSON.stringify(normalized));
-    }
-    return normalized;
-  } catch {
-    return cloneDefaultDashboardIdentity();
-  }
+	try {
+		const raw = window.localStorage.getItem(DASHBOARD_IDENTITY_KEY);
+		const parsed = raw ? JSON.parse(raw) : null;
+		const normalized = normalizeDashboardIdentity(parsed);
+		if (raw && JSON.stringify(parsed) !== JSON.stringify(normalized)) {
+			window.localStorage.setItem(
+				DASHBOARD_IDENTITY_KEY,
+				JSON.stringify(normalized),
+			);
+		}
+		return normalized;
+	} catch {
+		return cloneDefaultDashboardIdentity();
+	}
 }
 
 function saveDashboardIdentity(identity = state.dashboardIdentity) {
-  window.localStorage.setItem(DASHBOARD_IDENTITY_KEY, JSON.stringify(normalizeDashboardIdentity(identity)));
-  markLocalAppChanged();
+	window.localStorage.setItem(
+		DASHBOARD_IDENTITY_KEY,
+		JSON.stringify(normalizeDashboardIdentity(identity)),
+	);
+	markLocalAppChanged();
 }
 
 function normalizeTracker(tracker, dashboard, index, fallbackType = "Thought") {
-  const rawId = String(tracker?.id || `${dashboard.toLowerCase()}-tracker-${index}-${makeId("tracker")}`);
-  const id = TRACKER_ID_MIGRATIONS[rawId] || rawId;
-  const rawLabel = String(tracker?.label || "").trim() || `${fallbackType} ${index + 1}`;
-  const migration = TRACKER_LABEL_MIGRATIONS[id];
-  const label = migration?.from.includes(rawLabel) ? migration.to : rawLabel;
-  const icon = normalizeIconSource(tracker?.icon || tracker?.source || tracker?.url || "tabler:circle") || "tabler:circle";
-  return {
-    id,
-    label,
-    icon
-  };
+	const rawId = String(
+		tracker?.id ||
+			`${dashboard.toLowerCase()}-tracker-${index}-${makeId("tracker")}`,
+	);
+	const id = TRACKER_ID_MIGRATIONS[rawId] || rawId;
+	const rawLabel =
+		String(tracker?.label || "").trim() || `${fallbackType} ${index + 1}`;
+	const migration = TRACKER_LABEL_MIGRATIONS[id];
+	const label = migration?.from.includes(rawLabel) ? migration.to : rawLabel;
+	const icon =
+		normalizeIconSource(
+			tracker?.icon || tracker?.source || tracker?.url || "tabler:circle",
+		) || "tabler:circle";
+	return {
+		id,
+		label,
+		icon,
+	};
 }
 
 function normalizeGoalFrequency(value) {
-  const fallback = GOAL_FREQUENCY_OPTIONS[0];
-  const optionIds = new Set(GOAL_FREQUENCY_OPTIONS.map((option) => option.id));
-  const frequency = optionIds.has(value?.frequency) ? value.frequency : fallback.id;
-  const customDays = Math.min(365, Math.max(1, Math.round(Number(value?.customDays) || GOAL_FREQUENCY_OPTIONS.find((option) => option.id === "custom")?.days || 10)));
-  return { frequency, customDays };
+	const fallback = GOAL_FREQUENCY_OPTIONS[0];
+	const optionIds = new Set(GOAL_FREQUENCY_OPTIONS.map((option) => option.id));
+	const frequency = optionIds.has(value?.frequency)
+		? value.frequency
+		: fallback.id;
+	const customDays = Math.min(
+		365,
+		Math.max(
+			1,
+			Math.round(
+				Number(value?.customDays) ||
+					GOAL_FREQUENCY_OPTIONS.find((option) => option.id === "custom")
+						?.days ||
+					10,
+			),
+		),
+	);
+	return { frequency, customDays };
 }
 
 function goalFrequencyOptionsHtml(value) {
-  const { frequency } = normalizeGoalFrequency(value);
-  return GOAL_FREQUENCY_OPTIONS.map((option) => `<option value="${escapeHtml(option.id)}"${frequency === option.id ? " selected" : ""}>${escapeHtml(option.label)}</option>`).join("");
+	const { frequency } = normalizeGoalFrequency(value);
+	return GOAL_FREQUENCY_OPTIONS.map(
+		(option) =>
+			`<option value="${escapeHtml(option.id)}"${frequency === option.id ? " selected" : ""}>${escapeHtml(option.label)}</option>`,
+	).join("");
 }
 
 function normalizeGoalTracker(goal, dashboard, index) {
-  const normalized = normalizeTracker(goal, dashboard, index, "Goal");
-  const frequency = normalizeGoalFrequency(goal);
-  return {
-    ...normalized,
-    ...frequency,
-    enabled: typeof goal?.enabled === "boolean" ? goal.enabled : true
-  };
+	const normalized = normalizeTracker(goal, dashboard, index, "Goal");
+	const frequency = normalizeGoalFrequency(goal);
+	return {
+		...normalized,
+		...frequency,
+		enabled: typeof goal?.enabled === "boolean" ? goal.enabled : true,
+	};
 }
 
 function normalizeTrackerSettings(value) {
-  const defaults = cloneDefaultTrackers();
-  return Object.fromEntries(DASHBOARD_LABELS.map((dashboard) => {
-    const trackers = Array.isArray(value?.[dashboard])
-      ? value[dashboard].map((tracker, index) => normalizeTracker(tracker, dashboard, index))
-      : defaults[dashboard];
-    return [dashboard, trackers];
-  }));
+	const defaults = cloneDefaultTrackers();
+	return Object.fromEntries(
+		DASHBOARD_LABELS.map((dashboard) => {
+			const trackers = Array.isArray(value?.[dashboard])
+				? value[dashboard].map((tracker, index) =>
+						normalizeTracker(tracker, dashboard, index),
+					)
+				: defaults[dashboard];
+			return [dashboard, trackers];
+		}),
+	);
 }
 
 function normalizeGoalSettings(value) {
-  const defaults = cloneDefaultGoals();
-  return Object.fromEntries(DASHBOARD_LABELS.map((dashboard) => {
-    const normalizedGoals = Array.isArray(value?.[dashboard])
-      ? value[dashboard].map((goal, index) => normalizeGoalTracker(goal, dashboard, index))
-      : defaults[dashboard];
-    const defaultIds = new Set((DEFAULT_GOALS[dashboard] || []).map((goal) => goal.id));
-    const allDefaultGoals = normalizedGoals.length > 0 && normalizedGoals.every((goal) => defaultIds.has(goal.id));
-    const goals = allDefaultGoals && !normalizedGoals.some((goal) => goal.enabled)
-      ? normalizedGoals.map((goal) => ({ ...goal, enabled: true }))
-      : normalizedGoals;
-    return [dashboard, goals];
-  }));
+	const defaults = cloneDefaultGoals();
+	return Object.fromEntries(
+		DASHBOARD_LABELS.map((dashboard) => {
+			const normalizedGoals = Array.isArray(value?.[dashboard])
+				? value[dashboard].map((goal, index) =>
+						normalizeGoalTracker(goal, dashboard, index),
+					)
+				: defaults[dashboard];
+			const defaultIds = new Set(
+				(DEFAULT_GOALS[dashboard] || []).map((goal) => goal.id),
+			);
+			const allDefaultGoals =
+				normalizedGoals.length > 0 &&
+				normalizedGoals.every((goal) => defaultIds.has(goal.id));
+			const goals =
+				allDefaultGoals && !normalizedGoals.some((goal) => goal.enabled)
+					? normalizedGoals.map((goal) => ({ ...goal, enabled: true }))
+					: normalizedGoals;
+			return [dashboard, goals];
+		}),
+	);
 }
 
 function loadTrackerSettings() {
-  try {
-    const raw = window.localStorage.getItem(TRACKER_SETTINGS_KEY);
-    const parsed = raw ? JSON.parse(raw) : null;
-    const normalized = parsed ? normalizeTrackerSettings(parsed) : cloneDefaultTrackers();
-    if (raw && JSON.stringify(parsed) !== JSON.stringify(normalized)) {
-      window.localStorage.setItem(TRACKER_SETTINGS_KEY, JSON.stringify(normalized));
-    }
-    return normalized;
-  } catch {
-    return cloneDefaultTrackers();
-  }
+	try {
+		const raw = window.localStorage.getItem(TRACKER_SETTINGS_KEY);
+		const parsed = raw ? JSON.parse(raw) : null;
+		const normalized = parsed
+			? normalizeTrackerSettings(parsed)
+			: cloneDefaultTrackers();
+		if (raw && JSON.stringify(parsed) !== JSON.stringify(normalized)) {
+			window.localStorage.setItem(
+				TRACKER_SETTINGS_KEY,
+				JSON.stringify(normalized),
+			);
+		}
+		return normalized;
+	} catch {
+		return cloneDefaultTrackers();
+	}
 }
 
 function saveTrackerSettings() {
-  window.localStorage.setItem(TRACKER_SETTINGS_KEY, JSON.stringify(state.trackerSettings));
-  markLocalAppChanged();
+	window.localStorage.setItem(
+		TRACKER_SETTINGS_KEY,
+		JSON.stringify(state.trackerSettings),
+	);
+	markLocalAppChanged();
 }
 
 function loadGoalSettings() {
-  try {
-    const raw = window.localStorage.getItem(GOAL_SETTINGS_KEY);
-    const parsed = raw ? JSON.parse(raw) : null;
-    const normalized = parsed ? normalizeGoalSettings(parsed) : cloneDefaultGoals();
-    if (raw && JSON.stringify(parsed) !== JSON.stringify(normalized)) {
-      window.localStorage.setItem(GOAL_SETTINGS_KEY, JSON.stringify(normalized));
-    }
-    return normalized;
-  } catch {
-    return cloneDefaultGoals();
-  }
+	try {
+		const raw = window.localStorage.getItem(GOAL_SETTINGS_KEY);
+		const parsed = raw ? JSON.parse(raw) : null;
+		const normalized = parsed
+			? normalizeGoalSettings(parsed)
+			: cloneDefaultGoals();
+		if (raw && JSON.stringify(parsed) !== JSON.stringify(normalized)) {
+			window.localStorage.setItem(
+				GOAL_SETTINGS_KEY,
+				JSON.stringify(normalized),
+			);
+		}
+		return normalized;
+	} catch {
+		return cloneDefaultGoals();
+	}
 }
 
 function saveGoalSettings() {
-  window.localStorage.setItem(GOAL_SETTINGS_KEY, JSON.stringify(state.goalSettings));
-  markLocalAppChanged();
+	window.localStorage.setItem(
+		GOAL_SETTINGS_KEY,
+		JSON.stringify(state.goalSettings),
+	);
+	markLocalAppChanged();
 }
 
 function loadSidebarWidth() {
-  try {
-    return clampSidebarWidth(window.localStorage.getItem(SIDEBAR_WIDTH_KEY));
-  } catch {
-    return SIDEBAR_DEFAULT_WIDTH;
-  }
+	try {
+		return clampSidebarWidth(window.localStorage.getItem(SIDEBAR_WIDTH_KEY));
+	} catch {
+		return SIDEBAR_DEFAULT_WIDTH;
+	}
 }
 
 function saveSidebarWidth(width) {
-  try {
-    window.localStorage.setItem(SIDEBAR_WIDTH_KEY, String(clampSidebarWidth(width)));
-  } catch {
-    // Width persistence is a convenience; resizing should keep working if storage is blocked.
-  }
+	try {
+		window.localStorage.setItem(
+			SIDEBAR_WIDTH_KEY,
+			String(clampSidebarWidth(width)),
+		);
+	} catch {
+		// Width persistence is a convenience; resizing should keep working if storage is blocked.
+	}
 }
 
 function normalizeTheme(value) {
-  return normalizeThemeSelection(value, {
-    themes: APP_THEMES,
-    fallbackId: "default"
-  });
+	return normalizeThemeSelection(value, {
+		themes: APP_THEMES,
+		fallbackId: "default",
+	});
 }
 
 function loadTheme() {
-  return loadThemeSelection({
-    storageKey: THEME_KEY,
-    themes: APP_THEMES,
-    fallbackId: "default"
-  });
+	return loadThemeSelection({
+		storageKey: THEME_KEY,
+		themes: APP_THEMES,
+		fallbackId: "default",
+	});
 }
 
 function saveTheme(theme) {
-  const saved = saveThemeSelection(theme, {
-    storageKey: THEME_KEY,
-    themes: APP_THEMES,
-    fallbackId: "default"
-  });
-  markLocalAppChanged();
-  return saved;
+	const saved = saveThemeSelection(theme, {
+		storageKey: THEME_KEY,
+		themes: APP_THEMES,
+		fallbackId: "default",
+	});
+	markLocalAppChanged();
+	return saved;
 }
 
 function loadDismissedTips() {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(DISMISSED_TIPS_KEY) || "[]");
-    return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
-  } catch {
-    return [];
-  }
+	try {
+		const parsed = JSON.parse(
+			window.localStorage.getItem(DISMISSED_TIPS_KEY) || "[]",
+		);
+		return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+	} catch {
+		return [];
+	}
 }
 
 function saveDismissedTips(tips = state.dismissedTips) {
-  window.localStorage.setItem(DISMISSED_TIPS_KEY, JSON.stringify(Array.from(new Set(tips || []))));
+	window.localStorage.setItem(
+		DISMISSED_TIPS_KEY,
+		JSON.stringify(Array.from(new Set(tips || []))),
+	);
 }
 
 function clearDismissedTips() {
-  try {
-    window.localStorage.removeItem(DISMISSED_TIPS_KEY);
-  } catch {
-    // Tip dismissal state is optional; reset should continue if storage is blocked.
-  }
-  state.dismissedTips = [];
+	try {
+		window.localStorage.removeItem(DISMISSED_TIPS_KEY);
+	} catch {
+		// Tip dismissal state is optional; reset should continue if storage is blocked.
+	}
+	state.dismissedTips = [];
 }
 
 function simpleTooltipText(value, maxWords = SIMPLE_TOOLTIP_WORD_LIMIT) {
-  const text = String(value || "").trim().replace(/\s+/g, " ");
-  if (!text) return "";
-  const words = text.split(" ");
-  return words.slice(0, maxWords).join(" ");
+	const text = String(value || "")
+		.trim()
+		.replace(/\s+/g, " ");
+	if (!text) return "";
+	const words = text.split(" ");
+	return words.slice(0, maxWords).join(" ");
 }
 
 function rememberDismissedTip(tip) {
-  if (!tip) return;
-  const dismissedTips = Array.from(new Set([...(state.dismissedTips || []), tip]));
-  state.dismissedTips = dismissedTips;
-  saveDismissedTips(dismissedTips);
+	if (!tip) return;
+	const dismissedTips = Array.from(
+		new Set([...(state.dismissedTips || []), tip]),
+	);
+	state.dismissedTips = dismissedTips;
+	saveDismissedTips(dismissedTips);
 }
 
 function setCoreTooltip(element, label, options = {}) {
-  if (!element) return;
-  if (!options.override && element.dataset.thoughtTooltip) return;
-  const text = simpleTooltipText(label);
-  if (!text) return;
-  element.dataset.thoughtTooltip = text;
-  if (!element.getAttribute("aria-label") && !element.textContent.trim()) {
-    element.setAttribute("aria-label", text);
-  }
-  if (!element.getAttribute("title")) element.setAttribute("title", text);
+	if (!element) return;
+	if (!options.override && element.dataset.thoughtTooltip) return;
+	const text = simpleTooltipText(label);
+	if (!text) return;
+	element.dataset.thoughtTooltip = text;
+	if (!element.getAttribute("aria-label") && !element.textContent.trim()) {
+		element.setAttribute("aria-label", text);
+	}
+	if (!element.getAttribute("title")) element.setAttribute("title", text);
 }
 
 function applyCoreTooltips() {
-  const coreRules = [
-    [".mobile-menu-toggle", "Open menu"],
-    [".dashboard-home-link", "Return home"],
-    [".dashboard-period-range", "Change time range"],
-    [".dashboard-chart-switcher [data-chart='pie']", "Pie chart"],
-    [".dashboard-chart-switcher [data-chart='bar']", "Bar chart"],
-    [".sidebar-menu-nav-button", "Toggle side sections"],
-    [".sidebar-text-link[data-action='open-settings']", "Open settings"],
-    [".sidebar-text-link[data-action='open-gallery']", "Open gallery"],
-    [".sidebar-text-link[data-action='import-artifacts']", "Import data"],
-    [".sidebar-text-link[data-action='export-artifacts']", "Export data"],
-    [".sidebar-text-link[data-action='reset-tips']", "Replay tips"],
-    [".reader-page-indicator", "Open overview"],
-    [".compendium-rotator-edge--prev", "Previous compendiums"],
-    [".compendium-rotator-edge--next", "Next compendiums"],
-    [".tracker-page-controls [data-direction='prev']", "Previous orbs"],
-    [".tracker-page-controls [data-direction='next']", "Next orbs"],
-    [".sidebar-page-controls [data-direction='prev']", "Previous page"],
-    [".sidebar-page-controls [data-direction='next']", "Next page"]
-  ];
+	const coreRules = [
+		[".mobile-menu-toggle", "Open menu"],
+		[".dashboard-home-link", "Return home"],
+		[".dashboard-period-range", "Change time range"],
+		[".dashboard-chart-switcher [data-chart='pie']", "Pie chart"],
+		[".dashboard-chart-switcher [data-chart='bar']", "Bar chart"],
+		[".sidebar-menu-nav-button", "Toggle side sections"],
+		[".sidebar-text-link[data-action='open-settings']", "Open settings"],
+		[".sidebar-text-link[data-action='open-gallery']", "Open gallery"],
+		[".sidebar-text-link[data-action='import-artifacts']", "Import data"],
+		[".sidebar-text-link[data-action='export-artifacts']", "Export data"],
+		[".sidebar-text-link[data-action='reset-tips']", "Replay tips"],
+		[".reader-page-indicator", "Open overview"],
+		[".compendium-rotator-edge--prev", "Previous compendiums"],
+		[".compendium-rotator-edge--next", "Next compendiums"],
+		[".tracker-page-controls [data-direction='prev']", "Previous orbs"],
+		[".tracker-page-controls [data-direction='next']", "Next orbs"],
+		[".sidebar-page-controls [data-direction='prev']", "Previous page"],
+		[".sidebar-page-controls [data-direction='next']", "Next page"],
+	];
 
-  coreRules.forEach(([selector, label]) => {
-    app.querySelectorAll(selector).forEach((element) => setCoreTooltip(element, label));
-  });
+	coreRules.forEach(([selector, label]) => {
+		app.querySelectorAll(selector).forEach((element) => {
+			setCoreTooltip(element, label);
+		});
+	});
 
-  DASHBOARD_LABELS.forEach((dashboard) => {
-    app.querySelectorAll(`.dashboard-card[data-section='${dashboard}']`).forEach((element) => {
-      setCoreTooltip(element, `Open ${dashboardDisplayLabel(dashboard)}`);
-    });
-    app.querySelectorAll(`.sidebar-group-toggle[data-section='${dashboard}']`).forEach((element) => {
-      setCoreTooltip(element, `Open ${dashboardDisplayLabel(dashboard)}`);
-    });
-  });
+	DASHBOARD_LABELS.forEach((dashboard) => {
+		app
+			.querySelectorAll(`.dashboard-card[data-section='${dashboard}']`)
+			.forEach((element) => {
+				setCoreTooltip(element, `Open ${dashboardDisplayLabel(dashboard)}`);
+			});
+		app
+			.querySelectorAll(`.sidebar-group-toggle[data-section='${dashboard}']`)
+			.forEach((element) => {
+				setCoreTooltip(element, `Open ${dashboardDisplayLabel(dashboard)}`);
+			});
+	});
 
-  app.querySelectorAll(".body-mode-button, .icon-button").forEach((button) => {
-    setCoreTooltip(button, headerActionLabel(button));
-  });
+	app.querySelectorAll(".body-mode-button, .icon-button").forEach((button) => {
+		setCoreTooltip(button, headerActionLabel(button));
+	});
 }
 
 let appliedThemeId = "";
 
 function applyThemeVariables(themeId) {
-  const normalizedTheme = normalizeTheme(themeId);
-  const root = document.documentElement;
-  if (
-    appliedThemeId === normalizedTheme
-    && app.dataset.theme === normalizedTheme
-    && root.classList.contains(`theme-${normalizedTheme}`)
-  ) {
-    return null;
-  }
-  appliedThemeId = normalizedTheme;
-  return applyThemeSystemVariables(normalizedTheme, {
-    themes: APP_THEMES,
-    fontSets: THEME_FONT_SETS,
-    fallbackId: "default",
-    target: app
-  });
+	const normalizedTheme = normalizeTheme(themeId);
+	const root = document.documentElement;
+	if (
+		appliedThemeId === normalizedTheme &&
+		app.dataset.theme === normalizedTheme &&
+		root.classList.contains(`theme-${normalizedTheme}`)
+	) {
+		return null;
+	}
+	appliedThemeId = normalizedTheme;
+	return applyThemeSystemVariables(normalizedTheme, {
+		themes: APP_THEMES,
+		fontSets: THEME_FONT_SETS,
+		fallbackId: "default",
+		target: app,
+	});
 }
 
 function themeFontLabel(theme) {
-  return themeSystemFontLabel(theme, {
-    fontSets: THEME_FONT_SETS,
-    fallbackFontSet: "classic"
-  });
+	return themeSystemFontLabel(theme, {
+		fontSets: THEME_FONT_SETS,
+		fallbackFontSet: "classic",
+	});
 }
 
 function themePaletteHtml(theme) {
-  const colors = themeColors(theme);
-  return `
+	const colors = themeColors(theme);
+	return `
     <span class="theme-choice-palette" aria-label="${escapeHtml(`${theme.label} color parameters`)}">
       ${THEME_COLOR_FIELDS.map((field) => {
-        const color = colors[field];
-        return `
+				const color = colors[field];
+				return `
           <span
             class="theme-choice-swatch"
             style="--theme-swatch-color: ${escapeHtml(color)};"
@@ -1059,1260 +1297,1505 @@ function themePaletteHtml(theme) {
             aria-hidden="true"
           ></span>
         `;
-      }).join("")}
+			}).join("")}
     </span>
   `;
 }
 
 function loadIconifySearchCache() {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(ICONIFY_SEARCH_CACHE_KEY));
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
+	try {
+		const parsed = JSON.parse(
+			window.localStorage.getItem(ICONIFY_SEARCH_CACHE_KEY),
+		);
+		return parsed && typeof parsed === "object" ? parsed : {};
+	} catch {
+		return {};
+	}
 }
 
 function saveIconifySearchCache(cache) {
-  try {
-    window.localStorage.setItem(ICONIFY_SEARCH_CACHE_KEY, JSON.stringify(cache));
-  } catch {
-    // Icon search should still work without persistence.
-  }
+	try {
+		window.localStorage.setItem(
+			ICONIFY_SEARCH_CACHE_KEY,
+			JSON.stringify(cache),
+		);
+	} catch {
+		// Icon search should still work without persistence.
+	}
 }
 
 function createDefaultBodyTimer(config) {
-  return {
-    active: false,
-    label: config.defaultLabel,
-    targetHours: config.defaultTargetHours,
-    startTimestamp: null,
-    lastCompletedHours: 0
-  };
+	return {
+		active: false,
+		label: config.defaultLabel,
+		targetHours: config.defaultTargetHours,
+		startTimestamp: null,
+		lastCompletedHours: 0,
+	};
 }
 
 function createDefaultBodyTracker() {
-  const timers = Object.fromEntries(
-    BODY_TIMER_MODES
-      .filter((config) => config.stateKey !== "fast")
-      .map((config) => [config.stateKey, createDefaultBodyTimer(config)])
-  );
-  return {
-    fast: createDefaultBodyTimer(BODY_TIMER_MODES[0]),
-    timers,
-    nutrition: {
-      dateKey: todayDateKey(),
-      targetCalories: 2000,
-      targetProtein: 120,
-      targetCarbs: 200,
-      targetFat: 70,
-      calories: 0,
-      protein: 0,
-      carbs: 0,
-      fat: 0,
-      note: ""
-    },
-    workouts: []
-  };
+	const timers = Object.fromEntries(
+		BODY_TIMER_MODES.filter((config) => config.stateKey !== "fast").map(
+			(config) => [config.stateKey, createDefaultBodyTimer(config)],
+		),
+	);
+	return {
+		fast: createDefaultBodyTimer(BODY_TIMER_MODES[0]),
+		timers,
+		nutrition: {
+			dateKey: todayDateKey(),
+			targetCalories: 2000,
+			targetProtein: 120,
+			targetCarbs: 200,
+			targetFat: 70,
+			calories: 0,
+			protein: 0,
+			carbs: 0,
+			fat: 0,
+			note: "",
+		},
+		workouts: [],
+	};
 }
 
 function normalizeBodyTimer(value, config) {
-  const defaults = createDefaultBodyTimer(config);
-  return {
-    ...defaults,
-    ...(value || {}),
-    label: String(value?.label || defaults.label),
-    targetHours: Math.max(1 / 60, Number(value?.targetHours ?? defaults.targetHours) || defaults.targetHours),
-    active: Boolean(value?.active),
-    startTimestamp: value?.startTimestamp || null,
-    lastCompletedHours: Math.max(0, Number(value?.lastCompletedHours) || 0)
-  };
+	const defaults = createDefaultBodyTimer(config);
+	return {
+		...defaults,
+		...(value || {}),
+		label: String(value?.label || defaults.label),
+		targetHours: Math.max(
+			1 / 60,
+			Number(value?.targetHours ?? defaults.targetHours) ||
+				defaults.targetHours,
+		),
+		active: Boolean(value?.active),
+		startTimestamp: value?.startTimestamp || null,
+		lastCompletedHours: Math.max(0, Number(value?.lastCompletedHours) || 0),
+	};
 }
 
 function normalizeBodyTracker(value) {
-  const defaults = createDefaultBodyTracker();
-  const timers = { ...defaults.timers };
-  BODY_TIMER_MODES
-    .filter((config) => config.stateKey !== "fast")
-    .forEach((config) => {
-      timers[config.stateKey] = normalizeBodyTimer(value?.timers?.[config.stateKey], config);
-    });
-  return {
-    ...defaults,
-    ...(value || {}),
-    fast: normalizeBodyTimer(value?.fast, BODY_TIMER_MODES[0]),
-    timers,
-    nutrition: { ...defaults.nutrition, ...(value?.nutrition || {}) },
-    workouts: Array.isArray(value?.workouts) ? value.workouts : []
-  };
+	const defaults = createDefaultBodyTracker();
+	const timers = { ...defaults.timers };
+	BODY_TIMER_MODES.filter((config) => config.stateKey !== "fast").forEach(
+		(config) => {
+			timers[config.stateKey] = normalizeBodyTimer(
+				value?.timers?.[config.stateKey],
+				config,
+			);
+		},
+	);
+	return {
+		...defaults,
+		...(value || {}),
+		fast: normalizeBodyTimer(value?.fast, BODY_TIMER_MODES[0]),
+		timers,
+		nutrition: { ...defaults.nutrition, ...(value?.nutrition || {}) },
+		workouts: Array.isArray(value?.workouts) ? value.workouts : [],
+	};
 }
 
 function loadBodyTracker() {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(BODY_TRACKER_KEY));
-    if (!parsed?.fast || !parsed?.nutrition) return createDefaultBodyTracker();
-    const normalized = normalizeBodyTracker(parsed);
-    if (JSON.stringify(parsed) !== JSON.stringify(normalized)) {
-      window.localStorage.setItem(BODY_TRACKER_KEY, JSON.stringify(normalized));
-    }
-    return normalized;
-  } catch {
-    return createDefaultBodyTracker();
-  }
+	try {
+		const parsed = JSON.parse(window.localStorage.getItem(BODY_TRACKER_KEY));
+		if (!parsed?.fast || !parsed?.nutrition) return createDefaultBodyTracker();
+		const normalized = normalizeBodyTracker(parsed);
+		if (JSON.stringify(parsed) !== JSON.stringify(normalized)) {
+			window.localStorage.setItem(BODY_TRACKER_KEY, JSON.stringify(normalized));
+		}
+		return normalized;
+	} catch {
+		return createDefaultBodyTracker();
+	}
 }
 
 function saveBodyTracker() {
-  window.localStorage.setItem(BODY_TRACKER_KEY, JSON.stringify(state.bodyTracker));
-  markLocalAppChanged();
+	window.localStorage.setItem(
+		BODY_TRACKER_KEY,
+		JSON.stringify(state.bodyTracker),
+	);
+	markLocalAppChanged();
 }
 
 function loadSpiritProgress() {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(SPIRIT_PROGRESS_KEY));
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
+	try {
+		const parsed = JSON.parse(window.localStorage.getItem(SPIRIT_PROGRESS_KEY));
+		return parsed && typeof parsed === "object" ? parsed : {};
+	} catch {
+		return {};
+	}
 }
 
 function saveSpiritProgress() {
-  window.localStorage.setItem(SPIRIT_PROGRESS_KEY, JSON.stringify(state.spiritProgress));
-  markLocalAppChanged();
+	window.localStorage.setItem(
+		SPIRIT_PROGRESS_KEY,
+		JSON.stringify(state.spiritProgress),
+	);
+	markLocalAppChanged();
 }
 
 function currentTimestampLabel() {
-  return new Date().toLocaleString();
+	return new Date().toLocaleString();
 }
 
 function nowIso() {
-  return new Date().toISOString();
+	return new Date().toISOString();
 }
 
 function normalizeIsoTimestamp(value) {
-  const time = Date.parse(value || "");
-  return Number.isNaN(time) ? "" : new Date(time).toISOString();
+	const time = Date.parse(value || "");
+	return Number.isNaN(time) ? "" : new Date(time).toISOString();
 }
 
-function compareIsoTimestamps(left, right) {
-  const leftTime = Date.parse(left || "");
-  const rightTime = Date.parse(right || "");
-  const hasLeft = !Number.isNaN(leftTime);
-  const hasRight = !Number.isNaN(rightTime);
-  if (!hasLeft && !hasRight) return 0;
-  if (hasLeft && !hasRight) return 1;
-  if (!hasLeft && hasRight) return -1;
-  const diff = leftTime - rightTime;
-  if (Math.abs(diff) <= CLOUD_SYNC_CLOCK_SKEW_MS) return 0;
-  return diff > 0 ? 1 : -1;
+function _compareIsoTimestamps(left, right) {
+	const leftTime = Date.parse(left || "");
+	const rightTime = Date.parse(right || "");
+	const hasLeft = !Number.isNaN(leftTime);
+	const hasRight = !Number.isNaN(rightTime);
+	if (!hasLeft && !hasRight) return 0;
+	if (hasLeft && !hasRight) return 1;
+	if (!hasLeft && hasRight) return -1;
+	const diff = leftTime - rightTime;
+	if (Math.abs(diff) <= CLOUD_SYNC_CLOCK_SKEW_MS) return 0;
+	return diff > 0 ? 1 : -1;
 }
 
 function latestIsoTimestamp(values) {
-  return values
-    .map(normalizeIsoTimestamp)
-    .filter(Boolean)
-    .sort((a, b) => Date.parse(b) - Date.parse(a))[0] || "";
+	return (
+		values
+			.map(normalizeIsoTimestamp)
+			.filter(Boolean)
+			.sort((a, b) => Date.parse(b) - Date.parse(a))[0] || ""
+	);
 }
 
 function collectIsoTimestamp(value, bucket) {
-  const normalized = normalizeIsoTimestamp(value);
-  if (normalized) bucket.push(normalized);
+	const normalized = normalizeIsoTimestamp(value);
+	if (normalized) bucket.push(normalized);
 }
 
 function collectLifeEntityTimestamps(entity, bucket) {
-  if (!entity) return;
-  collectIsoTimestamp(entity.edited, bucket);
-  collectIsoTimestamp(entity.created, bucket);
-  (entity.attachments || []).forEach((attachment) => {
-    collectIsoTimestamp(attachment.created, bucket);
-    collectIsoTimestamp(attachment.edited, bucket);
-  });
+	if (!entity) return;
+	collectIsoTimestamp(entity.edited, bucket);
+	collectIsoTimestamp(entity.created, bucket);
+	(entity.attachments || []).forEach((attachment) => {
+		collectIsoTimestamp(attachment.created, bucket);
+		collectIsoTimestamp(attachment.edited, bucket);
+	});
 }
 
 function deriveLocalAppUpdatedAt() {
-  const candidates = [];
-  (state.artifactStore?.artifacts || []).forEach((artifact) => {
-    collectIsoTimestamp(artifact.edited, candidates);
-    collectIsoTimestamp(artifact.created, candidates);
-    (artifact.properties?.audit || []).forEach((entry) => collectIsoTimestamp(entry.at, candidates));
-  });
-  (state.bodyTracker?.workouts || []).forEach((workout) => {
-    collectIsoTimestamp(workout.edited, candidates);
-    collectIsoTimestamp(workout.created, candidates);
-  });
-  (state.lifePlanner?.todos || []).forEach((todo) => collectLifeEntityTimestamps(todo, candidates));
-  (state.lifePlanner?.projects || []).forEach((project) => {
-    collectLifeEntityTimestamps(project, candidates);
-    (project.phases || []).forEach((phase) => {
-      collectLifeEntityTimestamps(phase, candidates);
-      (phase.tasks || []).forEach((task) => collectLifeEntityTimestamps(task, candidates));
-    });
-  });
-  return latestIsoTimestamp(candidates);
+	const candidates = [];
+	(state.artifactStore?.artifacts || []).forEach((artifact) => {
+		collectIsoTimestamp(artifact.edited, candidates);
+		collectIsoTimestamp(artifact.created, candidates);
+		(artifact.properties?.audit || []).forEach((entry) => {
+			collectIsoTimestamp(entry.at, candidates);
+		});
+	});
+	(state.bodyTracker?.workouts || []).forEach((workout) => {
+		collectIsoTimestamp(workout.edited, candidates);
+		collectIsoTimestamp(workout.created, candidates);
+	});
+	(state.lifePlanner?.todos || []).forEach((todo) => {
+		collectLifeEntityTimestamps(todo, candidates);
+	});
+	(state.lifePlanner?.projects || []).forEach((project) => {
+		collectLifeEntityTimestamps(project, candidates);
+		(project.phases || []).forEach((phase) => {
+			collectLifeEntityTimestamps(phase, candidates);
+			(phase.tasks || []).forEach((task) => {
+				collectLifeEntityTimestamps(task, candidates);
+			});
+		});
+	});
+	return latestIsoTimestamp(candidates);
 }
 
 function loadLocalAppUpdatedAt() {
-  try {
-    return normalizeIsoTimestamp(window.localStorage.getItem(LOCAL_APP_UPDATED_AT_KEY));
-  } catch {
-    return "";
-  }
+	try {
+		return normalizeIsoTimestamp(
+			window.localStorage.getItem(LOCAL_APP_UPDATED_AT_KEY),
+		);
+	} catch {
+		return "";
+	}
 }
 
 function saveLocalAppUpdatedAt(value = nowIso()) {
-  const normalized = normalizeIsoTimestamp(value) || nowIso();
-  try {
-    window.localStorage.setItem(LOCAL_APP_UPDATED_AT_KEY, normalized);
-  } catch {
-    // Sync can still compare the in-memory timestamp if localStorage is blocked.
-  }
-  try {
-    state.localAppUpdatedAt = normalized;
-  } catch {
-    // State may not be initialized while helpers are being defined.
-  }
-  return normalized;
+	const normalized = normalizeIsoTimestamp(value) || nowIso();
+	try {
+		window.localStorage.setItem(LOCAL_APP_UPDATED_AT_KEY, normalized);
+	} catch {
+		// Sync can still compare the in-memory timestamp if localStorage is blocked.
+	}
+	try {
+		state.localAppUpdatedAt = normalized;
+	} catch {
+		// State may not be initialized while helpers are being defined.
+	}
+	return normalized;
 }
 
 function markLocalAppChanged(value = nowIso()) {
-  if (localChangeTrackingSuppressed > 0) return "";
-  const updatedAt = saveLocalAppUpdatedAt(value);
-  queueCloudSyncAfterLocalChange();
-  return updatedAt;
+	if (localChangeTrackingSuppressed > 0) return "";
+	const updatedAt = saveLocalAppUpdatedAt(value);
+	queueCloudSyncAfterLocalChange();
+	return updatedAt;
 }
 
 async function withLocalChangeTrackingSuppressed(action) {
-  localChangeTrackingSuppressed += 1;
-  try {
-    return await action();
-  } finally {
-    localChangeTrackingSuppressed -= 1;
-  }
+	localChangeTrackingSuppressed += 1;
+	try {
+		return await action();
+	} finally {
+		localChangeTrackingSuppressed -= 1;
+	}
 }
 
 function localAppUpdatedAt(options = {}) {
-  const stored = normalizeIsoTimestamp(state.localAppUpdatedAt || loadLocalAppUpdatedAt());
-  if (stored) return stored;
-  const derived = deriveLocalAppUpdatedAt();
-  if (derived && options.persistDerived !== false) saveLocalAppUpdatedAt(derived);
-  return derived;
+	const stored = normalizeIsoTimestamp(
+		state.localAppUpdatedAt || loadLocalAppUpdatedAt(),
+	);
+	if (stored) return stored;
+	const derived = deriveLocalAppUpdatedAt();
+	if (derived && options.persistDerived !== false)
+		saveLocalAppUpdatedAt(derived);
+	return derived;
 }
 
 function saveArtifactStore(store) {
-  writeArtifactStore(store);
-  markLocalAppChanged();
+	writeArtifactStore(store);
+	markLocalAppChanged();
 }
 
 function queueCloudSyncAfterLocalChange() {
-  try {
-    if (!cloudHasSyncAccess()) return;
-    if (cloudAutoSyncDebounceTimer) window.clearTimeout(cloudAutoSyncDebounceTimer);
-    cloudAutoSyncDebounceTimer = window.setTimeout(() => {
-      cloudAutoSyncDebounceTimer = null;
-      void triggerCloudAutoSync("local-change", { force: true });
-    }, CLOUD_SYNC_DEBOUNCE_MS);
-  } catch {
-    // During startup, state and cloud access may not be ready yet.
-  }
+	try {
+		if (!cloudHasSyncAccess()) return;
+		if (cloudAutoSyncDebounceTimer)
+			window.clearTimeout(cloudAutoSyncDebounceTimer);
+		cloudAutoSyncDebounceTimer = window.setTimeout(() => {
+			cloudAutoSyncDebounceTimer = null;
+			void triggerCloudAutoSync("local-change", { force: true });
+		}, CLOUD_SYNC_DEBOUNCE_MS);
+	} catch {
+		// During startup, state and cloud access may not be ready yet.
+	}
 }
 
 function initialMenuOpen() {
-  return false;
+	return false;
 }
 
 function isInstalledWebApp() {
-  return Boolean(window.matchMedia?.(INSTALLED_APP_QUERY).matches || window.navigator?.standalone === true);
+	return Boolean(
+		window.matchMedia?.(INSTALLED_APP_QUERY).matches ||
+			window.navigator?.standalone === true,
+	);
 }
 
 function isMobileViewport() {
-  return Boolean(window.matchMedia?.(MOBILE_MENU_QUERY).matches);
+	return Boolean(window.matchMedia?.(MOBILE_MENU_QUERY).matches);
 }
 
 function applyEnvironmentClasses() {
-  const installed = isInstalledWebApp();
-  const mobile = isMobileViewport();
-  const theme = normalizeTheme(state?.theme);
-  app.classList.toggle("is-installed-app", installed);
-  app.classList.toggle("is-browser-mode", !installed);
-  app.classList.toggle("is-mobile-viewport", mobile);
-  app.classList.toggle("is-desktop-viewport", !mobile);
-  app.dataset.displayMode = installed ? "standalone" : "browser";
-  app.dataset.viewportMode = mobile ? "mobile" : "desktop";
-  applyThemeVariables(theme);
-  app.dataset.theme = theme;
+	const installed = isInstalledWebApp();
+	const mobile = isMobileViewport();
+	const theme = normalizeTheme(state?.theme);
+	app.classList.toggle("is-installed-app", installed);
+	app.classList.toggle("is-browser-mode", !installed);
+	app.classList.toggle("is-mobile-viewport", mobile);
+	app.classList.toggle("is-desktop-viewport", !mobile);
+	app.dataset.displayMode = installed ? "standalone" : "browser";
+	app.dataset.viewportMode = mobile ? "mobile" : "desktop";
+	applyThemeVariables(theme);
+	app.dataset.theme = theme;
 }
 
 function bindEnvironmentMedia(media) {
-  if (!media) return;
-  const update = () => {
-    applyEnvironmentClasses();
-    render();
-  };
-  if (typeof media.addEventListener === "function") {
-    media.addEventListener("change", update);
-  } else if (typeof media.addListener === "function") {
-    media.addListener(update);
-  }
+	if (!media) return;
+	const update = () => {
+		applyEnvironmentClasses();
+		render();
+	};
+	if (typeof media.addEventListener === "function") {
+		media.addEventListener("change", update);
+	} else if (typeof media.addListener === "function") {
+		media.addListener(update);
+	}
 }
 
 function createDefaultLifePlanner() {
-  return {
-    schemaVersion: 1,
-    todos: [],
-    projects: []
-  };
+	return {
+		schemaVersion: 1,
+		todos: [],
+		projects: [],
+	};
 }
 
 function normalizeLifeAttachments(attachments) {
-  return Array.isArray(attachments)
-    ? attachments.filter((item) => item?.id).map((item) => ({
-        id: item.id,
-        name: item.name || item.id,
-        type: item.type || "application/octet-stream",
-        size: Number(item.size) || 0,
-        created: item.created || nowIso(),
-        storage: item.storage || "indexeddb",
-        futureStoragePath: item.futureStoragePath || `life-attachments/${item.id}`
-      }))
-    : [];
+	return Array.isArray(attachments)
+		? attachments
+				.filter((item) => item?.id)
+				.map((item) => ({
+					id: item.id,
+					name: item.name || item.id,
+					type: item.type || "application/octet-stream",
+					size: Number(item.size) || 0,
+					created: item.created || nowIso(),
+					storage: item.storage || "indexeddb",
+					futureStoragePath:
+						item.futureStoragePath || `life-attachments/${item.id}`,
+				}))
+		: [];
 }
 
 function normalizeLifeAssignment(dateKey, status) {
-  const value = dateKey ? dateKeyFromValue(dateKey) : "";
-  if (!value || status === "complete") return value;
-  return value < todayDateKey() ? "" : value;
+	const value = dateKey ? dateKeyFromValue(dateKey) : "";
+	if (!value || status === "complete") return value;
+	return value < todayDateKey() ? "" : value;
 }
 
 function normalizeLifeTodo(todo) {
-  const status = todo?.status === "complete" ? "complete" : "todo";
-  const created = todo?.created || nowIso();
-  return {
-    id: todo?.id || makeId("todo"),
-    title: todo?.title || "Untitled task",
-    notes: todo?.notes || "",
-    status,
-    assignedDate: normalizeLifeAssignment(todo?.assignedDate, status),
-    created,
-    edited: todo?.edited || created
-  };
+	const status = todo?.status === "complete" ? "complete" : "todo";
+	const created = todo?.created || nowIso();
+	return {
+		id: todo?.id || makeId("todo"),
+		title: todo?.title || "Untitled task",
+		notes: todo?.notes || "",
+		status,
+		assignedDate: normalizeLifeAssignment(todo?.assignedDate, status),
+		created,
+		edited: todo?.edited || created,
+	};
 }
 
 function normalizeLifeTask(task) {
-  const status = ["todo", "active", "waiting", "complete"].includes(task?.status) ? task.status : "todo";
-  const created = task?.created || nowIso();
-  return {
-    id: task?.id || makeId("task"),
-    title: task?.title || "Untitled task",
-    status,
-    assignedTo: task?.assignedTo || "",
-    assignedDate: normalizeLifeAssignment(task?.assignedDate, status),
-    notes: task?.notes || "",
-    attachments: normalizeLifeAttachments(task?.attachments),
-    created,
-    edited: task?.edited || created
-  };
+	const status = ["todo", "active", "waiting", "complete"].includes(
+		task?.status,
+	)
+		? task.status
+		: "todo";
+	const created = task?.created || nowIso();
+	return {
+		id: task?.id || makeId("task"),
+		title: task?.title || "Untitled task",
+		status,
+		assignedTo: task?.assignedTo || "",
+		assignedDate: normalizeLifeAssignment(task?.assignedDate, status),
+		notes: task?.notes || "",
+		attachments: normalizeLifeAttachments(task?.attachments),
+		created,
+		edited: task?.edited || created,
+	};
 }
 
 function normalizeLifePhase(phase) {
-  const status = ["planned", "active", "waiting", "complete"].includes(phase?.status) ? phase.status : "planned";
-  const created = phase?.created || nowIso();
-  return {
-    id: phase?.id || makeId("phase"),
-    title: phase?.title || "Untitled phase",
-    status,
-    assignedTo: phase?.assignedTo || "",
-    assignedDate: normalizeLifeAssignment(phase?.assignedDate, status),
-    notes: phase?.notes || "",
-    attachments: normalizeLifeAttachments(phase?.attachments),
-    tasks: Array.isArray(phase?.tasks) ? phase.tasks.map(normalizeLifeTask) : [],
-    created,
-    edited: phase?.edited || created
-  };
+	const status = ["planned", "active", "waiting", "complete"].includes(
+		phase?.status,
+	)
+		? phase.status
+		: "planned";
+	const created = phase?.created || nowIso();
+	return {
+		id: phase?.id || makeId("phase"),
+		title: phase?.title || "Untitled phase",
+		status,
+		assignedTo: phase?.assignedTo || "",
+		assignedDate: normalizeLifeAssignment(phase?.assignedDate, status),
+		notes: phase?.notes || "",
+		attachments: normalizeLifeAttachments(phase?.attachments),
+		tasks: Array.isArray(phase?.tasks)
+			? phase.tasks.map(normalizeLifeTask)
+			: [],
+		created,
+		edited: phase?.edited || created,
+	};
 }
 
 function normalizeLifeProject(project) {
-  const status = ["planned", "active", "waiting", "complete"].includes(project?.status) ? project.status : "planned";
-  const created = project?.created || nowIso();
-  return {
-    id: project?.id || makeId("project"),
-    title: project?.title || "Untitled project",
-    status,
-    assignedTo: project?.assignedTo || "",
-    assignedDate: normalizeLifeAssignment(project?.assignedDate, status),
-    notes: project?.notes || "",
-    attachments: normalizeLifeAttachments(project?.attachments),
-    phases: Array.isArray(project?.phases) ? project.phases.map(normalizeLifePhase) : [],
-    created,
-    edited: project?.edited || created
-  };
+	const status = ["planned", "active", "waiting", "complete"].includes(
+		project?.status,
+	)
+		? project.status
+		: "planned";
+	const created = project?.created || nowIso();
+	return {
+		id: project?.id || makeId("project"),
+		title: project?.title || "Untitled project",
+		status,
+		assignedTo: project?.assignedTo || "",
+		assignedDate: normalizeLifeAssignment(project?.assignedDate, status),
+		notes: project?.notes || "",
+		attachments: normalizeLifeAttachments(project?.attachments),
+		phases: Array.isArray(project?.phases)
+			? project.phases.map(normalizeLifePhase)
+			: [],
+		created,
+		edited: project?.edited || created,
+	};
 }
 
 function normalizeLifePlanner(planner) {
-  return {
-    schemaVersion: 1,
-    todos: Array.isArray(planner?.todos) ? planner.todos.map(normalizeLifeTodo) : [],
-    projects: Array.isArray(planner?.projects) ? planner.projects.map(normalizeLifeProject) : []
-  };
+	return {
+		schemaVersion: 1,
+		todos: Array.isArray(planner?.todos)
+			? planner.todos.map(normalizeLifeTodo)
+			: [],
+		projects: Array.isArray(planner?.projects)
+			? planner.projects.map(normalizeLifeProject)
+			: [],
+	};
 }
 
 function saveLifePlannerStore(planner) {
-  window.localStorage.setItem(LIFE_PLANNER_KEY, JSON.stringify(planner));
-  markLocalAppChanged();
+	window.localStorage.setItem(LIFE_PLANNER_KEY, JSON.stringify(planner));
+	markLocalAppChanged();
 }
 
 function loadLifePlanner() {
-  try {
-    const raw = window.localStorage.getItem(LIFE_PLANNER_KEY);
-    const parsed = raw ? JSON.parse(raw) : createDefaultLifePlanner();
-    const normalized = normalizeLifePlanner(parsed);
-    if (raw && JSON.stringify(parsed) !== JSON.stringify(normalized)) saveLifePlannerStore(normalized);
-    return normalized;
-  } catch {
-    return createDefaultLifePlanner();
-  }
+	try {
+		const raw = window.localStorage.getItem(LIFE_PLANNER_KEY);
+		const parsed = raw ? JSON.parse(raw) : createDefaultLifePlanner();
+		const normalized = normalizeLifePlanner(parsed);
+		if (raw && JSON.stringify(parsed) !== JSON.stringify(normalized))
+			saveLifePlannerStore(normalized);
+		return normalized;
+	} catch {
+		return createDefaultLifePlanner();
+	}
 }
 
 async function exportAppState(options = {}) {
-  return {
-    bodyTracker: state.bodyTracker || createDefaultBodyTracker(),
-    spiritProgress: state.spiritProgress || {},
-    lifePlanner: normalizeLifePlanner(state.lifePlanner || createDefaultLifePlanner()),
-    thoughtSettings: normalizeTrackerSettings(state.trackerSettings || cloneDefaultTrackers()),
-    goalSettings: normalizeGoalSettings(state.goalSettings || cloneDefaultGoals()),
-    dashboardIdentity: normalizeDashboardIdentity(state.dashboardIdentity || cloneDefaultDashboardIdentity()),
-    theme: normalizeTheme(state.theme),
-    localFiles: await exportLocalFiles({ includeData: options.includeLocalFileData !== false }).catch(() => [])
-  };
+	return {
+		bodyTracker: state.bodyTracker || createDefaultBodyTracker(),
+		spiritProgress: state.spiritProgress || {},
+		lifePlanner: normalizeLifePlanner(
+			state.lifePlanner || createDefaultLifePlanner(),
+		),
+		thoughtSettings: normalizeTrackerSettings(
+			state.trackerSettings || cloneDefaultTrackers(),
+		),
+		goalSettings: normalizeGoalSettings(
+			state.goalSettings || cloneDefaultGoals(),
+		),
+		dashboardIdentity: normalizeDashboardIdentity(
+			state.dashboardIdentity || cloneDefaultDashboardIdentity(),
+		),
+		theme: normalizeTheme(state.theme),
+		localFiles: await exportLocalFiles({
+			includeData: options.includeLocalFileData !== false,
+		}).catch(() => []),
+	};
 }
 
 async function exportAppStateJson(options = {}) {
-  return {
-    schemaVersion: SCHEMA_VERSION,
-    rootId: state.artifactStore?.rootId || "ourstuff-root",
-    artifacts: Array.isArray(state.artifactStore?.artifacts) ? state.artifactStore.artifacts : [],
-    metadata: {
-      localUpdatedAt: localAppUpdatedAt(),
-      exportedAt: nowIso(),
-      deviceId: state.cloud?.deviceId || ""
-    },
-    appState: await exportAppState(options)
-  };
+	return {
+		schemaVersion: SCHEMA_VERSION,
+		rootId: state.artifactStore?.rootId || "ourstuff-root",
+		artifacts: Array.isArray(state.artifactStore?.artifacts)
+			? state.artifactStore.artifacts
+			: [],
+		metadata: {
+			localUpdatedAt: localAppUpdatedAt(),
+			exportedAt: nowIso(),
+			deviceId: state.cloud?.deviceId || "",
+		},
+		appState: await exportAppState(options),
+	};
 }
 
 async function restoreImportedAppState(appState) {
-  if (!appState) return;
-  const bodyTracker = appState?.bodyTracker
-    ? normalizeBodyTracker(appState.bodyTracker)
-    : createDefaultBodyTracker();
-  const spiritProgress = appState?.spiritProgress && typeof appState.spiritProgress === "object"
-    ? appState.spiritProgress
-    : {};
-  const lifePlanner = normalizeLifePlanner(appState?.lifePlanner || createDefaultLifePlanner());
-  const trackerSettings = normalizeTrackerSettings(appState?.thoughtSettings || appState?.trackerSettings || cloneDefaultTrackers());
-  const goalSettings = normalizeGoalSettings(appState?.goalSettings || appState?.goals || cloneDefaultGoals());
-  const dashboardIdentity = normalizeDashboardIdentity(appState?.dashboardIdentity || cloneDefaultDashboardIdentity());
-  const theme = normalizeTheme(appState?.theme || state.theme);
+	if (!appState) return;
+	const bodyTracker = appState?.bodyTracker
+		? normalizeBodyTracker(appState.bodyTracker)
+		: createDefaultBodyTracker();
+	const spiritProgress =
+		appState?.spiritProgress && typeof appState.spiritProgress === "object"
+			? appState.spiritProgress
+			: {};
+	const lifePlanner = normalizeLifePlanner(
+		appState?.lifePlanner || createDefaultLifePlanner(),
+	);
+	const trackerSettings = normalizeTrackerSettings(
+		appState?.thoughtSettings ||
+			appState?.trackerSettings ||
+			cloneDefaultTrackers(),
+	);
+	const goalSettings = normalizeGoalSettings(
+		appState?.goalSettings || appState?.goals || cloneDefaultGoals(),
+	);
+	const dashboardIdentity = normalizeDashboardIdentity(
+		appState?.dashboardIdentity || cloneDefaultDashboardIdentity(),
+	);
+	const theme = normalizeTheme(appState?.theme || state.theme);
 
-  state.bodyTracker = bodyTracker;
-  state.spiritProgress = spiritProgress;
-  state.lifePlanner = lifePlanner;
-  state.trackerSettings = trackerSettings;
-  state.goalSettings = goalSettings;
-  state.dashboardIdentity = dashboardIdentity;
-  state.theme = theme;
-  saveBodyTracker();
-  saveSpiritProgress();
-  saveLifePlannerStore(lifePlanner);
-  saveTrackerSettings();
-  saveGoalSettings();
-  saveDashboardIdentity(dashboardIdentity);
-  saveTheme(theme);
-  if (Array.isArray(appState.localFiles)) {
-    await importLocalFiles(appState.localFiles, localMediaImportOptions());
-    scheduleCloudStorageUsageRefresh({ force: true });
-  }
+	state.bodyTracker = bodyTracker;
+	state.spiritProgress = spiritProgress;
+	state.lifePlanner = lifePlanner;
+	state.trackerSettings = trackerSettings;
+	state.goalSettings = goalSettings;
+	state.dashboardIdentity = dashboardIdentity;
+	state.theme = theme;
+	saveBodyTracker();
+	saveSpiritProgress();
+	saveLifePlannerStore(lifePlanner);
+	saveTrackerSettings();
+	saveGoalSettings();
+	saveDashboardIdentity(dashboardIdentity);
+	saveTheme(theme);
+	if (Array.isArray(appState.localFiles)) {
+		await importLocalFiles(appState.localFiles, localMediaImportOptions());
+		scheduleCloudStorageUsageRefresh({ force: true });
+	}
 }
 
 async function importAppStateJson(json, options = {}) {
-  if (json?.schemaVersion !== SCHEMA_VERSION || !Array.isArray(json.artifacts)) {
-    throw new Error("Cloud state is not a valid Ourstuff app export.");
-  }
-  const importedStore = {
-    schemaVersion: json.schemaVersion,
-    rootId: json.rootId || "ourstuff-root",
-    artifacts: json.artifacts
-  };
-  const sourceUpdatedAt = normalizeIsoTimestamp(options.sourceUpdatedAt);
-  const appliedAt = sourceUpdatedAt || nowIso();
-  const restore = async () => {
-    persistArtifactStore(importedStore);
-    await restoreImportedAppState(json.appState);
-    setState({
-      active: "Dashboard",
-      flipped: null,
-      mindMode: "grid",
-      artifactMode: "grid",
-      selectedCompendiumId: null,
-      selectedSectionId: null,
-      selectedArtifactId: null,
-      selectedSpiritBookKey: null
-    });
-  };
-  await withLocalChangeTrackingSuppressed(restore);
-  saveLocalAppUpdatedAt(appliedAt);
-  if (options.replaceCloud === true && cloudHasSyncAccess()) {
-    const result = await uploadLocalStateToCloud();
-    recordCloudSyncAt(result.updatedAt || appliedAt, "Imported JSON rebuilt Firebase artifacts.");
-  } else if (!sourceUpdatedAt && options.queueCloudSync !== false) {
-    queueCloudSyncAfterLocalChange();
-  }
+	if (
+		json?.schemaVersion !== SCHEMA_VERSION ||
+		!Array.isArray(json.artifacts)
+	) {
+		throw new Error("Cloud state is not a valid Ourstuff app export.");
+	}
+	const importedStore = {
+		schemaVersion: json.schemaVersion,
+		rootId: json.rootId || "ourstuff-root",
+		artifacts: json.artifacts,
+	};
+	const sourceUpdatedAt = normalizeIsoTimestamp(options.sourceUpdatedAt);
+	const appliedAt = sourceUpdatedAt || nowIso();
+	const restore = async () => {
+		persistArtifactStore(importedStore);
+		await restoreImportedAppState(json.appState);
+		setState({
+			active: "Dashboard",
+			flipped: null,
+			mindMode: "grid",
+			artifactMode: "grid",
+			selectedCompendiumId: null,
+			selectedSectionId: null,
+			selectedArtifactId: null,
+			selectedSpiritBookKey: null,
+		});
+	};
+	await withLocalChangeTrackingSuppressed(restore);
+	saveLocalAppUpdatedAt(appliedAt);
+	if (options.replaceCloud === true && cloudHasSyncAccess()) {
+		const result = await uploadLocalStateToCloud();
+		recordCloudSyncAt(
+			result.updatedAt || appliedAt,
+			"Imported JSON rebuilt Firebase artifacts.",
+		);
+	} else if (!sourceUpdatedAt && options.queueCloudSync !== false) {
+		queueCloudSyncAfterLocalChange();
+	}
 }
 
 function cloudReturnUrl() {
-  return `${window.location.origin}${window.location.pathname}`;
+	return `${window.location.origin}${window.location.pathname}`;
 }
 
 function cloudHasSyncAccess(cloud = state.cloud) {
-  return Boolean(
-    state.artifactStore
-    && cloud?.mode === "signed-in"
-    && cloud.user
-    && (cloud.entitlement?.cloud === true || cloud.entitlement?.admin === true)
-  );
+	return Boolean(
+		state.artifactStore &&
+			cloud?.mode === "signed-in" &&
+			cloud.user &&
+			(cloud.entitlement?.cloud === true || cloud.entitlement?.admin === true),
+	);
 }
 
 function cloudMediaSyncAccess(cloud = state.cloud) {
-  return Boolean(
-    cloud?.mode === "signed-in"
-    && cloud.user?.uid
-    && !cloud.isLocalDemo
-    && (cloud.entitlement?.cloud === true || cloud.entitlement?.admin === true)
-  );
+	return Boolean(
+		cloud?.mode === "signed-in" &&
+			cloud.user?.uid &&
+			!cloud.isLocalDemo &&
+			(cloud.entitlement?.cloud === true || cloud.entitlement?.admin === true),
+	);
 }
 
 function configureMediaCloudContext(cloud = state.cloud) {
-  configureCloudMedia({
-    uid: cloud?.user?.uid || "",
-    enabled: cloudMediaSyncAccess(cloud)
-  });
+	configureCloudMedia({
+		uid: cloud?.user?.uid || "",
+		enabled: cloudMediaSyncAccess(cloud),
+	});
 }
 
 function safeMigratedImageName(artifact, index) {
-  const title = String(artifact?.title || artifact?.id || "note-image")
-    .replace(/[^a-z0-9._-]+/gi, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60) || "note-image";
-  return `${title}-${index + 1}`;
+	const title =
+		String(artifact?.title || artifact?.id || "note-image")
+			.replace(/[^a-z0-9._-]+/gi, "-")
+			.replace(/^-+|-+$/g, "")
+			.slice(0, 60) || "note-image";
+	return `${title}-${index + 1}`;
 }
 
 function inlineBase64ImageMatches(body) {
-  const matcher = /!\[([^\]]*)\]\((data:image\/[a-z0-9.+-]+;base64,[^)]+)\)/gi;
-  return Array.from(String(body || "").matchAll(matcher));
+	const matcher = /!\[([^\]]*)\]\((data:image\/[a-z0-9.+-]+;base64,[^)]+)\)/gi;
+	return Array.from(String(body || "").matchAll(matcher));
 }
 
 async function migrateInlineBase64ImagesInArtifacts() {
-  if (!state.artifactStore?.artifacts?.length || !cloudMediaSyncAccess()) return { migrated: 0 };
+	if (!state.artifactStore?.artifacts?.length || !cloudMediaSyncAccess())
+		return { migrated: 0 };
 
-  let migrated = 0;
-  const now = nowIso();
-  const artifacts = [];
+	let migrated = 0;
+	const now = nowIso();
+	const artifacts = [];
 
-  for (const artifact of state.artifactStore.artifacts) {
-    const matches = inlineBase64ImageMatches(artifact.body);
-    if (!matches.length) {
-      artifacts.push(artifact);
-      continue;
-    }
+	for (const artifact of state.artifactStore.artifacts) {
+		const matches = inlineBase64ImageMatches(artifact.body);
+		if (!matches.length) {
+			artifacts.push(artifact);
+			continue;
+		}
 
-    let body = artifact.body;
-    for (let index = 0; index < matches.length; index += 1) {
-      const [fullMarkdown, altText, dataUrl] = matches[index];
-      const stored = await storeLocalImageFromDataUrl(dataUrl, safeMigratedImageName(artifact, index), localMediaStoreOptions());
-      const label = String(altText || stored.name || "image").replace(/[\][()]/g, "").trim() || "image";
-      body = body.replace(fullMarkdown, `![${label}](ourstuff-asset:${stored.id})`);
-      migrated += 1;
-    }
+		let body = artifact.body;
+		for (let index = 0; index < matches.length; index += 1) {
+			const [fullMarkdown, altText, dataUrl] = matches[index];
+			const stored = await storeLocalImageFromDataUrl(
+				dataUrl,
+				safeMigratedImageName(artifact, index),
+				localMediaStoreOptions(),
+			);
+			const label =
+				String(altText || stored.name || "image")
+					.replace(/[\][()]/g, "")
+					.trim() || "image";
+			body = body.replace(
+				fullMarkdown,
+				`![${label}](ourstuff-asset:${stored.id})`,
+			);
+			migrated += 1;
+		}
 
-    artifacts.push({ ...artifact, body, edited: now });
-  }
+		artifacts.push({ ...artifact, body, edited: now });
+	}
 
-  if (migrated > 0) {
-    const nextStore = { ...state.artifactStore, artifacts };
-    state.artifactStore = nextStore;
-    state.compendiums = normalizeCompendiums(artifactStoreToCompendiums(nextStore));
-    writeArtifactStore(nextStore);
-    saveLocalAppUpdatedAt(now);
-    if (state.active === "Gallery") await refreshGalleryImages();
-  }
+	if (migrated > 0) {
+		const nextStore = { ...state.artifactStore, artifacts };
+		state.artifactStore = nextStore;
+		state.compendiums = normalizeCompendiums(
+			artifactStoreToCompendiums(nextStore),
+		);
+		writeArtifactStore(nextStore);
+		saveLocalAppUpdatedAt(now);
+		if (state.active === "Gallery") await refreshGalleryImages();
+	}
 
-  return { migrated };
+	return { migrated };
 }
 
 function assertNoCloudBase64Images(json) {
-  const serialized = JSON.stringify(json ?? {});
-  if (/data:image\/[a-z0-9.+-]+;base64,/i.test(serialized)) {
-    throw new Error("Base64 images must be migrated to encrypted Firebase Storage before Firebase artifact sync.");
-  }
+	const serialized = JSON.stringify(json ?? {});
+	if (/data:image\/[a-z0-9.+-]+;base64,/i.test(serialized)) {
+		throw new Error(
+			"Base64 images must be migrated to encrypted Firebase Storage before Firebase artifact sync.",
+		);
+	}
 }
 
 async function migrateLocalImagesToCloudBeforeSync() {
-  configureMediaCloudContext();
-  if (!cloudMediaSyncAccess()) return { migrated: 0 };
-  const inline = await migrateInlineBase64ImagesInArtifacts();
-  const local = await migrateLocalMediaToCloud({ uid: state.cloud.user.uid, ...localMediaStoreOptions() });
-  const migrated = (inline.migrated || 0) + (local.migrated || 0);
-  if (migrated > 0 && state.active === "Gallery") await refreshGalleryImages();
-  return { migrated };
+	configureMediaCloudContext();
+	if (!cloudMediaSyncAccess()) return { migrated: 0 };
+	const inline = await migrateInlineBase64ImagesInArtifacts();
+	const local = await migrateLocalMediaToCloud({
+		uid: state.cloud.user.uid,
+		...localMediaStoreOptions(),
+	});
+	const migrated = (inline.migrated || 0) + (local.migrated || 0);
+	if (migrated > 0 && state.active === "Gallery") await refreshGalleryImages();
+	return { migrated };
 }
 
 function cloudSyncIntervalLabel() {
-  const minutes = Math.max(1, Math.round(CLOUD_SYNC_INTERVAL_MS / 60000));
-  return `${minutes} min`;
+	const minutes = Math.max(1, Math.round(CLOUD_SYNC_INTERVAL_MS / 60000));
+	return `${minutes} min`;
 }
 
 function cloudInfoUpdatedAt(info) {
-  return normalizeIsoTimestamp(info?.updatedAt || info?.updated_at || info?.savedAt || info?.createdAt);
+	return normalizeIsoTimestamp(
+		info?.updatedAt || info?.updated_at || info?.savedAt || info?.createdAt,
+	);
 }
 
 function localFileStorageBytes(file) {
-  return Math.max(0, Number(file?.storageBytes) || Number(file?.cloudStorageBytes) || Number(file?.size) || 0);
+	return Math.max(
+		0,
+		Number(file?.storageBytes) ||
+			Number(file?.cloudStorageBytes) ||
+			Number(file?.size) ||
+			0,
+	);
 }
 
 function sumLocalFileStorageBytes(files) {
-  return (Array.isArray(files) ? files : []).reduce((total, file) => total + localFileStorageBytes(file), 0);
+	return (Array.isArray(files) ? files : []).reduce(
+		(total, file) => total + localFileStorageBytes(file),
+		0,
+	);
 }
 
 async function localMediaStorageBytes() {
-  return sumLocalFileStorageBytes(await listLocalFiles());
+	return sumLocalFileStorageBytes(await listLocalFiles());
 }
 
 function storageUsagePercent(usage) {
-  const limit = Math.max(1, Number(usage?.limitBytes) || CLOUD_STORAGE_LIMIT_BYTES);
-  return Math.min(100, Math.max(0, (Number(usage?.totalBytes) || 0) / limit * 100));
+	const limit = Math.max(
+		1,
+		Number(usage?.limitBytes) || CLOUD_STORAGE_LIMIT_BYTES,
+	);
+	return Math.min(
+		100,
+		Math.max(0, ((Number(usage?.totalBytes) || 0) / limit) * 100),
+	);
 }
 
-function storageUsageWithTotals({ storageBytes = 0, firebaseBytes = 0, updatedAt = "", source = "current-device" } = {}) {
-  const normalizedStorageBytes = Math.max(0, Number(storageBytes) || 0);
-  const normalizedFirebaseBytes = Math.max(0, Number(firebaseBytes) || 0);
-  const totalBytes = normalizedStorageBytes + normalizedFirebaseBytes;
-  return {
-    limitBytes: CLOUD_STORAGE_LIMIT_BYTES,
-    storageBytes: normalizedStorageBytes,
-    firebaseBytes: normalizedFirebaseBytes,
-    totalBytes,
-    percent: storageUsagePercent({ limitBytes: CLOUD_STORAGE_LIMIT_BYTES, totalBytes }),
-    updatedAt,
-    source
-  };
+function storageUsageWithTotals({
+	storageBytes = 0,
+	firebaseBytes = 0,
+	updatedAt = "",
+	source = "current-device",
+} = {}) {
+	const normalizedStorageBytes = Math.max(0, Number(storageBytes) || 0);
+	const normalizedFirebaseBytes = Math.max(0, Number(firebaseBytes) || 0);
+	const totalBytes = normalizedStorageBytes + normalizedFirebaseBytes;
+	return {
+		limitBytes: CLOUD_STORAGE_LIMIT_BYTES,
+		storageBytes: normalizedStorageBytes,
+		firebaseBytes: normalizedFirebaseBytes,
+		totalBytes,
+		percent: storageUsagePercent({
+			limitBytes: CLOUD_STORAGE_LIMIT_BYTES,
+			totalBytes,
+		}),
+		updatedAt,
+		source,
+	};
 }
 
 async function calculateCloudStorageUsage(options = {}) {
-  const storageBytes = Number.isFinite(Number(options.storageBytes))
-    ? Math.max(0, Number(options.storageBytes))
-    : await localMediaStorageBytes();
-  if (options.json) {
-    const projected = estimateCloudStateStorageUsage(options.json, {
-      uid: state.cloud?.user?.uid || "",
-      deviceId: state.cloud?.deviceId || "",
-      storageBytes
-    });
-    return storageUsageWithTotals({
-      storageBytes,
-      firebaseBytes: projected.firebaseBytes,
-      updatedAt: projected.updatedAt || nowIso(),
-      source: "current-sync-payload"
-    });
-  }
+	const storageBytes = Number.isFinite(Number(options.storageBytes))
+		? Math.max(0, Number(options.storageBytes))
+		: await localMediaStorageBytes();
+	if (options.json) {
+		const projected = estimateCloudStateStorageUsage(options.json, {
+			uid: state.cloud?.user?.uid || "",
+			deviceId: state.cloud?.deviceId || "",
+			storageBytes,
+		});
+		return storageUsageWithTotals({
+			storageBytes,
+			firebaseBytes: projected.firebaseBytes,
+			updatedAt: projected.updatedAt || nowIso(),
+			source: "current-sync-payload",
+		});
+	}
 
-  if (cloudHasSyncAccess()) {
-    const info = await getCloudStateInfo().catch((error) => {
-      if (options.requireCloudInfo) throw error;
-      return null;
-    });
-    const storedUsage = info?.storageUsage || {};
-    return storageUsageWithTotals({
-      storageBytes,
-      firebaseBytes: Number(storedUsage.firebaseBytes) || Number(info?.firebaseBytes) || Number(info?.jsonBytes) || 0,
-      updatedAt: cloudInfoUpdatedAt(info) || storedUsage.updatedAt || "",
-      source: info?.exists ? "firebase-artifacts" : "current-device"
-    });
-  }
+	if (cloudHasSyncAccess()) {
+		const info = await getCloudStateInfo().catch((error) => {
+			if (options.requireCloudInfo) throw error;
+			return null;
+		});
+		const storedUsage = info?.storageUsage || {};
+		return storageUsageWithTotals({
+			storageBytes,
+			firebaseBytes:
+				Number(storedUsage.firebaseBytes) ||
+				Number(info?.firebaseBytes) ||
+				Number(info?.jsonBytes) ||
+				0,
+			updatedAt: cloudInfoUpdatedAt(info) || storedUsage.updatedAt || "",
+			source: info?.exists ? "firebase-artifacts" : "current-device",
+		});
+	}
 
-  return storageUsageWithTotals({ storageBytes, firebaseBytes: 0 });
+	return storageUsageWithTotals({ storageBytes, firebaseBytes: 0 });
 }
 
 function cloudStorageUsageMessage(usage) {
-  const totalBytes = Math.max(0, Number(usage?.totalBytes) || 0);
-  const limitBytes = Math.max(1, Number(usage?.limitBytes) || CLOUD_STORAGE_LIMIT_BYTES);
-  return `Cloud storage limit reached: ${formatStorageGb(totalBytes)} would exceed the ${formatStorageLimitGb(limitBytes)} limit. Delete uploads or cloud data before adding more.`;
+	const totalBytes = Math.max(0, Number(usage?.totalBytes) || 0);
+	const limitBytes = Math.max(
+		1,
+		Number(usage?.limitBytes) || CLOUD_STORAGE_LIMIT_BYTES,
+	);
+	return `Cloud storage limit reached: ${formatStorageGb(totalBytes)} would exceed the ${formatStorageLimitGb(limitBytes)} limit. Delete uploads or cloud data before adding more.`;
 }
 
 function assertCloudStorageUsageAllowed(usage) {
-  if ((Number(usage?.totalBytes) || 0) <= CLOUD_STORAGE_LIMIT_BYTES) return;
-  throw new Error(cloudStorageUsageMessage(usage));
+	if ((Number(usage?.totalBytes) || 0) <= CLOUD_STORAGE_LIMIT_BYTES) return;
+	throw new Error(cloudStorageUsageMessage(usage));
 }
 
 async function assertCanStoreLocalMedia(metadata) {
-  const files = await listLocalFiles();
-  const currentStorageBytes = sumLocalFileStorageBytes(files);
-  const existingBytes = localFileStorageBytes(files.find((file) => file.id === metadata?.id));
-  const usage = await calculateCloudStorageUsage({ storageBytes: currentStorageBytes, requireCloudInfo: true });
-  const projected = storageUsageWithTotals({
-    storageBytes: Math.max(0, usage.storageBytes - existingBytes + localFileStorageBytes(metadata)),
-    firebaseBytes: usage.firebaseBytes,
-    updatedAt: usage.updatedAt,
-    source: "local-upload"
-  });
-  assertCloudStorageUsageAllowed(projected);
+	const files = await listLocalFiles();
+	const currentStorageBytes = sumLocalFileStorageBytes(files);
+	const existingBytes = localFileStorageBytes(
+		files.find((file) => file.id === metadata?.id),
+	);
+	const usage = await calculateCloudStorageUsage({
+		storageBytes: currentStorageBytes,
+		requireCloudInfo: true,
+	});
+	const projected = storageUsageWithTotals({
+		storageBytes: Math.max(
+			0,
+			usage.storageBytes - existingBytes + localFileStorageBytes(metadata),
+		),
+		firebaseBytes: usage.firebaseBytes,
+		updatedAt: usage.updatedAt,
+		source: "local-upload",
+	});
+	assertCloudStorageUsageAllowed(projected);
 }
 
 function localMediaStoreOptions() {
-  return { beforeStore: assertCanStoreLocalMedia };
+	return { beforeStore: assertCanStoreLocalMedia };
 }
 
 async function assertCanImportLocalMedia(records) {
-  const importedStorageBytes = sumLocalFileStorageBytes(records);
-  const usage = await calculateCloudStorageUsage({ storageBytes: 0, requireCloudInfo: true });
-  assertCloudStorageUsageAllowed(storageUsageWithTotals({
-    storageBytes: importedStorageBytes,
-    firebaseBytes: usage.firebaseBytes,
-    updatedAt: usage.updatedAt,
-    source: "local-import"
-  }));
+	const importedStorageBytes = sumLocalFileStorageBytes(records);
+	const usage = await calculateCloudStorageUsage({
+		storageBytes: 0,
+		requireCloudInfo: true,
+	});
+	assertCloudStorageUsageAllowed(
+		storageUsageWithTotals({
+			storageBytes: importedStorageBytes,
+			firebaseBytes: usage.firebaseBytes,
+			updatedAt: usage.updatedAt,
+			source: "local-import",
+		}),
+	);
 }
 
 function localMediaImportOptions() {
-  return { beforeImport: assertCanImportLocalMedia };
+	return { beforeImport: assertCanImportLocalMedia };
 }
 
 function cloudStorageUsageFingerprint(usage) {
-  return [
-    usage?.limitBytes || 0,
-    usage?.storageBytes || 0,
-    usage?.firebaseBytes || 0,
-    usage?.totalBytes || 0,
-    usage?.updatedAt || "",
-    usage?.source || ""
-  ].join("|");
+	return [
+		usage?.limitBytes || 0,
+		usage?.storageBytes || 0,
+		usage?.firebaseBytes || 0,
+		usage?.totalBytes || 0,
+		usage?.updatedAt || "",
+		usage?.source || "",
+	].join("|");
 }
 
 function scheduleCloudStorageUsageRefresh(options = {}) {
-  if (!isReady()) return;
-  if (cloudStorageUsageRefreshTimer) window.clearTimeout(cloudStorageUsageRefreshTimer);
-  cloudStorageUsageRefreshTimer = window.setTimeout(() => {
-    cloudStorageUsageRefreshTimer = null;
-    void refreshCloudStorageUsage(options);
-  }, options.delayMs ?? 0);
+	if (!isReady()) return;
+	if (cloudStorageUsageRefreshTimer)
+		window.clearTimeout(cloudStorageUsageRefreshTimer);
+	cloudStorageUsageRefreshTimer = window.setTimeout(() => {
+		cloudStorageUsageRefreshTimer = null;
+		void refreshCloudStorageUsage(options);
+	}, options.delayMs ?? 0);
 }
 
 async function refreshCloudStorageUsage(options = {}) {
-  if (cloudStorageUsageRefreshInFlight) return;
-  cloudStorageUsageRefreshInFlight = true;
-  try {
-    const usage = await calculateCloudStorageUsage();
-    const fingerprint = cloudStorageUsageFingerprint(usage);
-    if (options.force || fingerprint !== cloudStorageUsageSignature) {
-      cloudStorageUsageSignature = fingerprint;
-      setState({ cloudStorageUsage: usage });
-    }
-  } catch (error) {
-    const fallback = storageUsageWithTotals({ source: "usage-error" });
-    fallback.error = error instanceof Error ? error.message : "Could not calculate storage usage.";
-    const fingerprint = cloudStorageUsageFingerprint(fallback);
-    if (options.force || fingerprint !== cloudStorageUsageSignature) {
-      cloudStorageUsageSignature = fingerprint;
-      setState({ cloudStorageUsage: fallback });
-    }
-  } finally {
-    cloudStorageUsageRefreshInFlight = false;
-  }
+	if (cloudStorageUsageRefreshInFlight) return;
+	cloudStorageUsageRefreshInFlight = true;
+	try {
+		const usage = await calculateCloudStorageUsage();
+		const fingerprint = cloudStorageUsageFingerprint(usage);
+		if (options.force || fingerprint !== cloudStorageUsageSignature) {
+			cloudStorageUsageSignature = fingerprint;
+			setState({ cloudStorageUsage: usage });
+		}
+	} catch (error) {
+		const fallback = storageUsageWithTotals({ source: "usage-error" });
+		fallback.error =
+			error instanceof Error
+				? error.message
+				: "Could not calculate storage usage.";
+		const fingerprint = cloudStorageUsageFingerprint(fallback);
+		if (options.force || fingerprint !== cloudStorageUsageSignature) {
+			cloudStorageUsageSignature = fingerprint;
+			setState({ cloudStorageUsage: fallback });
+		}
+	} finally {
+		cloudStorageUsageRefreshInFlight = false;
+	}
 }
 
 async function uploadLocalStateToCloud() {
-  await migrateLocalImagesToCloudBeforeSync();
-  const json = await exportAppStateJson({ includeLocalFileData: false });
-  assertNoCloudBase64Images(json);
-  const storageBytes = await localMediaStorageBytes();
-  const usage = await calculateCloudStorageUsage({ json, storageBytes });
-  assertCloudStorageUsageAllowed(usage);
-  const result = await saveCloudStateJson(json, { storageBytes });
-  const updatedAt = normalizeIsoTimestamp(result?.updatedAt) || nowIso();
-  saveLocalAppUpdatedAt(updatedAt);
-  scheduleCloudStorageUsageRefresh({ force: true });
-  return { updatedAt };
+	await migrateLocalImagesToCloudBeforeSync();
+	const json = await exportAppStateJson({ includeLocalFileData: false });
+	assertNoCloudBase64Images(json);
+	const storageBytes = await localMediaStorageBytes();
+	const usage = await calculateCloudStorageUsage({ json, storageBytes });
+	assertCloudStorageUsageAllowed(usage);
+	const result = await saveCloudStateJson(json, { storageBytes });
+	const updatedAt = normalizeIsoTimestamp(result?.updatedAt) || nowIso();
+	saveLocalAppUpdatedAt(updatedAt);
+	scheduleCloudStorageUsageRefresh({ force: true });
+	return { updatedAt };
 }
 
 async function importCloudInfoIntoLocal(info) {
-  const cloudUpdatedAt = cloudInfoUpdatedAt(info);
-  const json = info?.json || await loadCloudStateJson();
-  await importAppStateJson(json, {
-    sourceUpdatedAt: cloudUpdatedAt || normalizeIsoTimestamp(json?.metadata?.localUpdatedAt) || nowIso()
-  });
-  const migration = await migrateLocalImagesToCloudBeforeSync();
-  if (migration.migrated > 0) {
-    return await uploadLocalStateToCloud();
-  }
-  return { updatedAt: cloudUpdatedAt };
+	const cloudUpdatedAt = cloudInfoUpdatedAt(info);
+	const json = info?.json || (await loadCloudStateJson());
+	await importAppStateJson(json, {
+		sourceUpdatedAt:
+			cloudUpdatedAt ||
+			normalizeIsoTimestamp(json?.metadata?.localUpdatedAt) ||
+			nowIso(),
+	});
+	const migration = await migrateLocalImagesToCloudBeforeSync();
+	if (migration.migrated > 0) {
+		return await uploadLocalStateToCloud();
+	}
+	return { updatedAt: cloudUpdatedAt };
 }
 
 async function clearLocalFromCloudDelete(info) {
-  const cloudUpdatedAt = cloudInfoUpdatedAt(info) || nowIso();
-  await withLocalChangeTrackingSuppressed(() => clearAppData({ silent: true }));
-  saveLocalAppUpdatedAt(cloudUpdatedAt);
-  return { updatedAt: cloudUpdatedAt };
+	const cloudUpdatedAt = cloudInfoUpdatedAt(info) || nowIso();
+	await withLocalChangeTrackingSuppressed(() => clearAppData({ silent: true }));
+	saveLocalAppUpdatedAt(cloudUpdatedAt);
+	return { updatedAt: cloudUpdatedAt };
 }
 
 function cloudSyncMessage(action, source = "manual") {
-  const prefix = source === "manual" ? "Sync" : "Auto sync";
-  if (action === "uploaded") return `${prefix} saved this device to Firebase artifacts and encrypted media.`;
-  if (action === "downloaded") return `${prefix} loaded Firebase artifacts into this device.`;
-  if (action === "cleared") return `${prefix} applied the Firebase deletion.`;
-  return `${prefix} checked. Already current.`;
+	const prefix = source === "manual" ? "Sync" : "Auto sync";
+	if (action === "uploaded")
+		return `${prefix} saved this device to Firebase artifacts and encrypted media.`;
+	if (action === "downloaded")
+		return `${prefix} loaded Firebase artifacts into this device.`;
+	if (action === "cleared") return `${prefix} applied the Firebase deletion.`;
+	return `${prefix} checked. Already current.`;
 }
 
 function finishCloudSyncResult(result, source = "manual") {
-  if (!result || result.action === "skipped") return result;
-  const message = cloudSyncMessage(result.action, source);
-  recordCloudSyncAt(nowIso(), message);
-  return { ...result, message };
+	if (!result || result.action === "skipped") return result;
+	const message = cloudSyncMessage(result.action, source);
+	recordCloudSyncAt(nowIso(), message);
+	return { ...result, message };
 }
 
 async function syncCloudWithNewestWins(options = {}) {
-  const source = options.source || "manual";
-  if (!cloudHasSyncAccess()) return { action: "skipped", message: "Cloud sync is not active." };
-  if (cloudSyncInFlight) return cloudSyncInFlight;
+	const source = options.source || "manual";
+	if (!cloudHasSyncAccess())
+		return { action: "skipped", message: "Cloud sync is not active." };
+	if (cloudSyncInFlight) return cloudSyncInFlight;
 
-  cloudSyncInFlight = (async () => {
-    const info = await getCloudStateInfo();
-    const cloudUpdatedAt = cloudInfoUpdatedAt(info);
-    const localUpdatedAt = localAppUpdatedAt();
-    const localHasStoredData = hasStoredLocalData();
+	cloudSyncInFlight = (async () => {
+		const info = await getCloudStateInfo();
+		const cloudUpdatedAt = cloudInfoUpdatedAt(info);
+		const localUpdatedAt = localAppUpdatedAt();
+		const localHasStoredData = hasStoredLocalData();
 
-    if ((source === "sign-in" || source === "interval") && info?.exists && !localHasStoredData) {
-      const result = await importCloudInfoIntoLocal(info);
-      return finishCloudSyncResult({ action: "downloaded", ...result }, source);
-    }
+		if (
+			(source === "sign-in" || source === "interval") &&
+			info?.exists &&
+			!localHasStoredData
+		) {
+			const result = await importCloudInfoIntoLocal(info);
+			return finishCloudSyncResult({ action: "downloaded", ...result }, source);
+		}
 
-    if (info?.deleted && !localHasStoredData) {
-      const result = await clearLocalFromCloudDelete(info);
-      return finishCloudSyncResult({ action: "cleared", ...result }, source);
-    }
+		if (info?.deleted && !localHasStoredData) {
+			const result = await clearLocalFromCloudDelete(info);
+			return finishCloudSyncResult({ action: "cleared", ...result }, source);
+		}
 
-    const result = await uploadLocalStateToCloud();
-    return finishCloudSyncResult({ action: "uploaded", updatedAt: cloudUpdatedAt || localUpdatedAt, ...result }, source);
-  })();
+		const result = await uploadLocalStateToCloud();
+		return finishCloudSyncResult(
+			{
+				action: "uploaded",
+				updatedAt: cloudUpdatedAt || localUpdatedAt,
+				...result,
+			},
+			source,
+		);
+	})();
 
-  try {
-    return await cloudSyncInFlight;
-  } finally {
-    cloudSyncInFlight = null;
-  }
+	try {
+		return await cloudSyncInFlight;
+	} finally {
+		cloudSyncInFlight = null;
+	}
 }
 
 async function triggerCloudAutoSync(source = "interval", options = {}) {
-  if (!cloudHasSyncAccess()) return { action: "skipped" };
-  const now = Date.now();
-  if (!options.force && now - lastCloudAutoSyncAttemptAt < CLOUD_SYNC_MIN_INTERVAL_MS) {
-    return { action: "skipped" };
-  }
-  lastCloudAutoSyncAttemptAt = now;
-  try {
-    return await syncCloudWithNewestWins({ source });
-  } catch (error) {
-    setCloudStatus({
-      ...getCloudAccountState(),
-      busy: false,
-      message: "Auto sync failed.",
-      error: error instanceof Error ? error.message : "Cloud sync failed."
-    });
-    return { action: "error" };
-  }
+	if (!cloudHasSyncAccess()) return { action: "skipped" };
+	const now = Date.now();
+	if (
+		!options.force &&
+		now - lastCloudAutoSyncAttemptAt < CLOUD_SYNC_MIN_INTERVAL_MS
+	) {
+		return { action: "skipped" };
+	}
+	lastCloudAutoSyncAttemptAt = now;
+	try {
+		return await syncCloudWithNewestWins({ source });
+	} catch (error) {
+		setCloudStatus({
+			...getCloudAccountState(),
+			busy: false,
+			message: "Auto sync failed.",
+			error: error instanceof Error ? error.message : "Cloud sync failed.",
+		});
+		return { action: "error" };
+	}
 }
 
 function configureCloudAutoSync() {
-  if (!cloudHasSyncAccess()) {
-    if (cloudAutoSyncTimer) window.clearInterval(cloudAutoSyncTimer);
-    if (cloudAutoSyncDebounceTimer) window.clearTimeout(cloudAutoSyncDebounceTimer);
-    cloudAutoSyncTimer = null;
-    cloudAutoSyncDebounceTimer = null;
-    lastCloudAutoSyncAttemptAt = 0;
-    cloudAutoSyncPrimedFor = "";
-    return;
-  }
-  if (cloudAutoSyncTimer) return;
-  cloudAutoSyncTimer = window.setInterval(() => {
-    void triggerCloudAutoSync("interval");
-  }, CLOUD_SYNC_INTERVAL_MS);
+	if (!cloudHasSyncAccess()) {
+		if (cloudAutoSyncTimer) window.clearInterval(cloudAutoSyncTimer);
+		if (cloudAutoSyncDebounceTimer)
+			window.clearTimeout(cloudAutoSyncDebounceTimer);
+		cloudAutoSyncTimer = null;
+		cloudAutoSyncDebounceTimer = null;
+		lastCloudAutoSyncAttemptAt = 0;
+		cloudAutoSyncPrimedFor = "";
+		return;
+	}
+	if (cloudAutoSyncTimer) return;
+	cloudAutoSyncTimer = window.setInterval(() => {
+		void triggerCloudAutoSync("interval");
+	}, CLOUD_SYNC_INTERVAL_MS);
 }
 
 async function syncCloudNow() {
-  return await syncCloudWithNewestWins({ source: "manual" });
+	return await syncCloudWithNewestWins({ source: "manual" });
 }
 
 async function loadCloudIntoLocalApp() {
-  const confirmed = window.confirm("Load the saved Firebase artifacts into this browser? This replaces the current local app state. Export first if you need a backup.");
-  if (!confirmed) return;
-  const info = await getCloudStateInfo().catch(() => null);
-  if (info?.json) {
-    await importCloudInfoIntoLocal(info);
-  } else {
-    const json = await loadCloudStateJson();
-    await importAppStateJson(json, { sourceUpdatedAt: cloudInfoUpdatedAt(info) || normalizeIsoTimestamp(json?.metadata?.localUpdatedAt) || nowIso() });
-  }
-  recordCloudSyncAt(nowIso(), "Firebase artifacts loaded.");
-  return { message: "Firebase artifacts loaded." };
+	const confirmed = window.confirm(
+		"Load the saved Firebase artifacts into this browser? This replaces the current local app state. Export first if you need a backup.",
+	);
+	if (!confirmed) return;
+	const info = await getCloudStateInfo().catch(() => null);
+	if (info?.json) {
+		await importCloudInfoIntoLocal(info);
+	} else {
+		const json = await loadCloudStateJson();
+		await importAppStateJson(json, {
+			sourceUpdatedAt:
+				cloudInfoUpdatedAt(info) ||
+				normalizeIsoTimestamp(json?.metadata?.localUpdatedAt) ||
+				nowIso(),
+		});
+	}
+	recordCloudSyncAt(nowIso(), "Firebase artifacts loaded.");
+	return { message: "Firebase artifacts loaded." };
 }
 
 async function deleteCloudData() {
-  const confirmed = window.confirm("Delete the Firebase artifact collection for this app and reset this browser too? Export first if you need a backup.");
-  if (!confirmed) return;
-  const result = await deleteCloudStateJson();
-  await withLocalChangeTrackingSuppressed(() => clearAppData({ silent: true }));
-  saveLocalAppUpdatedAt(cloudInfoUpdatedAt(result) || nowIso());
-  return { message: "Firebase artifacts deleted." };
+	const confirmed = window.confirm(
+		"Delete the Firebase artifact collection for this app and reset this browser too? Export first if you need a backup.",
+	);
+	if (!confirmed) return;
+	const result = await deleteCloudStateJson();
+	await withLocalChangeTrackingSuppressed(() => clearAppData({ silent: true }));
+	saveLocalAppUpdatedAt(cloudInfoUpdatedAt(result) || nowIso());
+	return { message: "Firebase artifacts deleted." };
 }
 
 async function deleteCloudAccountData() {
-  const confirmed = window.confirm("Fully delete your cloud account and reset this browser? This removes Firebase app artifacts, requests cloud account deletion, and clears local app data. Export first if you need a backup.");
-  if (!confirmed) return;
-  await deleteCloudAccount();
-  await withLocalChangeTrackingSuppressed(() => clearAppData({ silent: true }));
-  saveLocalAppUpdatedAt(nowIso());
-  return { message: "Cloud account deletion requested." };
+	const confirmed = window.confirm(
+		"Fully delete your cloud account and reset this browser? This removes Firebase app artifacts, requests cloud account deletion, and clears local app data. Export first if you need a backup.",
+	);
+	if (!confirmed) return;
+	await deleteCloudAccount();
+	await withLocalChangeTrackingSuppressed(() => clearAppData({ silent: true }));
+	saveLocalAppUpdatedAt(nowIso());
+	return { message: "Cloud account deletion requested." };
 }
 
 async function maybePromptCloudImport(cloud) {
-  if (!cloudHasSyncAccess(cloud)) return;
-  const userKey = `${cloud.user?.uid || cloud.user?.email || "cloud-user"}:${cloud.deviceId || ""}`;
-  if (cloudAutoSyncPrimedFor === userKey) return;
-  cloudAutoSyncPrimedFor = userKey;
-  await triggerCloudAutoSync("sign-in", { force: true });
+	if (!cloudHasSyncAccess(cloud)) return;
+	const userKey = `${cloud.user?.uid || cloud.user?.email || "cloud-user"}:${cloud.deviceId || ""}`;
+	if (cloudAutoSyncPrimedFor === userKey) return;
+	cloudAutoSyncPrimedFor = userKey;
+	await triggerCloudAutoSync("sign-in", { force: true });
 }
 
 async function signInWithEmailForm(options = {}) {
-  const email = document.getElementById("cloud-email")?.value || "";
-  const password = document.getElementById("cloud-password")?.value || "";
-  await signInWithEmailPassword(email, password, options);
+	const email = document.getElementById("cloud-email")?.value || "";
+	const password = document.getElementById("cloud-password")?.value || "";
+	await signInWithEmailPassword(email, password, options);
 }
 
 function hasStoredAppState() {
-  return Boolean(
-    window.localStorage.getItem(BODY_TRACKER_KEY)
-    || window.localStorage.getItem(SPIRIT_PROGRESS_KEY)
-    || window.localStorage.getItem(LIFE_PLANNER_KEY)
-    || window.localStorage.getItem(TRACKER_SETTINGS_KEY)
-    || window.localStorage.getItem(GOAL_SETTINGS_KEY)
-    || window.localStorage.getItem(DASHBOARD_IDENTITY_KEY)
-    || window.localStorage.getItem(THEME_KEY)
-  );
+	return Boolean(
+		window.localStorage.getItem(BODY_TRACKER_KEY) ||
+			window.localStorage.getItem(SPIRIT_PROGRESS_KEY) ||
+			window.localStorage.getItem(LIFE_PLANNER_KEY) ||
+			window.localStorage.getItem(TRACKER_SETTINGS_KEY) ||
+			window.localStorage.getItem(GOAL_SETTINGS_KEY) ||
+			window.localStorage.getItem(DASHBOARD_IDENTITY_KEY) ||
+			window.localStorage.getItem(THEME_KEY),
+	);
 }
 
 function hasStoredLocalData() {
-  return Boolean(window.localStorage.getItem(STORAGE_KEY) || hasStoredAppState());
+	return Boolean(
+		window.localStorage.getItem(STORAGE_KEY) || hasStoredAppState(),
+	);
 }
 
 const state = {
-  active: "Dashboard",
-  flipped: null,
-  artifactStore: null,
-  compendiums: [],
-  selectedCompendiumId: null,
-  selectedSectionId: null,
-  mindCompendiumPage: 0,
-  mindCompendiumPickerOpen: false,
-  compendiumReaderPages: {},
-  selectedArtifactId: null,
-  artifactReturnActive: "",
-  mindMode: "grid",
-  artifactMode: "grid",
-  bodyMode: "timers",
-  bodyTimerMode: "fasting",
-  bodyNutritionMode: "daily",
-  lifeTool: "",
-  lifeMode: "month",
-  settingsTab: "getting-started",
-  theme: loadTheme(),
-  dismissedTips: loadDismissedTips(),
-  dashboardIdentity: loadDashboardIdentity(),
-  trackerAddArea: "",
-  trackerEditKey: "",
-  trackerDeleteKey: "",
-  suppressNextTrackerEditClick: false,
-  iconPicker: null,
-  iconSearchCache: loadIconifySearchCache(),
-  iconSearchInFlight: {},
-  thoughtToast: null,
-  thoughtCooldowns: {},
-  thoughtCreateLocks: {},
-  dashboardPeriod: "day",
-  dashboardPeriodGlowUntil: 0,
-  dashboardChartType: "pie",
-  bodyTracker: loadBodyTracker(),
-  trackerSettings: loadTrackerSettings(),
-  goalSettings: loadGoalSettings(),
-  localAppUpdatedAt: loadLocalAppUpdatedAt(),
-  cloud: getCloudAccountState(),
-  cloudStorageUsage: null,
-  spiritPlan: null,
-  spiritPlanError: "",
-  spiritPlanId: "ten-year",
-  spiritYear: 1,
-  selectedSpiritBookKey: null,
-  spiritProgress: loadSpiritProgress(),
-  lifePlanner: loadLifePlanner(),
-  selectedLifeProjectId: null,
-  selectedLifePhaseId: null,
-  selectedLifeTaskId: null,
-  galleryImages: null,
-  gallerySelectedIds: [],
-  galleryThumbSize: 180,
-  mobileMenuOpen: initialMenuOpen(),
-  sidebarWidth: loadSidebarWidth(),
-  suppressNextMenuToggle: false,
-  sidebarExpanded: {
-    Mind: false,
-    Body: false,
-    Spirit: false,
-    Life: false
-  },
-  sidebarPages: {},
-  trackerPages: {}
+	active: "Dashboard",
+	flipped: null,
+	artifactStore: null,
+	compendiums: [],
+	selectedCompendiumId: null,
+	selectedSectionId: null,
+	mindCompendiumPage: 0,
+	mindCompendiumPickerOpen: false,
+	compendiumReaderPages: {},
+	selectedArtifactId: null,
+	artifactReturnActive: "",
+	mindMode: "grid",
+	artifactMode: "grid",
+	bodyMode: "timers",
+	bodyTimerMode: "fasting",
+	bodyNutritionMode: "daily",
+	lifeTool: "",
+	lifeMode: "month",
+	settingsTab: "getting-started",
+	theme: loadTheme(),
+	dismissedTips: loadDismissedTips(),
+	dashboardIdentity: loadDashboardIdentity(),
+	trackerAddArea: "",
+	trackerEditKey: "",
+	trackerDeleteKey: "",
+	suppressNextTrackerEditClick: false,
+	iconPicker: null,
+	iconSearchCache: loadIconifySearchCache(),
+	iconSearchInFlight: {},
+	thoughtToast: null,
+	thoughtCooldowns: {},
+	thoughtCreateLocks: {},
+	dashboardPeriod: "day",
+	dashboardPeriodGlowUntil: 0,
+	dashboardChartType: "pie",
+	bodyTracker: loadBodyTracker(),
+	trackerSettings: loadTrackerSettings(),
+	goalSettings: loadGoalSettings(),
+	localAppUpdatedAt: loadLocalAppUpdatedAt(),
+	cloud: getCloudAccountState(),
+	cloudStorageUsage: null,
+	spiritPlan: null,
+	spiritPlanError: "",
+	spiritPlanId: "ten-year",
+	spiritYear: 1,
+	selectedSpiritBookKey: null,
+	spiritProgress: loadSpiritProgress(),
+	lifePlanner: loadLifePlanner(),
+	selectedLifeProjectId: null,
+	selectedLifePhaseId: null,
+	selectedLifeTaskId: null,
+	galleryImages: null,
+	gallerySelectedIds: [],
+	galleryThumbSize: 180,
+	mobileMenuOpen: initialMenuOpen(),
+	sidebarWidth: loadSidebarWidth(),
+	suppressNextMenuToggle: false,
+	sidebarExpanded: {
+		Mind: false,
+		Body: false,
+		Spirit: false,
+		Life: false,
+	},
+	sidebarPages: {},
+	trackerPages: {},
 };
 
 function makeId(prefix) {
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+	return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function todayDateKey() {
-  const date = new Date();
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+	const date = new Date();
+	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function dateKeyFromValue(value) {
-  if (!value) return todayDateKey();
-  const text = String(value);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
-  const date = new Date(text);
-  if (Number.isNaN(date.getTime())) return todayDateKey();
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+	if (!value) return todayDateKey();
+	const text = String(value);
+	if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+	const date = new Date(text);
+	if (Number.isNaN(date.getTime())) return todayDateKey();
+	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function addDays(date, days) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
+	const next = new Date(date);
+	next.setDate(next.getDate() + days);
+	return next;
 }
 
 function dateKeyFromDate(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function formatDateLabel(dateKey, options = {}) {
-  const date = new Date(`${dateKey}T12:00:00`);
-  return new Intl.DateTimeFormat(undefined, options.weekday ? {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: options.year ? "numeric" : undefined
-  } : {
-    month: "short",
-    day: "numeric",
-    year: options.year ? "numeric" : undefined
-  }).format(date);
+	const date = new Date(`${dateKey}T12:00:00`);
+	return new Intl.DateTimeFormat(
+		undefined,
+		options.weekday
+			? {
+					weekday: "short",
+					month: "short",
+					day: "numeric",
+					year: options.year ? "numeric" : undefined,
+				}
+			: {
+					month: "short",
+					day: "numeric",
+					year: options.year ? "numeric" : undefined,
+				},
+	).format(date);
 }
 
 function formatEventTime(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat(undefined, {
-    hour: "numeric",
-    minute: "2-digit"
-  }).format(date);
+	if (!value) return "";
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return "";
+	return new Intl.DateTimeFormat(undefined, {
+		hour: "numeric",
+		minute: "2-digit",
+	}).format(date);
 }
 
 function daysBetween(dateKey, compareKey = todayDateKey()) {
-  const date = new Date(`${dateKey}T12:00:00`);
-  const compare = new Date(`${compareKey}T12:00:00`);
-  return Math.floor((compare - date) / 86400000);
+	const date = new Date(`${dateKey}T12:00:00`);
+	const compare = new Date(`${compareKey}T12:00:00`);
+	return Math.floor((compare - date) / 86400000);
 }
 
 function dashboardPeriodOption(period) {
-  return DASHBOARD_PERIOD_OPTIONS.find((option) => option.id === period) || DASHBOARD_PERIOD_OPTIONS[0];
+	return (
+		DASHBOARD_PERIOD_OPTIONS.find((option) => option.id === period) ||
+		DASHBOARD_PERIOD_OPTIONS[0]
+	);
 }
 
 function dashboardPeriodIndex(period) {
-  const index = DASHBOARD_PERIOD_OPTIONS.findIndex((option) => option.id === period);
-  return index >= 0 ? index : 0;
+	const index = DASHBOARD_PERIOD_OPTIONS.findIndex(
+		(option) => option.id === period,
+	);
+	return index >= 0 ? index : 0;
 }
 
 function dashboardPeriodOptionForIndex(index) {
-  const nextIndex = Number.isFinite(Number(index))
-    ? Math.min(Math.max(Math.round(Number(index)), 0), DASHBOARD_PERIOD_OPTIONS.length - 1)
-    : 0;
-  return DASHBOARD_PERIOD_OPTIONS[nextIndex];
+	const nextIndex = Number.isFinite(Number(index))
+		? Math.min(
+				Math.max(Math.round(Number(index)), 0),
+				DASHBOARD_PERIOD_OPTIONS.length - 1,
+			)
+		: 0;
+	return DASHBOARD_PERIOD_OPTIONS[nextIndex];
 }
 
 function eventIsInPeriod(event, period) {
-  const age = daysBetween(event.dateKey);
-  const option = dashboardPeriodOption(period);
-  return age >= 0 && age < option.days;
+	const age = daysBetween(event.dateKey);
+	const option = dashboardPeriodOption(period);
+	return age >= 0 && age < option.days;
 }
 
 function itemDateKey(item) {
-  const value = item?.properties?.dateKey ||
-    item?.dateKey ||
-    item?.properties?.goalLoggedAt ||
-    item?.properties?.thoughtLoggedAt ||
-    activityTimestamp(item);
-  return value ? dateKeyFromValue(value) : "";
+	const value =
+		item?.properties?.dateKey ||
+		item?.dateKey ||
+		item?.properties?.goalLoggedAt ||
+		item?.properties?.thoughtLoggedAt ||
+		activityTimestamp(item);
+	return value ? dateKeyFromValue(value) : "";
 }
 
-function itemIsInPeriod(item, period) {
-  const dateKey = itemDateKey(item);
-  return !dateKey || eventIsInPeriod({ dateKey }, period);
+function _itemIsInPeriod(item, period) {
+	const dateKey = itemDateKey(item);
+	return !dateKey || eventIsInPeriod({ dateKey }, period);
 }
 
 function iconHtml(name) {
-  const icon = normalizeIconSource(name) || "tabler:circle";
-  return `<iconify-icon class="button-icon" icon="${escapeHtml(icon)}" aria-hidden="true"></iconify-icon>`;
+	const icon = normalizeIconSource(name) || "tabler:circle";
+	return `<iconify-icon class="button-icon" icon="${escapeHtml(icon)}" aria-hidden="true"></iconify-icon>`;
 }
 
 function buttonContent(icon, label, labelClass = "button-label") {
-  return `${iconHtml(icon)}<span class="${labelClass}">${label}</span>`;
+	return `${iconHtml(icon)}<span class="${labelClass}">${label}</span>`;
 }
 
 function pageActionButton(action, icon, label, options = {}) {
-  const dataAttrs = options.data
-    ? Object.entries(options.data)
-      .filter(([, value]) => value !== undefined && value !== null && value !== "")
-      .map(([key, value]) => ` data-${key}="${escapeHtml(value)}"`)
-      .join("")
-    : "";
-  return `<button class="icon-button page-action-button${options.danger ? " danger-button" : ""}${options.className ? ` ${escapeHtml(options.className)}` : ""}" data-action="${escapeHtml(action)}"${dataAttrs} type="button" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}"${options.disabled ? " disabled" : ""}>${iconHtml(icon)}</button>`;
+	const dataAttrs = options.data
+		? Object.entries(options.data)
+				.filter(
+					([, value]) => value !== undefined && value !== null && value !== "",
+				)
+				.map(([key, value]) => ` data-${key}="${escapeHtml(value)}"`)
+				.join("")
+		: "";
+	return `<button class="icon-button page-action-button${options.danger ? " danger-button" : ""}${options.className ? ` ${escapeHtml(options.className)}` : ""}" data-action="${escapeHtml(action)}"${dataAttrs} type="button" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}"${options.disabled ? " disabled" : ""}>${iconHtml(icon)}</button>`;
 }
 
 function dashboardIdentityItem(dashboard) {
-  return normalizeDashboardIdentity(state.dashboardIdentity).items[dashboard] || DEFAULT_DASHBOARD_IDENTITY.items[dashboard];
+	return (
+		normalizeDashboardIdentity(state.dashboardIdentity).items[dashboard] ||
+		DEFAULT_DASHBOARD_IDENTITY.items[dashboard]
+	);
 }
 
 function dashboardDisplayLabel(dashboard) {
-  return dashboardIdentityItem(dashboard)?.label || dashboard;
+	return dashboardIdentityItem(dashboard)?.label || dashboard;
 }
 
 function dashboardDisplayIcon(dashboard) {
-  return dashboardIdentityItem(dashboard)?.icon || DEFAULT_DASHBOARD_IDENTITY.items[dashboard]?.icon || "tabler:circle";
+	return (
+		dashboardIdentityItem(dashboard)?.icon ||
+		DEFAULT_DASHBOARD_IDENTITY.items[dashboard]?.icon ||
+		"tabler:circle"
+	);
 }
 
 function dashboardColor(dashboard) {
-  const fallback = DASHBOARD_COLORS[dashboard] || DASHBOARD_COLORS.Mind;
-  return normalizeHexColor(dashboardIdentityItem(dashboard)?.color, fallback);
+	const fallback = DASHBOARD_COLORS[dashboard] || DASHBOARD_COLORS.Mind;
+	return normalizeHexColor(dashboardIdentityItem(dashboard)?.color, fallback);
 }
 
 function dashboardDisplayNumber(dashboard) {
-  return dashboardIdentityItem(dashboard)?.number || DEFAULT_DASHBOARD_IDENTITY.items[dashboard]?.number || "";
+	return (
+		dashboardIdentityItem(dashboard)?.number ||
+		DEFAULT_DASHBOARD_IDENTITY.items[dashboard]?.number ||
+		""
+	);
 }
 
 function dashboardDisplayNameList() {
-  const labels = DASHBOARD_LABELS.map(dashboardDisplayLabel);
-  return labels.length > 1
-    ? `${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}`
-    : labels[0] || "";
+	const labels = DASHBOARD_LABELS.map(dashboardDisplayLabel);
+	return labels.length > 1
+		? `${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}`
+		: labels[0] || "";
 }
 
 function dashboardTitleHtml(dashboard) {
-  const parts = [];
-  if (state.dashboardIdentity?.showNumbers) {
-    parts.push(`<span class="dashboard-card-number">${escapeHtml(dashboardDisplayNumber(dashboard))}</span>`);
-  }
-  const labelParts = [];
-  if (state.dashboardIdentity?.showIcons) {
-    labelParts.push(`<span class="dashboard-card-icon">${iconHtml(dashboardDisplayIcon(dashboard))}</span>`);
-  }
-  const displayLabel = dashboardDisplayLabel(dashboard).toUpperCase();
-  const overflowCount = Math.max(0, displayLabel.length - 10);
-  const fontSize = Math.max(0.62, 1.12 - (overflowCount * 0.055));
-  labelParts.push(`<span class="dashboard-card-name" style="font-size: ${fontSize.toFixed(3)}rem;">${escapeHtml(displayLabel)}</span>`);
-  parts.push(`<span class="dashboard-card-label">${labelParts.join("")}</span>`);
-  return parts.join("");
+	const parts = [];
+	if (state.dashboardIdentity?.showNumbers) {
+		parts.push(
+			`<span class="dashboard-card-number">${escapeHtml(dashboardDisplayNumber(dashboard))}</span>`,
+		);
+	}
+	const labelParts = [];
+	if (state.dashboardIdentity?.showIcons) {
+		labelParts.push(
+			`<span class="dashboard-card-icon">${iconHtml(dashboardDisplayIcon(dashboard))}</span>`,
+		);
+	}
+	const displayLabel = dashboardDisplayLabel(dashboard).toUpperCase();
+	const overflowCount = Math.max(0, displayLabel.length - 10);
+	const fontSize = Math.max(0.62, 1.12 - overflowCount * 0.055);
+	labelParts.push(
+		`<span class="dashboard-card-name" style="font-size: ${fontSize.toFixed(3)}rem;">${escapeHtml(displayLabel)}</span>`,
+	);
+	parts.push(
+		`<span class="dashboard-card-label">${labelParts.join("")}</span>`,
+	);
+	return parts.join("");
 }
 
 function dashboardInlineLabelHtml(dashboard) {
-  const parts = [];
-  if (state.dashboardIdentity?.showNumbers) parts.push(`<span>${escapeHtml(dashboardDisplayNumber(dashboard))}</span>`);
-  if (state.dashboardIdentity?.showIcons) parts.push(iconHtml(dashboardDisplayIcon(dashboard)));
-  parts.push(`<span>${escapeHtml(dashboardDisplayLabel(dashboard))}</span>`);
-  return parts.join("");
+	const parts = [];
+	if (state.dashboardIdentity?.showNumbers)
+		parts.push(`<span>${escapeHtml(dashboardDisplayNumber(dashboard))}</span>`);
+	if (state.dashboardIdentity?.showIcons)
+		parts.push(iconHtml(dashboardDisplayIcon(dashboard)));
+	parts.push(`<span>${escapeHtml(dashboardDisplayLabel(dashboard))}</span>`);
+	return parts.join("");
 }
 
 function dashboardHeaderTitleHtml(dashboard) {
-  return `<span class="dashboard-header-title">${dashboardInlineLabelHtml(dashboard)}</span>`;
+	return `<span class="dashboard-header-title">${dashboardInlineLabelHtml(dashboard)}</span>`;
 }
 
 function isImageIconSource(value) {
-  return /^(https?:\/\/|data:image\/|blob:|\/|\.\.?\/)[^"'<>]+$/i.test(String(value || "").trim());
+	return /^(https?:\/\/|data:image\/|blob:|\/|\.\.?\/)[^"'<>]+$/i.test(
+		String(value || "").trim(),
+	);
 }
 
 function sanitizeSvgText(value) {
-  const source = String(value || "").trim();
-  if (!/^<svg[\s>]/i.test(source) || source.length > 16000) return "";
-  try {
-    const doc = new DOMParser().parseFromString(source, "image/svg+xml");
-    if (doc.querySelector("parsererror") || doc.documentElement?.tagName?.toLowerCase() !== "svg") return "";
-    doc.querySelectorAll("script, foreignObject, iframe, object, embed").forEach((element) => element.remove());
-    doc.querySelectorAll("*").forEach((element) => {
-      Array.from(element.attributes).forEach((attribute) => {
-        const name = attribute.name.toLowerCase();
-        const rawValue = String(attribute.value || "");
-        if (name.startsWith("on") || /javascript:/i.test(rawValue)) {
-          element.removeAttribute(attribute.name);
-        }
-      });
-    });
-    return new XMLSerializer().serializeToString(doc.documentElement);
-  } catch {
-    return "";
-  }
+	const source = String(value || "").trim();
+	if (!/^<svg[\s>]/i.test(source) || source.length > 16000) return "";
+	try {
+		const doc = new DOMParser().parseFromString(source, "image/svg+xml");
+		if (
+			doc.querySelector("parsererror") ||
+			doc.documentElement?.tagName?.toLowerCase() !== "svg"
+		)
+			return "";
+		doc
+			.querySelectorAll("script, foreignObject, iframe, object, embed")
+			.forEach((element) => {
+				element.remove();
+			});
+		doc.querySelectorAll("*").forEach((element) => {
+			Array.from(element.attributes).forEach((attribute) => {
+				const name = attribute.name.toLowerCase();
+				const rawValue = String(attribute.value || "");
+				if (name.startsWith("on") || /javascript:/i.test(rawValue)) {
+					element.removeAttribute(attribute.name);
+				}
+			});
+		});
+		return new XMLSerializer().serializeToString(doc.documentElement);
+	} catch {
+		return "";
+	}
 }
 
 function svgIconDataUrl(value) {
-  const sanitized = sanitizeSvgText(value);
-  return sanitized ? `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(sanitized)}` : "";
+	const sanitized = sanitizeSvgText(value);
+	return sanitized
+		? `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(sanitized)}`
+		: "";
 }
 
 function trackerIconHtml(source) {
-  const value = String(source || "").trim();
-  if (/^<svg[\s>]/i.test(value)) {
-    const dataUrl = svgIconDataUrl(value);
-    if (dataUrl) return `<img class="tracker-orb-image" src="${escapeHtml(dataUrl)}" alt="">`;
-  }
-  if (isImageIconSource(value)) {
-    return `<img class="tracker-orb-image" src="${escapeHtml(value)}" alt="">`;
-  }
-  return iconHtml(value || "tabler:circle");
+	const value = String(source || "").trim();
+	if (/^<svg[\s>]/i.test(value)) {
+		const dataUrl = svgIconDataUrl(value);
+		if (dataUrl)
+			return `<img class="tracker-orb-image" src="${escapeHtml(dataUrl)}" alt="">`;
+	}
+	if (isImageIconSource(value)) {
+		return `<img class="tracker-orb-image" src="${escapeHtml(value)}" alt="">`;
+	}
+	return iconHtml(value || "tabler:circle");
 }
 
 function iconDisplayName(icon) {
-  const value = normalizeIconSource(icon);
-  if (!value) return "Pick icon";
-  if (/^<svg[\s>]/i.test(value) || isImageIconSource(value)) return "Custom";
-  return iconifyIconLabel(value) || value;
+	const value = normalizeIconSource(icon);
+	if (!value) return "Pick icon";
+	if (/^<svg[\s>]/i.test(value) || isImageIconSource(value)) return "Custom";
+	return iconifyIconLabel(value) || value;
 }
 
 function iconPickerFieldHtml({
-  fieldId,
-  value,
-  title,
-  color = "var(--accent)",
-  colorFieldId = "",
-  colorValue = "",
-  previewId = "",
-  showLabel = true
+	fieldId,
+	value,
+	title,
+	color = "var(--accent)",
+	colorFieldId = "",
+	colorValue = "",
+	previewId = "",
+	showLabel = true,
 }) {
-  const icon = normalizeIconSource(value) || "tabler:circle";
-  const label = iconDisplayName(icon);
-  const resolvedColor = normalizeHexColor(colorValue, normalizeHexColor(color, color) || color);
-  const triggerText = showLabel ? `<span class="icon-picker-trigger-label">${escapeHtml(label)}</span>` : "";
-  return `
+	const icon = normalizeIconSource(value) || "tabler:circle";
+	const label = iconDisplayName(icon);
+	const resolvedColor = normalizeHexColor(
+		colorValue,
+		normalizeHexColor(color, color) || color,
+	);
+	const triggerText = showLabel
+		? `<span class="icon-picker-trigger-label">${escapeHtml(label)}</span>`
+		: "";
+	return `
     <input class="icon-picker-input" id="${escapeHtml(fieldId)}" type="hidden" value="${escapeHtml(icon)}">
     ${colorFieldId ? `<input class="icon-picker-input" id="${escapeHtml(colorFieldId)}" type="hidden" value="${escapeHtml(resolvedColor)}">` : ""}
     <button class="icon-picker-trigger" data-action="open-icon-picker" data-icon-field="${escapeHtml(fieldId)}" data-icon-title="${escapeHtml(title || "Choose icon")}" data-icon-color="${escapeHtml(resolvedColor)}"${colorFieldId ? ` data-icon-color-field="${escapeHtml(colorFieldId)}"` : ""}${previewId ? ` data-icon-preview="${escapeHtml(previewId)}"` : ""} type="button" aria-label="${escapeHtml(`Choose icon: ${label}`)}" title="${escapeHtml(`Choose icon: ${label}`)}" style="--icon-picker-color: ${escapeHtml(resolvedColor)};">
@@ -2323,126 +2806,162 @@ function iconPickerFieldHtml({
 }
 
 function trackerEditKey(area, id, kind = "thought") {
-  return `${trackerKind(kind)}:${area}:${id}`;
+	return `${trackerKind(kind)}:${area}:${id}`;
 }
 
 function parseTrackerEditKey(value) {
-  const parts = String(value || "").split(":");
-  if (parts.length >= 3) {
-    return {
-      kind: trackerKind(parts[0]),
-      area: parts[1] || "",
-      id: parts.slice(2).join(":")
-    };
-  }
-  return {
-    kind: "thought",
-    area: parts[0] || "",
-    id: parts[1] || ""
-  };
+	const parts = String(value || "").split(":");
+	if (parts.length >= 3) {
+		return {
+			kind: trackerKind(parts[0]),
+			area: parts[1] || "",
+			id: parts.slice(2).join(":"),
+		};
+	}
+	return {
+		kind: "thought",
+		area: parts[0] || "",
+		id: parts[1] || "",
+	};
 }
 
 function iconifySearchKey(query, limit = 7) {
-  return `${String(query || "").trim().toLowerCase()}|${limit}|${ICONIFY_PREFIXES}`;
+	return `${String(query || "")
+		.trim()
+		.toLowerCase()}|${limit}|${ICONIFY_PREFIXES}`;
 }
 
 function normalizeIconifyIcon(value) {
-  return normalizeIconSource(String(value || "").trim());
+	return normalizeIconSource(String(value || "").trim());
 }
 
 function iconifyIconLabel(icon) {
-  return normalizeIconifyIcon(icon).replace(/^[^:]+:/, "");
+	return normalizeIconifyIcon(icon).replace(/^[^:]+:/, "");
 }
 
 function iconSuggestionsForLabel(label, limit = 7) {
-  const query = String(label || "").trim();
-  if (query.length < 3) return [];
-  return (state.iconSearchCache?.[iconifySearchKey(query, limit)] || [])
-    .slice(0, limit)
-    .map((icon) => ({ icon: normalizeIconifyIcon(icon) }));
+	const query = String(label || "").trim();
+	if (query.length < 3) return [];
+	return (state.iconSearchCache?.[iconifySearchKey(query, limit)] || [])
+		.slice(0, limit)
+		.map((icon) => ({ icon: normalizeIconifyIcon(icon) }));
 }
 
 function firstIconSuggestion(label, fallback = "tabler:circle") {
-  return iconSuggestionsForLabel(label, 1)[0]?.icon || fallback;
+	return iconSuggestionsForLabel(label, 1)[0]?.icon || fallback;
 }
 
 async function searchIconifyIcons(label, limit = 7) {
-  const query = String(label || "").trim();
-  if (query.length < 3) return [];
-  const cacheKey = iconifySearchKey(query, limit);
-  if (Array.isArray(state.iconSearchCache?.[cacheKey])) return state.iconSearchCache[cacheKey];
-  if (state.iconSearchInFlight[cacheKey]) return state.iconSearchInFlight[cacheKey];
+	const query = String(label || "").trim();
+	if (query.length < 3) return [];
+	const cacheKey = iconifySearchKey(query, limit);
+	if (Array.isArray(state.iconSearchCache?.[cacheKey]))
+		return state.iconSearchCache[cacheKey];
+	if (state.iconSearchInFlight[cacheKey])
+		return state.iconSearchInFlight[cacheKey];
 
-  const params = new URLSearchParams({
-    query,
-    limit: String(Math.max(32, limit)),
-    prefixes: ICONIFY_PREFIXES
-  });
-  state.iconSearchInFlight[cacheKey] = fetch(`${ICONIFY_SEARCH_URL}?${params.toString()}`)
-    .then((response) => {
-      if (!response.ok) throw new Error(`Iconify search failed (${response.status}).`);
-      return response.json();
-    })
-    .then((payload) => {
-      const icons = Array.isArray(payload.icons)
-        ? payload.icons.map(normalizeIconifyIcon).filter(Boolean).slice(0, Math.max(32, limit))
-        : [];
-      state.iconSearchCache = {
-        ...(state.iconSearchCache || {}),
-        [cacheKey]: icons
-      };
-      saveIconifySearchCache(state.iconSearchCache);
-      return icons;
-    })
-    .catch(() => [])
-    .finally(() => {
-      const { [cacheKey]: _done, ...rest } = state.iconSearchInFlight;
-      state.iconSearchInFlight = rest;
-    });
-  return state.iconSearchInFlight[cacheKey];
+	const params = new URLSearchParams({
+		query,
+		limit: String(Math.max(32, limit)),
+		prefixes: ICONIFY_PREFIXES,
+	});
+	state.iconSearchInFlight[cacheKey] = fetch(
+		`${ICONIFY_SEARCH_URL}?${params.toString()}`,
+	)
+		.then((response) => {
+			if (!response.ok)
+				throw new Error(`Iconify search failed (${response.status}).`);
+			return response.json();
+		})
+		.then((payload) => {
+			const icons = Array.isArray(payload.icons)
+				? payload.icons
+						.map(normalizeIconifyIcon)
+						.filter(Boolean)
+						.slice(0, Math.max(32, limit))
+				: [];
+			state.iconSearchCache = {
+				...(state.iconSearchCache || {}),
+				[cacheKey]: icons,
+			};
+			saveIconifySearchCache(state.iconSearchCache);
+			return icons;
+		})
+		.catch(() => [])
+		.finally(() => {
+			const { [cacheKey]: _done, ...rest } = state.iconSearchInFlight;
+			state.iconSearchInFlight = rest;
+		});
+	return state.iconSearchInFlight[cacheKey];
 }
 
 function iconPickerSearchResults(query, limit) {
-  const normalizedQuery = String(query || "").trim().toLowerCase();
-  const selected = normalizeIconSource(state.iconPicker?.selected || "");
-  const withSelected = (icons) => {
-    const unique = [...new Set(icons.map(normalizeIconifyIcon).filter(Boolean))];
-    if (selected && !unique.includes(selected) && (!normalizedQuery || selected.toLowerCase().includes(normalizedQuery))) {
-      unique.unshift(selected);
-    }
-    return unique.slice(0, limit);
-  };
-  if (!normalizedQuery) return withSelected(ICON_PICKER_DEFAULT_ICONS);
-  if (normalizedQuery.length < 3) {
-    return withSelected(ICON_PICKER_DEFAULT_ICONS
-      .filter((icon) => icon.toLowerCase().includes(normalizedQuery))
-    );
-  }
-  return withSelected(state.iconSearchCache?.[iconifySearchKey(normalizedQuery, limit)] || []);
+	const normalizedQuery = String(query || "")
+		.trim()
+		.toLowerCase();
+	const selected = normalizeIconSource(state.iconPicker?.selected || "");
+	const withSelected = (icons) => {
+		const unique = [
+			...new Set(icons.map(normalizeIconifyIcon).filter(Boolean)),
+		];
+		if (
+			selected &&
+			!unique.includes(selected) &&
+			(!normalizedQuery || selected.toLowerCase().includes(normalizedQuery))
+		) {
+			unique.unshift(selected);
+		}
+		return unique.slice(0, limit);
+	};
+	if (!normalizedQuery) return withSelected(ICON_PICKER_DEFAULT_ICONS);
+	if (normalizedQuery.length < 3) {
+		return withSelected(
+			ICON_PICKER_DEFAULT_ICONS.filter((icon) =>
+				icon.toLowerCase().includes(normalizedQuery),
+			),
+		);
+	}
+	return withSelected(
+		state.iconSearchCache?.[iconifySearchKey(normalizedQuery, limit)] || [],
+	);
 }
 
 function iconPickerGridHtml() {
-  const picker = state.iconPicker;
-  if (!picker) return "";
-  const selected = normalizeIconSource(picker.selected || "tabler:circle");
-  const query = String(picker.query || "").trim();
-  const limit = Math.max(ICON_PICKER_PAGE_SIZE, Number(picker.limit) || ICON_PICKER_PAGE_SIZE);
-  const icons = iconPickerSearchResults(query, limit);
-  const isSearchable = query.length >= 3;
-  const isSearching = isSearchable && Boolean(state.iconSearchInFlight?.[iconifySearchKey(query, limit)]);
-  const emptyText = query.length && query.length < 3
-    ? "Type at least 3 letters to search more icons."
-    : isSearching
-      ? "Loading icons..."
-      : "No icons found yet.";
-  return `
+	const picker = state.iconPicker;
+	if (!picker) return "";
+	const selected = normalizeIconSource(picker.selected || "tabler:circle");
+	const query = String(picker.query || "").trim();
+	const limit = Math.max(
+		ICON_PICKER_PAGE_SIZE,
+		Number(picker.limit) || ICON_PICKER_PAGE_SIZE,
+	);
+	const icons = iconPickerSearchResults(query, limit);
+	const isSearchable = query.length >= 3;
+	const isSearching =
+		isSearchable &&
+		Boolean(state.iconSearchInFlight?.[iconifySearchKey(query, limit)]);
+	const emptyText =
+		query.length && query.length < 3
+			? "Type at least 3 letters to search more icons."
+			: isSearching
+				? "Loading icons..."
+				: "No icons found yet.";
+	return `
     <div class="icon-picker-grid" role="listbox" aria-label="Icon choices">
-      ${icons.length ? icons.map((icon) => `
+      ${
+				icons.length
+					? icons
+							.map(
+								(icon) => `
         <button class="icon-picker-option${selected === icon ? " is-selected" : ""}" data-action="select-icon-picker-icon" data-icon="${escapeHtml(icon)}" type="button" role="option" aria-selected="${selected === icon ? "true" : "false"}" title="${escapeHtml(icon)}">
           <span class="icon-picker-option-symbol" aria-hidden="true">${trackerIconHtml(icon)}</span>
           <span>${escapeHtml(iconDisplayName(icon))}</span>
         </button>
-      `).join("") : `<div class="icon-picker-empty">${escapeHtml(emptyText)}</div>`}
+      `,
+							)
+							.join("")
+					: `<div class="icon-picker-empty">${escapeHtml(emptyText)}</div>`
+			}
     </div>
     <button class="secondary-button icon-picker-load-more" data-action="load-more-icon-picker" type="button"${query.length && query.length < 3 ? " disabled" : ""}>
       ${buttonContent("tabler:plus", "Load More")}
@@ -2451,11 +2970,16 @@ function iconPickerGridHtml() {
 }
 
 function iconPickerColorHtml() {
-  const picker = state.iconPicker;
-  if (!picker?.colorFieldId) return "";
-  const selectedColor = normalizeHexColor(picker.selectedColor, normalizeHexColor(picker.color, DASHBOARD_COLORS.Mind));
-  const presets = Array.from(new Set([selectedColor, ...ICON_PICKER_COLOR_PRESETS]));
-  return `
+	const picker = state.iconPicker;
+	if (!picker?.colorFieldId) return "";
+	const selectedColor = normalizeHexColor(
+		picker.selectedColor,
+		normalizeHexColor(picker.color, DASHBOARD_COLORS.Mind),
+	);
+	const presets = Array.from(
+		new Set([selectedColor, ...ICON_PICKER_COLOR_PRESETS]),
+	);
+	return `
     <section class="icon-picker-color" aria-label="Color picker">
       <div class="icon-picker-color-top">
         <span>Color</span>
@@ -2465,21 +2989,25 @@ function iconPickerColorHtml() {
         </label>
       </div>
       <div class="icon-picker-swatches" role="listbox" aria-label="Color choices">
-        ${presets.map((color) => `
+        ${presets
+					.map(
+						(color) => `
           <button class="icon-picker-swatch${selectedColor === color ? " is-selected" : ""}" data-action="select-icon-picker-color" data-color="${escapeHtml(color)}" type="button" role="option" aria-selected="${selectedColor === color ? "true" : "false"}" aria-label="${escapeHtml(color)}" title="${escapeHtml(color)}" style="--picked-color: ${escapeHtml(color)};"></button>
-        `).join("")}
+        `,
+					)
+					.join("")}
       </div>
     </section>
   `;
 }
 
 function iconPickerOverlayHtml() {
-  const picker = state.iconPicker;
-  if (!picker) return "";
-  const selected = normalizeIconSource(picker.selected || "tabler:circle");
-  const title = picker.title || "Choose icon";
-  const color = picker.color || "var(--accent)";
-  return `
+	const picker = state.iconPicker;
+	if (!picker) return "";
+	const selected = normalizeIconSource(picker.selected || "tabler:circle");
+	const title = picker.title || "Choose icon";
+	const color = picker.color || "var(--accent)";
+	return `
     <div class="icon-picker-overlay" data-icon-picker-overlay>
       <section class="icon-picker-panel" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}" style="--icon-picker-color: ${escapeHtml(color)};">
         <header class="icon-picker-header">
@@ -2510,172 +3038,228 @@ function iconPickerOverlayHtml() {
 }
 
 function trackerKind(kind) {
-  return kind === "goal" ? "goal" : "thought";
+	return kind === "goal" ? "goal" : "thought";
 }
 
 function trackerKindConfig(kind) {
-  const normalized = trackerKind(kind);
-  return normalized === "goal"
-    ? {
-      kind: "goal",
-      noun: "goal",
-      plural: "goals",
-      proper: "Goal",
-      properPlural: "Goals",
-      addLabel: "Add Goal",
-      addTooltip: "Add goal",
-      emptyNameAlert: "Add a goal name.",
-      timestampVerb: "Checked",
-      role: "goal-progress",
-      labelProp: "goalLabel",
-      iconProp: "goalIcon",
-      idProp: "goalId",
-      loggedProp: "goalLoggedAt"
-    }
-    : {
-      kind: "thought",
-      noun: "thought",
-      plural: "thoughts",
-      proper: "Thought",
-      properPlural: "Thoughts",
-      addLabel: "Add Thought",
-      addTooltip: "Add thought",
-      emptyNameAlert: "Add a thought name.",
-      timestampVerb: "Logged",
-      role: "thought",
-      labelProp: "thoughtLabel",
-      iconProp: "thoughtIcon",
-      idProp: "thoughtId",
-      loggedProp: "thoughtLoggedAt"
-    };
+	const normalized = trackerKind(kind);
+	return normalized === "goal"
+		? {
+				kind: "goal",
+				noun: "goal",
+				plural: "goals",
+				proper: "Goal",
+				properPlural: "Goals",
+				addLabel: "Add Goal",
+				addTooltip: "Add goal",
+				emptyNameAlert: "Add a goal name.",
+				timestampVerb: "Checked",
+				role: "goal-progress",
+				labelProp: "goalLabel",
+				iconProp: "goalIcon",
+				idProp: "goalId",
+				loggedProp: "goalLoggedAt",
+			}
+		: {
+				kind: "thought",
+				noun: "thought",
+				plural: "thoughts",
+				proper: "Thought",
+				properPlural: "Thoughts",
+				addLabel: "Add Thought",
+				addTooltip: "Add thought",
+				emptyNameAlert: "Add a thought name.",
+				timestampVerb: "Logged",
+				role: "thought",
+				labelProp: "thoughtLabel",
+				iconProp: "thoughtIcon",
+				idProp: "thoughtId",
+				loggedProp: "thoughtLoggedAt",
+			};
 }
 
 function trackerSettingsForKind(kind) {
-  return trackerKind(kind) === "goal" ? state.goalSettings : state.trackerSettings;
+	return trackerKind(kind) === "goal"
+		? state.goalSettings
+		: state.trackerSettings;
 }
 
 function saveTrackerSettingsForKind(kind) {
-  if (trackerKind(kind) === "goal") saveGoalSettings();
-  else saveTrackerSettings();
+	if (trackerKind(kind) === "goal") saveGoalSettings();
+	else saveTrackerSettings();
 }
 
-function normalizeTrackerSettingsForKind(kind, settings) {
-  return trackerKind(kind) === "goal"
-    ? normalizeGoalSettings(settings)
-    : normalizeTrackerSettings(settings);
+function _normalizeTrackerSettingsForKind(kind, settings) {
+	return trackerKind(kind) === "goal"
+		? normalizeGoalSettings(settings)
+		: normalizeTrackerSettings(settings);
 }
 
 function trackerAddKey(area, kind = "thought") {
-  return `${trackerKind(kind)}:${area}`;
+	return `${trackerKind(kind)}:${area}`;
 }
 
 function isTrackerAddOpen(area, kind = "thought") {
-  const key = state.trackerAddArea || "";
-  return key === trackerAddKey(area, kind) || (trackerKind(kind) === "thought" && key === area);
+	const key = state.trackerAddArea || "";
+	return (
+		key === trackerAddKey(area, kind) ||
+		(trackerKind(kind) === "thought" && key === area)
+	);
 }
 
 function trackerStripHtml(dashboard, options = {}) {
-  const kind = trackerKind(options.kind);
-  const isCombined = options.combined === true;
-  const config = isCombined
-    ? {
-      kind: "combined",
-      noun: "orb",
-      plural: "orbs",
-      proper: "Orb",
-      properPlural: "Orbs",
-      addLabel: "Add Orb",
-      addTooltip: "Add orb",
-      emptyNameAlert: "Add an orb name.",
-      timestampVerb: "Saved",
-      role: "thought",
-      labelProp: "thoughtLabel",
-      iconProp: "thoughtIcon",
-      idProp: "thoughtId",
-      loggedProp: "thoughtLoggedAt"
-    }
-    : trackerKindConfig(kind);
-  const normalizedKind = trackerKind(kind);
-  const editable = Boolean(options.editable);
-  const compact = Boolean(options.compact);
-  const stripLabel = options.label || "";
-  const stripIcon = options.icon || "";
-  let entries = [];
-  let maxPage = 0;
-  let page = 0;
-  const maxVisibleOrbs = TRACKER_ORBS_PER_ROW * TRACKER_ORB_ROWS;
-  let reorderEnabled = editable;
-  if (isCombined) {
-    const thoughtTrackers = trackerSettingsForKind("thought")?.[dashboard] || [];
-    const goalTrackers = trackerSettingsForKind("goal")?.[dashboard] || [];
-    const enabledGoals = goalTrackers.filter((goal) => goal?.enabled);
-    entries = [
-      ...thoughtTrackers.map((tracker) => ({ ...tracker, trackerKind: "thought" })),
-      ...enabledGoals.map((goal) => ({ ...goal, trackerKind: "goal" }))
-    ];
-    reorderEnabled = entries.length >= maxVisibleOrbs;
-  } else {
-    const allTrackers = trackerSettingsForKind(normalizedKind)?.[dashboard] || [];
-    entries = normalizedKind === "goal"
-      ? (allTrackers.filter((tracker) => tracker?.enabled))
-      : allTrackers;
-    if (editable) {
-      entries = [...allTrackers, { id: "__add__", label: config.addTooltip, icon: "tabler:plus", isAdd: true }];
-    }
-    maxPage = Math.max(0, Math.ceil(entries.length / TRACKER_ORBS_PER_PAGE) - 1);
-    page = trackerPage(dashboard, editable, maxPage, kind);
-  }
-  const visibleEntries = isCombined
-    ? (reorderEnabled ? entries : entries.slice(0, maxVisibleOrbs))
-    : entries.slice(page * TRACKER_ORBS_PER_PAGE, (page + 1) * TRACKER_ORBS_PER_PAGE);
-  if (!editable && !visibleEntries.length) return "";
-  return `
+	const kind = trackerKind(options.kind);
+	const isCombined = options.combined === true;
+	const config = isCombined
+		? {
+				kind: "combined",
+				noun: "orb",
+				plural: "orbs",
+				proper: "Orb",
+				properPlural: "Orbs",
+				addLabel: "Add Orb",
+				addTooltip: "Add orb",
+				emptyNameAlert: "Add an orb name.",
+				timestampVerb: "Saved",
+				role: "thought",
+				labelProp: "thoughtLabel",
+				iconProp: "thoughtIcon",
+				idProp: "thoughtId",
+				loggedProp: "thoughtLoggedAt",
+			}
+		: trackerKindConfig(kind);
+	const normalizedKind = trackerKind(kind);
+	const editable = Boolean(options.editable);
+	const compact = Boolean(options.compact);
+	const stripLabel = options.label || "";
+	const stripIcon = options.icon || "";
+	let entries = [];
+	let maxPage = 0;
+	let page = 0;
+	const maxVisibleOrbs = TRACKER_ORBS_PER_ROW * TRACKER_ORB_ROWS;
+	let reorderEnabled = editable;
+	if (isCombined) {
+		const thoughtTrackers =
+			trackerSettingsForKind("thought")?.[dashboard] || [];
+		const goalTrackers = trackerSettingsForKind("goal")?.[dashboard] || [];
+		const enabledGoals = goalTrackers.filter((goal) => goal?.enabled);
+		entries = [
+			...thoughtTrackers.map((tracker) => ({
+				...tracker,
+				trackerKind: "thought",
+			})),
+			...enabledGoals.map((goal) => ({ ...goal, trackerKind: "goal" })),
+		];
+		reorderEnabled = entries.length >= maxVisibleOrbs;
+	} else {
+		const allTrackers =
+			trackerSettingsForKind(normalizedKind)?.[dashboard] || [];
+		entries =
+			normalizedKind === "goal"
+				? allTrackers.filter((tracker) => tracker?.enabled)
+				: allTrackers;
+		if (editable) {
+			entries = [
+				...allTrackers,
+				{
+					id: "__add__",
+					label: config.addTooltip,
+					icon: "tabler:plus",
+					isAdd: true,
+				},
+			];
+		}
+		maxPage = Math.max(
+			0,
+			Math.ceil(entries.length / TRACKER_ORBS_PER_PAGE) - 1,
+		);
+		page = trackerPage(dashboard, editable, maxPage, kind);
+	}
+	const visibleEntries = isCombined
+		? reorderEnabled
+			? entries
+			: entries.slice(0, maxVisibleOrbs)
+		: entries.slice(
+				page * TRACKER_ORBS_PER_PAGE,
+				(page + 1) * TRACKER_ORBS_PER_PAGE,
+			);
+	if (!editable && !visibleEntries.length) return "";
+	return `
     <section class="tracker-strip${compact ? " tracker-strip--compact" : ""}${editable ? " is-editable" : ""}" aria-label="${escapeHtml(dashboard)} ${escapeHtml(config.plural)}" style="--thought-color: ${dashboardColor(dashboard)};">
       ${stripLabel ? `<div class="tracker-strip-heading">${stripIcon ? `${iconHtml(stripIcon)} ` : ""}<span>${escapeHtml(stripLabel)}</span></div>` : ""}
       <div class="tracker-orb-row${isCombined ? " tracker-orb-row--combined" : ""}${reorderEnabled ? " is-reorder-enabled" : ""}" data-kind="${isCombined ? "combined" : kind}" data-area="${escapeHtml(dashboard)}" data-tracker-combined="${isCombined ? "true" : "false"}" data-tracker-draggable="${reorderEnabled ? "true" : "false"}"${editable || reorderEnabled ? ` data-tracker-reorder-row data-kind="${isCombined ? "combined" : kind}" data-area="${escapeHtml(dashboard)}"` : ""}>
-        ${visibleEntries.map((tracker) => tracker.isAdd ? `
+        ${visibleEntries
+					.map((tracker) =>
+						tracker.isAdd
+							? `
           <span class="tracker-orb-wrap">
             <button class="tracker-orb tracker-orb--add" data-action="start-add-tracker" data-kind="${kind}" data-area="${escapeHtml(dashboard)}" data-thought-tooltip="${escapeHtml(config.addTooltip)}" type="button" aria-label="Add ${escapeHtml(dashboard)} ${escapeHtml(config.noun)}">
               ${iconHtml("tabler:plus")}
             </button>
           </span>
-        ` : trackerOrbHtml(dashboard, tracker, editable, tracker.trackerKind || kind, reorderEnabled)).join("")}
+        `
+							: trackerOrbHtml(
+									dashboard,
+									tracker,
+									editable,
+									tracker.trackerKind || kind,
+									reorderEnabled,
+								),
+					)
+					.join("")}
       </div>
-      ${maxPage > 0 ? `
+      ${
+				maxPage > 0
+					? `
         <div class="tracker-page-controls" aria-label="${escapeHtml(dashboard)} ${escapeHtml(config.noun)} pages">
           <button data-action="tracker-page" data-kind="${kind}" data-area="${escapeHtml(dashboard)}" data-direction="prev" data-max-page="${maxPage}" data-editable="${editable ? "true" : "false"}" type="button" aria-label="Previous ${escapeHtml(dashboard)} ${escapeHtml(config.plural)}"${page <= 0 ? " disabled" : ""}>${iconHtml("tabler:chevron-left")}</button>
           <span>${page + 1} / ${maxPage + 1}</span>
           <button data-action="tracker-page" data-kind="${kind}" data-area="${escapeHtml(dashboard)}" data-direction="next" data-max-page="${maxPage}" data-editable="${editable ? "true" : "false"}" type="button" aria-label="Next ${escapeHtml(dashboard)} ${escapeHtml(config.plural)}"${page >= maxPage ? " disabled" : ""}>${iconHtml("tabler:chevron-right")}</button>
         </div>
-      ` : ""}
+      `
+					: ""
+			}
     </section>
   `;
 }
 
 function trackerTooltipLabel(dashboard, tracker, kind = "thought") {
-  if (trackerKind(kind) !== "goal") return tracker.label;
-  const count = goalProgressCount(dashboard, tracker.id);
-  return count ? `${tracker.label} / ${count} check${count === 1 ? "" : "s"}` : tracker.label;
+	if (trackerKind(kind) !== "goal") return tracker.label;
+	const count = goalProgressCount(dashboard, tracker.id);
+	return count
+		? `${tracker.label} / ${count} check${count === 1 ? "" : "s"}`
+		: tracker.label;
 }
 
-function trackerOrbHtml(dashboard, tracker, editable = false, kind = "thought", allowReorder = false) {
-  const resolvedKind = tracker?.trackerKind || kind;
-  const normalizedKind = trackerKind(resolvedKind);
-  const config = trackerKindConfig(normalizedKind);
-  const cooldownRemaining = editable ? 0 : thoughtCooldownRemaining(dashboard, tracker.id, normalizedKind);
-  const isCooling = cooldownRemaining > 0;
-  const isEnabled = normalizedKind !== "goal" || tracker?.enabled;
-  const isEditing = state.trackerEditKey === trackerEditKey(dashboard, tracker.id, normalizedKind);
-  const actionAttrs = editable
-    ? ` data-action="start-edit-tracker" data-kind="${normalizedKind}" data-area="${escapeHtml(dashboard)}" data-id="${escapeHtml(tracker.id)}"`
-    : isEnabled
-      ? ` data-action="${normalizedKind === "goal" ? "quick-goal" : "quick-thought"}" data-kind="${normalizedKind}" data-area="${escapeHtml(dashboard)}" data-id="${escapeHtml(tracker.id)}"`
-      : "";
-  const tooltip = normalizedKind === "goal" && !tracker?.enabled
-    ? "Enable in settings first"
-    : trackerTooltipLabel(dashboard, tracker, normalizedKind);
-  const isDraggable = editable || allowReorder;
-  return `
+function trackerOrbHtml(
+	dashboard,
+	tracker,
+	editable = false,
+	kind = "thought",
+	allowReorder = false,
+) {
+	const resolvedKind = tracker?.trackerKind || kind;
+	const normalizedKind = trackerKind(resolvedKind);
+	const config = trackerKindConfig(normalizedKind);
+	const cooldownRemaining = editable
+		? 0
+		: thoughtCooldownRemaining(dashboard, tracker.id, normalizedKind);
+	const isCooling = cooldownRemaining > 0;
+	const isEnabled = normalizedKind !== "goal" || tracker?.enabled;
+	const isEditing =
+		state.trackerEditKey ===
+		trackerEditKey(dashboard, tracker.id, normalizedKind);
+	const actionAttrs = editable
+		? ` data-action="start-edit-tracker" data-kind="${normalizedKind}" data-area="${escapeHtml(dashboard)}" data-id="${escapeHtml(tracker.id)}"`
+		: isEnabled
+			? ` data-action="${normalizedKind === "goal" ? "quick-goal" : "quick-thought"}" data-kind="${normalizedKind}" data-area="${escapeHtml(dashboard)}" data-id="${escapeHtml(tracker.id)}"`
+			: "";
+	const tooltip =
+		normalizedKind === "goal" && !tracker?.enabled
+			? "Enable in settings first"
+			: trackerTooltipLabel(dashboard, tracker, normalizedKind);
+	const isDraggable = editable || allowReorder;
+	return `
     <span class="tracker-orb-wrap"${isDraggable ? ` data-tracker-orb-wrap data-kind="${normalizedKind}" data-area="${escapeHtml(dashboard)}" data-id="${escapeHtml(tracker.id)}"` : ""}>
       <button class="tracker-orb${isCooling ? " is-cooling" : ""}${isEditing ? " is-editing" : ""}${isEnabled ? "" : " is-disabled"}" type="button"${actionAttrs} data-thought-tooltip="${escapeHtml(tooltip)}" aria-label="${escapeHtml(`${dashboardDisplayLabel(dashboard)} ${config.noun}: ${tracker.label}`)}"${isCooling || (!isEnabled && !editable) ? " disabled" : ""}>
         ${isCooling ? `<span class="tracker-cooldown-pie" aria-hidden="true"${thoughtCooldownPieStyle(cooldownRemaining)}></span>` : ""}
@@ -2686,14 +3270,16 @@ function trackerOrbHtml(dashboard, tracker, editable = false, kind = "thought", 
 }
 
 function hasDashboardOrbs(dashboard) {
-  const thoughtTrackers = trackerSettingsForKind("thought")?.[dashboard] || [];
-  const enabledGoals = (trackerSettingsForKind("goal")?.[dashboard] || []).filter((goal) => goal?.enabled);
-  return thoughtTrackers.length > 0 || enabledGoals.length > 0;
+	const thoughtTrackers = trackerSettingsForKind("thought")?.[dashboard] || [];
+	const enabledGoals = (
+		trackerSettingsForKind("goal")?.[dashboard] || []
+	).filter((goal) => goal?.enabled);
+	return thoughtTrackers.length > 0 || enabledGoals.length > 0;
 }
 
 function dashboardOrbNavHtml(dashboard) {
-  if (!hasDashboardOrbs(dashboard)) return "";
-  return `
+	if (!hasDashboardOrbs(dashboard)) return "";
+	return `
     <div class="dashboard-orb-nav" aria-label="${escapeHtml(dashboardDisplayLabel(dashboard))} orbs">
       ${trackerStripHtml(dashboard, { combined: true, label: "", icon: "tabler:planet" })}
     </div>
@@ -2701,860 +3287,1090 @@ function dashboardOrbNavHtml(dashboard) {
 }
 
 function trackerFieldId(area, field) {
-  return `tracker-${String(area).toLowerCase()}-${field}`;
+	return `tracker-${String(area).toLowerCase()}-${field}`;
 }
 
 function addTracker(area, kind = "thought") {
-  if (!DASHBOARD_LABELS.includes(area)) return;
-  const normalizedKind = trackerKind(kind);
-  const config = trackerKindConfig(normalizedKind);
-  const label = document.getElementById(trackerFieldId(area, "label"))?.value.trim();
-  const iconInput = document.getElementById(trackerFieldId(area, "icon"))?.value.trim();
-  const icon = iconInput || firstIconSuggestion(label);
-  if (!label) {
-    window.alert(config.emptyNameAlert);
-    return;
-  }
-  const currentSettings = trackerSettingsForKind(normalizedKind);
-  const next = {
-    ...currentSettings,
-    [area]: [
-      ...(currentSettings?.[area] || []),
-      {
-        id: makeId(`${area.toLowerCase()}-tracker`),
-        label,
-        icon,
-        ...(normalizedKind === "goal" ? { enabled: true, ...normalizeGoalFrequency({}) } : {})
-      }
-    ]
-  };
-  if (normalizedKind === "goal") state.goalSettings = normalizeGoalSettings(next);
-  else state.trackerSettings = normalizeTrackerSettings(next);
-  saveTrackerSettingsForKind(normalizedKind);
-  setState({ trackerAddArea: "", trackerEditKey: "", trackerDeleteKey: "" });
+	if (!DASHBOARD_LABELS.includes(area)) return;
+	const normalizedKind = trackerKind(kind);
+	const config = trackerKindConfig(normalizedKind);
+	const label = document
+		.getElementById(trackerFieldId(area, "label"))
+		?.value.trim();
+	const iconInput = document
+		.getElementById(trackerFieldId(area, "icon"))
+		?.value.trim();
+	const icon = iconInput || firstIconSuggestion(label);
+	if (!label) {
+		window.alert(config.emptyNameAlert);
+		return;
+	}
+	const currentSettings = trackerSettingsForKind(normalizedKind);
+	const next = {
+		...currentSettings,
+		[area]: [
+			...(currentSettings?.[area] || []),
+			{
+				id: makeId(`${area.toLowerCase()}-tracker`),
+				label,
+				icon,
+				...(normalizedKind === "goal"
+					? { enabled: true, ...normalizeGoalFrequency({}) }
+					: {}),
+			},
+		],
+	};
+	if (normalizedKind === "goal")
+		state.goalSettings = normalizeGoalSettings(next);
+	else state.trackerSettings = normalizeTrackerSettings(next);
+	saveTrackerSettingsForKind(normalizedKind);
+	setState({ trackerAddArea: "", trackerEditKey: "", trackerDeleteKey: "" });
 }
 
 function updateTracker(area, id, kind = "thought", options = {}) {
-  if (!DASHBOARD_LABELS.includes(area) || !id) return;
-  const closeEditor = options.close !== false;
-  const silent = Boolean(options.silent);
-  const normalizedKind = trackerKind(kind);
-  const config = trackerKindConfig(normalizedKind);
-  const label = document.getElementById(trackerFieldId(`${area}-${id}`, "label"))?.value.trim();
-  const iconInput = document.getElementById(trackerFieldId(`${area}-${id}`, "icon"))?.value.trim();
-  const isGoal = normalizedKind === "goal";
-  const enabledInput = isGoal ? document.getElementById(trackerFieldId(`${area}-${id}`, "enabled")) : null;
-  const frequencyInput = isGoal ? document.getElementById(trackerFieldId(`${area}-${id}`, "frequency")) : null;
-  const customDaysInput = isGoal ? document.getElementById(trackerFieldId(`${area}-${id}`, "custom-days")) : null;
-  const currentSettings = trackerSettingsForKind(normalizedKind);
-  const current = (currentSettings?.[area] || []).find((tracker) => tracker.id === id);
-  if (!current || !label) {
-    if (!silent) window.alert(config.emptyNameAlert);
-    return;
-  }
-  const icon = iconInput || firstIconSuggestion(label, current.icon || "tabler:circle");
-  const next = {
-    ...currentSettings,
-    [area]: (currentSettings?.[area] || []).map((tracker) => (
-      tracker.id === id
-        ? {
-          ...tracker,
-          label,
-          icon,
-          ...(isGoal ? {
-            enabled: Boolean(enabledInput?.checked),
-            ...normalizeGoalFrequency({
-              frequency: frequencyInput?.value,
-              customDays: customDaysInput?.value
-            })
-          } : {})
-        }
-        : tracker
-    ))
-  };
-  if (normalizedKind === "goal") state.goalSettings = normalizeGoalSettings(next);
-  else state.trackerSettings = normalizeTrackerSettings(next);
-  saveTrackerSettingsForKind(normalizedKind);
-  if (closeEditor) setState({ trackerEditKey: "", trackerDeleteKey: "" });
+	if (!DASHBOARD_LABELS.includes(area) || !id) return;
+	const closeEditor = options.close !== false;
+	const silent = Boolean(options.silent);
+	const normalizedKind = trackerKind(kind);
+	const config = trackerKindConfig(normalizedKind);
+	const label = document
+		.getElementById(trackerFieldId(`${area}-${id}`, "label"))
+		?.value.trim();
+	const iconInput = document
+		.getElementById(trackerFieldId(`${area}-${id}`, "icon"))
+		?.value.trim();
+	const isGoal = normalizedKind === "goal";
+	const enabledInput = isGoal
+		? document.getElementById(trackerFieldId(`${area}-${id}`, "enabled"))
+		: null;
+	const frequencyInput = isGoal
+		? document.getElementById(trackerFieldId(`${area}-${id}`, "frequency"))
+		: null;
+	const customDaysInput = isGoal
+		? document.getElementById(trackerFieldId(`${area}-${id}`, "custom-days"))
+		: null;
+	const currentSettings = trackerSettingsForKind(normalizedKind);
+	const current = (currentSettings?.[area] || []).find(
+		(tracker) => tracker.id === id,
+	);
+	if (!current || !label) {
+		if (!silent) window.alert(config.emptyNameAlert);
+		return;
+	}
+	const icon =
+		iconInput || firstIconSuggestion(label, current.icon || "tabler:circle");
+	const next = {
+		...currentSettings,
+		[area]: (currentSettings?.[area] || []).map((tracker) =>
+			tracker.id === id
+				? {
+						...tracker,
+						label,
+						icon,
+						...(isGoal
+							? {
+									enabled: Boolean(enabledInput?.checked),
+									...normalizeGoalFrequency({
+										frequency: frequencyInput?.value,
+										customDays: customDaysInput?.value,
+									}),
+								}
+							: {}),
+					}
+				: tracker,
+		),
+	};
+	if (normalizedKind === "goal")
+		state.goalSettings = normalizeGoalSettings(next);
+	else state.trackerSettings = normalizeTrackerSettings(next);
+	saveTrackerSettingsForKind(normalizedKind);
+	if (closeEditor) setState({ trackerEditKey: "", trackerDeleteKey: "" });
 }
 
 function reorderTracker(area, trackerId, targetIndex, kind = "thought") {
-  if (!DASHBOARD_LABELS.includes(area)) return false;
-  const normalizedKind = trackerKind(kind);
-  const currentSettings = trackerSettingsForKind(normalizedKind);
-  const trackers = currentSettings?.[area] || [];
-  const fromIndex = trackers.findIndex((tracker) => tracker.id === trackerId);
-  if (fromIndex < 0) return false;
+	if (!DASHBOARD_LABELS.includes(area)) return false;
+	const normalizedKind = trackerKind(kind);
+	const currentSettings = trackerSettingsForKind(normalizedKind);
+	const trackers = currentSettings?.[area] || [];
+	const fromIndex = trackers.findIndex((tracker) => tracker.id === trackerId);
+	if (fromIndex < 0) return false;
 
-  const nextTrackers = [...trackers];
-  const [movedTracker] = nextTrackers.splice(fromIndex, 1);
-  const nextIndex = Math.min(Math.max(targetIndex, 0), nextTrackers.length);
-  nextTrackers.splice(nextIndex, 0, movedTracker);
-  if (nextTrackers.map((tracker) => tracker.id).join("|") === trackers.map((tracker) => tracker.id).join("|")) return false;
+	const nextTrackers = [...trackers];
+	const [movedTracker] = nextTrackers.splice(fromIndex, 1);
+	const nextIndex = Math.min(Math.max(targetIndex, 0), nextTrackers.length);
+	nextTrackers.splice(nextIndex, 0, movedTracker);
+	if (
+		nextTrackers.map((tracker) => tracker.id).join("|") ===
+		trackers.map((tracker) => tracker.id).join("|")
+	)
+		return false;
 
-  const next = {
-    ...currentSettings,
-    [area]: nextTrackers
-  };
-  if (normalizedKind === "goal") state.goalSettings = normalizeGoalSettings(next);
-  else state.trackerSettings = normalizeTrackerSettings(next);
-  saveTrackerSettingsForKind(normalizedKind);
-  setState({ trackerEditKey: "", trackerDeleteKey: "", trackerAddArea: "" });
-  return true;
+	const next = {
+		...currentSettings,
+		[area]: nextTrackers,
+	};
+	if (normalizedKind === "goal")
+		state.goalSettings = normalizeGoalSettings(next);
+	else state.trackerSettings = normalizeTrackerSettings(next);
+	saveTrackerSettingsForKind(normalizedKind);
+	setState({ trackerEditKey: "", trackerDeleteKey: "", trackerAddArea: "" });
+	return true;
 }
 
 function removeTracker(area, id, kind = "thought") {
-  if (!DASHBOARD_LABELS.includes(area) || !id) return;
-  const normalizedKind = trackerKind(kind);
-  const currentSettings = trackerSettingsForKind(normalizedKind);
-  const next = {
-    ...currentSettings,
-    [area]: (currentSettings?.[area] || []).filter((tracker) => tracker.id !== id)
-  };
-  if (normalizedKind === "goal") state.goalSettings = normalizeGoalSettings(next);
-  else state.trackerSettings = normalizeTrackerSettings(next);
-  saveTrackerSettingsForKind(normalizedKind);
-  setState({
-    trackerAddArea: state.trackerAddArea === trackerAddKey(area, normalizedKind) ? "" : state.trackerAddArea,
-    trackerEditKey: state.trackerEditKey === trackerEditKey(area, id, normalizedKind) ? "" : state.trackerEditKey,
-    trackerDeleteKey: state.trackerDeleteKey === trackerEditKey(area, id, normalizedKind) ? "" : state.trackerDeleteKey
-  });
+	if (!DASHBOARD_LABELS.includes(area) || !id) return;
+	const normalizedKind = trackerKind(kind);
+	const currentSettings = trackerSettingsForKind(normalizedKind);
+	const next = {
+		...currentSettings,
+		[area]: (currentSettings?.[area] || []).filter(
+			(tracker) => tracker.id !== id,
+		),
+	};
+	if (normalizedKind === "goal")
+		state.goalSettings = normalizeGoalSettings(next);
+	else state.trackerSettings = normalizeTrackerSettings(next);
+	saveTrackerSettingsForKind(normalizedKind);
+	setState({
+		trackerAddArea:
+			state.trackerAddArea === trackerAddKey(area, normalizedKind)
+				? ""
+				: state.trackerAddArea,
+		trackerEditKey:
+			state.trackerEditKey === trackerEditKey(area, id, normalizedKind)
+				? ""
+				: state.trackerEditKey,
+		trackerDeleteKey:
+			state.trackerDeleteKey === trackerEditKey(area, id, normalizedKind)
+				? ""
+				: state.trackerDeleteKey,
+	});
 }
 
 function thoughtCooldownKey(area, id, kind = "thought") {
-  return `${trackerKind(kind)}:${area}:${id}`;
+	return `${trackerKind(kind)}:${area}:${id}`;
 }
 
 function thoughtCooldownRemaining(area, id, kind = "thought") {
-  const endTime = state.thoughtCooldowns?.[thoughtCooldownKey(area, id, kind)] || 0;
-  return Math.max(0, endTime - Date.now());
+	const endTime =
+		state.thoughtCooldowns?.[thoughtCooldownKey(area, id, kind)] || 0;
+	return Math.max(0, endTime - Date.now());
 }
 
 function thoughtCooldownPieStyle(remaining) {
-  const remainingMs = Math.max(0, Math.ceil(Number(remaining) || 0));
-  const angle = Math.max(0, Math.min(360, (remainingMs / THOUGHT_COOLDOWN_MS) * 360));
-  return ` style="--cooldown-start-angle: ${angle.toFixed(3)}deg; --cooldown-duration: ${remainingMs}ms;"`;
+	const remainingMs = Math.max(0, Math.ceil(Number(remaining) || 0));
+	const angle = Math.max(
+		0,
+		Math.min(360, (remainingMs / THOUGHT_COOLDOWN_MS) * 360),
+	);
+	return ` style="--cooldown-start-angle: ${angle.toFixed(3)}deg; --cooldown-duration: ${remainingMs}ms;"`;
 }
 
 function thoughtTimestampLabel(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return currentTimestampLabel();
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit"
-  }).format(date);
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return currentTimestampLabel();
+	return new Intl.DateTimeFormat(undefined, {
+		month: "short",
+		day: "numeric",
+		hour: "numeric",
+		minute: "2-digit",
+	}).format(date);
 }
 
 function thoughtDateInputValue(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return todayDateKey();
-  return dateKeyFromDate(date);
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return todayDateKey();
+	return dateKeyFromDate(date);
 }
 
 function thoughtTimeInputValue(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    const now = new Date();
-    return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-  }
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) {
+		const now = new Date();
+		return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+	}
+	return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
 function thoughtTimestampFromToastControls() {
-  const dateValue = document.getElementById("thought-toast-date")?.value || thoughtDateInputValue(state.thoughtToast?.timestamp);
-  const timeValue = document.getElementById("thought-toast-time")?.value || thoughtTimeInputValue(state.thoughtToast?.timestamp);
-  const date = new Date(`${dateValue}T${timeValue}`);
-  return Number.isNaN(date.getTime()) ? state.thoughtToast?.timestamp || nowIso() : date.toISOString();
+	const dateValue =
+		document.getElementById("thought-toast-date")?.value ||
+		thoughtDateInputValue(state.thoughtToast?.timestamp);
+	const timeValue =
+		document.getElementById("thought-toast-time")?.value ||
+		thoughtTimeInputValue(state.thoughtToast?.timestamp);
+	const date = new Date(`${dateValue}T${timeValue}`);
+	return Number.isNaN(date.getTime())
+		? state.thoughtToast?.timestamp || nowIso()
+		: date.toISOString();
 }
 
 function trackerKindForNote(note) {
-  return note?.properties?.role === "goal-progress" ? "goal" : "thought";
+	return note?.properties?.role === "goal-progress" ? "goal" : "thought";
 }
 
 function thoughtNoteWithTimestamp(note, timestamp) {
-  const date = new Date(timestamp);
-  if (!note || Number.isNaN(date.getTime())) return note;
-  if (note.properties?.role === "body-log") {
-    const dateKey = dateKeyFromDate(date);
-    const audit = Array.isArray(note.properties?.audit) ? note.properties.audit : [];
-    return {
-      ...note,
-      created: timestamp,
-      properties: {
-        ...(note.properties || {}),
-        dateKey,
-        bodyLoggedAt: timestamp,
-        audit: audit.map((entry) => entry.action === "created"
-          ? { ...entry, at: timestamp, dateKey }
-          : entry)
-      }
-    };
-  }
-  const kind = trackerKindForNote(note);
-  const config = trackerKindConfig(kind);
-  const label = note.properties?.[config.labelProp] || state.thoughtToast?.label || note.title;
-  const dateKey = dateKeyFromDate(date);
-  const title = kind === "goal"
-    ? `${label} Progress ${formatEventTime(timestamp) || thoughtTimestampLabel(timestamp)}`
-    : `${label} ${formatEventTime(timestamp) || thoughtTimestampLabel(timestamp)}`;
-  const timestampLine = `${config.timestampVerb}: ${thoughtTimestampLabel(timestamp)}`;
-  const markerPattern = new RegExp(`${config.timestampVerb}: .*`);
-  const body = markerPattern.test(String(note.body || ""))
-    ? String(note.body || "").replace(markerPattern, timestampLine)
-    : `${String(note.body || "").trimEnd()}\n${timestampLine}`;
-  const audit = Array.isArray(note.properties?.audit) ? note.properties.audit : [];
-  return {
-    ...note,
-    title,
-    body,
-    created: timestamp,
-    properties: {
-      ...(note.properties || {}),
-      dateKey,
-      [config.loggedProp]: timestamp,
-      audit: audit.map((entry) => entry.action === "created"
-        ? { ...entry, at: timestamp, title, dateKey }
-        : entry)
-    }
-  };
+	const date = new Date(timestamp);
+	if (!note || Number.isNaN(date.getTime())) return note;
+	if (note.properties?.role === "body-log") {
+		const dateKey = dateKeyFromDate(date);
+		const audit = Array.isArray(note.properties?.audit)
+			? note.properties.audit
+			: [];
+		return {
+			...note,
+			created: timestamp,
+			properties: {
+				...(note.properties || {}),
+				dateKey,
+				bodyLoggedAt: timestamp,
+				audit: audit.map((entry) =>
+					entry.action === "created"
+						? { ...entry, at: timestamp, dateKey }
+						: entry,
+				),
+			},
+		};
+	}
+	const kind = trackerKindForNote(note);
+	const config = trackerKindConfig(kind);
+	const label =
+		note.properties?.[config.labelProp] ||
+		state.thoughtToast?.label ||
+		note.title;
+	const dateKey = dateKeyFromDate(date);
+	const title =
+		kind === "goal"
+			? `${label} Progress ${formatEventTime(timestamp) || thoughtTimestampLabel(timestamp)}`
+			: `${label} ${formatEventTime(timestamp) || thoughtTimestampLabel(timestamp)}`;
+	const timestampLine = `${config.timestampVerb}: ${thoughtTimestampLabel(timestamp)}`;
+	const markerPattern = new RegExp(`${config.timestampVerb}: .*`);
+	const body = markerPattern.test(String(note.body || ""))
+		? String(note.body || "").replace(markerPattern, timestampLine)
+		: `${String(note.body || "").trimEnd()}\n${timestampLine}`;
+	const audit = Array.isArray(note.properties?.audit)
+		? note.properties.audit
+		: [];
+	return {
+		...note,
+		title,
+		body,
+		created: timestamp,
+		properties: {
+			...(note.properties || {}),
+			dateKey,
+			[config.loggedProp]: timestamp,
+			audit: audit.map((entry) =>
+				entry.action === "created"
+					? { ...entry, at: timestamp, title, dateKey }
+					: entry,
+			),
+		},
+	};
 }
 
 function scheduleThoughtToastFade(toast = state.thoughtToast, delay = 3500) {
-  window.clearTimeout(thoughtToastFadeTimer);
-  window.clearTimeout(thoughtToastHideTimer);
-  if (!toast) return;
-  thoughtToastFadeTimer = window.setTimeout(() => {
-    if (isThoughtToastHeldOpen()) {
-      pauseThoughtToastFade();
-      return;
-    }
-    const element = app.querySelector(".thought-toast");
-    element?.classList.remove("is-held");
-    element?.classList.add("is-fading");
-  }, delay);
-  thoughtToastHideTimer = window.setTimeout(() => {
-    if (isThoughtToastHeldOpen()) {
-      pauseThoughtToastFade();
-      return;
-    }
-    if (state.thoughtToast?.noteId === toast.noteId) {
-      state.thoughtToast = null;
-      render();
-    }
-  }, delay + 2000);
+	window.clearTimeout(thoughtToastFadeTimer);
+	window.clearTimeout(thoughtToastHideTimer);
+	if (!toast) return;
+	thoughtToastFadeTimer = window.setTimeout(() => {
+		if (isThoughtToastHeldOpen()) {
+			pauseThoughtToastFade();
+			return;
+		}
+		const element = app.querySelector(".thought-toast");
+		element?.classList.remove("is-held");
+		element?.classList.add("is-fading");
+	}, delay);
+	thoughtToastHideTimer = window.setTimeout(() => {
+		if (isThoughtToastHeldOpen()) {
+			pauseThoughtToastFade();
+			return;
+		}
+		if (state.thoughtToast?.noteId === toast.noteId) {
+			state.thoughtToast = null;
+			render();
+		}
+	}, delay + 2000);
 }
 
 function pauseThoughtToastFade() {
-  window.clearTimeout(thoughtToastFadeTimer);
-  window.clearTimeout(thoughtToastHideTimer);
-  const toast = app.querySelector(".thought-toast");
-  toast?.classList.add("is-held");
-  toast?.classList.remove("is-fading");
+	window.clearTimeout(thoughtToastFadeTimer);
+	window.clearTimeout(thoughtToastHideTimer);
+	const toast = app.querySelector(".thought-toast");
+	toast?.classList.add("is-held");
+	toast?.classList.remove("is-fading");
 }
 
 function isThoughtToastHeldOpen() {
-  const toast = app.querySelector(".thought-toast");
-  return Boolean(toast && (toast.contains(document.activeElement) || toast.matches(":hover")));
+	const toast = app.querySelector(".thought-toast");
+	return Boolean(
+		toast &&
+			(toast.contains(document.activeElement) || toast.matches(":hover")),
+	);
 }
 
 function resumeThoughtToastFade(delay = 0) {
-  if (isThoughtToastHeldOpen()) {
-    pauseThoughtToastFade();
-    return;
-  }
-  app.querySelector(".thought-toast")?.classList.remove("is-held");
-  scheduleThoughtToastFade(state.thoughtToast, delay);
+	if (isThoughtToastHeldOpen()) {
+		pauseThoughtToastFade();
+		return;
+	}
+	app.querySelector(".thought-toast")?.classList.remove("is-held");
+	scheduleThoughtToastFade(state.thoughtToast, delay);
 }
 
 function showThoughtToast(toast) {
-  state.thoughtToast = toast;
-  render();
-  scheduleThoughtToastFade(toast);
+	state.thoughtToast = toast;
+	render();
+	scheduleThoughtToastFade(toast);
 }
 
 function captureThoughtToastFocus() {
-  const active = document.activeElement;
-  if (!(active instanceof HTMLInputElement) || !active.id.startsWith("thought-toast-")) return null;
-  return {
-    id: active.id,
-    start: active.type === "text" ? active.selectionStart : null,
-    end: active.type === "text" ? active.selectionEnd : null
-  };
+	const active = document.activeElement;
+	if (
+		!(active instanceof HTMLInputElement) ||
+		!active.id.startsWith("thought-toast-")
+	)
+		return null;
+	return {
+		id: active.id,
+		start: active.type === "text" ? active.selectionStart : null,
+		end: active.type === "text" ? active.selectionEnd : null,
+	};
 }
 
 function restoreThoughtToastFocus(focusState) {
-  if (!focusState) return;
-  const input = document.getElementById(focusState.id);
-  if (!(input instanceof HTMLInputElement)) return;
-  input.focus({ preventScroll: true });
-  if (input.type === "text" && typeof focusState.start === "number" && typeof focusState.end === "number") {
-    input.setSelectionRange(focusState.start, focusState.end);
-  }
-  pauseThoughtToastFade();
+	if (!focusState) return;
+	const input = document.getElementById(focusState.id);
+	if (!(input instanceof HTMLInputElement)) return;
+	input.focus({ preventScroll: true });
+	if (
+		input.type === "text" &&
+		typeof focusState.start === "number" &&
+		typeof focusState.end === "number"
+	) {
+		input.setSelectionRange(focusState.start, focusState.end);
+	}
+	pauseThoughtToastFade();
 }
 
 function clearThoughtToast() {
-  window.clearTimeout(thoughtToastFadeTimer);
-  window.clearTimeout(thoughtToastHideTimer);
-  state.thoughtToast = null;
-  render();
+	window.clearTimeout(thoughtToastFadeTimer);
+	window.clearTimeout(thoughtToastHideTimer);
+	state.thoughtToast = null;
+	render();
 }
 
 function submitThoughtToastNote(noteId, text) {
-  const body = String(text || "").trim();
-  if (!body || !noteId || !state.artifactStore) return;
-  const current = findArtifact(state.artifactStore, noteId);
-  if (!current) return;
-  const now = nowIso();
-  const timestamp = thoughtTimestampFromToastControls();
-  const adjusted = thoughtNoteWithTimestamp(current, timestamp);
-  const kind = trackerKindForNote(adjusted);
-  const config = trackerKindConfig(kind);
-  const entry = `- ${thoughtTimestampLabel(timestamp)}: ${body}`;
-  persistArtifactStore(upsertArtifact(state.artifactStore, {
-    ...adjusted,
-    body: `${String(adjusted.body || "").trimEnd()}\n\n${entry}`.trim(),
-    edited: now,
-    properties: {
-      ...(adjusted.properties || {}),
-      quickNotes: [
-        ...((adjusted.properties?.quickNotes || []).slice(-20)),
-        { at: timestamp, body }
-      ],
-      audit: [
-        ...((adjusted.properties?.audit || []).slice(-20)),
-        {
-          at: timestamp,
-          action: "quick-note",
-          title: adjusted.title,
-          dateKey: dateKeyFromValue(timestamp),
-          [config.labelProp]: adjusted.properties?.[config.labelProp] || ""
-        }
-      ]
-    }
-  }));
-  clearThoughtToast();
+	const body = String(text || "").trim();
+	if (!body || !noteId || !state.artifactStore) return;
+	const current = findArtifact(state.artifactStore, noteId);
+	if (!current) return;
+	const now = nowIso();
+	const timestamp = thoughtTimestampFromToastControls();
+	const adjusted = thoughtNoteWithTimestamp(current, timestamp);
+	const kind = trackerKindForNote(adjusted);
+	const config = trackerKindConfig(kind);
+	const entry = `- ${thoughtTimestampLabel(timestamp)}: ${body}`;
+	persistArtifactStore(
+		upsertArtifact(state.artifactStore, {
+			...adjusted,
+			body: `${String(adjusted.body || "").trimEnd()}\n\n${entry}`.trim(),
+			edited: now,
+			properties: {
+				...(adjusted.properties || {}),
+				quickNotes: [
+					...(adjusted.properties?.quickNotes || []).slice(-20),
+					{ at: timestamp, body },
+				],
+				audit: [
+					...(adjusted.properties?.audit || []).slice(-20),
+					{
+						at: timestamp,
+						action: "quick-note",
+						title: adjusted.title,
+						dateKey: dateKeyFromValue(timestamp),
+						[config.labelProp]: adjusted.properties?.[config.labelProp] || "",
+					},
+				],
+			},
+		}),
+	);
+	clearThoughtToast();
 }
 
 function applyThoughtToastTimestamp(noteId) {
-  if (!noteId || !state.artifactStore) return;
-  const current = findArtifact(state.artifactStore, noteId);
-  if (!current) return;
-  persistArtifactStore(upsertArtifact(state.artifactStore, {
-    ...thoughtNoteWithTimestamp(current, thoughtTimestampFromToastControls()),
-    edited: nowIso()
-  }));
+	if (!noteId || !state.artifactStore) return;
+	const current = findArtifact(state.artifactStore, noteId);
+	if (!current) return;
+	persistArtifactStore(
+		upsertArtifact(state.artifactStore, {
+			...thoughtNoteWithTimestamp(current, thoughtTimestampFromToastControls()),
+			edited: nowIso(),
+		}),
+	);
 }
 
 function deleteThoughtToastNote(noteId) {
-  if (!noteId || !state.artifactStore) return;
-  const note = findArtifact(state.artifactStore, noteId);
-  if (!note) {
-    clearThoughtToast();
-    return;
-  }
-  persistArtifactStore(removeArtifact(state.artifactStore, noteId));
-  window.clearTimeout(thoughtToastFadeTimer);
-  window.clearTimeout(thoughtToastHideTimer);
-  setState({
-    thoughtToast: null,
-    selectedArtifactId: state.selectedArtifactId === noteId ? null : state.selectedArtifactId,
-    artifactMode: state.selectedArtifactId === noteId ? "grid" : state.artifactMode,
-    artifactReturnActive: state.selectedArtifactId === noteId ? "" : state.artifactReturnActive
-  });
+	if (!noteId || !state.artifactStore) return;
+	const note = findArtifact(state.artifactStore, noteId);
+	if (!note) {
+		clearThoughtToast();
+		return;
+	}
+	persistArtifactStore(removeArtifact(state.artifactStore, noteId));
+	window.clearTimeout(thoughtToastFadeTimer);
+	window.clearTimeout(thoughtToastHideTimer);
+	setState({
+		thoughtToast: null,
+		selectedArtifactId:
+			state.selectedArtifactId === noteId ? null : state.selectedArtifactId,
+		artifactMode:
+			state.selectedArtifactId === noteId ? "grid" : state.artifactMode,
+		artifactReturnActive:
+			state.selectedArtifactId === noteId ? "" : state.artifactReturnActive,
+	});
 }
 
 function launchGoalBurst(triggerElement, color = DASHBOARD_COLORS.Mind) {
-  if (!(triggerElement instanceof HTMLElement)) return;
-  const reducedMotion = Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches);
-  const rect = triggerElement.getBoundingClientRect();
-  if (!rect.width || !rect.height) return;
-  const burst = document.createElement("span");
-  burst.className = "goal-confetti-burst";
-  if (reducedMotion) burst.classList.add("is-reduced-motion");
-  burst.style.left = `${rect.left + rect.width / 2}px`;
-  burst.style.top = `${rect.top + rect.height / 2}px`;
-  burst.style.setProperty("--goal-color", color || DASHBOARD_COLORS.Mind);
-  const particles = 12;
-  for (let index = 0; index < particles; index += 1) {
-    const particle = document.createElement("i");
-    const angle = (Math.PI * 2 * index) / particles;
-    const distance = (reducedMotion ? 14 : 22) + (index % 4) * (reducedMotion ? 3 : 7);
-    particle.style.setProperty("--burst-x", `${Math.cos(angle) * distance}px`);
-    particle.style.setProperty("--burst-y", `${Math.sin(angle) * distance}px`);
-    particle.style.setProperty("--burst-rotate", `${index * 37}deg`);
-    particle.style.animationDelay = `${index * 18}ms`;
-    burst.append(particle);
-  }
-  document.body.append(burst);
-  window.setTimeout(() => burst.remove(), 2100);
+	if (!(triggerElement instanceof HTMLElement)) return;
+	const reducedMotion = Boolean(
+		window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches,
+	);
+	const rect = triggerElement.getBoundingClientRect();
+	if (!rect.width || !rect.height) return;
+	const burst = document.createElement("span");
+	burst.className = "goal-confetti-burst";
+	if (reducedMotion) burst.classList.add("is-reduced-motion");
+	burst.style.left = `${rect.left + rect.width / 2}px`;
+	burst.style.top = `${rect.top + rect.height / 2}px`;
+	burst.style.setProperty("--goal-color", color || DASHBOARD_COLORS.Mind);
+	const particles = 12;
+	for (let index = 0; index < particles; index += 1) {
+		const particle = document.createElement("i");
+		const angle = (Math.PI * 2 * index) / particles;
+		const distance =
+			(reducedMotion ? 14 : 22) + (index % 4) * (reducedMotion ? 3 : 7);
+		particle.style.setProperty("--burst-x", `${Math.cos(angle) * distance}px`);
+		particle.style.setProperty("--burst-y", `${Math.sin(angle) * distance}px`);
+		particle.style.setProperty("--burst-rotate", `${index * 37}deg`);
+		particle.style.animationDelay = `${index * 18}ms`;
+		burst.append(particle);
+	}
+	document.body.append(burst);
+	window.setTimeout(() => burst.remove(), 2100);
 }
 
 function goalProgressArtifacts(area, goalId = "") {
-  if (!state.artifactStore) return [];
-  return rootNotesForDashboard(state.artifactStore, area)
-    .filter((note) => note.properties?.role === "goal-progress")
-    .filter((note) => !goalId || note.properties?.goalId === goalId);
+	if (!state.artifactStore) return [];
+	return rootNotesForDashboard(state.artifactStore, area)
+		.filter((note) => note.properties?.role === "goal-progress")
+		.filter((note) => !goalId || note.properties?.goalId === goalId);
 }
 
 function goalProgressCount(area, goalId = "") {
-  return goalProgressArtifacts(area, goalId).length;
+	return goalProgressArtifacts(area, goalId).length;
 }
 
 function quickTrackerEntry(area, id, kind = "thought", triggerElement = null) {
-  if (!state.artifactStore || !DASHBOARD_LABELS.includes(area)) return;
-  const normalizedKind = trackerKind(kind);
-  const config = trackerKindConfig(normalizedKind);
-  const cooldownKey = thoughtCooldownKey(area, id, normalizedKind);
-  const tracker = (trackerSettingsForKind(normalizedKind)?.[area] || []).find((item) => item.id === id);
-  if (!tracker || (normalizedKind === "goal" && !tracker.enabled)) return;
-  if (thoughtCooldownRemaining(area, id, normalizedKind) > 0 || state.thoughtCreateLocks[cooldownKey]) return;
-  if (normalizedKind === "goal") launchGoalBurst(triggerElement, dashboardColor(area));
-  state.thoughtCreateLocks = {
-    ...state.thoughtCreateLocks,
-    [cooldownKey]: true
-  };
-  const now = nowIso();
-  const title = normalizedKind === "goal"
-    ? `${tracker.label} Progress ${formatEventTime(now) || thoughtTimestampLabel(now)}`
-    : `${tracker.label} ${formatEventTime(now) || thoughtTimestampLabel(now)}`;
-  const note = {
-    id: makeId(normalizedKind === "goal" ? "goal" : "thought"),
-    type: "note",
-    dashboard: area,
-    parentId: null,
-    title,
-    body: [
-      `## ${tracker.label}`,
-      "",
-      `${config.timestampVerb}: ${thoughtTimestampLabel(now)}`,
-      ""
-    ].join("\n"),
-    created: now,
-    edited: now,
-    childIds: [],
-    properties: {
-      role: config.role,
-      status: "active",
-      dateKey: todayDateKey(),
-      [config.labelProp]: tracker.label,
-      [config.iconProp]: tracker.icon,
-      [config.idProp]: tracker.id,
-      [config.loggedProp]: now,
-      audit: [
-        {
-          at: now,
-          action: "created",
-          title,
-          dateKey: todayDateKey(),
-          [config.labelProp]: tracker.label
-        }
-      ]
-    },
-    analysis: {}
-  };
-  state.thoughtCooldowns = {
-    ...state.thoughtCooldowns,
-    [cooldownKey]: Date.now() + THOUGHT_COOLDOWN_MS
-  };
-  persistArtifactStore(upsertArtifact(state.artifactStore, note));
-  const { [cooldownKey]: _created, ...nextCreateLocks } = state.thoughtCreateLocks;
-  state.thoughtCreateLocks = nextCreateLocks;
-  const progressCount = normalizedKind === "goal" ? goalProgressCount(area, tracker.id) : 0;
-  showThoughtToast({
-    kind: normalizedKind,
-    noteId: note.id,
-    dashboard: area,
-    label: tracker.label,
-    timestamp: now,
-    metric: normalizedKind === "goal"
-      ? `${progressCount} check${progressCount === 1 ? "" : "s"}`
-      : ""
-  });
-  window.setTimeout(() => {
-    if (state.thoughtCooldowns[cooldownKey] <= Date.now()) {
-      const { [cooldownKey]: _expired, ...nextCooldowns } = state.thoughtCooldowns;
-      state.thoughtCooldowns = nextCooldowns;
-      render();
-    }
-  }, THOUGHT_COOLDOWN_MS + 50);
+	if (!state.artifactStore || !DASHBOARD_LABELS.includes(area)) return;
+	const normalizedKind = trackerKind(kind);
+	const config = trackerKindConfig(normalizedKind);
+	const cooldownKey = thoughtCooldownKey(area, id, normalizedKind);
+	const tracker = (trackerSettingsForKind(normalizedKind)?.[area] || []).find(
+		(item) => item.id === id,
+	);
+	if (!tracker || (normalizedKind === "goal" && !tracker.enabled)) return;
+	if (
+		thoughtCooldownRemaining(area, id, normalizedKind) > 0 ||
+		state.thoughtCreateLocks[cooldownKey]
+	)
+		return;
+	if (normalizedKind === "goal")
+		launchGoalBurst(triggerElement, dashboardColor(area));
+	state.thoughtCreateLocks = {
+		...state.thoughtCreateLocks,
+		[cooldownKey]: true,
+	};
+	const now = nowIso();
+	const title =
+		normalizedKind === "goal"
+			? `${tracker.label} Progress ${formatEventTime(now) || thoughtTimestampLabel(now)}`
+			: `${tracker.label} ${formatEventTime(now) || thoughtTimestampLabel(now)}`;
+	const note = {
+		id: makeId(normalizedKind === "goal" ? "goal" : "thought"),
+		type: "note",
+		dashboard: area,
+		parentId: null,
+		title,
+		body: [
+			`## ${tracker.label}`,
+			"",
+			`${config.timestampVerb}: ${thoughtTimestampLabel(now)}`,
+			"",
+		].join("\n"),
+		created: now,
+		edited: now,
+		childIds: [],
+		properties: {
+			role: config.role,
+			status: "active",
+			dateKey: todayDateKey(),
+			[config.labelProp]: tracker.label,
+			[config.iconProp]: tracker.icon,
+			[config.idProp]: tracker.id,
+			[config.loggedProp]: now,
+			audit: [
+				{
+					at: now,
+					action: "created",
+					title,
+					dateKey: todayDateKey(),
+					[config.labelProp]: tracker.label,
+				},
+			],
+		},
+		analysis: {},
+	};
+	state.thoughtCooldowns = {
+		...state.thoughtCooldowns,
+		[cooldownKey]: Date.now() + THOUGHT_COOLDOWN_MS,
+	};
+	persistArtifactStore(upsertArtifact(state.artifactStore, note));
+	const { [cooldownKey]: _created, ...nextCreateLocks } =
+		state.thoughtCreateLocks;
+	state.thoughtCreateLocks = nextCreateLocks;
+	const progressCount =
+		normalizedKind === "goal" ? goalProgressCount(area, tracker.id) : 0;
+	showThoughtToast({
+		kind: normalizedKind,
+		noteId: note.id,
+		dashboard: area,
+		label: tracker.label,
+		timestamp: now,
+		metric:
+			normalizedKind === "goal"
+				? `${progressCount} check${progressCount === 1 ? "" : "s"}`
+				: "",
+	});
+	window.setTimeout(() => {
+		if (state.thoughtCooldowns[cooldownKey] <= Date.now()) {
+			const { [cooldownKey]: _expired, ...nextCooldowns } =
+				state.thoughtCooldowns;
+			state.thoughtCooldowns = nextCooldowns;
+			render();
+		}
+	}, THOUGHT_COOLDOWN_MS + 50);
 }
 
 function quickThought(area, id) {
-  quickTrackerEntry(area, id, "thought");
+	quickTrackerEntry(area, id, "thought");
 }
 
 function quickGoal(area, id, triggerElement = null) {
-  quickTrackerEntry(area, id, "goal", triggerElement);
+	quickTrackerEntry(area, id, "goal", triggerElement);
 }
 
 function duckDuckGoUrl(query, options = "") {
-  return `https://duckduckgo.com/?q=${encodeURIComponent(query.trim())}${options}`;
+	return `https://duckduckgo.com/?q=${encodeURIComponent(query.trim())}${options}`;
 }
 
 function spiritLookupQuery(work, suffix = "") {
-  return [work.title, work.author, suffix].filter(Boolean).join(" ");
+	return [work.title, work.author, suffix].filter(Boolean).join(" ");
 }
 
 function spiritLookupBarHtml(work) {
-  const title = work.title || "";
-  const author = work.author || "";
-  const freeSites = "site:gutenberg.org OR site:gutenberg.net.au OR site:gutenberg.ca OR site:archive.org OR site:wikisource.org OR site:fadedpage.com OR site:standardebooks.org OR site:freeread.de";
-  const buySites = "site:amazon.com OR site:ebay.com OR site:abebooks.com OR site:barnesandnoble.com OR site:thriftbooks.com OR site:bookshop.org";
-  const outlineSites = "site:sparknotes.com OR site:litcharts.com OR site:gradesaver.com OR site:cliffsnotes.com OR site:shmoop.com OR site:wikipedia.org OR site:britannica.com OR site:plato.stanford.edu";
-  const links = [
-    ["Wikipedia", "tabler:brand-wikipedia", `https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(spiritLookupQuery(work))}`],
-    ["WikiSearch", "tabler:world-search", `https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(spiritLookupQuery(work, "summary analysis themes"))}`],
-    ["Search", "tabler:search", duckDuckGoUrl(spiritLookupQuery(work))],
-    ["Videos", "tabler:player-play", duckDuckGoUrl(spiritLookupQuery(work, "lecture documentary analysis"), "&iax=videos&ia=videos")],
-    ["Audiobooks", "tabler:headphones", duckDuckGoUrl(`"${title}" ${author} public domain audiobook site:librivox.org OR site:archive.org OR site:gutenberg.org`)],
-    ["Free Online", "tabler:external-link", duckDuckGoUrl(`"${title}" ${author} (${freeSites})`)],
-    ["Buy Book", "tabler:shopping-bag", duckDuckGoUrl(`"${title}" ${author} (${buySites})`)],
-    ["Goodreads", "tabler:book-2", `https://www.goodreads.com/search?q=${encodeURIComponent(spiritLookupQuery(work))}`],
-    ["Outlines", "tabler:list-details", duckDuckGoUrl(`"${title}" ${author} (${outlineSites})`)],
-    ["Biography", "tabler:user", duckDuckGoUrl(`"${author}" biography life history documentary lecture video`)],
-    ["Context", "tabler:world", duckDuckGoUrl(`"${author}" historical context era time period contemporaries influences philosophy culture`)]
-  ];
+	const title = work.title || "";
+	const author = work.author || "";
+	const freeSites =
+		"site:gutenberg.org OR site:gutenberg.net.au OR site:gutenberg.ca OR site:archive.org OR site:wikisource.org OR site:fadedpage.com OR site:standardebooks.org OR site:freeread.de";
+	const buySites =
+		"site:amazon.com OR site:ebay.com OR site:abebooks.com OR site:barnesandnoble.com OR site:thriftbooks.com OR site:bookshop.org";
+	const outlineSites =
+		"site:sparknotes.com OR site:litcharts.com OR site:gradesaver.com OR site:cliffsnotes.com OR site:shmoop.com OR site:wikipedia.org OR site:britannica.com OR site:plato.stanford.edu";
+	const links = [
+		[
+			"Wikipedia",
+			"tabler:brand-wikipedia",
+			`https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(spiritLookupQuery(work))}`,
+		],
+		[
+			"WikiSearch",
+			"tabler:world-search",
+			`https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(spiritLookupQuery(work, "summary analysis themes"))}`,
+		],
+		["Search", "tabler:search", duckDuckGoUrl(spiritLookupQuery(work))],
+		[
+			"Videos",
+			"tabler:player-play",
+			duckDuckGoUrl(
+				spiritLookupQuery(work, "lecture documentary analysis"),
+				"&iax=videos&ia=videos",
+			),
+		],
+		[
+			"Audiobooks",
+			"tabler:headphones",
+			duckDuckGoUrl(
+				`"${title}" ${author} public domain audiobook site:librivox.org OR site:archive.org OR site:gutenberg.org`,
+			),
+		],
+		[
+			"Free Online",
+			"tabler:external-link",
+			duckDuckGoUrl(`"${title}" ${author} (${freeSites})`),
+		],
+		[
+			"Buy Book",
+			"tabler:shopping-bag",
+			duckDuckGoUrl(`"${title}" ${author} (${buySites})`),
+		],
+		[
+			"Goodreads",
+			"tabler:book-2",
+			`https://www.goodreads.com/search?q=${encodeURIComponent(spiritLookupQuery(work))}`,
+		],
+		[
+			"Outlines",
+			"tabler:list-details",
+			duckDuckGoUrl(`"${title}" ${author} (${outlineSites})`),
+		],
+		[
+			"Biography",
+			"tabler:user",
+			duckDuckGoUrl(
+				`"${author}" biography life history documentary lecture video`,
+			),
+		],
+		[
+			"Context",
+			"tabler:world",
+			duckDuckGoUrl(
+				`"${author}" historical context era time period contemporaries influences philosophy culture`,
+			),
+		],
+	];
 
-  return `
+	return `
     <section class="spirit-lookup-bar" aria-label="Book lookup links">
-      ${links.map(([label, icon, href]) => `
+      ${links
+				.map(
+					([label, icon, href]) => `
         <a class="spirit-lookup-link" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">
           ${buttonContent(icon, label)}
         </a>
-      `).join("")}
+      `,
+				)
+				.join("")}
     </section>
   `;
 }
 
 function cleanSummaryText(value) {
-  return String(value || "")
-    .replace(/[#>*`-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+	return String(value || "")
+		.replace(/[#>*`-]/g, " ")
+		.replace(/\s+/g, " ")
+		.trim();
 }
 
 function shortSummary(value, fallback = "Nothing yet") {
-  const text = cleanSummaryText(value);
-  if (!text) return fallback;
-  return text.length > 46 ? `${text.slice(0, 43)}...` : text;
+	const text = cleanSummaryText(value);
+	if (!text) return fallback;
+	return text.length > 46 ? `${text.slice(0, 43)}...` : text;
 }
 
 function lastAuditEntry(item) {
-  const audit = item?.properties?.audit;
-  return Array.isArray(audit) && audit.length ? audit[audit.length - 1] : null;
+	const audit = item?.properties?.audit;
+	return Array.isArray(audit) && audit.length ? audit[audit.length - 1] : null;
 }
 
 function activityTimestamp(item) {
-  return lastAuditEntry(item)?.at ||
-    item?.properties?.goalLoggedAt ||
-    item?.properties?.completedAt ||
-    item?.properties?.startedAt ||
-    item?.properties?.stoppedAt ||
-    item?.edited ||
-    item?.created ||
-    "";
+	return (
+		lastAuditEntry(item)?.at ||
+		item?.properties?.goalLoggedAt ||
+		item?.properties?.completedAt ||
+		item?.properties?.startedAt ||
+		item?.properties?.stoppedAt ||
+		item?.edited ||
+		item?.created ||
+		""
+	);
 }
 
 function activityTime(item) {
-  const timestamp = activityTimestamp(item);
-  if (!timestamp) return 0;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(String(timestamp))) {
-    return new Date(`${timestamp}T12:00:00`).getTime() || 0;
-  }
-  return Date.parse(timestamp) || 0;
+	const timestamp = activityTimestamp(item);
+	if (!timestamp) return 0;
+	if (/^\d{4}-\d{2}-\d{2}$/.test(String(timestamp))) {
+		return new Date(`${timestamp}T12:00:00`).getTime() || 0;
+	}
+	return Date.parse(timestamp) || 0;
 }
 
 function createdTime(item) {
-  const timestamp = item?.created || item?.properties?.createdAt || "";
-  if (!timestamp) return 0;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(String(timestamp))) {
-    return new Date(`${timestamp}T12:00:00`).getTime() || 0;
-  }
-  return Date.parse(timestamp) || 0;
+	const timestamp = item?.created || item?.properties?.createdAt || "";
+	if (!timestamp) return 0;
+	if (/^\d{4}-\d{2}-\d{2}$/.test(String(timestamp))) {
+		return new Date(`${timestamp}T12:00:00`).getTime() || 0;
+	}
+	return Date.parse(timestamp) || 0;
 }
 
-function newestCreatedFirst(items) {
-  return [...items].sort((a, b) => {
-    const timeDiff = createdTime(b) - createdTime(a);
-    if (timeDiff) return timeDiff;
-    return String(b.id || "").localeCompare(String(a.id || ""));
-  });
+function _newestCreatedFirst(items) {
+	return [...items].sort((a, b) => {
+		const timeDiff = createdTime(b) - createdTime(a);
+		if (timeDiff) return timeDiff;
+		return String(b.id || "").localeCompare(String(a.id || ""));
+	});
 }
 
 function newestActivityFirst(items) {
-  return [...items].sort((a, b) => {
-    const timeDiff = activityTime(b) - activityTime(a);
-    if (timeDiff) return timeDiff;
-    return String(b.id || "").localeCompare(String(a.id || ""));
-  });
+	return [...items].sort((a, b) => {
+		const timeDiff = activityTime(b) - activityTime(a);
+		if (timeDiff) return timeDiff;
+		return String(b.id || "").localeCompare(String(a.id || ""));
+	});
 }
 
 function latestByActivity(items) {
-  return [...items].sort((a, b) => {
-    return activityTime(b) - activityTime(a);
-  })[0] || null;
+	return (
+		[...items].sort((a, b) => {
+			return activityTime(b) - activityTime(a);
+		})[0] || null
+	);
 }
 
 function formatActivityTimestamp(value) {
-  if (!value) return "Not started";
-  const text = String(value);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return formatDateLabel(text, { year: true });
-  const date = new Date(text);
-  if (Number.isNaN(date.getTime())) return text;
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit"
-  }).format(date);
+	if (!value) return "Not started";
+	const text = String(value);
+	if (/^\d{4}-\d{2}-\d{2}$/.test(text))
+		return formatDateLabel(text, { year: true });
+	const date = new Date(text);
+	if (Number.isNaN(date.getTime())) return text;
+	return new Intl.DateTimeFormat(undefined, {
+		month: "short",
+		day: "numeric",
+		year: "numeric",
+		hour: "numeric",
+		minute: "2-digit",
+	}).format(date);
 }
 
 function latestDashboardArtifact(dashboard) {
-  return latestByActivity((state.artifactStore?.artifacts || []).filter((artifact) =>
-    artifact.dashboard === dashboard &&
-    ["note", "compendium", "reading-plan-item"].includes(artifact.type)
-  ));
+	return latestByActivity(
+		(state.artifactStore?.artifacts || []).filter(
+			(artifact) =>
+				artifact.dashboard === dashboard &&
+				["note", "compendium", "reading-plan-item"].includes(artifact.type),
+		),
+	);
 }
 
 function dashboardFlipRows(label) {
-  if (label === "Mind") {
-    const latestCompendium = latestByActivity(state.compendiums);
-    const latestSection = latestByActivity(state.compendiums.flatMap((compendium) =>
-      (Array.isArray(compendium.sections) ? compendium.sections : [])
-        .map((section) => ({ ...section, compendiumTitle: compendium.title }))
-    ));
-    const latest = latestSection || latestCompendium;
-    return [
-      ["What", latest ? shortSummary(latest.title) : "No compendium yet"],
-      ["Where", latest?.compendiumTitle ? shortSummary(latest.compendiumTitle) : dashboardDisplayLabel("Mind")],
-      ["When", formatActivityTimestamp(activityTimestamp(latest))]
-    ];
-  }
+	if (label === "Mind") {
+		const latestCompendium = latestByActivity(state.compendiums);
+		const latestSection = latestByActivity(
+			state.compendiums.flatMap((compendium) =>
+				(Array.isArray(compendium.sections) ? compendium.sections : []).map(
+					(section) => ({ ...section, compendiumTitle: compendium.title }),
+				),
+			),
+		);
+		const latest = latestSection || latestCompendium;
+		return [
+			["What", latest ? shortSummary(latest.title) : "No compendium yet"],
+			[
+				"Where",
+				latest?.compendiumTitle
+					? shortSummary(latest.compendiumTitle)
+					: dashboardDisplayLabel("Mind"),
+			],
+			["When", formatActivityTimestamp(activityTimestamp(latest))],
+		];
+	}
 
-  if (label === "Body") {
-    const latestNote = latestDashboardArtifact("Body");
-    const latestWorkout = latestByActivity(state.bodyTracker.workouts);
-    const latest = latestByActivity([latestNote, latestWorkout].filter(Boolean));
-    return [
-      ["What", latest ? shortSummary(latest.title) : `No ${dashboardDisplayLabel("Body").toLowerCase()} log yet`],
-      ["Detail", latest?.minutes ? `${latest.type || "Workout"} / ${latest.minutes} min` : shortSummary(latest?.body, state.bodyTracker.fast.active ? `Fasting ${formatDuration(getFastElapsedMs())}` : `${Math.round(Number(state.bodyTracker.nutrition.calories) || 0)} cal today`)],
-      ["When", formatActivityTimestamp(activityTimestamp(latest))]
-    ];
-  }
+	if (label === "Body") {
+		const latestNote = latestDashboardArtifact("Body");
+		const latestWorkout = latestByActivity(state.bodyTracker.workouts);
+		const latest = latestByActivity(
+			[latestNote, latestWorkout].filter(Boolean),
+		);
+		return [
+			[
+				"What",
+				latest
+					? shortSummary(latest.title)
+					: `No ${dashboardDisplayLabel("Body").toLowerCase()} log yet`,
+			],
+			[
+				"Detail",
+				latest?.minutes
+					? `${latest.type || "Workout"} / ${latest.minutes} min`
+					: shortSummary(
+							latest?.body,
+							state.bodyTracker.fast.active
+								? `Fasting ${formatDuration(getFastElapsedMs())}`
+								: `${Math.round(Number(state.bodyTracker.nutrition.calories) || 0)} cal today`,
+						),
+			],
+			["When", formatActivityTimestamp(activityTimestamp(latest))],
+		];
+	}
 
-  if (label === "Spirit") {
-    const latest = latestDashboardArtifact("Spirit");
-    const fallbackWork = spiritWorks().find((work) => work.year === state.spiritYear) || spiritWorks()[0];
-    const work = latest || fallbackWork;
-    return [
-      ["What", work ? shortSummary(work.title) : "No reading yet"],
-      ["Who", work?.author || "No author"],
-      ["When", latest ? formatActivityTimestamp(activityTimestamp(latest)) : work ? `Year ${work.year}` : "Not started"]
-    ];
-  }
+	if (label === "Spirit") {
+		const latest = latestDashboardArtifact("Spirit");
+		const fallbackWork =
+			spiritWorks().find((work) => work.year === state.spiritYear) ||
+			spiritWorks()[0];
+		const work = latest || fallbackWork;
+		return [
+			["What", work ? shortSummary(work.title) : "No reading yet"],
+			["Who", work?.author || "No author"],
+			[
+				"When",
+				latest
+					? formatActivityTimestamp(activityTimestamp(latest))
+					: work
+						? `Year ${work.year}`
+						: "Not started",
+			],
+		];
+	}
 
-  const latestNote = latestDashboardArtifact("Life");
-  return [
-    ["What", latestNote ? shortSummary(latestNote.title) : `No ${dashboardDisplayLabel("Life").toLowerCase()} note yet`],
-    ["Detail", latestNote ? shortSummary(latestNote.body) : "Add a note"],
-    ["When", formatActivityTimestamp(activityTimestamp(latestNote))]
-  ];
+	const latestNote = latestDashboardArtifact("Life");
+	return [
+		[
+			"What",
+			latestNote
+				? shortSummary(latestNote.title)
+				: `No ${dashboardDisplayLabel("Life").toLowerCase()} note yet`,
+		],
+		["Detail", latestNote ? shortSummary(latestNote.body) : "Add a note"],
+		["When", formatActivityTimestamp(activityTimestamp(latestNote))],
+	];
 }
 
 function dashboardCardBackHtml(label) {
-  return `
+	return `
     <span class="dashboard-card-back">
-      ${dashboardFlipRows(label).map(([key, value]) => `
+      ${dashboardFlipRows(label)
+				.map(
+					([key, value]) => `
         <span class="dashboard-card-row"><em>${escapeHtml(key)}</em><strong>${escapeHtml(value)}</strong></span>
-      `).join("")}
+      `,
+				)
+				.join("")}
       <span class="dashboard-card-open">press again to open</span>
     </span>
   `;
 }
 
 function noteWordCount(body) {
-  return (cleanSummaryText(body).match(/\b[\w']+\b/g) || []).length;
+	return (cleanSummaryText(body).match(/\b[\w']+\b/g) || []).length;
 }
 
 function noteSentences(body) {
-  return String(body || "").split(/[.!?]+/).map((item) => item.trim()).filter(Boolean);
+	return String(body || "")
+		.split(/[.!?]+/)
+		.map((item) => item.trim())
+		.filter(Boolean);
 }
 
 function repeatedSentenceStarterCount(body) {
-  const starts = noteSentences(body)
-    .map((sentence) => sentence.match(/\b[\w']+\b/)?.[0]?.toLowerCase())
-    .filter(Boolean);
-  const counts = new Map();
-  starts.forEach((word) => counts.set(word, (counts.get(word) || 0) + 1));
-  return Array.from(counts.values()).filter((count) => count > 1).reduce((sum, count) => sum + count, 0);
+	const starts = noteSentences(body)
+		.map((sentence) => sentence.match(/\b[\w']+\b/)?.[0]?.toLowerCase())
+		.filter(Boolean);
+	const counts = new Map();
+	starts.forEach((word) => {
+		counts.set(word, (counts.get(word) || 0) + 1);
+	});
+	return Array.from(counts.values())
+		.filter((count) => count > 1)
+		.reduce((sum, count) => sum + count, 0);
 }
 
 function noteCommaCount(body) {
-  return (String(body || "").match(/,/g) || []).length;
+	return (String(body || "").match(/,/g) || []).length;
 }
 
 function noteDateLabel(note) {
-  const value = note.properties?.dateKey || activityTimestamp(note);
-  return value ? formatDateLabel(dateKeyFromValue(value), { year: true }) : "No date";
+	const value = note.properties?.dateKey || activityTimestamp(note);
+	return value
+		? formatDateLabel(dateKeyFromValue(value), { year: true })
+		: "No date";
 }
 
 function noteSizeLabel(note) {
-  const words = noteWordCount(note.body);
-  return words >= 1000 ? `${Math.round(words / 100) / 10}k` : String(words);
+	const words = noteWordCount(note.body);
+	return words >= 1000 ? `${Math.round(words / 100) / 10}k` : String(words);
 }
 
 function bodyMetaItems(note) {
-  const body = String(note.body || "");
-  const readValue = (label) => body.match(new RegExp(`- ${label}:\\s*([^\\n]+)`, "i"))?.[1]?.trim() || "";
-  const minutes = readValue("Minutes");
-  const effort = readValue("Effort");
-  const type = readValue("Type");
-  const calories = readValue("Calories");
-  const protein = readValue("Protein");
-  if (/workout/i.test(note.title) || minutes || effort || type) {
-    return [
-      ["Type", type || "Workout"],
-      ["Min", minutes || "0"],
-      ["Effort", effort || "-"],
-      ["Words", noteSizeLabel(note)]
-    ];
-  }
-  return [
-    ["Cal", calories || "-"],
-    ["Protein", protein || "-"],
-    ["Words", noteSizeLabel(note)],
-    ["Commas", String(noteCommaCount(note.body))]
-  ];
+	const body = String(note.body || "");
+	const readValue = (label) =>
+		body.match(new RegExp(`- ${label}:\\s*([^\\n]+)`, "i"))?.[1]?.trim() || "";
+	const minutes = readValue("Minutes");
+	const effort = readValue("Effort");
+	const type = readValue("Type");
+	const calories = readValue("Calories");
+	const protein = readValue("Protein");
+	if (/workout/i.test(note.title) || minutes || effort || type) {
+		return [
+			["Type", type || "Workout"],
+			["Min", minutes || "0"],
+			["Effort", effort || "-"],
+			["Words", noteSizeLabel(note)],
+		];
+	}
+	return [
+		["Cal", calories || "-"],
+		["Protein", protein || "-"],
+		["Words", noteSizeLabel(note)],
+		["Commas", String(noteCommaCount(note.body))],
+	];
 }
 
 function spiritMetaItems(note) {
-  const planItemKey = note.properties?.planItemKey;
-  const work = planItemKey ? spiritWorks().find((item) => item.key === planItemKey) : null;
-  const year = note.properties?.year || work?.year || "-";
-  const sameYear = work ? spiritWorks().filter((item) => item.year === work.year) : [];
-  const sequence = note.properties?.order || (work ? sameYear.findIndex((item) => item.key === work.key) + 1 : "");
-  const complete = planItemKey ? isSpiritComplete(planItemKey) : note.properties?.status === "complete";
-  return [
-    ["Year", String(year)],
-    ["Seq", sequence ? String(sequence) : "-"],
-    ["Status", complete ? "\u2713" : "\u25cb"],
-    ["Words", noteSizeLabel(note)]
-  ];
+	const planItemKey = note.properties?.planItemKey;
+	const work = planItemKey
+		? spiritWorks().find((item) => item.key === planItemKey)
+		: null;
+	const year = note.properties?.year || work?.year || "-";
+	const sameYear = work
+		? spiritWorks().filter((item) => item.year === work.year)
+		: [];
+	const sequence =
+		note.properties?.order ||
+		(work ? sameYear.findIndex((item) => item.key === work.key) + 1 : "");
+	const complete = planItemKey
+		? isSpiritComplete(planItemKey)
+		: note.properties?.status === "complete";
+	return [
+		["Year", String(year)],
+		["Seq", sequence ? String(sequence) : "-"],
+		["Status", complete ? "\u2713" : "\u25cb"],
+		["Words", noteSizeLabel(note)],
+	];
 }
 
 function lifeMetaItems(note) {
-  const habits = Array.isArray(note.properties?.habits) ? note.properties.habits : [];
-  const mood = note.properties?.mood || "";
-  const energy = note.properties?.energy || "";
-  const habitEmoji = {
-    Move: "\ud83d\udeb6",
-    Read: "\ud83d\udcd6",
-    Create: "\ud83c\udfa8",
-    Clean: "\u2728",
-    Budget: "$",
-    Connect: "\u2661",
-    Pray: "\ud83d\ude4f",
-    Sleep: "\u263e"
-  };
-  const moodEmoji = {
-    great: "\ud83d\ude00",
-    good: "\ud83d\ude42",
-    steady: "\ud83d\ude10",
-    low: "\ud83d\ude41",
-    hard: "!"
-  };
-  return [
-    ["Habit", habitEmoji[habits[0]] || "\u2022"],
-    ["Mood", moodEmoji[mood] || "\u2022"],
-    ["Energy", energy ? energy.slice(0, 1).toUpperCase() : "-"],
-    ["Words", noteSizeLabel(note)]
-  ];
+	const habits = Array.isArray(note.properties?.habits)
+		? note.properties.habits
+		: [];
+	const mood = note.properties?.mood || "";
+	const energy = note.properties?.energy || "";
+	const habitEmoji = {
+		Move: "\ud83d\udeb6",
+		Read: "\ud83d\udcd6",
+		Create: "\ud83c\udfa8",
+		Clean: "\u2728",
+		Budget: "$",
+		Connect: "\u2661",
+		Pray: "\ud83d\ude4f",
+		Sleep: "\u263e",
+	};
+	const moodEmoji = {
+		great: "\ud83d\ude00",
+		good: "\ud83d\ude42",
+		steady: "\ud83d\ude10",
+		low: "\ud83d\ude41",
+		hard: "!",
+	};
+	return [
+		["Habit", habitEmoji[habits[0]] || "\u2022"],
+		["Mood", moodEmoji[mood] || "\u2022"],
+		["Energy", energy ? energy.slice(0, 1).toUpperCase() : "-"],
+		["Words", noteSizeLabel(note)],
+	];
 }
 
 function noteMetaItems(note) {
-  if (note.dashboard === "Mind") {
-    return [
-      ["Words", String(noteWordCount(note.body))],
-      ["Sent", String(noteSentences(note.body).length)],
-      ["Starts", String(repeatedSentenceStarterCount(note.body))],
-      ["Commas", String(noteCommaCount(note.body))]
-    ];
-  }
-  if (note.dashboard === "Body") return bodyMetaItems(note);
-  if (note.dashboard === "Spirit") return spiritMetaItems(note);
-  if (note.dashboard === "Life") return lifeMetaItems(note);
-  return [
-    ["Words", noteSizeLabel(note)],
-    ["Sent", String(noteSentences(note.body).length)],
-    ["Commas", String(noteCommaCount(note.body))],
-    ["Type", note.type || "-"]
-  ];
+	if (note.dashboard === "Mind") {
+		return [
+			["Words", String(noteWordCount(note.body))],
+			["Sent", String(noteSentences(note.body).length)],
+			["Starts", String(repeatedSentenceStarterCount(note.body))],
+			["Commas", String(noteCommaCount(note.body))],
+		];
+	}
+	if (note.dashboard === "Body") return bodyMetaItems(note);
+	if (note.dashboard === "Spirit") return spiritMetaItems(note);
+	if (note.dashboard === "Life") return lifeMetaItems(note);
+	return [
+		["Words", noteSizeLabel(note)],
+		["Sent", String(noteSentences(note.body).length)],
+		["Commas", String(noteCommaCount(note.body))],
+		["Type", note.type || "-"],
+	];
 }
 
-function compendiumSidebarArtifact(compendium) {
-  const sectionBodies = Array.isArray(compendium.sections)
-    ? compendium.sections.map((section) => section?.body || section?.content || "").filter(Boolean)
-    : [];
-  return {
-    ...compendium,
-    dashboard: "Mind",
-    type: "compendium",
-    body: [compendium.body, ...sectionBodies].filter(Boolean).join("\n\n"),
-    properties: compendium.properties || {}
-  };
+function _compendiumSidebarArtifact(compendium) {
+	const sectionBodies = Array.isArray(compendium.sections)
+		? compendium.sections
+				.map((section) => section?.body || section?.content || "")
+				.filter(Boolean)
+		: [];
+	return {
+		...compendium,
+		dashboard: "Mind",
+		type: "compendium",
+		body: [compendium.body, ...sectionBodies].filter(Boolean).join("\n\n"),
+		properties: compendium.properties || {},
+	};
 }
 
 function mindSidebarItems() {
-  const quickNotes = rootNotesForDashboard(state.artifactStore, "Mind")
-    .filter((note) => ["thought", "goal-progress"].includes(note.properties?.role));
-  const sections = state.compendiums.flatMap((compendium) =>
-    (compendium.sections || []).map((section) => ({
-      ...section,
-      dashboard: "Mind",
-      type: "mind-section",
-      parentId: compendium.id,
-      compendiumTitle: compendium.title,
-      properties: {
-        ...(section.properties || {}),
-        role: "compendium-section"
-      }
-    }))
-  );
-  return newestActivityFirst([...quickNotes, ...sections]);
+	const quickNotes = rootNotesForDashboard(state.artifactStore, "Mind").filter(
+		(note) => ["thought", "goal-progress"].includes(note.properties?.role),
+	);
+	const sections = state.compendiums.flatMap((compendium) =>
+		(compendium.sections || []).map((section) => ({
+			...section,
+			dashboard: "Mind",
+			type: "mind-section",
+			parentId: compendium.id,
+			compendiumTitle: compendium.title,
+			properties: {
+				...(section.properties || {}),
+				role: "compendium-section",
+			},
+		})),
+	);
+	return newestActivityFirst([...quickNotes, ...sections]);
 }
 
 function sidebarOrganizerHtml(item) {
-  const metaItems = noteMetaItems(item).slice(0, 4);
-  return `
+	const metaItems = noteMetaItems(item).slice(0, 4);
+	return `
     <span class="sidebar-item-organizer" aria-hidden="true">
       <span class="sidebar-item-date">${escapeHtml(noteDateLabel(item))}</span>
       <span class="sidebar-item-meta-grid">
-        ${metaItems.map(([label, value]) => `
+        ${metaItems
+					.map(
+						([label, value]) => `
             <span class="sidebar-item-meta-cell">
               <em>${escapeHtml(label)}</em>
               <b>${escapeHtml(value)}</b>
             </span>
-          `).join("")}
+          `,
+					)
+					.join("")}
       </span>
     </span>
   `;
 }
 
 function sidebarItemHtml(item, options) {
-  const number = Number(options.number) || 1;
-  const typeClass = item.type === "compendium"
-    ? " sidebar-item--mind-compendium"
-    : item.type === "mind-section"
-      ? " sidebar-item--mind-section"
-      : "";
-  const labelHtml = item.compendiumTitle
-    ? `<span class="sidebar-item-label"><small>${escapeHtml(item.compendiumTitle)}</small><strong>${escapeHtml(item.title)}</strong></span>`
-    : `<span class="sidebar-item-label">${escapeHtml(item.title)}</span>`;
-  return `
+	const number = Number(options.number) || 1;
+	const typeClass =
+		item.type === "compendium"
+			? " sidebar-item--mind-compendium"
+			: item.type === "mind-section"
+				? " sidebar-item--mind-section"
+				: "";
+	const labelHtml = item.compendiumTitle
+		? `<span class="sidebar-item-label"><small>${escapeHtml(item.compendiumTitle)}</small><strong>${escapeHtml(item.title)}</strong></span>`
+		: `<span class="sidebar-item-label">${escapeHtml(item.title)}</span>`;
+	return `
     <button class="sidebar-item${typeClass}${options.active ? " is-active" : ""}" data-action="${options.action}" data-id="${item.id}"${options.parentId ? ` data-parent-id="${escapeHtml(options.parentId)}"` : ""}>
       <span class="sidebar-item-number">${escapeHtml(String(number).padStart(2, "0"))}</span>
       ${labelHtml}
@@ -3564,1927 +4380,2272 @@ function sidebarItemHtml(item, options) {
 }
 
 function numberFromInput(id, fallback = 0) {
-  const value = Number(document.getElementById(id)?.value);
-  return Number.isFinite(value) ? value : fallback;
+	const value = Number(document.getElementById(id)?.value);
+	return Number.isFinite(value) ? value : fallback;
 }
 
 function formatDuration(ms) {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+	const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+	const hours = Math.floor(totalSeconds / 3600);
+	const minutes = Math.floor((totalSeconds % 3600) / 60);
+	const seconds = totalSeconds % 60;
+	return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
 function getFastElapsedMs() {
-  return getBodyTimerElapsedMs("fasting");
+	return getBodyTimerElapsedMs("fasting");
 }
 
-function getFastProgress() {
-  return getBodyTimerProgress("fasting");
+function _getFastProgress() {
+	return getBodyTimerProgress("fasting");
 }
 
 function getNutritionProgress() {
-  const target = Math.max(1, Number(state.bodyTracker.nutrition.targetCalories) || 1);
-  return Math.min(1, (Number(state.bodyTracker.nutrition.calories) || 0) / target);
+	const target = Math.max(
+		1,
+		Number(state.bodyTracker.nutrition.targetCalories) || 1,
+	);
+	return Math.min(
+		1,
+		(Number(state.bodyTracker.nutrition.calories) || 0) / target,
+	);
 }
 
 function bodyTimerConfig(key = state.bodyTimerMode) {
-  return BODY_TIMER_MODES.find((config) => config.key === key) || BODY_TIMER_MODES[0];
+	return (
+		BODY_TIMER_MODES.find((config) => config.key === key) || BODY_TIMER_MODES[0]
+	);
 }
 
 function bodyTimerState(key = state.bodyTimerMode) {
-  const config = bodyTimerConfig(key);
-  return config.stateKey === "fast"
-    ? state.bodyTracker.fast
-    : state.bodyTracker.timers?.[config.stateKey] || createDefaultBodyTimer(config);
+	const config = bodyTimerConfig(key);
+	return config.stateKey === "fast"
+		? state.bodyTracker.fast
+		: state.bodyTracker.timers?.[config.stateKey] ||
+				createDefaultBodyTimer(config);
 }
 
 function setBodyTimerState(key, timer) {
-  const config = bodyTimerConfig(key);
-  if (config.stateKey === "fast") {
-    state.bodyTracker.fast = timer;
-    return;
-  }
-  state.bodyTracker.timers = {
-    ...(state.bodyTracker.timers || {}),
-    [config.stateKey]: timer
-  };
+	const config = bodyTimerConfig(key);
+	if (config.stateKey === "fast") {
+		state.bodyTracker.fast = timer;
+		return;
+	}
+	state.bodyTracker.timers = {
+		...(state.bodyTracker.timers || {}),
+		[config.stateKey]: timer,
+	};
 }
 
 function getBodyTimerElapsedMs(key = state.bodyTimerMode) {
-  const timer = bodyTimerState(key);
-  const start = timer.startTimestamp;
-  if (!timer.active || !start) return 0;
-  return Math.max(0, Date.now() - start);
+	const timer = bodyTimerState(key);
+	const start = timer.startTimestamp;
+	if (!timer.active || !start) return 0;
+	return Math.max(0, Date.now() - start);
 }
 
 function getBodyTimerProgress(key = state.bodyTimerMode) {
-  const timer = bodyTimerState(key);
-  const targetMs = Math.max(1 / 60, Number(timer.targetHours) || 1) * 60 * 60 * 1000;
-  return Math.min(1, getBodyTimerElapsedMs(key) / targetMs);
+	const timer = bodyTimerState(key);
+	const targetMs =
+		Math.max(1 / 60, Number(timer.targetHours) || 1) * 60 * 60 * 1000;
+	return Math.min(1, getBodyTimerElapsedMs(key) / targetMs);
 }
 
 function bodyTimerTargetInputValue(key, timer = bodyTimerState(key)) {
-  const config = bodyTimerConfig(key);
-  return config.targetUnit === "minutes"
-    ? Math.round((Number(timer.targetHours) || config.defaultTargetHours) * 60)
-    : Number(timer.targetHours) || config.defaultTargetHours;
+	const config = bodyTimerConfig(key);
+	return config.targetUnit === "minutes"
+		? Math.round((Number(timer.targetHours) || config.defaultTargetHours) * 60)
+		: Number(timer.targetHours) || config.defaultTargetHours;
 }
 
 function bodyTimerTargetHoursFromInput(key, fallback) {
-  const config = bodyTimerConfig(key);
-  const inputValue = numberFromInput(`body-timer-${key}-target`, bodyTimerTargetInputValue(key, fallback));
-  return config.targetUnit === "minutes"
-    ? Math.max(1, inputValue) / 60
-    : Math.max(1, inputValue);
+	const config = bodyTimerConfig(key);
+	const inputValue = numberFromInput(
+		`body-timer-${key}-target`,
+		bodyTimerTargetInputValue(key, fallback),
+	);
+	return config.targetUnit === "minutes"
+		? Math.max(1, inputValue) / 60
+		: Math.max(1, inputValue);
 }
 
 function selectedCompendium() {
-  return state.compendiums.find((item) => item.id === state.selectedCompendiumId) || null;
+	return (
+		state.compendiums.find((item) => item.id === state.selectedCompendiumId) ||
+		null
+	);
 }
 
 function normalizeCompendiumSections(compendium) {
-  if (!compendium) return compendium;
-  const sections = Array.isArray(compendium.sections)
-    ? compendium.sections
-    : (Array.isArray(compendium.blocks) ? compendium.blocks : []);
-  return { ...compendium, sections };
+	if (!compendium) return compendium;
+	const sections = Array.isArray(compendium.sections)
+		? compendium.sections
+		: Array.isArray(compendium.blocks)
+			? compendium.blocks
+			: [];
+	return { ...compendium, sections };
 }
 
 function normalizeCompendiums(compendiums) {
-  return Array.isArray(compendiums) ? compendiums.map(normalizeCompendiumSections) : [];
+	return Array.isArray(compendiums)
+		? compendiums.map(normalizeCompendiumSections)
+		: [];
 }
 
 function selectedSection() {
-  const compendium = selectedCompendium();
-  return compendium?.sections.find((section) => section.id === state.selectedSectionId) || null;
+	const compendium = selectedCompendium();
+	return (
+		compendium?.sections.find(
+			(section) => section.id === state.selectedSectionId,
+		) || null
+	);
 }
 
 function spiritWorks() {
-  const years = state.spiritPlan?.years || [];
-  return years.flatMap((yearEntry) => {
-    const year = Number(yearEntry.year);
-    return (yearEntry.readings || []).flatMap((reading) =>
-      (reading.works || []).map((work, workIndex) => {
-        const author = reading.author || "";
-        const title = work.title || "Untitled";
-        const order = Number(reading.order) || 0;
-        const key = [
-          "spirit",
-          year,
-          order,
-          author.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-          title.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-          workIndex
-        ].join("-");
-        return {
-          key,
-          year,
-          order,
-          tier: reading.tier || "",
-          author,
-          title,
-          selection: work.selection || reading.selection || "",
-          date: work.date,
-          greatIdeas: Array.isArray(work.great_ideas) ? work.great_ideas : [],
-          tags: Array.isArray(work.custom_tags) ? work.custom_tags : [],
-          blackBox: work.black_box || null
-        };
-      })
-    );
-  }).sort((a, b) => a.year - b.year || a.order - b.order || a.title.localeCompare(b.title));
+	const years = state.spiritPlan?.years || [];
+	return years
+		.flatMap((yearEntry) => {
+			const year = Number(yearEntry.year);
+			return (yearEntry.readings || []).flatMap((reading) =>
+				(reading.works || []).map((work, workIndex) => {
+					const author = reading.author || "";
+					const title = work.title || "Untitled";
+					const order = Number(reading.order) || 0;
+					const key = [
+						"spirit",
+						year,
+						order,
+						author.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+						title.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+						workIndex,
+					].join("-");
+					return {
+						key,
+						year,
+						order,
+						tier: reading.tier || "",
+						author,
+						title,
+						selection: work.selection || reading.selection || "",
+						date: work.date,
+						greatIdeas: Array.isArray(work.great_ideas) ? work.great_ideas : [],
+						tags: Array.isArray(work.custom_tags) ? work.custom_tags : [],
+						blackBox: work.black_box || null,
+					};
+				}),
+			);
+		})
+		.sort(
+			(a, b) =>
+				a.year - b.year || a.order - b.order || a.title.localeCompare(b.title),
+		);
 }
 
 function spiritYears() {
-  return (state.spiritPlan?.years || [])
-    .map((entry) => Number(entry.year))
-    .filter((year) => Number.isFinite(year))
-    .sort((a, b) => a - b);
+	return (state.spiritPlan?.years || [])
+		.map((entry) => Number(entry.year))
+		.filter((year) => Number.isFinite(year))
+		.sort((a, b) => a - b);
 }
 
 function selectedSpiritBook() {
-  return spiritWorks().find((work) => work.key === state.selectedSpiritBookKey) || null;
+	return (
+		spiritWorks().find((work) => work.key === state.selectedSpiritBookKey) ||
+		null
+	);
 }
 
 function spiritArtifactForKey(key) {
-  return state.artifactStore?.artifacts.find((artifact) =>
-    artifact.dashboard === "Spirit" &&
-    artifact.properties?.role === "spirit-reading-plan-item" &&
-    artifact.properties?.planItemKey === key
-  ) || null;
+	return (
+		state.artifactStore?.artifacts.find(
+			(artifact) =>
+				artifact.dashboard === "Spirit" &&
+				artifact.properties?.role === "spirit-reading-plan-item" &&
+				artifact.properties?.planItemKey === key,
+		) || null
+	);
 }
 
 function isSpiritComplete(key) {
-  if (Object.prototype.hasOwnProperty.call(state.spiritProgress, key)) return Boolean(state.spiritProgress[key]);
-  const artifact = spiritArtifactForKey(key);
-  if (artifact) return Boolean(artifact.properties?.completed);
-  return Boolean(state.spiritProgress[key]);
+	if (Object.hasOwn(state.spiritProgress, key))
+		return Boolean(state.spiritProgress[key]);
+	const artifact = spiritArtifactForKey(key);
+	if (artifact) return Boolean(artifact.properties?.completed);
+	return Boolean(state.spiritProgress[key]);
 }
 
 function spiritPlanLabel() {
-  return SPIRIT_PLANS.find((entry) => entry.id === state.spiritPlanId)?.label || "Reading Plan";
+	return (
+		SPIRIT_PLANS.find((entry) => entry.id === state.spiritPlanId)?.label ||
+		"Reading Plan"
+	);
 }
 
 function spiritNotes() {
-  return state.artifactStore?.artifacts.filter((artifact) =>
-    artifact.type === "note" &&
-    artifact.dashboard === "Spirit"
-  ) || [];
+	return (
+		state.artifactStore?.artifacts.filter(
+			(artifact) => artifact.type === "note" && artifact.dashboard === "Spirit",
+		) || []
+	);
 }
 
 function spiritReadingArtifactPayload(work, completed, current = null) {
-  const now = nowIso();
-  return {
-    id: current?.id || `spirit-reading-${work.key}`,
-    type: "reading-plan-item",
-    dashboard: "Spirit",
-    parentId: null,
-    title: work.title,
-    body: [
-      `## ${work.title}`,
-      "",
-      `Author: ${work.author || "Unknown"}`,
-      `Plan: ${spiritPlanLabel()}`,
-      `Year: ${work.year}`,
-      work.selection ? `Selection: ${work.selection}` : "",
-      "",
-      "This record stores reading-plan metadata for dashboard analytics."
-    ].filter(Boolean).join("\n"),
-    created: current?.created || now,
-    edited: now,
-    childIds: current?.childIds || [],
-    properties: {
-      ...(current?.properties || {}),
-      role: "spirit-reading-plan-item",
-      status: completed ? "complete" : "open",
-      completed,
-      completedAt: completed ? now : null,
-      planId: state.spiritPlanId,
-      planLabel: spiritPlanLabel(),
-      planItemKey: work.key,
-      sourcePlanUrl: SPIRIT_PLANS.find((entry) => entry.id === state.spiritPlanId)?.url || "",
-      year: work.year,
-      order: work.order,
-      tier: work.tier,
-      author: work.author,
-      title: work.title,
-      selection: work.selection,
-      date: work.date ?? null,
-      greatIdeas: work.greatIdeas,
-      tags: work.tags
-    },
-    analysis: {
-      ...(current?.analysis || {}),
-      greatIdeas: work.greatIdeas,
-      tags: work.tags,
-      focus: Array.isArray(work.blackBox?.outputs) ? work.blackBox.outputs : []
-    }
-  };
+	const now = nowIso();
+	return {
+		id: current?.id || `spirit-reading-${work.key}`,
+		type: "reading-plan-item",
+		dashboard: "Spirit",
+		parentId: null,
+		title: work.title,
+		body: [
+			`## ${work.title}`,
+			"",
+			`Author: ${work.author || "Unknown"}`,
+			`Plan: ${spiritPlanLabel()}`,
+			`Year: ${work.year}`,
+			work.selection ? `Selection: ${work.selection}` : "",
+			"",
+			"This record stores reading-plan metadata for dashboard analytics.",
+		]
+			.filter(Boolean)
+			.join("\n"),
+		created: current?.created || now,
+		edited: now,
+		childIds: current?.childIds || [],
+		properties: {
+			...(current?.properties || {}),
+			role: "spirit-reading-plan-item",
+			status: completed ? "complete" : "open",
+			completed,
+			completedAt: completed ? now : null,
+			planId: state.spiritPlanId,
+			planLabel: spiritPlanLabel(),
+			planItemKey: work.key,
+			sourcePlanUrl:
+				SPIRIT_PLANS.find((entry) => entry.id === state.spiritPlanId)?.url ||
+				"",
+			year: work.year,
+			order: work.order,
+			tier: work.tier,
+			author: work.author,
+			title: work.title,
+			selection: work.selection,
+			date: work.date ?? null,
+			greatIdeas: work.greatIdeas,
+			tags: work.tags,
+		},
+		analysis: {
+			...(current?.analysis || {}),
+			greatIdeas: work.greatIdeas,
+			tags: work.tags,
+			focus: Array.isArray(work.blackBox?.outputs) ? work.blackBox.outputs : [],
+		},
+	};
 }
 
-function ensureSpiritReadingArtifact(work) {
-  const current = spiritArtifactForKey(work.key);
-  const payload = spiritReadingArtifactPayload(work, isSpiritComplete(work.key), current);
-  persistArtifactStore(upsertArtifact(state.artifactStore, payload));
-  return payload;
+function _ensureSpiritReadingArtifact(work) {
+	const current = spiritArtifactForKey(work.key);
+	const payload = spiritReadingArtifactPayload(
+		work,
+		isSpiritComplete(work.key),
+		current,
+	);
+	persistArtifactStore(upsertArtifact(state.artifactStore, payload));
+	return payload;
 }
 
 function setState(next) {
-  Object.assign(state, next);
-  render();
+	Object.assign(state, next);
+	render();
 }
 
 function setCloudStatus(patch) {
-  setState({
-    cloud: {
-      ...state.cloud,
-      ...patch,
-      entitlement: {
-        ...(state.cloud?.entitlement || {}),
-        ...(patch.entitlement || {})
-      }
-    }
-  });
+	setState({
+		cloud: {
+			...state.cloud,
+			...patch,
+			entitlement: {
+				...(state.cloud?.entitlement || {}),
+				...(patch.entitlement || {}),
+			},
+		},
+	});
 }
 
 async function runCloudAction(message, action) {
-  setCloudStatus({ busy: true, message, error: "" });
-  try {
-    const result = await action();
-    const account = getCloudAccountState();
-    setCloudStatus({
-      ...account,
-      busy: false,
-      message: result?.message || account.message,
-      error: ""
-    });
-  } catch (error) {
-    setCloudStatus({
-      ...getCloudAccountState(),
-      busy: false,
-      error: error instanceof Error ? error.message : "Cloud action failed."
-    });
-  }
+	setCloudStatus({ busy: true, message, error: "" });
+	try {
+		const result = await action();
+		const account = getCloudAccountState();
+		setCloudStatus({
+			...account,
+			busy: false,
+			message: result?.message || account.message,
+			error: "",
+		});
+	} catch (error) {
+		setCloudStatus({
+			...getCloudAccountState(),
+			busy: false,
+			error: error instanceof Error ? error.message : "Cloud action failed.",
+		});
+	}
 }
 
 function isReady() {
-  return Boolean(state.artifactStore);
+	return Boolean(state.artifactStore);
 }
 
 function toggleSidebarSection(section) {
-  setState({
-    sidebarExpanded: {
-      ...state.sidebarExpanded,
-      [section]: !state.sidebarExpanded[section]
-    }
-  });
+	setState({
+		sidebarExpanded: {
+			...state.sidebarExpanded,
+			[section]: !state.sidebarExpanded[section],
+		},
+	});
 }
 
 function toggleAllSidebarSections() {
-  const labels = DASHBOARD_LABELS;
-  const shouldExpand = !labels.every((label) => state.sidebarExpanded[label]);
-  setState({
-    sidebarExpanded: Object.fromEntries(labels.map((label) => [label, shouldExpand]))
-  });
+	const labels = DASHBOARD_LABELS;
+	const shouldExpand = !labels.every((label) => state.sidebarExpanded[label]);
+	setState({
+		sidebarExpanded: Object.fromEntries(
+			labels.map((label) => [label, shouldExpand]),
+		),
+	});
 }
 
 function setSidebarPage(section, direction, maxPage) {
-  const current = state.sidebarPages[section] || 0;
-  const nextPage = direction === "prev" ? current - 1 : current + 1;
-  setState({
-    sidebarPages: {
-      ...state.sidebarPages,
-      [section]: Math.min(Math.max(nextPage, 0), maxPage)
-    }
-  });
+	const current = state.sidebarPages[section] || 0;
+	const nextPage = direction === "prev" ? current - 1 : current + 1;
+	setState({
+		sidebarPages: {
+			...state.sidebarPages,
+			[section]: Math.min(Math.max(nextPage, 0), maxPage),
+		},
+	});
 }
 
 function trackerPageKey(dashboard, editable = false, kind = "thought") {
-  return `${trackerKind(kind)}:${dashboard}:${editable ? "settings" : "quick"}`;
+	return `${trackerKind(kind)}:${dashboard}:${editable ? "settings" : "quick"}`;
 }
 
-function trackerPage(dashboard, editable = false, maxPage = 0, kind = "thought") {
-  const page = state.trackerPages?.[trackerPageKey(dashboard, editable, kind)] || 0;
-  return Math.min(Math.max(page, 0), Math.max(0, maxPage));
+function trackerPage(
+	dashboard,
+	editable = false,
+	maxPage = 0,
+	kind = "thought",
+) {
+	const page =
+		state.trackerPages?.[trackerPageKey(dashboard, editable, kind)] || 0;
+	return Math.min(Math.max(page, 0), Math.max(0, maxPage));
 }
 
-function setTrackerPage(dashboard, direction, maxPage, editable = false, kind = "thought") {
-  const current = trackerPage(dashboard, editable, maxPage, kind);
-  const nextPage = direction === "prev" ? current - 1 : current + 1;
-  setState({
-    trackerPages: {
-      ...(state.trackerPages || {}),
-      [trackerPageKey(dashboard, editable, kind)]: Math.min(Math.max(nextPage, 0), Math.max(0, maxPage))
-    }
-  });
+function setTrackerPage(
+	dashboard,
+	direction,
+	maxPage,
+	editable = false,
+	kind = "thought",
+) {
+	const current = trackerPage(dashboard, editable, maxPage, kind);
+	const nextPage = direction === "prev" ? current - 1 : current + 1;
+	setState({
+		trackerPages: {
+			...(state.trackerPages || {}),
+			[trackerPageKey(dashboard, editable, kind)]: Math.min(
+				Math.max(nextPage, 0),
+				Math.max(0, maxPage),
+			),
+		},
+	});
 }
 
 function reorderCombinedTrackers(area, trackerId, targetIndex) {
-  if (!DASHBOARD_LABELS.includes(area) || !trackerId) return;
-  const thoughtTrackers = [...((state.trackerSettings?.[area]) || [])];
-  const goalTrackers = [...((state.goalSettings?.[area]) || [])];
-  const enabledGoals = goalTrackers.filter((goal) => goal?.enabled);
-  const disabledGoals = goalTrackers.filter((goal) => !goal?.enabled);
-  const combinedTrackers = [
-    ...thoughtTrackers.map((tracker) => ({ ...tracker, trackerKind: "thought" })),
-    ...enabledGoals.map((goal) => ({ ...goal, trackerKind: "goal" }))
-  ];
-  const sourceIndex = combinedTrackers.findIndex((tracker) => tracker.id === trackerId);
-  if (sourceIndex < 0) return;
-  const resolvedTarget = Number.isFinite(Number(targetIndex)) ? Number(targetIndex) : 0;
-  const clampedTarget = Math.min(Math.max(resolvedTarget, 0), combinedTrackers.length);
-  if (sourceIndex === clampedTarget) return;
-  const reordered = [...combinedTrackers];
-  const [moved] = reordered.splice(sourceIndex, 1);
-  reordered.splice(clampedTarget, 0, moved);
+	if (!DASHBOARD_LABELS.includes(area) || !trackerId) return;
+	const thoughtTrackers = [...(state.trackerSettings?.[area] || [])];
+	const goalTrackers = [...(state.goalSettings?.[area] || [])];
+	const enabledGoals = goalTrackers.filter((goal) => goal?.enabled);
+	const disabledGoals = goalTrackers.filter((goal) => !goal?.enabled);
+	const combinedTrackers = [
+		...thoughtTrackers.map((tracker) => ({
+			...tracker,
+			trackerKind: "thought",
+		})),
+		...enabledGoals.map((goal) => ({ ...goal, trackerKind: "goal" })),
+	];
+	const sourceIndex = combinedTrackers.findIndex(
+		(tracker) => tracker.id === trackerId,
+	);
+	if (sourceIndex < 0) return;
+	const resolvedTarget = Number.isFinite(Number(targetIndex))
+		? Number(targetIndex)
+		: 0;
+	const clampedTarget = Math.min(
+		Math.max(resolvedTarget, 0),
+		combinedTrackers.length,
+	);
+	if (sourceIndex === clampedTarget) return;
+	const reordered = [...combinedTrackers];
+	const [moved] = reordered.splice(sourceIndex, 1);
+	reordered.splice(clampedTarget, 0, moved);
 
-  const orderedThoughts = reordered
-    .filter((tracker) => tracker.trackerKind === "thought")
-    .map((tracker) => thoughtTrackers.find((entry) => entry.id === tracker.id))
-    .filter(Boolean);
-  const orderedThoughtIds = new Set(orderedThoughts.map((tracker) => tracker.id));
-  const nextThoughts = [...orderedThoughts, ...thoughtTrackers.filter((tracker) => !orderedThoughtIds.has(tracker.id))];
+	const orderedThoughts = reordered
+		.filter((tracker) => tracker.trackerKind === "thought")
+		.map((tracker) => thoughtTrackers.find((entry) => entry.id === tracker.id))
+		.filter(Boolean);
+	const orderedThoughtIds = new Set(
+		orderedThoughts.map((tracker) => tracker.id),
+	);
+	const nextThoughts = [
+		...orderedThoughts,
+		...thoughtTrackers.filter((tracker) => !orderedThoughtIds.has(tracker.id)),
+	];
 
-  const orderedGoalIds = reordered
-    .filter((tracker) => tracker.trackerKind === "goal")
-    .map((tracker) => tracker.id);
-  const enabledGoalMap = new Map(enabledGoals.map((goal) => [goal.id, goal]));
-  const nextEnabledGoals = orderedGoalIds
-    .map((goalId) => enabledGoalMap.get(goalId))
-    .filter(Boolean);
-  const nextGoals = [...nextEnabledGoals, ...disabledGoals];
+	const orderedGoalIds = reordered
+		.filter((tracker) => tracker.trackerKind === "goal")
+		.map((tracker) => tracker.id);
+	const enabledGoalMap = new Map(enabledGoals.map((goal) => [goal.id, goal]));
+	const nextEnabledGoals = orderedGoalIds
+		.map((goalId) => enabledGoalMap.get(goalId))
+		.filter(Boolean);
+	const nextGoals = [...nextEnabledGoals, ...disabledGoals];
 
-  setState({
-    trackerSettings: {
-      ...(state.trackerSettings || {}),
-      [area]: nextThoughts
-    },
-    goalSettings: {
-      ...(state.goalSettings || {}),
-      [area]: nextGoals
-    }
-  });
-  saveTrackerSettings();
-  saveGoalSettings();
+	setState({
+		trackerSettings: {
+			...(state.trackerSettings || {}),
+			[area]: nextThoughts,
+		},
+		goalSettings: {
+			...(state.goalSettings || {}),
+			[area]: nextGoals,
+		},
+	});
+	saveTrackerSettings();
+	saveGoalSettings();
 }
 
 function clampSidebarWidth(value) {
-  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(Number(value) || SIDEBAR_DEFAULT_WIDTH)));
+	return Math.min(
+		SIDEBAR_MAX_WIDTH,
+		Math.max(
+			SIDEBAR_MIN_WIDTH,
+			Math.round(Number(value) || SIDEBAR_DEFAULT_WIDTH),
+		),
+	);
 }
 
-function setSidebarWidth(width, options = {}) {
-  const nextWidth = clampSidebarWidth(width);
-  state.sidebarWidth = nextWidth;
-  saveSidebarWidth(nextWidth);
-  const workspace = app.querySelector(".workspace");
-  if (workspace) workspace.style.setProperty("--sidebar-width", `${nextWidth}px`);
-  const toggle = app.querySelector(".mobile-menu-toggle");
-  if (toggle) toggle.style.transform = "";
-  if (options.open) {
-    state.mobileMenuOpen = true;
-    if (workspace) workspace.classList.add("has-mobile-menu");
-    if (toggle) {
-      toggle.setAttribute("aria-expanded", "true");
-      toggle.textContent = menuToggleLabel(true);
-    }
-  }
+function _setSidebarWidth(width, options = {}) {
+	const nextWidth = clampSidebarWidth(width);
+	state.sidebarWidth = nextWidth;
+	saveSidebarWidth(nextWidth);
+	const workspace = app.querySelector(".workspace");
+	if (workspace)
+		workspace.style.setProperty("--sidebar-width", `${nextWidth}px`);
+	const toggle = app.querySelector(".mobile-menu-toggle");
+	if (toggle) toggle.style.transform = "";
+	if (options.open) {
+		state.mobileMenuOpen = true;
+		if (workspace) workspace.classList.add("has-mobile-menu");
+		if (toggle) {
+			toggle.setAttribute("aria-expanded", "true");
+			toggle.textContent = menuToggleLabel(true);
+		}
+	}
 }
 
 function toggleMobileMenu() {
-  setState({ mobileMenuOpen: !state.mobileMenuOpen });
+	setState({ mobileMenuOpen: !state.mobileMenuOpen });
 }
 
 function closeMobileMenu() {
-  if (!state.mobileMenuOpen) return false;
-  state.mobileMenuOpen = false;
-  const workspace = app.querySelector(".workspace");
-  const toggle = app.querySelector(".mobile-menu-toggle");
-  workspace?.classList.remove("has-mobile-menu");
-  if (toggle) {
-    toggle.setAttribute("aria-expanded", "false");
-    toggle.textContent = menuToggleLabel(false);
-  }
-  return true;
+	if (!state.mobileMenuOpen) return false;
+	state.mobileMenuOpen = false;
+	const workspace = app.querySelector(".workspace");
+	const toggle = app.querySelector(".mobile-menu-toggle");
+	workspace?.classList.remove("has-mobile-menu");
+	if (toggle) {
+		toggle.setAttribute("aria-expanded", "false");
+		toggle.textContent = menuToggleLabel(false);
+	}
+	return true;
 }
 
 function menuToggleLabel(isOpen = state.mobileMenuOpen) {
-  return isOpen ? "vvv HIDE NOTES vvv" : "^^^ SHOW NOTES ^^^";
+	return isOpen ? "vvv HIDE NOTES vvv" : "^^^ SHOW NOTES ^^^";
 }
 
 function persistCompendiums() {
-  if (!state.artifactStore) return;
-  state.compendiums = normalizeCompendiums(state.compendiums);
-  state.artifactStore = compendiumsToArtifactStore(state.compendiums, state.artifactStore);
-  saveArtifactStore(state.artifactStore);
+	if (!state.artifactStore) return;
+	state.compendiums = normalizeCompendiums(state.compendiums);
+	state.artifactStore = compendiumsToArtifactStore(
+		state.compendiums,
+		state.artifactStore,
+	);
+	saveArtifactStore(state.artifactStore);
 }
 
 function persistArtifactStore(nextStore) {
-  state.artifactStore = nextStore;
-  state.compendiums = normalizeCompendiums(artifactStoreToCompendiums(nextStore));
-  saveArtifactStore(nextStore);
+	state.artifactStore = nextStore;
+	state.compendiums = normalizeCompendiums(
+		artifactStoreToCompendiums(nextStore),
+	);
+	saveArtifactStore(nextStore);
 }
 
 function persistLifePlanner(nextPlanner, nextState = {}) {
-  const normalized = normalizeLifePlanner(nextPlanner);
-  state.lifePlanner = normalized;
-  saveLifePlannerStore(normalized);
-  setState(nextState);
+	const normalized = normalizeLifePlanner(nextPlanner);
+	state.lifePlanner = normalized;
+	saveLifePlannerStore(normalized);
+	setState(nextState);
 }
 
 function lifeProjects() {
-  return state.lifePlanner?.projects || [];
+	return state.lifePlanner?.projects || [];
 }
 
 function lifeTodos() {
-  return state.lifePlanner?.todos || [];
+	return state.lifePlanner?.todos || [];
 }
 
 function selectedLifeProject() {
-  return lifeProjects().find((project) => project.id === state.selectedLifeProjectId) || null;
+	return (
+		lifeProjects().find(
+			(project) => project.id === state.selectedLifeProjectId,
+		) || null
+	);
 }
 
 function selectedLifePhase(project = selectedLifeProject()) {
-  return project?.phases?.find((phase) => phase.id === state.selectedLifePhaseId) || null;
+	return (
+		project?.phases?.find((phase) => phase.id === state.selectedLifePhaseId) ||
+		null
+	);
 }
 
 function selectedLifeTask(phase = selectedLifePhase()) {
-  return phase?.tasks?.find((task) => task.id === state.selectedLifeTaskId) || null;
+	return (
+		phase?.tasks?.find((task) => task.id === state.selectedLifeTaskId) || null
+	);
 }
 
 function lifeProjectTaskItems() {
-  return lifeProjects().flatMap((project) =>
-    (project.phases || []).flatMap((phase) =>
-      (phase.tasks || []).map((task) => ({
-        ...task,
-        source: "project-task",
-        projectId: project.id,
-        phaseId: phase.id,
-        taskId: task.id,
-        projectTitle: project.title,
-        phaseTitle: phase.title
-      }))
-    )
-  );
+	return lifeProjects().flatMap((project) =>
+		(project.phases || []).flatMap((phase) =>
+			(phase.tasks || []).map((task) => ({
+				...task,
+				source: "project-task",
+				projectId: project.id,
+				phaseId: phase.id,
+				taskId: task.id,
+				projectTitle: project.title,
+				phaseTitle: phase.title,
+			})),
+		),
+	);
 }
 
 function lifeTodoTaskItems() {
-  return lifeTodos().map((todo) => ({
-    ...todo,
-    source: "todo",
-    todoId: todo.id,
-    projectTitle: "",
-    phaseTitle: ""
-  }));
+	return lifeTodos().map((todo) => ({
+		...todo,
+		source: "todo",
+		todoId: todo.id,
+		projectTitle: "",
+		phaseTitle: "",
+	}));
 }
 
 function lifeTaskItems() {
-  return [...lifeTodoTaskItems(), ...lifeProjectTaskItems()];
+	return [...lifeTodoTaskItems(), ...lifeProjectTaskItems()];
 }
 
 function setLifeTool(tool) {
-  const nextTool = ["todo", "projects", "calendar"].includes(tool) ? tool : "calendar";
-  setState({
-    lifeTool: nextTool,
-    artifactMode: "grid",
-    selectedArtifactId: null
-  });
+	const nextTool = ["todo", "projects", "calendar"].includes(tool)
+		? tool
+		: "calendar";
+	setState({
+		lifeTool: nextTool,
+		artifactMode: "grid",
+		selectedArtifactId: null,
+	});
 }
 
 async function exportArtifacts() {
-  if (!state.artifactStore) return;
-  const dateKey = todayDateKey();
-  const payload = JSON.stringify({
-    ...state.artifactStore,
-    appState: await exportAppState()
-  }, null, 2);
-  const blob = new Blob([payload], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `ourstuff-artifacts-${dateKey}.json`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+	if (!state.artifactStore) return;
+	const dateKey = todayDateKey();
+	const payload = JSON.stringify(
+		{
+			...state.artifactStore,
+			appState: await exportAppState(),
+		},
+		null,
+		2,
+	);
+	const blob = new Blob([payload], { type: "application/json" });
+	const url = URL.createObjectURL(blob);
+	const link = document.createElement("a");
+	link.href = url;
+	link.download = `ourstuff-artifacts-${dateKey}.json`;
+	document.body.appendChild(link);
+	link.click();
+	link.remove();
+	URL.revokeObjectURL(url);
 }
 
 function importArtifacts() {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = "application/json,.json";
-  input.addEventListener("change", async () => {
-    const file = input.files?.[0];
-    if (!file) return;
-    try {
-      const parsed = JSON.parse(await file.text());
-      if (parsed?.schemaVersion !== SCHEMA_VERSION || !Array.isArray(parsed.artifacts)) {
-        throw new Error("Import file must be an Ourstuff artifact export.");
-      }
-      const replaceCloud = cloudHasSyncAccess();
-      const confirmed = window.confirm(replaceCloud
-        ? "Import this JSON and rebuild your Firebase artifact collection from it? This wipes the current cloud artifacts for this app first."
-        : "Import this JSON and replace the current local app data?");
-      if (!confirmed) return;
-      await importAppStateJson(parsed, { replaceCloud });
-    } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Could not import data.");
-    }
-  });
-  input.click();
+	const input = document.createElement("input");
+	input.type = "file";
+	input.accept = "application/json,.json";
+	input.addEventListener("change", async () => {
+		const file = input.files?.[0];
+		if (!file) return;
+		try {
+			const parsed = JSON.parse(await file.text());
+			if (
+				parsed?.schemaVersion !== SCHEMA_VERSION ||
+				!Array.isArray(parsed.artifacts)
+			) {
+				throw new Error("Import file must be an Ourstuff artifact export.");
+			}
+			const replaceCloud = cloudHasSyncAccess();
+			const confirmed = window.confirm(
+				replaceCloud
+					? "Import this JSON and rebuild your Firebase artifact collection from it? This wipes the current cloud artifacts for this app first."
+					: "Import this JSON and replace the current local app data?",
+			);
+			if (!confirmed) return;
+			await importAppStateJson(parsed, { replaceCloud });
+		} catch (error) {
+			window.alert(
+				error instanceof Error ? error.message : "Could not import data.",
+			);
+		}
+	});
+	input.click();
 }
 
 async function clearAppData(options = {}) {
-  const silent = options?.silent === true;
-  if (!silent) {
-    const confirmed = window.confirm("Clear everything from this browser, including the mock app data and dismissed tips? This cannot be undone unless you have an export.");
-    if (!confirmed) return;
-  }
-  const emptyStore = createEmptyStore();
-  window.localStorage.removeItem(BODY_TRACKER_KEY);
-  window.localStorage.removeItem(SPIRIT_PROGRESS_KEY);
-  window.localStorage.removeItem(LIFE_PLANNER_KEY);
-  window.localStorage.removeItem(TRACKER_SETTINGS_KEY);
-  window.localStorage.removeItem(GOAL_SETTINGS_KEY);
-  window.localStorage.removeItem(DASHBOARD_IDENTITY_KEY);
-  window.localStorage.removeItem(SIDEBAR_WIDTH_KEY);
-  window.localStorage.removeItem(THEME_KEY);
-  window.localStorage.removeItem(ICONIFY_SEARCH_CACHE_KEY);
-  window.localStorage.removeItem(LOCAL_APP_UPDATED_AT_KEY);
-  clearDismissedTips();
-  await clearLocalFiles().catch(() => {});
-  saveArtifactStore(emptyStore);
-  state.artifactStore = emptyStore;
-  state.compendiums = [];
-  state.bodyTracker = createDefaultBodyTracker();
-  state.spiritProgress = {};
-  state.lifePlanner = createDefaultLifePlanner();
-  state.trackerSettings = createEmptyTrackerSettings();
-  state.goalSettings = createEmptyTrackerSettings();
-  state.dashboardIdentity = cloneDefaultDashboardIdentity();
-  state.theme = "default";
-  state.settingsTab = "getting-started";
-  state.trackerAddArea = "";
-  state.trackerEditKey = "";
-  state.trackerDeleteKey = "";
-  state.active = "Dashboard";
-  state.flipped = null;
-  state.mindMode = "grid";
-  state.artifactMode = "grid";
-  state.selectedCompendiumId = null;
-  state.selectedSectionId = null;
-  state.selectedArtifactId = null;
-  state.selectedSpiritBookKey = null;
-  state.lifeTool = "";
-  state.selectedLifeProjectId = null;
-  state.selectedLifePhaseId = null;
-  state.selectedLifeTaskId = null;
-  state.galleryImages = null;
-  state.gallerySelectedIds = [];
-  state.cloudStorageUsage = null;
-  saveTrackerSettings();
-  saveGoalSettings();
-  goHome();
+	const silent = options?.silent === true;
+	if (!silent) {
+		const confirmed = window.confirm(
+			"Clear everything from this browser, including the mock app data and dismissed tips? This cannot be undone unless you have an export.",
+		);
+		if (!confirmed) return;
+	}
+	const emptyStore = createEmptyStore();
+	window.localStorage.removeItem(BODY_TRACKER_KEY);
+	window.localStorage.removeItem(SPIRIT_PROGRESS_KEY);
+	window.localStorage.removeItem(LIFE_PLANNER_KEY);
+	window.localStorage.removeItem(TRACKER_SETTINGS_KEY);
+	window.localStorage.removeItem(GOAL_SETTINGS_KEY);
+	window.localStorage.removeItem(DASHBOARD_IDENTITY_KEY);
+	window.localStorage.removeItem(SIDEBAR_WIDTH_KEY);
+	window.localStorage.removeItem(THEME_KEY);
+	window.localStorage.removeItem(ICONIFY_SEARCH_CACHE_KEY);
+	window.localStorage.removeItem(LOCAL_APP_UPDATED_AT_KEY);
+	clearDismissedTips();
+	await clearLocalFiles().catch(() => {});
+	saveArtifactStore(emptyStore);
+	state.artifactStore = emptyStore;
+	state.compendiums = [];
+	state.bodyTracker = createDefaultBodyTracker();
+	state.spiritProgress = {};
+	state.lifePlanner = createDefaultLifePlanner();
+	state.trackerSettings = createEmptyTrackerSettings();
+	state.goalSettings = createEmptyTrackerSettings();
+	state.dashboardIdentity = cloneDefaultDashboardIdentity();
+	state.theme = "default";
+	state.settingsTab = "getting-started";
+	state.trackerAddArea = "";
+	state.trackerEditKey = "";
+	state.trackerDeleteKey = "";
+	state.active = "Dashboard";
+	state.flipped = null;
+	state.mindMode = "grid";
+	state.artifactMode = "grid";
+	state.selectedCompendiumId = null;
+	state.selectedSectionId = null;
+	state.selectedArtifactId = null;
+	state.selectedSpiritBookKey = null;
+	state.lifeTool = "";
+	state.selectedLifeProjectId = null;
+	state.selectedLifePhaseId = null;
+	state.selectedLifeTaskId = null;
+	state.galleryImages = null;
+	state.gallerySelectedIds = [];
+	state.cloudStorageUsage = null;
+	saveTrackerSettings();
+	saveGoalSettings();
+	goHome();
 }
 
 async function restoreFactoryDefaults() {
-  const confirmed = window.confirm("Restore the Self Help Defaults with the original starter data, tips, orbs, goals, and app structure? This replaces local app data unless you have an export.");
-  if (!confirmed) return;
-  const seedStore = await loadSeedStore();
-  window.localStorage.removeItem(STORAGE_KEY);
-  window.localStorage.removeItem(BODY_TRACKER_KEY);
-  window.localStorage.removeItem(SPIRIT_PROGRESS_KEY);
-  window.localStorage.removeItem(LIFE_PLANNER_KEY);
-  window.localStorage.removeItem(TRACKER_SETTINGS_KEY);
-  window.localStorage.removeItem(GOAL_SETTINGS_KEY);
-  window.localStorage.removeItem(DASHBOARD_IDENTITY_KEY);
-  window.localStorage.removeItem(SIDEBAR_WIDTH_KEY);
-  window.localStorage.removeItem(THEME_KEY);
-  window.localStorage.removeItem(ICONIFY_SEARCH_CACHE_KEY);
-  window.localStorage.removeItem(LOCAL_APP_UPDATED_AT_KEY);
-  clearDismissedTips();
-  await clearLocalFiles().catch(() => {});
-  state.artifactStore = seedStore;
-  state.compendiums = normalizeCompendiums(artifactStoreToCompendiums(seedStore));
-  state.bodyTracker = createDefaultBodyTracker();
-  state.spiritProgress = {};
-  state.lifePlanner = createDefaultLifePlanner();
-  state.trackerSettings = cloneDefaultTrackers();
-  state.goalSettings = cloneDefaultGoals();
-  state.dashboardIdentity = cloneDefaultDashboardIdentity();
-  state.theme = "default";
-  state.settingsTab = "getting-started";
-  state.trackerAddArea = "";
-  state.trackerEditKey = "";
-  state.trackerDeleteKey = "";
-  state.active = "Dashboard";
-  state.flipped = null;
-  state.mindMode = "grid";
-  state.artifactMode = "grid";
-  state.selectedCompendiumId = null;
-  state.selectedSectionId = null;
-  state.selectedArtifactId = null;
-  state.selectedSpiritBookKey = null;
-  state.lifeTool = "";
-  state.selectedLifeProjectId = null;
-  state.selectedLifePhaseId = null;
-  state.selectedLifeTaskId = null;
-  state.galleryImages = null;
-  state.gallerySelectedIds = [];
-  state.cloudStorageUsage = null;
-  if (seedStore.appState) await restoreImportedAppState(seedStore.appState);
-  saveArtifactStore(seedStore);
-  saveDashboardIdentity(state.dashboardIdentity);
-  saveTheme(state.theme);
-  setState({
-    active: "Dashboard",
-    flipped: null,
-    artifactStore: seedStore,
-    compendiums: normalizeCompendiums(artifactStoreToCompendiums(seedStore)),
-    dismissedTips: []
-  });
+	const confirmed = window.confirm(
+		"Restore the Self Help Defaults with the original starter data, tips, orbs, goals, and app structure? This replaces local app data unless you have an export.",
+	);
+	if (!confirmed) return;
+	const seedStore = await loadSeedStore();
+	window.localStorage.removeItem(STORAGE_KEY);
+	window.localStorage.removeItem(BODY_TRACKER_KEY);
+	window.localStorage.removeItem(SPIRIT_PROGRESS_KEY);
+	window.localStorage.removeItem(LIFE_PLANNER_KEY);
+	window.localStorage.removeItem(TRACKER_SETTINGS_KEY);
+	window.localStorage.removeItem(GOAL_SETTINGS_KEY);
+	window.localStorage.removeItem(DASHBOARD_IDENTITY_KEY);
+	window.localStorage.removeItem(SIDEBAR_WIDTH_KEY);
+	window.localStorage.removeItem(THEME_KEY);
+	window.localStorage.removeItem(ICONIFY_SEARCH_CACHE_KEY);
+	window.localStorage.removeItem(LOCAL_APP_UPDATED_AT_KEY);
+	clearDismissedTips();
+	await clearLocalFiles().catch(() => {});
+	state.artifactStore = seedStore;
+	state.compendiums = normalizeCompendiums(
+		artifactStoreToCompendiums(seedStore),
+	);
+	state.bodyTracker = createDefaultBodyTracker();
+	state.spiritProgress = {};
+	state.lifePlanner = createDefaultLifePlanner();
+	state.trackerSettings = cloneDefaultTrackers();
+	state.goalSettings = cloneDefaultGoals();
+	state.dashboardIdentity = cloneDefaultDashboardIdentity();
+	state.theme = "default";
+	state.settingsTab = "getting-started";
+	state.trackerAddArea = "";
+	state.trackerEditKey = "";
+	state.trackerDeleteKey = "";
+	state.active = "Dashboard";
+	state.flipped = null;
+	state.mindMode = "grid";
+	state.artifactMode = "grid";
+	state.selectedCompendiumId = null;
+	state.selectedSectionId = null;
+	state.selectedArtifactId = null;
+	state.selectedSpiritBookKey = null;
+	state.lifeTool = "";
+	state.selectedLifeProjectId = null;
+	state.selectedLifePhaseId = null;
+	state.selectedLifeTaskId = null;
+	state.galleryImages = null;
+	state.gallerySelectedIds = [];
+	state.cloudStorageUsage = null;
+	if (seedStore.appState) await restoreImportedAppState(seedStore.appState);
+	saveArtifactStore(seedStore);
+	saveDashboardIdentity(state.dashboardIdentity);
+	saveTheme(state.theme);
+	setState({
+		active: "Dashboard",
+		flipped: null,
+		artifactStore: seedStore,
+		compendiums: normalizeCompendiums(artifactStoreToCompendiums(seedStore)),
+		dismissedTips: [],
+	});
 }
 
 async function refreshGalleryImages() {
-  try {
-    const images = await listLocalImages();
-    setState({
-      galleryImages: images,
-      gallerySelectedIds: state.gallerySelectedIds.filter((id) => images.some((image) => image.id === id))
-    });
-  } catch {
-    setState({ galleryImages: [] });
-  }
+	try {
+		const images = await listLocalImages();
+		setState({
+			galleryImages: images,
+			gallerySelectedIds: state.gallerySelectedIds.filter((id) =>
+				images.some((image) => image.id === id),
+			),
+		});
+	} catch {
+		setState({ galleryImages: [] });
+	}
 }
 
 function openGallery() {
-  setState({
-    active: "Gallery",
-    flipped: null,
-    artifactMode: "grid",
-    selectedArtifactId: null,
-    selectedCompendiumId: null,
-    selectedSectionId: null,
-    selectedSpiritBookKey: null,
-    galleryImages: null,
-    gallerySelectedIds: []
-  });
-  refreshGalleryImages();
+	setState({
+		active: "Gallery",
+		flipped: null,
+		artifactMode: "grid",
+		selectedArtifactId: null,
+		selectedCompendiumId: null,
+		selectedSectionId: null,
+		selectedSpiritBookKey: null,
+		galleryImages: null,
+		gallerySelectedIds: [],
+	});
+	refreshGalleryImages();
 }
 
 function goHome() {
-  setState({
-    active: "Dashboard",
-    flipped: null,
-    mindMode: "grid",
-    artifactMode: "grid",
-    selectedCompendiumId: null,
-    selectedSectionId: null,
-    selectedArtifactId: null,
-    selectedSpiritBookKey: null,
-    gallerySelectedIds: []
-  });
+	setState({
+		active: "Dashboard",
+		flipped: null,
+		mindMode: "grid",
+		artifactMode: "grid",
+		selectedCompendiumId: null,
+		selectedSectionId: null,
+		selectedArtifactId: null,
+		selectedSpiritBookKey: null,
+		gallerySelectedIds: [],
+	});
 }
 
 function openDashboardCard(section) {
-  if (state.flipped !== section) {
-    setState({ flipped: section });
-    return;
-  }
-  setState({
-    active: section,
-    flipped: null,
-    mindMode: section === "Mind" ? "grid" : state.mindMode,
-    artifactMode: section === "Mind" ? state.artifactMode : "grid",
-    selectedCompendiumId: section === "Mind" ? null : state.selectedCompendiumId,
-    selectedSectionId: section === "Mind" ? null : state.selectedSectionId,
-    selectedArtifactId: null,
-    selectedSpiritBookKey: null
-  });
+	if (state.flipped !== section) {
+		setState({ flipped: section });
+		return;
+	}
+	setState({
+		active: section,
+		flipped: null,
+		mindMode: section === "Mind" ? "grid" : state.mindMode,
+		artifactMode: section === "Mind" ? state.artifactMode : "grid",
+		selectedCompendiumId:
+			section === "Mind" ? null : state.selectedCompendiumId,
+		selectedSectionId: section === "Mind" ? null : state.selectedSectionId,
+		selectedArtifactId: null,
+		selectedSpiritBookKey: null,
+	});
 }
 
 function setSpiritYear(year) {
-  setState({
-    active: "Spirit",
-    spiritYear: year,
-    selectedSpiritBookKey: null,
-    artifactMode: "grid",
-    selectedArtifactId: null
-  });
+	setState({
+		active: "Spirit",
+		spiritYear: year,
+		selectedSpiritBookKey: null,
+		artifactMode: "grid",
+		selectedArtifactId: null,
+	});
 }
 
 function openSpiritBook(key) {
-  setState({
-    active: "Spirit",
-    selectedSpiritBookKey: key,
-    selectedArtifactId: null,
-    artifactMode: "grid"
-  });
+	setState({
+		active: "Spirit",
+		selectedSpiritBookKey: key,
+		selectedArtifactId: null,
+		artifactMode: "grid",
+	});
 }
 
 function exitSpiritBook() {
-  setState({ selectedSpiritBookKey: null });
+	setState({ selectedSpiritBookKey: null });
 }
 
 function toggleSpiritComplete(key) {
-  const work = spiritWorks().find((entry) => entry.key === key);
-  if (!work) return;
-  const completed = !isSpiritComplete(key);
+	const work = spiritWorks().find((entry) => entry.key === key);
+	if (!work) return;
+	const completed = !isSpiritComplete(key);
 
-  state.spiritProgress = { ...state.spiritProgress, [key]: completed };
-  saveSpiritProgress();
-  render();
+	state.spiritProgress = { ...state.spiritProgress, [key]: completed };
+	saveSpiritProgress();
+	render();
 }
 
 function addSpiritBookNote(key) {
-  const work = spiritWorks().find((entry) => entry.key === key);
-  if (!work || !state.artifactStore) return;
-  const noteId = makeId("spirit-note");
-  const focus = Array.isArray(work.blackBox?.outputs) ? work.blackBox.outputs : [];
-  const now = nowIso();
-  const note = {
-    id: noteId,
-    type: "note",
-    dashboard: "Spirit",
-    parentId: null,
-    title: `${work.title} Note`,
-    body: [
-      `## ${work.title} Note`,
-      "",
-      `Author: ${work.author || ""}`,
-      `Plan: ${spiritPlanLabel()}`,
-      `Year: ${work.year}`,
-      work.selection ? `Selection: ${work.selection}` : null,
-      work.greatIdeas.length ? `Ideas: ${work.greatIdeas.join(", ")}` : null,
-      "",
-      "### Notes",
-      "",
-      "",
-      "### Questions",
-      "",
-      "",
-      "### Takeaways",
-      focus.length ? focus.map((item) => `- ${item}`).join("\n") : ""
-    ].filter((line) => line !== null).join("\n"),
-    created: now,
-    edited: now,
-    childIds: [],
-    properties: {
-      role: "spirit-book-note",
-      status: "draft",
-      planId: state.spiritPlanId,
-      planLabel: spiritPlanLabel(),
-      planItemKey: work.key,
-      year: work.year,
-      order: work.order,
-      tier: work.tier,
-      author: work.author,
-      title: work.title,
-      selection: work.selection,
-      greatIdeas: work.greatIdeas,
-      tags: work.tags
-    },
-    analysis: {
-      greatIdeas: work.greatIdeas,
-      tags: work.tags,
-      focus
-    }
-  };
-  persistArtifactStore(upsertArtifact(state.artifactStore, note));
-  setState({ selectedArtifactId: noteId, artifactMode: "editor" });
+	const work = spiritWorks().find((entry) => entry.key === key);
+	if (!work || !state.artifactStore) return;
+	const noteId = makeId("spirit-note");
+	const focus = Array.isArray(work.blackBox?.outputs)
+		? work.blackBox.outputs
+		: [];
+	const now = nowIso();
+	const note = {
+		id: noteId,
+		type: "note",
+		dashboard: "Spirit",
+		parentId: null,
+		title: `${work.title} Note`,
+		body: [
+			`## ${work.title} Note`,
+			"",
+			`Author: ${work.author || ""}`,
+			`Plan: ${spiritPlanLabel()}`,
+			`Year: ${work.year}`,
+			work.selection ? `Selection: ${work.selection}` : null,
+			work.greatIdeas.length ? `Ideas: ${work.greatIdeas.join(", ")}` : null,
+			"",
+			"### Notes",
+			"",
+			"",
+			"### Questions",
+			"",
+			"",
+			"### Takeaways",
+			focus.length ? focus.map((item) => `- ${item}`).join("\n") : "",
+		]
+			.filter((line) => line !== null)
+			.join("\n"),
+		created: now,
+		edited: now,
+		childIds: [],
+		properties: {
+			role: "spirit-book-note",
+			status: "draft",
+			planId: state.spiritPlanId,
+			planLabel: spiritPlanLabel(),
+			planItemKey: work.key,
+			year: work.year,
+			order: work.order,
+			tier: work.tier,
+			author: work.author,
+			title: work.title,
+			selection: work.selection,
+			greatIdeas: work.greatIdeas,
+			tags: work.tags,
+		},
+		analysis: {
+			greatIdeas: work.greatIdeas,
+			tags: work.tags,
+			focus,
+		},
+	};
+	persistArtifactStore(upsertArtifact(state.artifactStore, note));
+	setState({ selectedArtifactId: noteId, artifactMode: "editor" });
 }
 
 async function loadSpiritPlan(planId = state.spiritPlanId) {
-  const plan = SPIRIT_PLANS.find((entry) => entry.id === planId) || SPIRIT_PLANS[0];
-  state.spiritPlanId = plan.id;
-  state.spiritPlan = null;
-  state.spiritPlanError = "";
-  try {
-    const response = await fetch(plan.url, { cache: "no-store" });
-    if (!response.ok) throw new Error(`Could not load selected plan (${response.status}).`);
-    const parsed = await response.json();
-    if (!parsed || !Array.isArray(parsed.years)) throw new Error("Selected plan must include a years array.");
-    state.spiritPlan = parsed;
-    const years = spiritYears();
-    state.spiritYear = years.includes(state.spiritYear) ? state.spiritYear : (years[0] || 1);
-  } catch (error) {
-    state.spiritPlanError = error instanceof Error ? error.message : "Unknown loading error.";
-  }
-  render();
+	const plan =
+		SPIRIT_PLANS.find((entry) => entry.id === planId) || SPIRIT_PLANS[0];
+	state.spiritPlanId = plan.id;
+	state.spiritPlan = null;
+	state.spiritPlanError = "";
+	try {
+		const response = await fetch(plan.url, { cache: "no-store" });
+		if (!response.ok)
+			throw new Error(`Could not load selected plan (${response.status}).`);
+		const parsed = await response.json();
+		if (!parsed || !Array.isArray(parsed.years))
+			throw new Error("Selected plan must include a years array.");
+		state.spiritPlan = parsed;
+		const years = spiritYears();
+		state.spiritYear = years.includes(state.spiritYear)
+			? state.spiritYear
+			: years[0] || 1;
+	} catch (error) {
+		state.spiritPlanError =
+			error instanceof Error ? error.message : "Unknown loading error.";
+	}
+	render();
 }
 
 function selectSpiritPlan(planId) {
-  const plan = SPIRIT_PLANS.find((entry) => entry.id === planId);
-  if (!plan || plan.id === state.spiritPlanId) return;
-  state.selectedSpiritBookKey = null;
-  state.spiritYear = 1;
-  loadSpiritPlan(plan.id);
+	const plan = SPIRIT_PLANS.find((entry) => entry.id === planId);
+	if (!plan || plan.id === state.spiritPlanId) return;
+	state.selectedSpiritBookKey = null;
+	state.spiritYear = 1;
+	loadSpiritPlan(plan.id);
 }
 
 function openCompendium(id) {
-  setState({
-    active: "Mind",
-    selectedCompendiumId: id,
-    selectedSectionId: null,
-    selectedArtifactId: null,
-    mindMode: "manager"
-  });
+	setState({
+		active: "Mind",
+		selectedCompendiumId: id,
+		selectedSectionId: null,
+		selectedArtifactId: null,
+		mindMode: "manager",
+	});
 }
 
 function compendiumReaderPage(compendium) {
-  const maxPage = Math.max(0, (compendium?.sections?.length || 0));
-  const page = state.compendiumReaderPages?.[compendium?.id] || 0;
-  return Math.min(Math.max(page, 0), maxPage);
+	const maxPage = Math.max(0, compendium?.sections?.length || 0);
+	const page = state.compendiumReaderPages?.[compendium?.id] || 0;
+	return Math.min(Math.max(page, 0), maxPage);
 }
 
 function setCompendiumReaderPage(compendiumId, direction, maxPage) {
-  const current = state.compendiumReaderPages?.[compendiumId] || 0;
-  const nextPage = direction === "prev" ? current - 1 : current + 1;
-  setState({
-    compendiumReaderPages: {
-      ...state.compendiumReaderPages,
-      [compendiumId]: Math.min(Math.max(nextPage, 0), Math.max(0, maxPage))
-    }
-  });
+	const current = state.compendiumReaderPages?.[compendiumId] || 0;
+	const nextPage = direction === "prev" ? current - 1 : current + 1;
+	setState({
+		compendiumReaderPages: {
+			...state.compendiumReaderPages,
+			[compendiumId]: Math.min(Math.max(nextPage, 0), Math.max(0, maxPage)),
+		},
+	});
 }
 
 function mindCompendiumColumns() {
-  if (window.matchMedia?.(COMPENDIUM_ONE_QUERY).matches) return 1;
-  if (window.matchMedia?.(COMPENDIUM_TWO_QUERY).matches) return 2;
-  return 3;
+	if (window.matchMedia?.(COMPENDIUM_ONE_QUERY).matches) return 1;
+	if (window.matchMedia?.(COMPENDIUM_TWO_QUERY).matches) return 2;
+	return 3;
 }
 
 function mindCompendiumsPerPage() {
-  return mindCompendiumColumns() * COMPENDIUM_ROWS_PER_PAGE;
+	return mindCompendiumColumns() * COMPENDIUM_ROWS_PER_PAGE;
 }
 
 function chunkItems(items, size) {
-  const chunkSize = Math.max(1, size);
-  const chunks = [];
-  for (let index = 0; index < items.length; index += chunkSize) {
-    chunks.push(items.slice(index, index + chunkSize));
-  }
-  return chunks;
+	const chunkSize = Math.max(1, size);
+	const chunks = [];
+	for (let index = 0; index < items.length; index += chunkSize) {
+		chunks.push(items.slice(index, index + chunkSize));
+	}
+	return chunks;
 }
 
-function mindCompendiumPage(maxPage = Math.max(0, Math.ceil(state.compendiums.length / mindCompendiumsPerPage()) - 1)) {
-  return Math.min(Math.max(state.mindCompendiumPage || 0, 0), Math.max(0, maxPage));
+function mindCompendiumPage(
+	maxPage = Math.max(
+		0,
+		Math.ceil(state.compendiums.length / mindCompendiumsPerPage()) - 1,
+	),
+) {
+	return Math.min(
+		Math.max(state.mindCompendiumPage || 0, 0),
+		Math.max(0, maxPage),
+	);
 }
 
 function setMindCompendiumPage(direction, maxPage) {
-  const current = mindCompendiumPage(maxPage);
-  const nextPage = direction === "prev" ? current - 1 : current + 1;
-  setState({
-    mindCompendiumPage: Math.min(Math.max(nextPage, 0), Math.max(0, maxPage)),
-    mindCompendiumPickerOpen: false
-  });
+	const current = mindCompendiumPage(maxPage);
+	const nextPage = direction === "prev" ? current - 1 : current + 1;
+	setState({
+		mindCompendiumPage: Math.min(Math.max(nextPage, 0), Math.max(0, maxPage)),
+		mindCompendiumPickerOpen: false,
+	});
 }
 
 function toggleMindCompendiumPicker() {
-  setState({ mindCompendiumPickerOpen: !state.mindCompendiumPickerOpen });
+	setState({ mindCompendiumPickerOpen: !state.mindCompendiumPickerOpen });
 }
 
-function closeMindCompendiumPicker() {
-  if (!state.mindCompendiumPickerOpen) return;
-  setState({ mindCompendiumPickerOpen: false });
+function _closeMindCompendiumPicker() {
+	if (!state.mindCompendiumPickerOpen) return;
+	setState({ mindCompendiumPickerOpen: false });
 }
 
 function selectMindCompendiumFromPicker(compendiumId, index, perPage) {
-  setState({
-    mindCompendiumPage: Math.floor(Math.max(0, index) / Math.max(1, perPage)),
-    mindCompendiumPickerOpen: false
-  });
-  openCompendium(compendiumId);
+	setState({
+		mindCompendiumPage: Math.floor(Math.max(0, index) / Math.max(1, perPage)),
+		mindCompendiumPickerOpen: false,
+	});
+	openCompendium(compendiumId);
 }
 
 function openMindSection(parentId, sectionId) {
-  if (!parentId || !sectionId) return;
-  const compendium = state.compendiums.find((item) => item.id === parentId);
-  if (!compendium?.sections?.some((section) => section.id === sectionId)) return;
-  setState({
-    active: "Mind",
-    selectedCompendiumId: parentId,
-    selectedSectionId: sectionId,
-    selectedArtifactId: null,
-    mindMode: "section-viewer"
-  });
+	if (!parentId || !sectionId) return;
+	const compendium = state.compendiums.find((item) => item.id === parentId);
+	if (!compendium?.sections?.some((section) => section.id === sectionId))
+		return;
+	setState({
+		active: "Mind",
+		selectedCompendiumId: parentId,
+		selectedSectionId: sectionId,
+		selectedArtifactId: null,
+		mindMode: "section-viewer",
+	});
 }
 
 function openActivityArtifact(id) {
-  const artifact = findArtifact(state.artifactStore, id);
-  if (!artifact) return;
-  if (artifact.dashboard === "Mind" && artifact.type === "compendium") {
-    openCompendium(id);
-    return;
-  }
-  if (artifact.dashboard === "Mind" && artifact.type === "note" && artifact.parentId) {
-    openMindSection(artifact.parentId, id);
-    return;
-  }
-  if (artifact.type === "note" && !artifact.parentId) {
-    openArtifactNote(id, "Life");
-  }
+	const artifact = findArtifact(state.artifactStore, id);
+	if (!artifact) return;
+	if (artifact.dashboard === "Mind" && artifact.type === "compendium") {
+		openCompendium(id);
+		return;
+	}
+	if (
+		artifact.dashboard === "Mind" &&
+		artifact.type === "note" &&
+		artifact.parentId
+	) {
+		openMindSection(artifact.parentId, id);
+		return;
+	}
+	if (artifact.type === "note" && !artifact.parentId) {
+		openArtifactNote(id, "Life");
+	}
 }
 
 function openArtifactNote(id, returnActive = "") {
-  const artifact = findArtifact(state.artifactStore, id);
-  if (!artifact) return;
-  setState({
-    active: returnActive || artifact.dashboard,
-    selectedArtifactId: id,
-    artifactMode: "viewer",
-    artifactReturnActive: returnActive,
-    selectedCompendiumId: null,
-    selectedSectionId: null,
-    selectedSpiritBookKey: null
-  });
+	const artifact = findArtifact(state.artifactStore, id);
+	if (!artifact) return;
+	setState({
+		active: returnActive || artifact.dashboard,
+		selectedArtifactId: id,
+		artifactMode: "viewer",
+		artifactReturnActive: returnActive,
+		selectedCompendiumId: null,
+		selectedSectionId: null,
+		selectedSpiritBookKey: null,
+	});
 }
 
 function closeArtifactViewer() {
-  setState({
-    active: state.artifactReturnActive || state.active,
-    selectedArtifactId: null,
-    artifactMode: "grid",
-    artifactReturnActive: ""
-  });
+	setState({
+		active: state.artifactReturnActive || state.active,
+		selectedArtifactId: null,
+		artifactMode: "grid",
+		artifactReturnActive: "",
+	});
 }
 
 function addCompendium() {
-  const now = nowIso();
-  const next = {
-    id: makeId("compendium"),
-    title: `Untitled Compendium ${state.compendiums.length + 1}`,
-    body: "## New Compendium\n\nDescribe what this compendium is for.",
-    created: now,
-    edited: now,
-    sections: []
-  };
-  state.compendiums = [...state.compendiums, next];
-  persistCompendiums();
-  setState({
-    active: "Mind",
-    selectedCompendiumId: next.id,
-    selectedSectionId: null,
-    mindMode: "compendium-editor"
-  });
+	const now = nowIso();
+	const next = {
+		id: makeId("compendium"),
+		title: `Untitled Compendium ${state.compendiums.length + 1}`,
+		body: "## New Compendium\n\nDescribe what this compendium is for.",
+		created: now,
+		edited: now,
+		sections: [],
+	};
+	state.compendiums = [...state.compendiums, next];
+	persistCompendiums();
+	setState({
+		active: "Mind",
+		selectedCompendiumId: next.id,
+		selectedSectionId: null,
+		mindMode: "compendium-editor",
+	});
 }
 
 function saveCompendium(id, title, body) {
-  const now = nowIso();
-  state.compendiums = state.compendiums.map((item) =>
-    item.id === id ? { ...item, title, body, edited: now } : item
-  );
-  persistCompendiums();
-  setState({ mindMode: "manager" });
+	const now = nowIso();
+	state.compendiums = state.compendiums.map((item) =>
+		item.id === id ? { ...item, title, body, edited: now } : item,
+	);
+	persistCompendiums();
+	setState({ mindMode: "manager" });
 }
 
 function deleteCompendium(id) {
-  const compendium = state.compendiums.find((item) => item.id === id);
-  if (!compendium) return;
-  if (!window.confirm(`Delete compendium "${compendium.title}" and all of its sections?`)) return;
+	const compendium = state.compendiums.find((item) => item.id === id);
+	if (!compendium) return;
+	if (
+		!window.confirm(
+			`Delete compendium "${compendium.title}" and all of its sections?`,
+		)
+	)
+		return;
 
-  state.compendiums = state.compendiums.filter((item) => item.id !== id);
-  persistCompendiums();
-  setState({
-    selectedCompendiumId: null,
-    selectedSectionId: null,
-    mindMode: "grid"
-  });
+	state.compendiums = state.compendiums.filter((item) => item.id !== id);
+	persistCompendiums();
+	setState({
+		selectedCompendiumId: null,
+		selectedSectionId: null,
+		mindMode: "grid",
+	});
 }
 
 function addSection() {
-  const compendium = selectedCompendium();
-  if (!compendium) return;
-  const now = nowIso();
-  const nextSection = {
-    id: makeId("section"),
-    title: `Section ${compendium.sections.length + 1}`,
-    body: "## New Section\n\nWrite the section body here.",
-    created: now,
-    edited: now
-  };
-  state.compendiums = state.compendiums.map((item) =>
-    item.id === compendium.id
-      ? { ...item, edited: now, sections: [...item.sections, nextSection] }
-      : item
-  );
-  persistCompendiums();
-  setState({ selectedSectionId: nextSection.id, mindMode: "section-editor" });
+	const compendium = selectedCompendium();
+	if (!compendium) return;
+	const now = nowIso();
+	const nextSection = {
+		id: makeId("section"),
+		title: `Section ${compendium.sections.length + 1}`,
+		body: "## New Section\n\nWrite the section body here.",
+		created: now,
+		edited: now,
+	};
+	state.compendiums = state.compendiums.map((item) =>
+		item.id === compendium.id
+			? { ...item, edited: now, sections: [...item.sections, nextSection] }
+			: item,
+	);
+	persistCompendiums();
+	setState({ selectedSectionId: nextSection.id, mindMode: "section-editor" });
 }
 
 function saveSection(id, title, body) {
-  const compendium = selectedCompendium();
-  if (!compendium) return;
-  const now = nowIso();
-  state.compendiums = state.compendiums.map((item) =>
-    item.id === compendium.id
-      ? {
-          ...item,
-          edited: now,
-          sections: item.sections.map((section) =>
-            section.id === id ? { ...section, title, body, edited: now } : section
-          )
-        }
-      : item
-  );
-  persistCompendiums();
-  setState({ mindMode: "section-viewer" });
+	const compendium = selectedCompendium();
+	if (!compendium) return;
+	const now = nowIso();
+	state.compendiums = state.compendiums.map((item) =>
+		item.id === compendium.id
+			? {
+					...item,
+					edited: now,
+					sections: item.sections.map((section) =>
+						section.id === id
+							? { ...section, title, body, edited: now }
+							: section,
+					),
+				}
+			: item,
+	);
+	persistCompendiums();
+	setState({ mindMode: "section-viewer" });
 }
 
 function deleteSection(id) {
-  const compendium = selectedCompendium();
-  const section = selectedSection();
-  if (!compendium || !section) return;
-  if (!window.confirm(`Delete section "${section.title}"?`)) return;
+	const compendium = selectedCompendium();
+	const section = selectedSection();
+	if (!compendium || !section) return;
+	if (!window.confirm(`Delete section "${section.title}"?`)) return;
 
-  const now = nowIso();
-  state.compendiums = state.compendiums.map((item) =>
-    item.id === compendium.id
-      ? {
-          ...item,
-          edited: now,
-          sections: item.sections.filter((entry) => entry.id !== id)
-        }
-      : item
-  );
-  persistCompendiums();
-  setState({
-    selectedSectionId: null,
-    mindMode: "manager"
-  });
+	const now = nowIso();
+	state.compendiums = state.compendiums.map((item) =>
+		item.id === compendium.id
+			? {
+					...item,
+					edited: now,
+					sections: item.sections.filter((entry) => entry.id !== id),
+				}
+			: item,
+	);
+	persistCompendiums();
+	setState({
+		selectedSectionId: null,
+		mindMode: "manager",
+	});
 }
 
 function reorderCompendiumSection(compendiumId, sectionId, targetIndex) {
-  let changed = false;
-  state.compendiums = state.compendiums.map((compendium) => {
-    if (compendium.id !== compendiumId) return compendium;
-    const fromIndex = compendium.sections.findIndex((section) => section.id === sectionId);
-    if (fromIndex < 0) return compendium;
+	let changed = false;
+	state.compendiums = state.compendiums.map((compendium) => {
+		if (compendium.id !== compendiumId) return compendium;
+		const fromIndex = compendium.sections.findIndex(
+			(section) => section.id === sectionId,
+		);
+		if (fromIndex < 0) return compendium;
 
-    const sections = [...compendium.sections];
-    const [movedSection] = sections.splice(fromIndex, 1);
-    const nextIndex = Math.min(Math.max(targetIndex, 0), sections.length);
-    if (nextIndex === fromIndex) return compendium;
+		const sections = [...compendium.sections];
+		const [movedSection] = sections.splice(fromIndex, 1);
+		const nextIndex = Math.min(Math.max(targetIndex, 0), sections.length);
+		if (nextIndex === fromIndex) return compendium;
 
-    sections.splice(nextIndex, 0, movedSection);
-    changed = true;
-    return { ...compendium, sections };
-  });
-  return changed;
+		sections.splice(nextIndex, 0, movedSection);
+		changed = true;
+		return { ...compendium, sections };
+	});
+	return changed;
 }
 
 function touchCompendium(compendiumId) {
-  const edited = nowIso();
-  state.compendiums = state.compendiums.map((compendium) =>
-    compendium.id === compendiumId ? { ...compendium, edited } : compendium
-  );
+	const edited = nowIso();
+	state.compendiums = state.compendiums.map((compendium) =>
+		compendium.id === compendiumId ? { ...compendium, edited } : compendium,
+	);
 }
 
 function addDashboardNote(dashboard) {
-  const isLife = dashboard === "Life";
-  const now = nowIso();
-  const note = {
-    id: makeId("artifact"),
-    type: "note",
-    dashboard,
-    parentId: null,
-    title: `New ${dashboardDisplayLabel(dashboard)} Note`,
-    body: isLife ? "" : `## New ${dashboardDisplayLabel(dashboard)} Note\n\nWrite the note here.`,
-    created: now,
-    edited: now,
-    childIds: [],
-    properties: isLife ? {
-      role: "life-journal",
-      status: "active",
-      isNewDraft: true,
-      dateKey: todayDateKey(),
-      mood: "steady",
-      energy: "medium",
-      habits: [],
-      audit: [
-        {
-          at: now,
-          action: "created",
-          title: `New ${dashboardDisplayLabel(dashboard)} Note`,
-          dateKey: todayDateKey()
-        }
-      ]
-    } : {
-      role: "dashboard-note",
-      status: "active",
-      isNewDraft: true
-    },
-    analysis: {}
-  };
-  persistArtifactStore(upsertArtifact(state.artifactStore, note));
-  setState({ active: dashboard, selectedArtifactId: note.id, artifactMode: "editor", artifactReturnActive: "" });
+	const isLife = dashboard === "Life";
+	const now = nowIso();
+	const note = {
+		id: makeId("artifact"),
+		type: "note",
+		dashboard,
+		parentId: null,
+		title: `New ${dashboardDisplayLabel(dashboard)} Note`,
+		body: isLife
+			? ""
+			: `## New ${dashboardDisplayLabel(dashboard)} Note\n\nWrite the note here.`,
+		created: now,
+		edited: now,
+		childIds: [],
+		properties: isLife
+			? {
+					role: "life-journal",
+					status: "active",
+					isNewDraft: true,
+					dateKey: todayDateKey(),
+					mood: "steady",
+					energy: "medium",
+					habits: [],
+					audit: [
+						{
+							at: now,
+							action: "created",
+							title: `New ${dashboardDisplayLabel(dashboard)} Note`,
+							dateKey: todayDateKey(),
+						},
+					],
+				}
+			: {
+					role: "dashboard-note",
+					status: "active",
+					isNewDraft: true,
+				},
+		analysis: {},
+	};
+	persistArtifactStore(upsertArtifact(state.artifactStore, note));
+	setState({
+		active: dashboard,
+		selectedArtifactId: note.id,
+		artifactMode: "editor",
+		artifactReturnActive: "",
+	});
 }
 
 function auditEntryForSave(current, title, body, properties = {}) {
-  const changed = [];
-  if (current.title !== title) changed.push("title");
-  if (current.body !== body) changed.push("body");
-  if (JSON.stringify(current.properties || {}) !== JSON.stringify({ ...(current.properties || {}), ...properties })) {
-    changed.push("metadata");
-  }
-  return {
-    at: nowIso(),
-    action: current.properties?.audit?.length ? "edited" : "created",
-    title,
-    dateKey: properties.dateKey || current.properties?.dateKey || today,
-    changed: changed.length ? changed : ["saved"]
-  };
+	const changed = [];
+	if (current.title !== title) changed.push("title");
+	if (current.body !== body) changed.push("body");
+	if (
+		JSON.stringify(current.properties || {}) !==
+		JSON.stringify({ ...(current.properties || {}), ...properties })
+	) {
+		changed.push("metadata");
+	}
+	return {
+		at: nowIso(),
+		action: current.properties?.audit?.length ? "edited" : "created",
+		title,
+		dateKey: properties.dateKey || current.properties?.dateKey || today,
+		changed: changed.length ? changed : ["saved"],
+	};
 }
 
 function saveDashboardNote(id, title, body) {
-  const current = findArtifact(state.artifactStore, id);
-  if (!current) return;
-  if (current.dashboard === "Life") {
-    saveLifeJournalNote(id);
-    return;
-  }
-  const now = nowIso();
-  persistArtifactStore(upsertArtifact(state.artifactStore, {
-    ...current,
-    title,
-    body,
-    edited: now,
-    properties: {
-      ...(current.properties || {}),
-      isNewDraft: false,
-      audit: [
-        ...((current.properties?.audit || []).slice(-20)),
-        auditEntryForSave(current, title, body)
-      ]
-    }
-  }));
-  setState({ selectedArtifactId: id, artifactMode: "viewer" });
+	const current = findArtifact(state.artifactStore, id);
+	if (!current) return;
+	if (current.dashboard === "Life") {
+		saveLifeJournalNote(id);
+		return;
+	}
+	const now = nowIso();
+	persistArtifactStore(
+		upsertArtifact(state.artifactStore, {
+			...current,
+			title,
+			body,
+			edited: now,
+			properties: {
+				...(current.properties || {}),
+				isNewDraft: false,
+				audit: [
+					...(current.properties?.audit || []).slice(-20),
+					auditEntryForSave(current, title, body),
+				],
+			},
+		}),
+	);
+	setState({ selectedArtifactId: id, artifactMode: "viewer" });
 }
 
 function closeArtifactEditor() {
-  const current = findArtifact(state.artifactStore, state.selectedArtifactId);
-  if (state.artifactMode === "editor" && current?.properties?.isNewDraft) {
-    persistArtifactStore(removeArtifact(state.artifactStore, current.id));
-    setState({
-      selectedArtifactId: null,
-      artifactMode: "grid",
-      artifactReturnActive: ""
-    });
-    return;
-  }
-  setState({ artifactMode: "viewer" });
+	const current = findArtifact(state.artifactStore, state.selectedArtifactId);
+	if (state.artifactMode === "editor" && current?.properties?.isNewDraft) {
+		persistArtifactStore(removeArtifact(state.artifactStore, current.id));
+		setState({
+			selectedArtifactId: null,
+			artifactMode: "grid",
+			artifactReturnActive: "",
+		});
+		return;
+	}
+	setState({ artifactMode: "viewer" });
 }
 
 function saveLifeJournalNote(id) {
-  const current = findArtifact(state.artifactStore, id);
-  if (!current) return;
-  const title = editorTitle();
-  const body = editorBody();
-  const dateKey = dateKeyFromValue(document.getElementById("life-entry-date")?.value);
-  const mood = document.getElementById("life-entry-mood")?.value || "steady";
-  const energy = document.getElementById("life-entry-energy")?.value || "medium";
-  const habits = Array.from(document.querySelectorAll("[data-life-habit]:checked")).map((input) => input.value);
-  const properties = {
-    ...(current.properties || {}),
-    role: "life-journal",
-    status: "active",
-    isNewDraft: false,
-    dateKey,
-    mood,
-    energy,
-    habits
-  };
-  properties.audit = [
-    ...((current.properties?.audit || []).slice(-20)),
-    auditEntryForSave(current, title, body, properties)
-  ];
-  persistArtifactStore(upsertArtifact(state.artifactStore, {
-    ...current,
-    title,
-    body,
-    edited: nowIso(),
-    properties
-  }));
-  setState({ selectedArtifactId: id, artifactMode: "viewer" });
+	const current = findArtifact(state.artifactStore, id);
+	if (!current) return;
+	const title = editorTitle();
+	const body = editorBody();
+	const dateKey = dateKeyFromValue(
+		document.getElementById("life-entry-date")?.value,
+	);
+	const mood = document.getElementById("life-entry-mood")?.value || "steady";
+	const energy =
+		document.getElementById("life-entry-energy")?.value || "medium";
+	const habits = Array.from(
+		document.querySelectorAll("[data-life-habit]:checked"),
+	).map((input) => input.value);
+	const properties = {
+		...(current.properties || {}),
+		role: "life-journal",
+		status: "active",
+		isNewDraft: false,
+		dateKey,
+		mood,
+		energy,
+		habits,
+	};
+	properties.audit = [
+		...(current.properties?.audit || []).slice(-20),
+		auditEntryForSave(current, title, body, properties),
+	];
+	persistArtifactStore(
+		upsertArtifact(state.artifactStore, {
+			...current,
+			title,
+			body,
+			edited: nowIso(),
+			properties,
+		}),
+	);
+	setState({ selectedArtifactId: id, artifactMode: "viewer" });
 }
 
 function deleteDashboardNote(id) {
-  const note = findArtifact(state.artifactStore, id);
-  if (!note) return;
-  if (!window.confirm(`Delete note "${note.title}"?`)) return;
+	const note = findArtifact(state.artifactStore, id);
+	if (!note) return;
+	if (!window.confirm(`Delete note "${note.title}"?`)) return;
 
-  persistArtifactStore(removeArtifact(state.artifactStore, id));
-  setState({
-    selectedArtifactId: null,
-    artifactMode: "grid",
-    artifactReturnActive: ""
-  });
+	persistArtifactStore(removeArtifact(state.artifactStore, id));
+	setState({
+		selectedArtifactId: null,
+		artifactMode: "grid",
+		artifactReturnActive: "",
+	});
 }
 
 function appendBodyLogNote(title, body, properties = {}) {
-  if (!state.artifactStore) return;
-  const now = nowIso();
-  const note = {
-    id: makeId("artifact"),
-    type: "note",
-    dashboard: "Body",
-    parentId: null,
-    title,
-    body,
-    created: now,
-    edited: now,
-    childIds: [],
-    properties: {
-      role: "body-log",
-      status: "active",
-      source: "body-tracker",
-      dateKey: dateKeyFromValue(now),
-      audit: [
-        {
-          at: now,
-          action: "created",
-          title,
-          dateKey: dateKeyFromValue(now)
-        }
-      ],
-      ...properties
-    },
-    analysis: {}
-  };
+	if (!state.artifactStore) return;
+	const now = nowIso();
+	const note = {
+		id: makeId("artifact"),
+		type: "note",
+		dashboard: "Body",
+		parentId: null,
+		title,
+		body,
+		created: now,
+		edited: now,
+		childIds: [],
+		properties: {
+			role: "body-log",
+			status: "active",
+			source: "body-tracker",
+			dateKey: dateKeyFromValue(now),
+			audit: [
+				{
+					at: now,
+					action: "created",
+					title,
+					dateKey: dateKeyFromValue(now),
+				},
+			],
+			...properties,
+		},
+		analysis: {},
+	};
 
-  persistArtifactStore(upsertArtifact(state.artifactStore, note));
-  return note;
+	persistArtifactStore(upsertArtifact(state.artifactStore, note));
+	return note;
 }
 
 function showBodyTimerLogToast(note, summaryAction, metric = "") {
-  if (!note) {
-    render();
-    return;
-  }
-  showThoughtToast({
-    kind: "thought",
-    dashboard: "Body",
-    label: note.title,
-    noteId: note.id,
-    timestamp: note.created || nowIso(),
-    metric,
-    noun: "timer",
-    summaryAction,
-    detailLabel: "Quick note",
-    detailPlaceholder: "Add timer detail"
-  });
+	if (!note) {
+		render();
+		return;
+	}
+	showThoughtToast({
+		kind: "thought",
+		dashboard: "Body",
+		label: note.title,
+		noteId: note.id,
+		timestamp: note.created || nowIso(),
+		metric,
+		noun: "timer",
+		summaryAction,
+		detailLabel: "Quick note",
+		detailPlaceholder: "Add timer detail",
+	});
 }
 
 function workoutLogNoteArtifact(workout) {
-  const created = workout.created || nowIso();
-  const title = workout.title || "Workout";
-  const type = workout.type || "General";
-  const minutes = Math.max(0, Number(workout.minutes) || 0);
-  const effort = Math.max(1, Math.min(10, Number(workout.effort) || 5));
-  const notes = String(workout.notes || "").trim();
-  return {
-    id: makeId("artifact"),
-    type: "note",
-    dashboard: "Body",
-    parentId: null,
-    title: `Workout: ${title}`,
-    body: `## Workout log\n\nSaved: ${formatActivityTimestamp(created)}\n\n- Name: ${title}\n- Type: ${type}\n- Minutes: ${minutes}\n- Effort: ${effort}/10${notes ? `\n- Notes: ${notes}` : ""}`,
-    created,
-    edited: created,
-    childIds: [],
-    properties: {
-      role: "body-log",
-      status: "active",
-      source: "body-tracker",
-      sourceType: "workout",
-      sourceWorkoutId: workout.id || "",
-      workoutType: type,
-      workoutMinutes: minutes,
-      workoutEffort: effort,
-      dateKey: workout.dateKey || dateKeyFromValue(created)
-    },
-    analysis: {}
-  };
+	const created = workout.created || nowIso();
+	const title = workout.title || "Workout";
+	const type = workout.type || "General";
+	const minutes = Math.max(0, Number(workout.minutes) || 0);
+	const effort = Math.max(1, Math.min(10, Number(workout.effort) || 5));
+	const notes = String(workout.notes || "").trim();
+	return {
+		id: makeId("artifact"),
+		type: "note",
+		dashboard: "Body",
+		parentId: null,
+		title: `Workout: ${title}`,
+		body: `## Workout log\n\nSaved: ${formatActivityTimestamp(created)}\n\n- Name: ${title}\n- Type: ${type}\n- Minutes: ${minutes}\n- Effort: ${effort}/10${notes ? `\n- Notes: ${notes}` : ""}`,
+		created,
+		edited: created,
+		childIds: [],
+		properties: {
+			role: "body-log",
+			status: "active",
+			source: "body-tracker",
+			sourceType: "workout",
+			sourceWorkoutId: workout.id || "",
+			workoutType: type,
+			workoutMinutes: minutes,
+			workoutEffort: effort,
+			dateKey: workout.dateKey || dateKeyFromValue(created),
+		},
+		analysis: {},
+	};
 }
 
 function migrateBodyWorkoutsToNotes(store) {
-  const workouts = Array.isArray(state.bodyTracker?.workouts) ? state.bodyTracker.workouts : [];
-  if (!workouts.length) return store;
-  const existingWorkoutIds = new Set(
-    (store.artifacts || [])
-      .map((artifact) => artifact.properties?.sourceWorkoutId)
-      .filter(Boolean)
-  );
-  const migratedNotes = workouts
-    .filter((workout) => workout?.id && !existingWorkoutIds.has(workout.id))
-    .map(workoutLogNoteArtifact);
-  state.bodyTracker = {
-    ...state.bodyTracker,
-    workouts: []
-  };
-  saveBodyTracker();
-  return migratedNotes.length
-    ? { ...store, artifacts: [...(store.artifacts || []), ...migratedNotes] }
-    : store;
+	const workouts = Array.isArray(state.bodyTracker?.workouts)
+		? state.bodyTracker.workouts
+		: [];
+	if (!workouts.length) return store;
+	const existingWorkoutIds = new Set(
+		(store.artifacts || [])
+			.map((artifact) => artifact.properties?.sourceWorkoutId)
+			.filter(Boolean),
+	);
+	const migratedNotes = workouts
+		.filter((workout) => workout?.id && !existingWorkoutIds.has(workout.id))
+		.map(workoutLogNoteArtifact);
+	state.bodyTracker = {
+		...state.bodyTracker,
+		workouts: [],
+	};
+	saveBodyTracker();
+	return migratedNotes.length
+		? { ...store, artifacts: [...(store.artifacts || []), ...migratedNotes] }
+		: store;
 }
 
 function saveBodyTimerSettings(key = state.bodyTimerMode) {
-  const config = bodyTimerConfig(key);
-  const timer = bodyTimerState(key);
-  const nextTimer = {
-    ...timer,
-    label: document.getElementById(`body-timer-${key}-label`)?.value.trim() || timer.label || config.defaultLabel,
-    targetHours: bodyTimerTargetHoursFromInput(key, timer)
-  };
-  setBodyTimerState(key, nextTimer);
-  saveBodyTracker();
-  appendBodyLogNote(
-    `${config.label} settings saved`,
-    `## ${config.label} settings\n\nSaved: ${currentTimestampLabel()}\n\n- Label: ${nextTimer.label}\n- Target: ${bodyTimerTargetInputValue(key, nextTimer)} ${config.targetUnit}`
-  );
-  render();
+	const config = bodyTimerConfig(key);
+	const timer = bodyTimerState(key);
+	const nextTimer = {
+		...timer,
+		label:
+			document.getElementById(`body-timer-${key}-label`)?.value.trim() ||
+			timer.label ||
+			config.defaultLabel,
+		targetHours: bodyTimerTargetHoursFromInput(key, timer),
+	};
+	setBodyTimerState(key, nextTimer);
+	saveBodyTracker();
+	appendBodyLogNote(
+		`${config.label} settings saved`,
+		`## ${config.label} settings\n\nSaved: ${currentTimestampLabel()}\n\n- Label: ${nextTimer.label}\n- Target: ${bodyTimerTargetInputValue(key, nextTimer)} ${config.targetUnit}`,
+	);
+	render();
 }
 
 function startBodyTimer(key = state.bodyTimerMode) {
-  const config = bodyTimerConfig(key);
-  const timer = bodyTimerState(key);
-  const nextTimer = {
-    ...timer,
-    label: document.getElementById(`body-timer-${key}-label`)?.value.trim() || timer.label || config.defaultLabel,
-    targetHours: bodyTimerTargetHoursFromInput(key, timer),
-    active: true,
-    startTimestamp: Date.now()
-  };
-  setBodyTimerState(key, nextTimer);
-  saveBodyTracker();
-  const note = appendBodyLogNote(
-    `${config.shortLabel} started`,
-    `## ${config.label} started\n\nStarted: ${currentTimestampLabel()}\n\n- Label: ${nextTimer.label}\n- Target: ${bodyTimerTargetInputValue(key, nextTimer)} ${config.targetUnit}`,
-    {
-      sourceType: "timer",
-      timerKey: key,
-      timerAction: "started"
-    }
-  );
-  showBodyTimerLogToast(note, "started", `${bodyTimerTargetInputValue(key, nextTimer)} ${config.targetUnit} target`);
+	const config = bodyTimerConfig(key);
+	const timer = bodyTimerState(key);
+	const nextTimer = {
+		...timer,
+		label:
+			document.getElementById(`body-timer-${key}-label`)?.value.trim() ||
+			timer.label ||
+			config.defaultLabel,
+		targetHours: bodyTimerTargetHoursFromInput(key, timer),
+		active: true,
+		startTimestamp: Date.now(),
+	};
+	setBodyTimerState(key, nextTimer);
+	saveBodyTracker();
+	const note = appendBodyLogNote(
+		`${config.shortLabel} started`,
+		`## ${config.label} started\n\nStarted: ${currentTimestampLabel()}\n\n- Label: ${nextTimer.label}\n- Target: ${bodyTimerTargetInputValue(key, nextTimer)} ${config.targetUnit}`,
+		{
+			sourceType: "timer",
+			timerKey: key,
+			timerAction: "started",
+		},
+	);
+	showBodyTimerLogToast(
+		note,
+		"started",
+		`${bodyTimerTargetInputValue(key, nextTimer)} ${config.targetUnit} target`,
+	);
 }
 
 function stopBodyTimer(key = state.bodyTimerMode) {
-  const config = bodyTimerConfig(key);
-  const timer = bodyTimerState(key);
-  const completedHours = getBodyTimerElapsedMs(key) / 3600000;
-  const nextTimer = {
-    ...timer,
-    active: false,
-    startTimestamp: null,
-    lastCompletedHours: completedHours
-  };
-  setBodyTimerState(key, nextTimer);
-  saveBodyTracker();
-  const note = appendBodyLogNote(
-    `${config.shortLabel} stopped`,
-    `## ${config.label} stopped\n\nStopped: ${currentTimestampLabel()}\n\n- Label: ${nextTimer.label}\n- Completed hours: ${completedHours.toFixed(1)}\n- Target: ${bodyTimerTargetInputValue(key, nextTimer)} ${config.targetUnit}`,
-    {
-      sourceType: "timer",
-      timerKey: key,
-      timerAction: "stopped",
-      completedHours
-    }
-  );
-  showBodyTimerLogToast(note, "stopped", `${completedHours.toFixed(1)} hours`);
+	const config = bodyTimerConfig(key);
+	const timer = bodyTimerState(key);
+	const completedHours = getBodyTimerElapsedMs(key) / 3600000;
+	const nextTimer = {
+		...timer,
+		active: false,
+		startTimestamp: null,
+		lastCompletedHours: completedHours,
+	};
+	setBodyTimerState(key, nextTimer);
+	saveBodyTracker();
+	const note = appendBodyLogNote(
+		`${config.shortLabel} stopped`,
+		`## ${config.label} stopped\n\nStopped: ${currentTimestampLabel()}\n\n- Label: ${nextTimer.label}\n- Completed hours: ${completedHours.toFixed(1)}\n- Target: ${bodyTimerTargetInputValue(key, nextTimer)} ${config.targetUnit}`,
+		{
+			sourceType: "timer",
+			timerKey: key,
+			timerAction: "stopped",
+			completedHours,
+		},
+	);
+	showBodyTimerLogToast(note, "stopped", `${completedHours.toFixed(1)} hours`);
 }
 
 function saveBodyFastSettings() {
-  saveBodyTimerSettings("fasting");
+	saveBodyTimerSettings("fasting");
 }
 
 function startBodyFast() {
-  startBodyTimer("fasting");
+	startBodyTimer("fasting");
 }
 
 function stopBodyFast() {
-  stopBodyTimer("fasting");
+	stopBodyTimer("fasting");
 }
 
 function saveBodyNutrition() {
-  const note = document.getElementById("body-nutrition-note")?.value.trim() || "";
-  state.bodyTracker.nutrition = {
-    ...state.bodyTracker.nutrition,
-    dateKey: todayDateKey(),
-    calories: Math.max(0, numberFromInput("body-calories", 0)),
-    protein: Math.max(0, numberFromInput("body-protein", 0)),
-    carbs: Math.max(0, numberFromInput("body-carbs", 0)),
-    fat: Math.max(0, numberFromInput("body-fat", 0)),
-    note
-  };
-  saveBodyTracker();
-  appendBodyLogNote(
-    "Nutrition logged",
-    `## Nutrition log\n\nSaved: ${currentTimestampLabel()}\n\n- Calories: ${state.bodyTracker.nutrition.calories} / ${state.bodyTracker.nutrition.targetCalories}\n- Protein: ${state.bodyTracker.nutrition.protein}g / ${state.bodyTracker.nutrition.targetProtein}g\n- Carbs: ${state.bodyTracker.nutrition.carbs}g / ${state.bodyTracker.nutrition.targetCarbs}g\n- Fat: ${state.bodyTracker.nutrition.fat}g / ${state.bodyTracker.nutrition.targetFat}g${note ? `\n- Note: ${note}` : ""}`
-  );
-  render();
+	const note =
+		document.getElementById("body-nutrition-note")?.value.trim() || "";
+	state.bodyTracker.nutrition = {
+		...state.bodyTracker.nutrition,
+		dateKey: todayDateKey(),
+		calories: Math.max(0, numberFromInput("body-calories", 0)),
+		protein: Math.max(0, numberFromInput("body-protein", 0)),
+		carbs: Math.max(0, numberFromInput("body-carbs", 0)),
+		fat: Math.max(0, numberFromInput("body-fat", 0)),
+		note,
+	};
+	saveBodyTracker();
+	appendBodyLogNote(
+		"Nutrition logged",
+		`## Nutrition log\n\nSaved: ${currentTimestampLabel()}\n\n- Calories: ${state.bodyTracker.nutrition.calories} / ${state.bodyTracker.nutrition.targetCalories}\n- Protein: ${state.bodyTracker.nutrition.protein}g / ${state.bodyTracker.nutrition.targetProtein}g\n- Carbs: ${state.bodyTracker.nutrition.carbs}g / ${state.bodyTracker.nutrition.targetCarbs}g\n- Fat: ${state.bodyTracker.nutrition.fat}g / ${state.bodyTracker.nutrition.targetFat}g${note ? `\n- Note: ${note}` : ""}`,
+	);
+	render();
 }
 
 function resetBodyNutrition() {
-  state.bodyTracker.nutrition = {
-    ...createDefaultBodyTracker().nutrition,
-    targetCalories: state.bodyTracker.nutrition.targetCalories,
-    targetProtein: state.bodyTracker.nutrition.targetProtein,
-    targetCarbs: state.bodyTracker.nutrition.targetCarbs,
-    targetFat: state.bodyTracker.nutrition.targetFat
-  };
-  saveBodyTracker();
-  appendBodyLogNote(
-    "Nutrition reset",
-    `## Nutrition reset\n\nSaved: ${currentTimestampLabel()}\n\n- Target calories: ${state.bodyTracker.nutrition.targetCalories}\n- Calories: ${state.bodyTracker.nutrition.calories}\n- Protein: ${state.bodyTracker.nutrition.protein}g\n- Carbs: ${state.bodyTracker.nutrition.carbs}g\n- Fat: ${state.bodyTracker.nutrition.fat}g`
-  );
-  render();
+	state.bodyTracker.nutrition = {
+		...createDefaultBodyTracker().nutrition,
+		targetCalories: state.bodyTracker.nutrition.targetCalories,
+		targetProtein: state.bodyTracker.nutrition.targetProtein,
+		targetCarbs: state.bodyTracker.nutrition.targetCarbs,
+		targetFat: state.bodyTracker.nutrition.targetFat,
+	};
+	saveBodyTracker();
+	appendBodyLogNote(
+		"Nutrition reset",
+		`## Nutrition reset\n\nSaved: ${currentTimestampLabel()}\n\n- Target calories: ${state.bodyTracker.nutrition.targetCalories}\n- Calories: ${state.bodyTracker.nutrition.calories}\n- Protein: ${state.bodyTracker.nutrition.protein}g\n- Carbs: ${state.bodyTracker.nutrition.carbs}g\n- Fat: ${state.bodyTracker.nutrition.fat}g`,
+	);
+	render();
 }
 
 function saveBodyNutritionGoals() {
-  state.bodyTracker.nutrition = {
-    ...state.bodyTracker.nutrition,
-    targetCalories: Math.max(1, numberFromInput("body-target-calories", state.bodyTracker.nutrition.targetCalories || 2000)),
-    targetProtein: Math.max(0, numberFromInput("body-target-protein", state.bodyTracker.nutrition.targetProtein || 120)),
-    targetCarbs: Math.max(0, numberFromInput("body-target-carbs", state.bodyTracker.nutrition.targetCarbs || 200)),
-    targetFat: Math.max(0, numberFromInput("body-target-fat", state.bodyTracker.nutrition.targetFat || 70))
-  };
-  saveBodyTracker();
-  appendBodyLogNote(
-    "Nutrition goals saved",
-    `## Nutrition goals\n\nSaved: ${currentTimestampLabel()}\n\n- Calories: ${state.bodyTracker.nutrition.targetCalories}\n- Protein: ${state.bodyTracker.nutrition.targetProtein}g\n- Carbs: ${state.bodyTracker.nutrition.targetCarbs}g\n- Fat: ${state.bodyTracker.nutrition.targetFat}g`
-  );
-  render();
+	state.bodyTracker.nutrition = {
+		...state.bodyTracker.nutrition,
+		targetCalories: Math.max(
+			1,
+			numberFromInput(
+				"body-target-calories",
+				state.bodyTracker.nutrition.targetCalories || 2000,
+			),
+		),
+		targetProtein: Math.max(
+			0,
+			numberFromInput(
+				"body-target-protein",
+				state.bodyTracker.nutrition.targetProtein || 120,
+			),
+		),
+		targetCarbs: Math.max(
+			0,
+			numberFromInput(
+				"body-target-carbs",
+				state.bodyTracker.nutrition.targetCarbs || 200,
+			),
+		),
+		targetFat: Math.max(
+			0,
+			numberFromInput(
+				"body-target-fat",
+				state.bodyTracker.nutrition.targetFat || 70,
+			),
+		),
+	};
+	saveBodyTracker();
+	appendBodyLogNote(
+		"Nutrition goals saved",
+		`## Nutrition goals\n\nSaved: ${currentTimestampLabel()}\n\n- Calories: ${state.bodyTracker.nutrition.targetCalories}\n- Protein: ${state.bodyTracker.nutrition.targetProtein}g\n- Carbs: ${state.bodyTracker.nutrition.targetCarbs}g\n- Fat: ${state.bodyTracker.nutrition.targetFat}g`,
+	);
+	render();
 }
 
 function addBodyWorkout() {
-  const title = document.getElementById("body-workout-title")?.value.trim() || "Workout";
-  const type = document.getElementById("body-workout-type")?.value.trim() || "General";
-  const minutes = Math.max(0, numberFromInput("body-workout-minutes", 0));
-  const effort = Math.max(1, Math.min(10, numberFromInput("body-workout-effort", 5)));
-  const notes = document.getElementById("body-workout-notes")?.value.trim() || "";
+	const title =
+		document.getElementById("body-workout-title")?.value.trim() || "Workout";
+	const type =
+		document.getElementById("body-workout-type")?.value.trim() || "General";
+	const minutes = Math.max(0, numberFromInput("body-workout-minutes", 0));
+	const effort = Math.max(
+		1,
+		Math.min(10, numberFromInput("body-workout-effort", 5)),
+	);
+	const notes =
+		document.getElementById("body-workout-notes")?.value.trim() || "";
 
-  const now = nowIso();
-  appendBodyLogNote(
-    `Workout: ${title}`,
-    `## Workout log\n\nSaved: ${currentTimestampLabel()}\n\n- Name: ${title}\n- Type: ${type}\n- Minutes: ${minutes}\n- Effort: ${effort}/10${notes ? `\n- Notes: ${notes}` : ""}`,
-    {
-      sourceType: "workout",
-      workoutType: type,
-      workoutMinutes: minutes,
-      workoutEffort: effort,
-      dateKey: todayDateKey()
-    }
-  );
-  render();
+	appendBodyLogNote(
+		`Workout: ${title}`,
+		`## Workout log\n\nSaved: ${currentTimestampLabel()}\n\n- Name: ${title}\n- Type: ${type}\n- Minutes: ${minutes}\n- Effort: ${effort}/10${notes ? `\n- Notes: ${notes}` : ""}`,
+		{
+			sourceType: "workout",
+			workoutType: type,
+			workoutMinutes: minutes,
+			workoutEffort: effort,
+			dateKey: todayDateKey(),
+		},
+	);
+	render();
 }
 
 function deleteBodyWorkout(id) {
-  const workout = state.bodyTracker.workouts.find((entry) => entry.id === id);
-  state.bodyTracker.workouts = state.bodyTracker.workouts.filter((entry) => entry.id !== id);
-  saveBodyTracker();
-  if (workout) {
-    appendBodyLogNote(
-      "Workout deleted",
-      `## Workout deleted\n\nSaved: ${currentTimestampLabel()}\n\n- Name: ${workout.title}\n- Type: ${workout.type}\n- Minutes: ${workout.minutes}\n- Effort: ${workout.effort}/10${workout.notes ? `\n- Notes: ${workout.notes}` : ""}`
-    );
-  }
-  render();
+	const workout = state.bodyTracker.workouts.find((entry) => entry.id === id);
+	state.bodyTracker.workouts = state.bodyTracker.workouts.filter(
+		(entry) => entry.id !== id,
+	);
+	saveBodyTracker();
+	if (workout) {
+		appendBodyLogNote(
+			"Workout deleted",
+			`## Workout deleted\n\nSaved: ${currentTimestampLabel()}\n\n- Name: ${workout.title}\n- Type: ${workout.type}\n- Minutes: ${workout.minutes}\n- Effort: ${workout.effort}/10${workout.notes ? `\n- Notes: ${workout.notes}` : ""}`,
+		);
+	}
+	render();
 }
 
 function setBodyMode(mode) {
-  const nextMode = mode === "fasting" ? "timers" : mode;
-  setState({
-    bodyMode: ["timers", "nutrition", "workout", "notes"].includes(nextMode) ? nextMode : "timers",
-    artifactMode: "grid",
-    selectedArtifactId: null
-  });
+	const nextMode = mode === "fasting" ? "timers" : mode;
+	setState({
+		bodyMode: ["timers", "nutrition", "workout", "notes"].includes(nextMode)
+			? nextMode
+			: "timers",
+		artifactMode: "grid",
+		selectedArtifactId: null,
+	});
 }
 
 function setBodyTimerMode(mode) {
-  setState({
-    bodyMode: "timers",
-    bodyTimerMode: BODY_TIMER_MODES.some((config) => config.key === mode) ? mode : "fasting",
-    artifactMode: "grid",
-    selectedArtifactId: null
-  });
+	setState({
+		bodyMode: "timers",
+		bodyTimerMode: BODY_TIMER_MODES.some((config) => config.key === mode)
+			? mode
+			: "fasting",
+		artifactMode: "grid",
+		selectedArtifactId: null,
+	});
 }
 
 function setBodyNutritionMode(mode) {
-  setState({
-    bodyMode: "nutrition",
-    bodyNutritionMode: mode === "goals" ? "goals" : "daily",
-    artifactMode: "grid",
-    selectedArtifactId: null
-  });
+	setState({
+		bodyMode: "nutrition",
+		bodyNutritionMode: mode === "goals" ? "goals" : "daily",
+		artifactMode: "grid",
+		selectedArtifactId: null,
+	});
 }
 
 function setLifeMode(mode) {
-  const nextMode = ["day", "week", "month", "list"].includes(mode) ? mode : "month";
-  setState({
-    lifeTool: "calendar",
-    lifeMode: nextMode,
-    artifactMode: "grid",
-    selectedArtifactId: null
-  });
+	const nextMode = ["day", "week", "month", "list"].includes(mode)
+		? mode
+		: "month";
+	setState({
+		lifeTool: "calendar",
+		lifeMode: nextMode,
+		artifactMode: "grid",
+		selectedArtifactId: null,
+	});
 }
 
 function addLifeTodo() {
-  const title = document.getElementById("life-todo-title")?.value.trim();
-  if (!title) return;
-  const now = nowIso();
-  const todo = {
-    id: makeId("todo"),
-    title,
-    notes: "",
-    status: "todo",
-    assignedDate: "",
-    created: now,
-    edited: now
-  };
-  persistLifePlanner({
-    ...state.lifePlanner,
-    todos: [todo, ...lifeTodos()]
-  }, { lifeTool: "todo" });
+	const title = document.getElementById("life-todo-title")?.value.trim();
+	if (!title) return;
+	const now = nowIso();
+	const todo = {
+		id: makeId("todo"),
+		title,
+		notes: "",
+		status: "todo",
+		assignedDate: "",
+		created: now,
+		edited: now,
+	};
+	persistLifePlanner(
+		{
+			...state.lifePlanner,
+			todos: [todo, ...lifeTodos()],
+		},
+		{ lifeTool: "todo" },
+	);
 }
 
 function updateLifeTodo(id, updater) {
-  const now = nowIso();
-  persistLifePlanner({
-    ...state.lifePlanner,
-    todos: lifeTodos().map((todo) => todo.id === id ? { ...updater(todo), edited: now } : todo)
-  }, { lifeTool: "todo" });
+	const now = nowIso();
+	persistLifePlanner(
+		{
+			...state.lifePlanner,
+			todos: lifeTodos().map((todo) =>
+				todo.id === id ? { ...updater(todo), edited: now } : todo,
+			),
+		},
+		{ lifeTool: "todo" },
+	);
 }
 
-function updateLifeTaskById(projectId, phaseId, taskId, updater, nextState = {}) {
-  const now = nowIso();
-  persistLifePlanner({
-    ...state.lifePlanner,
-    projects: lifeProjects().map((project) => project.id === projectId
-      ? {
-          ...project,
-          edited: now,
-          phases: (project.phases || []).map((phase) => phase.id === phaseId
-            ? {
-                ...phase,
-                edited: now,
-                tasks: (phase.tasks || []).map((task) => task.id === taskId ? { ...updater(task), edited: now } : task)
-              }
-            : phase)
-        }
-      : project)
-  }, { lifeTool: "todo", ...nextState });
+function updateLifeTaskById(
+	projectId,
+	phaseId,
+	taskId,
+	updater,
+	nextState = {},
+) {
+	const now = nowIso();
+	persistLifePlanner(
+		{
+			...state.lifePlanner,
+			projects: lifeProjects().map((project) =>
+				project.id === projectId
+					? {
+							...project,
+							edited: now,
+							phases: (project.phases || []).map((phase) =>
+								phase.id === phaseId
+									? {
+											...phase,
+											edited: now,
+											tasks: (phase.tasks || []).map((task) =>
+												task.id === taskId
+													? { ...updater(task), edited: now }
+													: task,
+											),
+										}
+									: phase,
+							),
+						}
+					: project,
+			),
+		},
+		{ lifeTool: "todo", ...nextState },
+	);
 }
 
 function updateLifeTaskItem(task, updater, nextState = {}) {
-  if (task.source === "todo") {
-    updateLifeTodo(task.todoId, updater);
-    return;
-  }
-  updateLifeTaskById(task.projectId, task.phaseId, task.taskId, updater, nextState);
+	if (task.source === "todo") {
+		updateLifeTodo(task.todoId, updater);
+		return;
+	}
+	updateLifeTaskById(
+		task.projectId,
+		task.phaseId,
+		task.taskId,
+		updater,
+		nextState,
+	);
 }
 
 function toggleLifeTodo(id) {
-  updateLifeTodo(id, (todo) => ({
-    ...todo,
-    status: todo.status === "complete" ? "todo" : "complete"
-  }));
+	updateLifeTodo(id, (todo) => ({
+		...todo,
+		status: todo.status === "complete" ? "todo" : "complete",
+	}));
 }
 
 function toggleLifeTaskItem(source, id, projectId = "", phaseId = "") {
-  const task = source === "todo"
-    ? lifeTodoTaskItems().find((item) => item.todoId === id)
-    : lifeProjectTaskItems().find((item) => item.projectId === projectId && item.phaseId === phaseId && item.taskId === id);
-  if (!task) return;
-  updateLifeTaskItem(task, (item) => ({
-    ...item,
-    status: item.status === "complete" ? "todo" : "complete"
-  }));
+	const task =
+		source === "todo"
+			? lifeTodoTaskItems().find((item) => item.todoId === id)
+			: lifeProjectTaskItems().find(
+					(item) =>
+						item.projectId === projectId &&
+						item.phaseId === phaseId &&
+						item.taskId === id,
+				);
+	if (!task) return;
+	updateLifeTaskItem(task, (item) => ({
+		...item,
+		status: item.status === "complete" ? "todo" : "complete",
+	}));
 }
 
 function deleteLifeTodo(id) {
-  const todo = lifeTodos().find((item) => item.id === id);
-  if (!todo) return;
-  if (!window.confirm(`Delete todo "${todo.title}"?`)) return;
-  persistLifePlanner({
-    ...state.lifePlanner,
-    todos: lifeTodos().filter((item) => item.id !== id)
-  }, { lifeTool: "todo" });
+	const todo = lifeTodos().find((item) => item.id === id);
+	if (!todo) return;
+	if (!window.confirm(`Delete todo "${todo.title}"?`)) return;
+	persistLifePlanner(
+		{
+			...state.lifePlanner,
+			todos: lifeTodos().filter((item) => item.id !== id),
+		},
+		{ lifeTool: "todo" },
+	);
 }
 
 function editLifeTaskNotes(source, id, projectId = "", phaseId = "") {
-  const task = source === "todo"
-    ? lifeTodoTaskItems().find((item) => item.todoId === id)
-    : lifeProjectTaskItems().find((item) => item.projectId === projectId && item.phaseId === phaseId && item.taskId === id);
-  if (!task) return;
-  const notes = window.prompt(`Notes for "${task.title}"`, task.notes || "");
-  if (notes === null) return;
-  updateLifeTaskItem(task, (item) => ({ ...item, notes }));
+	const task =
+		source === "todo"
+			? lifeTodoTaskItems().find((item) => item.todoId === id)
+			: lifeProjectTaskItems().find(
+					(item) =>
+						item.projectId === projectId &&
+						item.phaseId === phaseId &&
+						item.taskId === id,
+				);
+	if (!task) return;
+	const notes = window.prompt(`Notes for "${task.title}"`, task.notes || "");
+	if (notes === null) return;
+	updateLifeTaskItem(task, (item) => ({ ...item, notes }));
 }
 
 function openLifeProjectTask(projectId, phaseId, taskId) {
-  setState({
-    lifeTool: "projects",
-    selectedLifeProjectId: projectId,
-    selectedLifePhaseId: phaseId,
-    selectedLifeTaskId: taskId
-  });
+	setState({
+		lifeTool: "projects",
+		selectedLifeProjectId: projectId,
+		selectedLifePhaseId: phaseId,
+		selectedLifeTaskId: taskId,
+	});
 }
 
 function openLifeTaskItem(source, id, projectId = "", phaseId = "") {
-  if (source === "project-task") {
-    openLifeProjectTask(projectId, phaseId, id);
-    return;
-  }
-  editLifeTaskNotes(source, id, projectId, phaseId);
+	if (source === "project-task") {
+		openLifeProjectTask(projectId, phaseId, id);
+		return;
+	}
+	editLifeTaskNotes(source, id, projectId, phaseId);
 }
 
 function addLifeProject() {
-  const title = document.getElementById("life-project-title")?.value.trim();
-  if (!title) return;
-  const now = nowIso();
-  const project = {
-    id: makeId("project"),
-    title,
-    status: "planned",
-    assignedTo: "",
-    assignedDate: "",
-    notes: "",
-    attachments: [],
-    phases: [],
-    created: now,
-    edited: now
-  };
-  persistLifePlanner({
-    ...state.lifePlanner,
-    projects: [project, ...lifeProjects()]
-  }, {
-    lifeTool: "projects",
-    selectedLifeProjectId: project.id,
-    selectedLifePhaseId: null,
-    selectedLifeTaskId: null
-  });
+	const title = document.getElementById("life-project-title")?.value.trim();
+	if (!title) return;
+	const now = nowIso();
+	const project = {
+		id: makeId("project"),
+		title,
+		status: "planned",
+		assignedTo: "",
+		assignedDate: "",
+		notes: "",
+		attachments: [],
+		phases: [],
+		created: now,
+		edited: now,
+	};
+	persistLifePlanner(
+		{
+			...state.lifePlanner,
+			projects: [project, ...lifeProjects()],
+		},
+		{
+			lifeTool: "projects",
+			selectedLifeProjectId: project.id,
+			selectedLifePhaseId: null,
+			selectedLifeTaskId: null,
+		},
+	);
 }
 
 function selectLifeProject(id) {
-  setState({
-    lifeTool: "projects",
-    selectedLifeProjectId: id,
-    selectedLifePhaseId: null,
-    selectedLifeTaskId: null
-  });
+	setState({
+		lifeTool: "projects",
+		selectedLifeProjectId: id,
+		selectedLifePhaseId: null,
+		selectedLifeTaskId: null,
+	});
 }
 
 function selectLifePhase(id) {
-  setState({
-    lifeTool: "projects",
-    selectedLifePhaseId: id,
-    selectedLifeTaskId: null
-  });
+	setState({
+		lifeTool: "projects",
+		selectedLifePhaseId: id,
+		selectedLifeTaskId: null,
+	});
 }
 
 function selectLifeTask(id) {
-  setState({
-    lifeTool: "projects",
-    selectedLifeTaskId: id
-  });
+	setState({
+		lifeTool: "projects",
+		selectedLifeTaskId: id,
+	});
 }
 
 function addLifePhase(projectId) {
-  const title = document.getElementById("life-phase-title")?.value.trim();
-  if (!title) return;
-  const now = nowIso();
-  const phase = {
-    id: makeId("phase"),
-    title,
-    status: "planned",
-    assignedTo: "",
-    assignedDate: "",
-    notes: "",
-    attachments: [],
-    tasks: [],
-    created: now,
-    edited: now
-  };
-  persistLifePlanner({
-    ...state.lifePlanner,
-    projects: lifeProjects().map((project) => project.id === projectId
-      ? { ...project, phases: [phase, ...(project.phases || [])], edited: now }
-      : project)
-  }, {
-    lifeTool: "projects",
-    selectedLifeProjectId: projectId,
-    selectedLifePhaseId: phase.id,
-    selectedLifeTaskId: null
-  });
+	const title = document.getElementById("life-phase-title")?.value.trim();
+	if (!title) return;
+	const now = nowIso();
+	const phase = {
+		id: makeId("phase"),
+		title,
+		status: "planned",
+		assignedTo: "",
+		assignedDate: "",
+		notes: "",
+		attachments: [],
+		tasks: [],
+		created: now,
+		edited: now,
+	};
+	persistLifePlanner(
+		{
+			...state.lifePlanner,
+			projects: lifeProjects().map((project) =>
+				project.id === projectId
+					? {
+							...project,
+							phases: [phase, ...(project.phases || [])],
+							edited: now,
+						}
+					: project,
+			),
+		},
+		{
+			lifeTool: "projects",
+			selectedLifeProjectId: projectId,
+			selectedLifePhaseId: phase.id,
+			selectedLifeTaskId: null,
+		},
+	);
 }
 
 function addLifeProjectTask(projectId, phaseId) {
-  const title = document.getElementById("life-task-title")?.value.trim();
-  if (!title) return;
-  const now = nowIso();
-  const task = {
-    id: makeId("task"),
-    title,
-    status: "todo",
-    assignedTo: "",
-    assignedDate: "",
-    notes: "",
-    attachments: [],
-    created: now,
-    edited: now
-  };
-  persistLifePlanner({
-    ...state.lifePlanner,
-    projects: lifeProjects().map((project) => project.id === projectId
-      ? {
-          ...project,
-          edited: now,
-          phases: (project.phases || []).map((phase) => phase.id === phaseId
-            ? { ...phase, tasks: [task, ...(phase.tasks || [])], edited: now }
-            : phase)
-        }
-      : project)
-  }, {
-    lifeTool: "projects",
-    selectedLifeProjectId: projectId,
-    selectedLifePhaseId: phaseId,
-    selectedLifeTaskId: task.id
-  });
+	const title = document.getElementById("life-task-title")?.value.trim();
+	if (!title) return;
+	const now = nowIso();
+	const task = {
+		id: makeId("task"),
+		title,
+		status: "todo",
+		assignedTo: "",
+		assignedDate: "",
+		notes: "",
+		attachments: [],
+		created: now,
+		edited: now,
+	};
+	persistLifePlanner(
+		{
+			...state.lifePlanner,
+			projects: lifeProjects().map((project) =>
+				project.id === projectId
+					? {
+							...project,
+							edited: now,
+							phases: (project.phases || []).map((phase) =>
+								phase.id === phaseId
+									? {
+											...phase,
+											tasks: [task, ...(phase.tasks || [])],
+											edited: now,
+										}
+									: phase,
+							),
+						}
+					: project,
+			),
+		},
+		{
+			lifeTool: "projects",
+			selectedLifeProjectId: projectId,
+			selectedLifePhaseId: phaseId,
+			selectedLifeTaskId: task.id,
+		},
+	);
 }
 
 function updateLifeProjectEntity(level, updater, nextState = {}) {
-  const now = nowIso();
-  const projectId = state.selectedLifeProjectId;
-  const phaseId = state.selectedLifePhaseId;
-  const taskId = state.selectedLifeTaskId;
-  persistLifePlanner({
-    ...state.lifePlanner,
-    projects: lifeProjects().map((project) => {
-      if (project.id !== projectId) return project;
-      if (level === "project") return { ...updater(project), edited: now };
-      return {
-        ...project,
-        edited: now,
-        phases: (project.phases || []).map((phase) => {
-          if (phase.id !== phaseId) return phase;
-          if (level === "phase") return { ...updater(phase), edited: now };
-          return {
-            ...phase,
-            edited: now,
-            tasks: (phase.tasks || []).map((task) => task.id === taskId ? { ...updater(task), edited: now } : task)
-          };
-        })
-      };
-    })
-  }, { lifeTool: "projects", ...nextState });
+	const now = nowIso();
+	const projectId = state.selectedLifeProjectId;
+	const phaseId = state.selectedLifePhaseId;
+	const taskId = state.selectedLifeTaskId;
+	persistLifePlanner(
+		{
+			...state.lifePlanner,
+			projects: lifeProjects().map((project) => {
+				if (project.id !== projectId) return project;
+				if (level === "project") return { ...updater(project), edited: now };
+				return {
+					...project,
+					edited: now,
+					phases: (project.phases || []).map((phase) => {
+						if (phase.id !== phaseId) return phase;
+						if (level === "phase") return { ...updater(phase), edited: now };
+						return {
+							...phase,
+							edited: now,
+							tasks: (phase.tasks || []).map((task) =>
+								task.id === taskId ? { ...updater(task), edited: now } : task,
+							),
+						};
+					}),
+				};
+			}),
+		},
+		{ lifeTool: "projects", ...nextState },
+	);
 }
 
 function saveLifeProjectEntity(level) {
-  const title = document.getElementById("life-entity-title")?.value.trim() || "Untitled";
-  const status = document.getElementById("life-entity-status")?.value || "planned";
-  const assignedTo = document.getElementById("life-entity-assigned-to")?.value.trim() || "";
-  const assignedDate = document.getElementById("life-entity-assigned-date")?.value || "";
-  const notes = document.getElementById("life-entity-notes")?.value || "";
-  updateLifeProjectEntity(level, (entity) => ({
-    ...entity,
-    title,
-    status,
-    assignedTo,
-    assignedDate,
-    notes
-  }));
+	const title =
+		document.getElementById("life-entity-title")?.value.trim() || "Untitled";
+	const status =
+		document.getElementById("life-entity-status")?.value || "planned";
+	const assignedTo =
+		document.getElementById("life-entity-assigned-to")?.value.trim() || "";
+	const assignedDate =
+		document.getElementById("life-entity-assigned-date")?.value || "";
+	const notes = document.getElementById("life-entity-notes")?.value || "";
+	updateLifeProjectEntity(level, (entity) => ({
+		...entity,
+		title,
+		status,
+		assignedTo,
+		assignedDate,
+		notes,
+	}));
 }
 
 async function uploadLifeAttachment(level) {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.multiple = true;
-  input.addEventListener("change", async () => {
-    const files = Array.from(input.files || []);
-    if (!files.length) return;
-    try {
-      const attachments = [];
-      for (const file of files) {
-        attachments.push(await storeLocalFile(file, "life-attachments", localMediaStoreOptions()));
-      }
-      updateLifeProjectEntity(level, (entity) => ({
-        ...entity,
-        attachments: [...(entity.attachments || []), ...attachments]
-      }));
-      scheduleCloudStorageUsageRefresh({ force: true });
-    } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Could not upload attachment.");
-    }
-  });
-  input.click();
+	const input = document.createElement("input");
+	input.type = "file";
+	input.multiple = true;
+	input.addEventListener("change", async () => {
+		const files = Array.from(input.files || []);
+		if (!files.length) return;
+		try {
+			const attachments = [];
+			for (const file of files) {
+				attachments.push(
+					await storeLocalFile(
+						file,
+						"life-attachments",
+						localMediaStoreOptions(),
+					),
+				);
+			}
+			updateLifeProjectEntity(level, (entity) => ({
+				...entity,
+				attachments: [...(entity.attachments || []), ...attachments],
+			}));
+			scheduleCloudStorageUsageRefresh({ force: true });
+		} catch (error) {
+			window.alert(
+				error instanceof Error ? error.message : "Could not upload attachment.",
+			);
+		}
+	});
+	input.click();
 }
 
 function deleteLifeAttachment(level, attachmentId) {
-  updateLifeProjectEntity(level, (entity) => ({
-    ...entity,
-    attachments: (entity.attachments || []).filter((attachment) => attachment.id !== attachmentId)
-  }));
-  deleteLocalImages([attachmentId])
-    .then(() => scheduleCloudStorageUsageRefresh({ force: true }))
-    .catch(() => {});
+	updateLifeProjectEntity(level, (entity) => ({
+		...entity,
+		attachments: (entity.attachments || []).filter(
+			(attachment) => attachment.id !== attachmentId,
+		),
+	}));
+	deleteLocalImages([attachmentId])
+		.then(() => scheduleCloudStorageUsageRefresh({ force: true }))
+		.catch(() => {});
 }
 
 function setDashboardPeriod(period) {
-  const nextPeriod = dashboardPeriodOption(period).id;
-  const glowUntil = Date.now() + 7000;
-  window.clearTimeout(dashboardPeriodGlowTimer);
-  dashboardPeriodGlowTimer = window.setTimeout(() => {
-    if (state.dashboardPeriodGlowUntil <= Date.now()) setState({ dashboardPeriodGlowUntil: 0 });
-  }, 7200);
-  setState({
-    dashboardPeriod: nextPeriod,
-    dashboardPeriodGlowUntil: glowUntil
-  });
+	const nextPeriod = dashboardPeriodOption(period).id;
+	const glowUntil = Date.now() + 7000;
+	window.clearTimeout(dashboardPeriodGlowTimer);
+	dashboardPeriodGlowTimer = window.setTimeout(() => {
+		if (state.dashboardPeriodGlowUntil <= Date.now())
+			setState({ dashboardPeriodGlowUntil: 0 });
+	}, 7200);
+	setState({
+		dashboardPeriod: nextPeriod,
+		dashboardPeriodGlowUntil: glowUntil,
+	});
 }
 
 function setDashboardPeriodByIndex(index) {
-  setDashboardPeriod(dashboardPeriodOptionForIndex(index).id);
+	setDashboardPeriod(dashboardPeriodOptionForIndex(index).id);
 }
 
 function previewDashboardPeriodByIndex(index) {
-  const option = dashboardPeriodOptionForIndex(index);
-  const optionIndex = dashboardPeriodIndex(option.id);
-  const progress = DASHBOARD_PERIOD_OPTIONS.length > 1
-    ? Math.round((optionIndex / (DASHBOARD_PERIOD_OPTIONS.length - 1)) * 100)
-    : 0;
-  app.querySelectorAll("[data-dashboard-period-slider]").forEach((input) => {
-    input.value = String(optionIndex);
-    input.style.setProperty("--period-progress", `${progress}%`);
-    input.setAttribute("aria-valuetext", option.label);
-    input.closest(".dashboard-period-slider")?.querySelector(".dashboard-period-slider-value")?.replaceChildren(option.label);
-  });
+	const option = dashboardPeriodOptionForIndex(index);
+	const optionIndex = dashboardPeriodIndex(option.id);
+	const progress =
+		DASHBOARD_PERIOD_OPTIONS.length > 1
+			? Math.round((optionIndex / (DASHBOARD_PERIOD_OPTIONS.length - 1)) * 100)
+			: 0;
+	app.querySelectorAll("[data-dashboard-period-slider]").forEach((input) => {
+		input.value = String(optionIndex);
+		input.style.setProperty("--period-progress", `${progress}%`);
+		input.setAttribute("aria-valuetext", option.label);
+		input
+			.closest(".dashboard-period-slider")
+			?.querySelector(".dashboard-period-slider-value")
+			?.replaceChildren(option.label);
+	});
 }
 
 function setDashboardChartType(chartType) {
-  setState({ dashboardChartType: ["pie", "bar"].includes(chartType) ? chartType : "pie" });
+	setState({
+		dashboardChartType: ["pie", "bar"].includes(chartType) ? chartType : "pie",
+	});
 }
 
 function setTheme(theme) {
-  const nextTheme = normalizeTheme(theme);
-  saveTheme(nextTheme);
-  setState({ theme: nextTheme });
+	const nextTheme = normalizeTheme(theme);
+	saveTheme(nextTheme);
+	setState({ theme: nextTheme });
 }
 
 function saveDashboardIdentitySettings() {
-  const current = normalizeDashboardIdentity(state.dashboardIdentity);
-  const displayMode = document.querySelector("input[name='dashboard-display-mode']:checked")?.value === "icons" ? "icons" : "numbers";
-  const nextIdentity = {
-    displayMode,
-    showNumbers: displayMode === "numbers",
-    showIcons: displayMode === "icons",
-    items: Object.fromEntries(DASHBOARD_LABELS.map((dashboard) => {
-      const label = document.getElementById(`dashboard-identity-${dashboard}-label`)?.value.trim() || DEFAULT_DASHBOARD_IDENTITY.items[dashboard].label;
-      const icon = document.getElementById(`dashboard-identity-${dashboard}-icon`)?.value.trim() || current.items[dashboard]?.icon || DEFAULT_DASHBOARD_IDENTITY.items[dashboard].icon;
-      const color = normalizeHexColor(
-        document.getElementById(`dashboard-identity-${dashboard}-color`)?.value,
-        current.items[dashboard]?.color || DEFAULT_DASHBOARD_IDENTITY.items[dashboard].color
-      );
-      return [dashboard, {
-        ...DEFAULT_DASHBOARD_IDENTITY.items[dashboard],
-        label,
-        icon: normalizeIconSource(icon),
-        color
-      }];
-    }))
-  };
-  const normalized = normalizeDashboardIdentity(nextIdentity);
-  saveDashboardIdentity(normalized);
-  setState({ dashboardIdentity: normalized });
+	const current = normalizeDashboardIdentity(state.dashboardIdentity);
+	const displayMode =
+		document.querySelector("input[name='dashboard-display-mode']:checked")
+			?.value === "icons"
+			? "icons"
+			: "numbers";
+	const nextIdentity = {
+		displayMode,
+		showNumbers: displayMode === "numbers",
+		showIcons: displayMode === "icons",
+		items: Object.fromEntries(
+			DASHBOARD_LABELS.map((dashboard) => {
+				const label =
+					document
+						.getElementById(`dashboard-identity-${dashboard}-label`)
+						?.value.trim() || DEFAULT_DASHBOARD_IDENTITY.items[dashboard].label;
+				const icon =
+					document
+						.getElementById(`dashboard-identity-${dashboard}-icon`)
+						?.value.trim() ||
+					current.items[dashboard]?.icon ||
+					DEFAULT_DASHBOARD_IDENTITY.items[dashboard].icon;
+				const color = normalizeHexColor(
+					document.getElementById(`dashboard-identity-${dashboard}-color`)
+						?.value,
+					current.items[dashboard]?.color ||
+						DEFAULT_DASHBOARD_IDENTITY.items[dashboard].color,
+				);
+				return [
+					dashboard,
+					{
+						...DEFAULT_DASHBOARD_IDENTITY.items[dashboard],
+						label,
+						icon: normalizeIconSource(icon),
+						color,
+					},
+				];
+			}),
+		),
+	};
+	const normalized = normalizeDashboardIdentity(nextIdentity);
+	saveDashboardIdentity(normalized);
+	setState({ dashboardIdentity: normalized });
 }
 
 function resetDashboardIdentityItem(dashboard) {
-  if (!DASHBOARD_LABELS.includes(dashboard)) return;
-  const fallback = DEFAULT_DASHBOARD_IDENTITY.items[dashboard];
-  const labelInput = document.getElementById(`dashboard-identity-${dashboard}-label`);
-  if (labelInput) labelInput.value = fallback.label;
-  updateIconPickerField(`dashboard-identity-${dashboard}-icon`, fallback.icon);
-  updateIconPickerColorField(`dashboard-identity-${dashboard}-color`, fallback.color);
-  saveDashboardIdentitySettings();
+	if (!DASHBOARD_LABELS.includes(dashboard)) return;
+	const fallback = DEFAULT_DASHBOARD_IDENTITY.items[dashboard];
+	const labelInput = document.getElementById(
+		`dashboard-identity-${dashboard}-label`,
+	);
+	if (labelInput) labelInput.value = fallback.label;
+	updateIconPickerField(`dashboard-identity-${dashboard}-icon`, fallback.icon);
+	updateIconPickerColorField(
+		`dashboard-identity-${dashboard}-color`,
+		fallback.color,
+	);
+	saveDashboardIdentitySettings();
 }
 
 function dismissTip(tip, element) {
-  if (!tip) return;
-  element?.classList.add("is-dismissed");
-  rememberDismissedTip(tip);
-  window.setTimeout(() => render(), 280);
+	if (!tip) return;
+	element?.classList.add("is-dismissed");
+	rememberDismissedTip(tip);
+	window.setTimeout(() => render(), 280);
 }
 
 function resetTips() {
-  clearDismissedTips();
-  render();
+	clearDismissedTips();
+	render();
 }
 
 function render() {
-  applyEnvironmentClasses();
+	applyEnvironmentClasses();
 
-  if (!isReady()) {
-    app.innerHTML = `
+	if (!isReady()) {
+		app.innerHTML = `
       <div class="workspace">
         <section class="content-shell">
           <div class="panel">
@@ -5498,18 +6659,20 @@ function render() {
         </section>
       </div>
     `;
-    return;
-  }
+		return;
+	}
 
-  const compendium = selectedCompendium();
-  const section = selectedSection();
-  const spiritBook = selectedSpiritBook();
-  const sidebarScrollTop = app.querySelector(".sidebar-list-scroll")?.scrollTop ?? 0;
-  const settingsScrollTop = app.querySelector(".settings-tab-panel")?.scrollTop ?? 0;
-  const thoughtToastFocus = captureThoughtToastFocus();
-  hideThoughtTooltip();
-  hideGuidedTip();
-  app.innerHTML = `
+	const compendium = selectedCompendium();
+	const section = selectedSection();
+	const spiritBook = selectedSpiritBook();
+	const sidebarScrollTop =
+		app.querySelector(".sidebar-list-scroll")?.scrollTop ?? 0;
+	const settingsScrollTop =
+		app.querySelector(".settings-tab-panel")?.scrollTop ?? 0;
+	const thoughtToastFocus = captureThoughtToastFocus();
+	hideThoughtTooltip();
+	hideGuidedTip();
+	app.innerHTML = `
     <div class="workspace${state.mobileMenuOpen ? " has-mobile-menu" : ""}" style="--sidebar-width: ${clampSidebarWidth(state.sidebarWidth)}px;">
       <button class="mobile-menu-toggle" data-action="toggle-mobile-menu" type="button" aria-expanded="${state.mobileMenuOpen ? "true" : "false"}">
         ${menuToggleLabel()}
@@ -5517,60 +6680,64 @@ function render() {
       ${sidebarHtml(compendium)}
       <section class="content-shell">
         ${pathBarHtml(compendium, section, spiritBook)}
-        <div class="content-stage"${state.mobileMenuOpen ? " inert aria-hidden=\"true\"" : ""}>${contentHtml(compendium, section)}</div>
+        <div class="content-stage"${state.mobileMenuOpen ? ' inert aria-hidden="true"' : ""}>${contentHtml(compendium, section)}</div>
       </section>
     </div>
     ${donationModalHtml()}
     ${thoughtToastHtml()}
     ${iconPickerOverlayHtml()}
   `;
-  const sidebarScroll = app.querySelector(".sidebar-list-scroll");
-  if (sidebarScroll) sidebarScroll.scrollTop = sidebarScrollTop;
-  const settingsScroll = app.querySelector(".settings-tab-panel");
-  if (settingsScroll) settingsScroll.scrollTop = settingsScrollTop;
-  bindActions();
-  bindDashboardIdentityAutoSave();
-  bindTrackerEditorAutoSave();
-  bindHeaderActionTooltips();
-  applyCoreTooltips();
-  bindThoughtTooltips();
-  bindGuidedTips();
-  bindThoughtToastControls();
-  bindIconPickerControls();
-  bindTrackerOrbSorting();
-  bindSidebarResize();
-  bindSidebarHorizontalScroll();
-  bindPathBarOverflow();
-  bindCompendiumSectionSorting();
-  bindDashboardBalanceHover();
-  bindDashboardPeriodSlider();
-  bindGalleryControls();
-  bindEditorMedia();
-  bindLocalAssetImages();
-  bindDonationFlow(document, { onOpen: closeMobileMenu });
-  updateBodyTimerDom();
-  renderLifeMonthCalendar();
-  focusThoughtEditor();
-  restoreThoughtToastFocus(thoughtToastFocus);
-  if (state.active === "Settings" && (state.settingsTab === "cloud")) {
-    scheduleCloudStorageUsageRefresh();
-  }
+	const sidebarScroll = app.querySelector(".sidebar-list-scroll");
+	if (sidebarScroll) sidebarScroll.scrollTop = sidebarScrollTop;
+	const settingsScroll = app.querySelector(".settings-tab-panel");
+	if (settingsScroll) settingsScroll.scrollTop = settingsScrollTop;
+	bindActions();
+	bindDashboardIdentityAutoSave();
+	bindTrackerEditorAutoSave();
+	bindHeaderActionTooltips();
+	applyCoreTooltips();
+	bindThoughtTooltips();
+	bindGuidedTips();
+	bindThoughtToastControls();
+	bindIconPickerControls();
+	bindTrackerOrbSorting();
+	bindSidebarResize();
+	bindSidebarHorizontalScroll();
+	bindPathBarOverflow();
+	bindCompendiumSectionSorting();
+	bindDashboardBalanceHover();
+	bindDashboardPeriodSlider();
+	bindGalleryControls();
+	bindEditorMedia();
+	bindLocalAssetImages();
+	bindDonationFlow(document, { onOpen: closeMobileMenu });
+	updateBodyTimerDom();
+	renderLifeMonthCalendar();
+	focusThoughtEditor();
+	restoreThoughtToastFocus(thoughtToastFocus);
+	if (state.active === "Settings" && state.settingsTab === "cloud") {
+		scheduleCloudStorageUsageRefresh();
+	}
 }
 
 function thoughtToastHtml() {
-  const toast = state.thoughtToast;
-  if (!toast) return "";
-  const kind = trackerKind(toast.kind);
-  const config = trackerKindConfig(kind);
-  const quickNote = toast.quickNote || "";
-  const hasQuickNote = quickNote.trim().length > 0;
-  const toastDate = thoughtDateInputValue(toast.timestamp);
-  const toastTime = thoughtTimeInputValue(toast.timestamp);
-  const summaryAction = toast.summaryAction || (kind === "goal" ? "checked" : "saved");
-  const summaryNoun = toast.noun || config.noun;
-  const detailLabel = toast.detailLabel || (kind === "goal" ? "Progress note" : "Quick note");
-  const detailPlaceholder = toast.detailPlaceholder || (kind === "goal" ? "Add progress detail" : "Add a detail");
-  return `
+	const toast = state.thoughtToast;
+	if (!toast) return "";
+	const kind = trackerKind(toast.kind);
+	const config = trackerKindConfig(kind);
+	const quickNote = toast.quickNote || "";
+	const hasQuickNote = quickNote.trim().length > 0;
+	const toastDate = thoughtDateInputValue(toast.timestamp);
+	const toastTime = thoughtTimeInputValue(toast.timestamp);
+	const summaryAction =
+		toast.summaryAction || (kind === "goal" ? "checked" : "saved");
+	const summaryNoun = toast.noun || config.noun;
+	const detailLabel =
+		toast.detailLabel || (kind === "goal" ? "Progress note" : "Quick note");
+	const detailPlaceholder =
+		toast.detailPlaceholder ||
+		(kind === "goal" ? "Add progress detail" : "Add a detail");
+	return `
     <aside class="thought-toast" role="status" aria-live="polite">
       <div class="thought-toast-summary">
         <strong>${escapeHtml(toast.dashboard)} ${escapeHtml(summaryNoun)} ${escapeHtml(summaryAction)}</strong>
@@ -5600,344 +6767,423 @@ function thoughtToastHtml() {
 }
 
 function bindThoughtToastControls() {
-  const toast = app.querySelector(".thought-toast");
-  const input = app.querySelector(".thought-toast-input");
-  const noteInput = app.querySelector("#thought-toast-note");
-  const dateInput = app.querySelector("#thought-toast-date");
-  const timeInput = app.querySelector("#thought-toast-time");
-  const summaryTime = app.querySelector("#thought-toast-summary-time");
-  const actionButton = app.querySelector(".thought-toast-action");
-  if (!toast || !input || !noteInput || !actionButton) return;
+	const toast = app.querySelector(".thought-toast");
+	const input = app.querySelector(".thought-toast-input");
+	const noteInput = app.querySelector("#thought-toast-note");
+	const dateInput = app.querySelector("#thought-toast-date");
+	const timeInput = app.querySelector("#thought-toast-time");
+	const summaryTime = app.querySelector("#thought-toast-summary-time");
+	const actionButton = app.querySelector(".thought-toast-action");
+	if (!toast || !input || !noteInput || !actionButton) return;
 
-  const updateActionButton = () => {
-    const value = noteInput.value.trim();
-    const kind = trackerKind(state.thoughtToast?.kind);
-    const submitLabel = kind === "goal" ? "Submit progress note" : "Submit quick note";
-    if (state.thoughtToast) state.thoughtToast.quickNote = noteInput.value;
-    actionButton.dataset.action = value ? "submit-thought-toast-note" : "open-thought-toast-note";
-    actionButton.innerHTML = iconHtml(value ? "tabler:device-floppy" : "tabler:external-link");
-    actionButton.setAttribute("aria-label", value ? submitLabel : "Open note");
-    actionButton.setAttribute("title", value ? "Submit" : "Open Note");
-    pauseThoughtToastFade();
-  };
-  const updateTimestamp = () => {
-    const timestamp = thoughtTimestampFromToastControls();
-    if (state.thoughtToast) state.thoughtToast.timestamp = timestamp;
-    if (summaryTime) summaryTime.textContent = thoughtTimestampLabel(timestamp);
-    pauseThoughtToastFade();
-  };
-  const keepNoteInputFocused = () => {
-    if (document.activeElement !== noteInput) return false;
-    noteInput.focus({ preventScroll: true });
-    pauseThoughtToastFade();
-    return true;
-  };
+	const updateActionButton = () => {
+		const value = noteInput.value.trim();
+		const kind = trackerKind(state.thoughtToast?.kind);
+		const submitLabel =
+			kind === "goal" ? "Submit progress note" : "Submit quick note";
+		if (state.thoughtToast) state.thoughtToast.quickNote = noteInput.value;
+		actionButton.dataset.action = value
+			? "submit-thought-toast-note"
+			: "open-thought-toast-note";
+		actionButton.innerHTML = iconHtml(
+			value ? "tabler:device-floppy" : "tabler:external-link",
+		);
+		actionButton.setAttribute("aria-label", value ? submitLabel : "Open note");
+		actionButton.setAttribute("title", value ? "Submit" : "Open Note");
+		pauseThoughtToastFade();
+	};
+	const updateTimestamp = () => {
+		const timestamp = thoughtTimestampFromToastControls();
+		if (state.thoughtToast) state.thoughtToast.timestamp = timestamp;
+		if (summaryTime) summaryTime.textContent = thoughtTimestampLabel(timestamp);
+		pauseThoughtToastFade();
+	};
+	const keepNoteInputFocused = () => {
+		if (document.activeElement !== noteInput) return false;
+		noteInput.focus({ preventScroll: true });
+		pauseThoughtToastFade();
+		return true;
+	};
 
-  toast.addEventListener("pointerenter", pauseThoughtToastFade);
-  toast.addEventListener("pointerleave", () => {
-    if (keepNoteInputFocused()) return;
-    resumeThoughtToastFade(0);
-  });
-  toast.addEventListener("focusin", pauseThoughtToastFade);
-  toast.addEventListener("focusout", () => {
-    window.setTimeout(() => {
-      if (!toast.contains(document.activeElement) && !toast.matches(":hover")) resumeThoughtToastFade(0);
-    }, 0);
-  });
-  noteInput.addEventListener("input", updateActionButton);
-  dateInput?.addEventListener("input", updateTimestamp);
-  timeInput?.addEventListener("input", updateTimestamp);
+	toast.addEventListener("pointerenter", pauseThoughtToastFade);
+	toast.addEventListener("pointerleave", () => {
+		if (keepNoteInputFocused()) return;
+		resumeThoughtToastFade(0);
+	});
+	toast.addEventListener("focusin", pauseThoughtToastFade);
+	toast.addEventListener("focusout", () => {
+		window.setTimeout(() => {
+			if (!toast.contains(document.activeElement) && !toast.matches(":hover"))
+				resumeThoughtToastFade(0);
+		}, 0);
+	});
+	noteInput.addEventListener("input", updateActionButton);
+	dateInput?.addEventListener("input", updateTimestamp);
+	timeInput?.addEventListener("input", updateTimestamp);
 }
 
 function openIconPicker(element) {
-  const fieldId = element.dataset.iconField || "";
-  const field = document.getElementById(fieldId);
-  if (!field) return;
-  const colorFieldId = element.dataset.iconColorField || "";
-  const colorField = colorFieldId ? document.getElementById(colorFieldId) : null;
-  const currentColor = normalizeHexColor(colorField?.value, normalizeHexColor(element.dataset.iconColor, DASHBOARD_COLORS.Mind));
-  state.iconPicker = {
-    fieldId,
-    colorFieldId,
-    previewId: element.dataset.iconPreview || "",
-    title: element.dataset.iconTitle || "Choose icon",
-    color: currentColor,
-    selectedColor: currentColor,
-    selected: normalizeIconSource(field.value || "tabler:circle") || "tabler:circle",
-    query: "",
-    limit: ICON_PICKER_PAGE_SIZE
-  };
-  app.querySelector("[data-icon-picker-overlay]")?.remove();
-  app.insertAdjacentHTML("beforeend", iconPickerOverlayHtml());
-  bindIconPickerControls();
+	const fieldId = element.dataset.iconField || "";
+	const field = document.getElementById(fieldId);
+	if (!field) return;
+	const colorFieldId = element.dataset.iconColorField || "";
+	const colorField = colorFieldId
+		? document.getElementById(colorFieldId)
+		: null;
+	const currentColor = normalizeHexColor(
+		colorField?.value,
+		normalizeHexColor(element.dataset.iconColor, DASHBOARD_COLORS.Mind),
+	);
+	state.iconPicker = {
+		fieldId,
+		colorFieldId,
+		previewId: element.dataset.iconPreview || "",
+		title: element.dataset.iconTitle || "Choose icon",
+		color: currentColor,
+		selectedColor: currentColor,
+		selected:
+			normalizeIconSource(field.value || "tabler:circle") || "tabler:circle",
+		query: "",
+		limit: ICON_PICKER_PAGE_SIZE,
+	};
+	app.querySelector("[data-icon-picker-overlay]")?.remove();
+	app.insertAdjacentHTML("beforeend", iconPickerOverlayHtml());
+	bindIconPickerControls();
 }
 
 function closeIconPicker() {
-  state.iconPicker = null;
-  app.querySelector("[data-icon-picker-overlay]")?.remove();
+	state.iconPicker = null;
+	app.querySelector("[data-icon-picker-overlay]")?.remove();
 }
 
 function refreshIconPickerResults() {
-  const results = app.querySelector("[data-icon-picker-results]");
-  if (!results || !state.iconPicker) return;
-  results.innerHTML = iconPickerGridHtml();
+	const results = app.querySelector("[data-icon-picker-results]");
+	if (!results || !state.iconPicker) return;
+	results.innerHTML = iconPickerGridHtml();
 }
 
 function updateIconPickerCurrent() {
-  const symbol = app.querySelector("[data-icon-picker-current-symbol]");
-  if (symbol && state.iconPicker) {
-    symbol.innerHTML = trackerIconHtml(state.iconPicker.selected || "tabler:circle");
-  }
+	const symbol = app.querySelector("[data-icon-picker-current-symbol]");
+	if (symbol && state.iconPicker) {
+		symbol.innerHTML = trackerIconHtml(
+			state.iconPicker.selected || "tabler:circle",
+		);
+	}
 }
 
 function updateIconPickerColorPreview() {
-  if (!state.iconPicker) return;
-  const color = normalizeHexColor(state.iconPicker.selectedColor, normalizeHexColor(state.iconPicker.color, DASHBOARD_COLORS.Mind));
-  const overlay = app.querySelector("[data-icon-picker-overlay]");
-  overlay?.querySelector(".icon-picker-panel")?.style.setProperty("--icon-picker-color", color);
-  overlay?.querySelector(".icon-picker-color-preview")?.style.setProperty("--picked-color", color);
-  const input = overlay?.querySelector("[data-icon-picker-color-input]");
-  if (input && input.value.toLowerCase() !== color) input.value = color;
-  overlay?.querySelectorAll(".icon-picker-swatch").forEach((swatch) => {
-    const isSelected = normalizeHexColor(swatch.dataset.color) === color;
-    swatch.classList.toggle("is-selected", isSelected);
-    swatch.setAttribute("aria-selected", isSelected ? "true" : "false");
-  });
+	if (!state.iconPicker) return;
+	const color = normalizeHexColor(
+		state.iconPicker.selectedColor,
+		normalizeHexColor(state.iconPicker.color, DASHBOARD_COLORS.Mind),
+	);
+	const overlay = app.querySelector("[data-icon-picker-overlay]");
+	overlay
+		?.querySelector(".icon-picker-panel")
+		?.style.setProperty("--icon-picker-color", color);
+	overlay
+		?.querySelector(".icon-picker-color-preview")
+		?.style.setProperty("--picked-color", color);
+	const input = overlay?.querySelector("[data-icon-picker-color-input]");
+	if (input && input.value.toLowerCase() !== color) input.value = color;
+	overlay?.querySelectorAll(".icon-picker-swatch").forEach((swatch) => {
+		const isSelected = normalizeHexColor(swatch.dataset.color) === color;
+		swatch.classList.toggle("is-selected", isSelected);
+		swatch.setAttribute("aria-selected", isSelected ? "true" : "false");
+	});
 }
 
 function selectIconPickerIcon(icon) {
-  if (!state.iconPicker) return;
-  state.iconPicker.selected = normalizeIconSource(icon || "tabler:circle") || "tabler:circle";
-  updateIconPickerCurrent();
-  refreshIconPickerResults();
+	if (!state.iconPicker) return;
+	state.iconPicker.selected =
+		normalizeIconSource(icon || "tabler:circle") || "tabler:circle";
+	updateIconPickerCurrent();
+	refreshIconPickerResults();
 }
 
 function selectIconPickerColor(color) {
-  if (!state.iconPicker?.colorFieldId) return;
-  const normalized = normalizeHexColor(color, state.iconPicker.selectedColor || DASHBOARD_COLORS.Mind);
-  state.iconPicker.selectedColor = normalized;
-  state.iconPicker.color = normalized;
-  updateIconPickerColorPreview();
+	if (!state.iconPicker?.colorFieldId) return;
+	const normalized = normalizeHexColor(
+		color,
+		state.iconPicker.selectedColor || DASHBOARD_COLORS.Mind,
+	);
+	state.iconPicker.selectedColor = normalized;
+	state.iconPicker.color = normalized;
+	updateIconPickerColorPreview();
 }
 
 function requestIconPickerSearch(query, limit) {
-  if (!state.iconPicker || String(query || "").trim().length < 3) return;
-  const searchPromise = searchIconifyIcons(query, limit);
-  refreshIconPickerResults();
-  searchPromise.then(() => {
-    if (!state.iconPicker || state.iconPicker.query !== query || state.iconPicker.limit !== limit) return;
-    refreshIconPickerResults();
-  });
+	if (!state.iconPicker || String(query || "").trim().length < 3) return;
+	const searchPromise = searchIconifyIcons(query, limit);
+	refreshIconPickerResults();
+	searchPromise.then(() => {
+		if (
+			!state.iconPicker ||
+			state.iconPicker.query !== query ||
+			state.iconPicker.limit !== limit
+		)
+			return;
+		refreshIconPickerResults();
+	});
 }
 
 function updateIconPickerField(fieldId, icon) {
-  const normalized = normalizeIconSource(icon || "tabler:circle") || "tabler:circle";
-  const field = document.getElementById(fieldId);
-  if (field) {
-    field.value = normalized;
-    field.dispatchEvent(new Event("input", { bubbles: true }));
-  }
-  app.querySelectorAll(`[data-icon-field="${CSS.escape(fieldId)}"]`).forEach((trigger) => {
-    trigger.dataset.iconTitle = trigger.dataset.iconTitle || "Choose icon";
-    trigger.setAttribute("aria-label", `Choose icon: ${iconDisplayName(normalized)}`);
-    trigger.setAttribute("title", `Choose icon: ${iconDisplayName(normalized)}`);
-    trigger.querySelector(".icon-picker-trigger-symbol")?.replaceChildren();
-    const symbol = trigger.querySelector(".icon-picker-trigger-symbol");
-    if (symbol) symbol.innerHTML = trackerIconHtml(normalized);
-    const label = trigger.querySelector(".icon-picker-trigger-label");
-    if (label) label.textContent = iconDisplayName(normalized);
-    const previewId = trigger.dataset.iconPreview || "";
-    const preview = previewId ? document.getElementById(previewId) : null;
-    if (preview) {
-      const previewIcon = preview.querySelector(".tracker-orb-icon");
-      if (previewIcon) previewIcon.innerHTML = trackerIconHtml(normalized);
-      else preview.innerHTML = trackerIconHtml(normalized);
-    }
-  });
+	const normalized =
+		normalizeIconSource(icon || "tabler:circle") || "tabler:circle";
+	const field = document.getElementById(fieldId);
+	if (field) {
+		field.value = normalized;
+		field.dispatchEvent(new Event("input", { bubbles: true }));
+	}
+	app
+		.querySelectorAll(`[data-icon-field="${CSS.escape(fieldId)}"]`)
+		.forEach((trigger) => {
+			trigger.dataset.iconTitle = trigger.dataset.iconTitle || "Choose icon";
+			trigger.setAttribute(
+				"aria-label",
+				`Choose icon: ${iconDisplayName(normalized)}`,
+			);
+			trigger.setAttribute(
+				"title",
+				`Choose icon: ${iconDisplayName(normalized)}`,
+			);
+			trigger.querySelector(".icon-picker-trigger-symbol")?.replaceChildren();
+			const symbol = trigger.querySelector(".icon-picker-trigger-symbol");
+			if (symbol) symbol.innerHTML = trackerIconHtml(normalized);
+			const label = trigger.querySelector(".icon-picker-trigger-label");
+			if (label) label.textContent = iconDisplayName(normalized);
+			const previewId = trigger.dataset.iconPreview || "";
+			const preview = previewId ? document.getElementById(previewId) : null;
+			if (preview) {
+				const previewIcon = preview.querySelector(".tracker-orb-icon");
+				if (previewIcon) previewIcon.innerHTML = trackerIconHtml(normalized);
+				else preview.innerHTML = trackerIconHtml(normalized);
+			}
+		});
 }
 
 function updateIconPickerColorField(fieldId, color) {
-  const normalized = normalizeHexColor(color, DASHBOARD_COLORS.Mind);
-  const field = document.getElementById(fieldId);
-  if (field) {
-    field.value = normalized;
-    field.dispatchEvent(new Event("input", { bubbles: true }));
-  }
-  app.querySelectorAll(`[data-icon-color-field="${CSS.escape(fieldId)}"]`).forEach((trigger) => {
-    trigger.dataset.iconColor = normalized;
-    trigger.style.setProperty("--icon-picker-color", normalized);
-  });
+	const normalized = normalizeHexColor(color, DASHBOARD_COLORS.Mind);
+	const field = document.getElementById(fieldId);
+	if (field) {
+		field.value = normalized;
+		field.dispatchEvent(new Event("input", { bubbles: true }));
+	}
+	app
+		.querySelectorAll(`[data-icon-color-field="${CSS.escape(fieldId)}"]`)
+		.forEach((trigger) => {
+			trigger.dataset.iconColor = normalized;
+			trigger.style.setProperty("--icon-picker-color", normalized);
+		});
 }
 
 function saveIconPickerSelection() {
-  if (!state.iconPicker) return;
-  updateIconPickerField(state.iconPicker.fieldId, state.iconPicker.selected);
-  if (state.iconPicker.colorFieldId) updateIconPickerColorField(state.iconPicker.colorFieldId, state.iconPicker.selectedColor);
-  closeIconPicker();
+	if (!state.iconPicker) return;
+	updateIconPickerField(state.iconPicker.fieldId, state.iconPicker.selected);
+	if (state.iconPicker.colorFieldId)
+		updateIconPickerColorField(
+			state.iconPicker.colorFieldId,
+			state.iconPicker.selectedColor,
+		);
+	closeIconPicker();
 }
 
 function loadMoreIconPickerIcons() {
-  if (!state.iconPicker) return;
-  state.iconPicker.limit = Math.min(192, (Number(state.iconPicker.limit) || ICON_PICKER_PAGE_SIZE) + ICON_PICKER_PAGE_SIZE);
-  refreshIconPickerResults();
-  requestIconPickerSearch(state.iconPicker.query, state.iconPicker.limit);
+	if (!state.iconPicker) return;
+	state.iconPicker.limit = Math.min(
+		192,
+		(Number(state.iconPicker.limit) || ICON_PICKER_PAGE_SIZE) +
+			ICON_PICKER_PAGE_SIZE,
+	);
+	refreshIconPickerResults();
+	requestIconPickerSearch(state.iconPicker.query, state.iconPicker.limit);
 }
 
 function bindIconPickerControls() {
-  const overlay = app.querySelector("[data-icon-picker-overlay]");
-  if (!overlay || !state.iconPicker) return;
-  overlay.addEventListener("click", (event) => {
-    const actionElement = event.target?.closest?.("[data-action]");
-    if (!actionElement || !overlay.contains(actionElement)) return;
-    handleAction(actionElement);
-  });
-  overlay.addEventListener("keydown", (event) => {
-    if (!["Enter", " "].includes(event.key)) return;
-    const actionElement = event.target?.closest?.("[data-action]");
-    if (!actionElement || !overlay.contains(actionElement)) return;
-    event.preventDefault();
-    handleAction(actionElement);
-  });
-  const search = overlay.querySelector("[data-icon-picker-search]");
-  if (search) {
-    search.addEventListener("input", () => {
-      state.iconPicker.query = search.value.trim();
-      state.iconPicker.limit = ICON_PICKER_PAGE_SIZE;
-      refreshIconPickerResults();
-      requestIconPickerSearch(state.iconPicker.query, state.iconPicker.limit);
-    });
-  }
-  const colorInput = overlay.querySelector("[data-icon-picker-color-input]");
-  if (colorInput) {
-    colorInput.addEventListener("input", () => {
-      const normalized = normalizeHexColor(colorInput.value);
-      if (!normalized) return;
-      selectIconPickerColor(normalized);
-    });
-  }
+	const overlay = app.querySelector("[data-icon-picker-overlay]");
+	if (!overlay || !state.iconPicker) return;
+	overlay.addEventListener("click", (event) => {
+		const actionElement = event.target?.closest?.("[data-action]");
+		if (!actionElement || !overlay.contains(actionElement)) return;
+		handleAction(actionElement);
+	});
+	overlay.addEventListener("keydown", (event) => {
+		if (!["Enter", " "].includes(event.key)) return;
+		const actionElement = event.target?.closest?.("[data-action]");
+		if (!actionElement || !overlay.contains(actionElement)) return;
+		event.preventDefault();
+		handleAction(actionElement);
+	});
+	const search = overlay.querySelector("[data-icon-picker-search]");
+	if (search) {
+		search.addEventListener("input", () => {
+			state.iconPicker.query = search.value.trim();
+			state.iconPicker.limit = ICON_PICKER_PAGE_SIZE;
+			refreshIconPickerResults();
+			requestIconPickerSearch(state.iconPicker.query, state.iconPicker.limit);
+		});
+	}
+	const colorInput = overlay.querySelector("[data-icon-picker-color-input]");
+	if (colorInput) {
+		colorInput.addEventListener("input", () => {
+			const normalized = normalizeHexColor(colorInput.value);
+			if (!normalized) return;
+			selectIconPickerColor(normalized);
+		});
+	}
 }
 
 function trackerDropIndex(row, activeWrap, pointerX, pointerY = pointerX) {
-  const allWraps = Array.from(row.querySelectorAll("[data-tracker-orb-wrap]"));
-  const wraps = allWraps.filter((wrap) => wrap !== activeWrap);
-  if (!allWraps.length) return 0;
-  if (!wraps.length) return 0;
-  const sampleRect = allWraps[0].getBoundingClientRect();
-  if (!sampleRect.width || !sampleRect.height) return 0;
-  const rowStyle = window.getComputedStyle(row);
-  const rowGap = parseFloat(rowStyle.rowGap || rowStyle.gap || "0") || 0;
-  const columnGap = parseFloat(rowStyle.columnGap || rowStyle.gap || "0") || 0;
-  const estimatedRowHeight = sampleRect.height + rowGap;
-  const estimatedColumnWidth = sampleRect.width + columnGap;
-  const firstRowWraps = allWraps.filter((wrap) => Math.abs(wrap.getBoundingClientRect().top - sampleRect.top) < 3);
-  const columns = Math.max(1, firstRowWraps.length);
-  const rowIndex = estimatedRowHeight > 0 ? Math.floor((pointerY - sampleRect.top) / estimatedRowHeight) : 0;
-  const columnIndex = estimatedColumnWidth > 0 ? Math.floor((pointerX - sampleRect.left) / estimatedColumnWidth) : 0;
-  const index = rowIndex * columns + columnIndex;
-  return Math.min(Math.max(index, 0), wraps.length);
+	const allWraps = Array.from(row.querySelectorAll("[data-tracker-orb-wrap]"));
+	const wraps = allWraps.filter((wrap) => wrap !== activeWrap);
+	if (!allWraps.length) return 0;
+	if (!wraps.length) return 0;
+	const sampleRect = allWraps[0].getBoundingClientRect();
+	if (!sampleRect.width || !sampleRect.height) return 0;
+	const rowStyle = window.getComputedStyle(row);
+	const rowGap = parseFloat(rowStyle.rowGap || rowStyle.gap || "0") || 0;
+	const columnGap = parseFloat(rowStyle.columnGap || rowStyle.gap || "0") || 0;
+	const estimatedRowHeight = sampleRect.height + rowGap;
+	const estimatedColumnWidth = sampleRect.width + columnGap;
+	const firstRowWraps = allWraps.filter(
+		(wrap) => Math.abs(wrap.getBoundingClientRect().top - sampleRect.top) < 3,
+	);
+	const columns = Math.max(1, firstRowWraps.length);
+	const rowIndex =
+		estimatedRowHeight > 0
+			? Math.floor((pointerY - sampleRect.top) / estimatedRowHeight)
+			: 0;
+	const columnIndex =
+		estimatedColumnWidth > 0
+			? Math.floor((pointerX - sampleRect.left) / estimatedColumnWidth)
+			: 0;
+	const index = rowIndex * columns + columnIndex;
+	return Math.min(Math.max(index, 0), wraps.length);
 }
 
 function clearTrackerDropMarkers(row) {
-  row.querySelectorAll(".is-drop-before, .is-drop-after").forEach((wrap) => {
-    wrap.classList.remove("is-drop-before", "is-drop-after");
-  });
+	row.querySelectorAll(".is-drop-before, .is-drop-after").forEach((wrap) => {
+		wrap.classList.remove("is-drop-before", "is-drop-after");
+	});
 }
 
 function setTrackerDropMarker(row, activeWrap, targetIndex) {
-  clearTrackerDropMarkers(row);
-  const wraps = Array.from(row.querySelectorAll("[data-tracker-orb-wrap]"))
-    .filter((wrap) => wrap !== activeWrap);
-  if (!wraps.length) return;
-  const targetWrap = wraps[targetIndex];
-  if (targetWrap) {
-    targetWrap.classList.add("is-drop-before");
-  } else {
-    wraps[wraps.length - 1].classList.add("is-drop-after");
-  }
+	clearTrackerDropMarkers(row);
+	const wraps = Array.from(
+		row.querySelectorAll("[data-tracker-orb-wrap]"),
+	).filter((wrap) => wrap !== activeWrap);
+	if (!wraps.length) return;
+	const targetWrap = wraps[targetIndex];
+	if (targetWrap) {
+		targetWrap.classList.add("is-drop-before");
+	} else {
+		wraps[wraps.length - 1].classList.add("is-drop-after");
+	}
 }
 
 function bindTrackerOrbSorting() {
-  app.querySelectorAll("[data-tracker-reorder-row]").forEach((row) => {
-    row.querySelectorAll("[data-tracker-orb-wrap]").forEach((wrap) => {
-      const orb = wrap.querySelector(".tracker-orb");
-      if (!orb) return;
+	app.querySelectorAll("[data-tracker-reorder-row]").forEach((row) => {
+		row.querySelectorAll("[data-tracker-orb-wrap]").forEach((wrap) => {
+			const orb = wrap.querySelector(".tracker-orb");
+			if (!orb) return;
 
-      orb.addEventListener("pointerdown", (event) => {
-        if (event.button !== undefined && event.button !== 0) return;
-        const area = wrap.dataset.area || row.dataset.area || "";
-        const kind = wrap.dataset.kind || row.dataset.kind || "thought";
-        const trackerId = wrap.dataset.id || "";
-        if (!area || !trackerId) return;
+			orb.addEventListener("pointerdown", (event) => {
+				if (event.button !== undefined && event.button !== 0) return;
+				const area = wrap.dataset.area || row.dataset.area || "";
+				const kind = wrap.dataset.kind || row.dataset.kind || "thought";
+				const trackerId = wrap.dataset.id || "";
+				if (!area || !trackerId) return;
 
-        const startX = event.clientX;
-        const startY = event.clientY;
-        let isDragging = false;
-        let targetIndex = null;
+				const startX = event.clientX;
+				const startY = event.clientY;
+				let isDragging = false;
+				let targetIndex = null;
 
-        const startDrag = (moveEvent) => {
-          isDragging = true;
-          state.suppressNextTrackerEditClick = true;
-          orb.setPointerCapture?.(event.pointerId);
-          row.classList.add("is-reordering");
-          wrap.classList.add("is-dragging");
-          targetIndex = trackerDropIndex(row, wrap, moveEvent.clientX, moveEvent.clientY);
-          setTrackerDropMarker(row, wrap, targetIndex);
-        };
+				const startDrag = (moveEvent) => {
+					isDragging = true;
+					state.suppressNextTrackerEditClick = true;
+					orb.setPointerCapture?.(event.pointerId);
+					row.classList.add("is-reordering");
+					wrap.classList.add("is-dragging");
+					targetIndex = trackerDropIndex(
+						row,
+						wrap,
+						moveEvent.clientX,
+						moveEvent.clientY,
+					);
+					setTrackerDropMarker(row, wrap, targetIndex);
+				};
 
-        const onPointerMove = (moveEvent) => {
-          const moved = Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY);
-          if (!isDragging && moved < 6) return;
-          moveEvent.preventDefault();
-          if (!isDragging) startDrag(moveEvent);
-          targetIndex = trackerDropIndex(row, wrap, moveEvent.clientX, moveEvent.clientY);
-          setTrackerDropMarker(row, wrap, targetIndex);
-        };
+				const onPointerMove = (moveEvent) => {
+					const moved = Math.hypot(
+						moveEvent.clientX - startX,
+						moveEvent.clientY - startY,
+					);
+					if (!isDragging && moved < 6) return;
+					moveEvent.preventDefault();
+					if (!isDragging) startDrag(moveEvent);
+					targetIndex = trackerDropIndex(
+						row,
+						wrap,
+						moveEvent.clientX,
+						moveEvent.clientY,
+					);
+					setTrackerDropMarker(row, wrap, targetIndex);
+				};
 
-        const finishDrag = (finishEvent) => {
-          window.removeEventListener("pointermove", onPointerMove);
-          window.removeEventListener("pointerup", finishDrag);
-          window.removeEventListener("pointercancel", finishDrag);
-          orb.releasePointerCapture?.(finishEvent.pointerId);
-          row.classList.remove("is-reordering");
-          wrap.classList.remove("is-dragging");
-          clearTrackerDropMarkers(row);
+				const finishDrag = (finishEvent) => {
+					window.removeEventListener("pointermove", onPointerMove);
+					window.removeEventListener("pointerup", finishDrag);
+					window.removeEventListener("pointercancel", finishDrag);
+					orb.releasePointerCapture?.(finishEvent.pointerId);
+					row.classList.remove("is-reordering");
+					wrap.classList.remove("is-dragging");
+					clearTrackerDropMarkers(row);
 
-          if (!isDragging) return;
-          finishEvent.preventDefault();
-          if (kind === "combined") {
-            reorderCombinedTrackers(area, trackerId, targetIndex ?? 0);
-          } else {
-            reorderTracker(area, trackerId, targetIndex ?? 0, kind);
-          }
-          window.setTimeout(() => {
-            state.suppressNextTrackerEditClick = false;
-          }, 0);
-        };
+					if (!isDragging) return;
+					finishEvent.preventDefault();
+					if (kind === "combined") {
+						reorderCombinedTrackers(area, trackerId, targetIndex ?? 0);
+					} else {
+						reorderTracker(area, trackerId, targetIndex ?? 0, kind);
+					}
+					window.setTimeout(() => {
+						state.suppressNextTrackerEditClick = false;
+					}, 0);
+				};
 
-        window.addEventListener("pointermove", onPointerMove, { passive: false });
-        window.addEventListener("pointerup", finishDrag);
-        window.addEventListener("pointercancel", finishDrag);
-      });
-    });
-  });
+				window.addEventListener("pointermove", onPointerMove, {
+					passive: false,
+				});
+				window.addEventListener("pointerup", finishDrag);
+				window.addEventListener("pointercancel", finishDrag);
+			});
+		});
+	});
 }
 
 function focusThoughtEditor() {
-  const note = findArtifact(state.artifactStore, state.selectedArtifactId);
-  if (state.artifactMode !== "editor" || !["thought", "goal-progress"].includes(note?.properties?.role)) return;
-  window.requestAnimationFrame(() => {
-    const editor = document.getElementById("editor-body");
-    if (!editor) return;
-    editor.focus();
-    const end = editor.value.length;
-    editor.setSelectionRange(end, end);
-  });
+	const note = findArtifact(state.artifactStore, state.selectedArtifactId);
+	if (
+		state.artifactMode !== "editor" ||
+		!["thought", "goal-progress"].includes(note?.properties?.role)
+	)
+		return;
+	window.requestAnimationFrame(() => {
+		const editor = document.getElementById("editor-body");
+		if (!editor) return;
+		editor.focus();
+		const end = editor.value.length;
+		editor.setSelectionRange(end, end);
+	});
 }
 
-function sidebarHtml(compendium) {
-  const sectionLabels = DASHBOARD_LABELS;
-  const allExpanded = sectionLabels.every((label) => state.sidebarExpanded[label]);
-  return `
+function sidebarHtml(_compendium) {
+	const sectionLabels = DASHBOARD_LABELS;
+	const allExpanded = sectionLabels.every(
+		(label) => state.sidebarExpanded[label],
+	);
+	return `
     <aside class="sidebar">
       <div class="sidebar-fixed-top">
         <nav class="sidebar-menu-nav" aria-label="Menu controls">
@@ -5950,35 +7196,55 @@ function sidebarHtml(compendium) {
       <div class="sidebar-list-scroll">
         <div class="sidebar-groups">
           ${sectionLabels
-            .map((label) => {
-              const expanded = state.sidebarExpanded[label];
-              const items = label === "Mind"
-                ? (() => {
-                  const mindItems = mindSidebarItems();
-                  return mindItems.map((item, index) => sidebarItemHtml(item, {
-                    action: item.type === "mind-section" ? "open-mind-section" : "open-artifact-note",
-                    active: item.type === "mind-section"
-                      ? state.selectedSectionId === item.id
-                      : item.type === "compendium"
-                        ? state.selectedCompendiumId === item.id && !state.selectedSectionId
-                        : state.selectedArtifactId === item.id,
-                    number: index + 1,
-                    parentId: item.parentId || ""
-                  })).join("");
-                })()
-                : label === "Spirit"
-                  ? newestActivityFirst(spiritNotes()).map((item, index) => sidebarItemHtml(item, {
-                    action: "open-artifact-note",
-                    active: state.selectedArtifactId === item.id,
-                    number: index + 1
-                  })).join("")
-                  : newestActivityFirst(rootNotesForDashboard(state.artifactStore, label)).map((item, index) => sidebarItemHtml(item, {
-                    action: "open-artifact-note",
-                    active: state.selectedArtifactId === item.id,
-                    number: index + 1
-                  })).join("");
+						.map((label) => {
+							const expanded = state.sidebarExpanded[label];
+							const items =
+								label === "Mind"
+									? (() => {
+											const mindItems = mindSidebarItems();
+											return mindItems
+												.map((item, index) =>
+													sidebarItemHtml(item, {
+														action:
+															item.type === "mind-section"
+																? "open-mind-section"
+																: "open-artifact-note",
+														active:
+															item.type === "mind-section"
+																? state.selectedSectionId === item.id
+																: item.type === "compendium"
+																	? state.selectedCompendiumId === item.id &&
+																		!state.selectedSectionId
+																	: state.selectedArtifactId === item.id,
+														number: index + 1,
+														parentId: item.parentId || "",
+													}),
+												)
+												.join("");
+										})()
+									: label === "Spirit"
+										? newestActivityFirst(spiritNotes())
+												.map((item, index) =>
+													sidebarItemHtml(item, {
+														action: "open-artifact-note",
+														active: state.selectedArtifactId === item.id,
+														number: index + 1,
+													}),
+												)
+												.join("")
+										: newestActivityFirst(
+												rootNotesForDashboard(state.artifactStore, label),
+											)
+												.map((item, index) =>
+													sidebarItemHtml(item, {
+														action: "open-artifact-note",
+														active: state.selectedArtifactId === item.id,
+														number: index + 1,
+													}),
+												)
+												.join("");
 
-              return `
+							return `
               <section class="sidebar-group${expanded ? " is-expanded" : " is-collapsed"}">
                 <button class="sidebar-group-toggle" data-action="toggle-sidebar-section" data-section="${label}" type="button" aria-expanded="${expanded ? "true" : "false"}">
                   <span class="dashboard-inline-title">${dashboardInlineLabelHtml(label)}</span>
@@ -5989,8 +7255,8 @@ function sidebarHtml(compendium) {
                 </div>
               </section>
             `;
-            })
-            .join("")}
+						})
+						.join("")}
         </div>
       </div>
       <div class="sidebar-donate-row">
@@ -6014,23 +7280,29 @@ function sidebarHtml(compendium) {
 }
 
 function sidebarPagedItemsHtml(section, itemsHtml) {
-  const itemButtons = itemsHtml
-    .split("</button>")
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .map((item) => `${item}</button>`);
-  if (!itemButtons.length) return "";
-  const pageCount = Math.ceil(itemButtons.length / 5);
-  const maxPage = pageCount - 1;
-  const activePage = Math.min(Math.max(state.sidebarPages[section] || 0, 0), maxPage);
-  const pageControls = pageCount > 1 ? `
+	const itemButtons = itemsHtml
+		.split("</button>")
+		.map((item) => item.trim())
+		.filter(Boolean)
+		.map((item) => `${item}</button>`);
+	if (!itemButtons.length) return "";
+	const pageCount = Math.ceil(itemButtons.length / 5);
+	const maxPage = pageCount - 1;
+	const activePage = Math.min(
+		Math.max(state.sidebarPages[section] || 0, 0),
+		maxPage,
+	);
+	const pageControls =
+		pageCount > 1
+			? `
     <div class="sidebar-page-controls" aria-label="${escapeHtml(section)} pages">
       <button data-action="sidebar-page" data-section="${escapeHtml(section)}" data-direction="prev" data-max-page="${maxPage}" type="button"${activePage === 0 ? " disabled" : ""} aria-label="Previous page">&lt;</button>
       <button data-action="sidebar-page" data-section="${escapeHtml(section)}" data-direction="next" data-max-page="${maxPage}" type="button"${activePage === maxPage ? " disabled" : ""} aria-label="Next page">&gt;</button>
     </div>
-  ` : "";
-  const visibleItems = itemButtons.slice(activePage * 5, activePage * 5 + 5);
-  return `
+  `
+			: "";
+	const visibleItems = itemButtons.slice(activePage * 5, activePage * 5 + 5);
+	return `
     <div class="sidebar-group-page">
       ${visibleItems.join("")}
     </div>
@@ -6039,102 +7311,159 @@ function sidebarPagedItemsHtml(section, itemsHtml) {
 }
 
 function pathCrumbButton(label, action, attrs = {}, className = "") {
-  const attrHtml = Object.entries({ "data-action": action, ...attrs })
-    .map(([key, value]) => ` ${key}="${escapeHtml(value)}"`)
-    .join("");
-  return `<button${className ? ` class="${escapeHtml(className)}"` : ""}${attrHtml}>${escapeHtml(label)}</button>`;
+	const attrHtml = Object.entries({ "data-action": action, ...attrs })
+		.map(([key, value]) => ` ${key}="${escapeHtml(value)}"`)
+		.join("");
+	return `<button${className ? ` class="${escapeHtml(className)}"` : ""}${attrHtml}>${escapeHtml(label)}</button>`;
 }
 
 function pathCrumbText(label, className = "truncate muted") {
-  return `<span class="${escapeHtml(className)}">${escapeHtml(label)}</span>`;
+	return `<span class="${escapeHtml(className)}">${escapeHtml(label)}</span>`;
 }
 
 function bodyPathCrumbs() {
-  if (state.active !== "Body") return [];
-  const crumbs = [];
-  const mode = ["timers", "nutrition", "workout", "notes"].includes(state.bodyMode) ? state.bodyMode : "timers";
-  const modeLabels = {
-    timers: "Timers",
-    nutrition: "Nutrition",
-    workout: "Workout",
-    notes: "Notes"
-  };
-  crumbs.push(pathCrumbButton(modeLabels[mode], "set-body-mode", { "data-mode": mode }));
-  if (mode === "timers") {
-    const timer = bodyTimerConfig(state.bodyTimerMode);
-    crumbs.push(pathCrumbButton(timer.label, "set-body-timer-mode", { "data-mode": timer.key }));
-  }
-  if (mode === "nutrition") {
-    const nutritionMode = state.bodyNutritionMode === "goals" ? "goals" : "daily";
-    const nutritionLabel = nutritionMode === "goals" ? "Nutrition Goals" : "Daily Tracker";
-    crumbs.push(pathCrumbButton(nutritionLabel, "set-body-nutrition-mode", { "data-mode": nutritionMode }));
-  }
-  const note = findArtifact(state.artifactStore, state.selectedArtifactId);
-  if (note?.dashboard === "Body") crumbs.push(pathCrumbText(note.title));
-  return crumbs;
+	if (state.active !== "Body") return [];
+	const crumbs = [];
+	const mode = ["timers", "nutrition", "workout", "notes"].includes(
+		state.bodyMode,
+	)
+		? state.bodyMode
+		: "timers";
+	const modeLabels = {
+		timers: "Timers",
+		nutrition: "Nutrition",
+		workout: "Workout",
+		notes: "Notes",
+	};
+	crumbs.push(
+		pathCrumbButton(modeLabels[mode], "set-body-mode", { "data-mode": mode }),
+	);
+	if (mode === "timers") {
+		const timer = bodyTimerConfig(state.bodyTimerMode);
+		crumbs.push(
+			pathCrumbButton(timer.label, "set-body-timer-mode", {
+				"data-mode": timer.key,
+			}),
+		);
+	}
+	if (mode === "nutrition") {
+		const nutritionMode =
+			state.bodyNutritionMode === "goals" ? "goals" : "daily";
+		const nutritionLabel =
+			nutritionMode === "goals" ? "Nutrition Goals" : "Daily Tracker";
+		crumbs.push(
+			pathCrumbButton(nutritionLabel, "set-body-nutrition-mode", {
+				"data-mode": nutritionMode,
+			}),
+		);
+	}
+	const note = findArtifact(state.artifactStore, state.selectedArtifactId);
+	if (note?.dashboard === "Body") crumbs.push(pathCrumbText(note.title));
+	return crumbs;
 }
 
 function lifePathCrumbs() {
-  if (state.active !== "Life") return [];
-  const crumbs = [];
-  const tool = ["todo", "projects", "calendar"].includes(state.lifeTool) ? state.lifeTool : "calendar";
-  const toolLabels = {
-    calendar: "Calendar",
-    todo: "Todo List",
-    projects: "Projects"
-  };
-  crumbs.push(pathCrumbButton(toolLabels[tool], "set-life-tool", { "data-tool": tool }));
-  if (tool === "calendar") {
-    const mode = ["day", "week", "month", "list"].includes(state.lifeMode) ? state.lifeMode : "month";
-    const modeLabels = {
-      month: "Month",
-      week: "Week",
-      day: "Day",
-      list: "List"
-    };
-    crumbs.push(pathCrumbButton(modeLabels[mode], "set-life-mode", { "data-mode": mode }));
-  }
-  if (tool === "projects") {
-    const project = selectedLifeProject();
-    const phase = selectedLifePhase(project);
-    const task = selectedLifeTask(phase);
-    if (project) crumbs.push(pathCrumbButton(project.title, "select-life-project", { "data-id": project.id }, "truncate"));
-    if (phase) crumbs.push(pathCrumbButton(phase.title, "select-life-phase", { "data-id": phase.id }, "truncate"));
-    if (task) crumbs.push(pathCrumbButton(task.title, "select-life-task", { "data-task-id": task.id }, "truncate"));
-  }
-  const note = findArtifact(state.artifactStore, state.selectedArtifactId);
-  if (note?.dashboard === "Life") crumbs.push(pathCrumbText(note.title));
-  return crumbs;
+	if (state.active !== "Life") return [];
+	const crumbs = [];
+	const tool = ["todo", "projects", "calendar"].includes(state.lifeTool)
+		? state.lifeTool
+		: "calendar";
+	const toolLabels = {
+		calendar: "Calendar",
+		todo: "Todo List",
+		projects: "Projects",
+	};
+	crumbs.push(
+		pathCrumbButton(toolLabels[tool], "set-life-tool", { "data-tool": tool }),
+	);
+	if (tool === "calendar") {
+		const mode = ["day", "week", "month", "list"].includes(state.lifeMode)
+			? state.lifeMode
+			: "month";
+		const modeLabels = {
+			month: "Month",
+			week: "Week",
+			day: "Day",
+			list: "List",
+		};
+		crumbs.push(
+			pathCrumbButton(modeLabels[mode], "set-life-mode", { "data-mode": mode }),
+		);
+	}
+	if (tool === "projects") {
+		const project = selectedLifeProject();
+		const phase = selectedLifePhase(project);
+		const task = selectedLifeTask(phase);
+		if (project)
+			crumbs.push(
+				pathCrumbButton(
+					project.title,
+					"select-life-project",
+					{ "data-id": project.id },
+					"truncate",
+				),
+			);
+		if (phase)
+			crumbs.push(
+				pathCrumbButton(
+					phase.title,
+					"select-life-phase",
+					{ "data-id": phase.id },
+					"truncate",
+				),
+			);
+		if (task)
+			crumbs.push(
+				pathCrumbButton(
+					task.title,
+					"select-life-task",
+					{ "data-task-id": task.id },
+					"truncate",
+				),
+			);
+	}
+	const note = findArtifact(state.artifactStore, state.selectedArtifactId);
+	if (note?.dashboard === "Life") crumbs.push(pathCrumbText(note.title));
+	return crumbs;
 }
 
 function spiritPathCrumbs(spiritBook) {
-  if (state.active !== "Spirit") return [];
-  const crumbs = [];
-  const years = spiritYears();
-  const activeYear = spiritBook?.year || (years.includes(state.spiritYear) ? state.spiritYear : years[0]);
-  if (activeYear) crumbs.push(pathCrumbButton(`Year ${activeYear}`, "set-spirit-year", { "data-year": activeYear }));
-  if (spiritBook) crumbs.push(pathCrumbText(spiritBook.title));
-  const note = findArtifact(state.artifactStore, state.selectedArtifactId);
-  if (note?.dashboard === "Spirit") crumbs.push(pathCrumbText(note.title));
-  return crumbs;
+	if (state.active !== "Spirit") return [];
+	const crumbs = [];
+	const years = spiritYears();
+	const activeYear =
+		spiritBook?.year ||
+		(years.includes(state.spiritYear) ? state.spiritYear : years[0]);
+	if (activeYear)
+		crumbs.push(
+			pathCrumbButton(`Year ${activeYear}`, "set-spirit-year", {
+				"data-year": activeYear,
+			}),
+		);
+	if (spiritBook) crumbs.push(pathCrumbText(spiritBook.title));
+	const note = findArtifact(state.artifactStore, state.selectedArtifactId);
+	if (note?.dashboard === "Spirit") crumbs.push(pathCrumbText(note.title));
+	return crumbs;
 }
 
 function pathBarExtraCrumbs(spiritBook) {
-  if (state.active === "Body") return bodyPathCrumbs();
-  if (state.active === "Life") return lifePathCrumbs();
-  if (state.active === "Spirit") return spiritPathCrumbs(spiritBook);
-  return [];
+	if (state.active === "Body") return bodyPathCrumbs();
+	if (state.active === "Life") return lifePathCrumbs();
+	if (state.active === "Spirit") return spiritPathCrumbs(spiritBook);
+	return [];
 }
 
 function pathBarCrumbsHtml(crumbs) {
-  return crumbs.map((crumb) => `<span>/</span>${crumb}`).join("");
+	return crumbs.map((crumb) => `<span>/</span>${crumb}`).join("");
 }
 
 function pathBarHtml(compendium, section, spiritBook) {
-  const activeLabel = DASHBOARD_LABELS.includes(state.active) ? dashboardDisplayLabel(state.active) : state.active;
-  const extraCrumbs = pathBarExtraCrumbs(spiritBook);
-  return `
-    <nav class="path-bar" aria-label="Current location" tabindex="0"${extraCrumbs.length ? " data-focus-current=\"true\"" : ""}>
+	const activeLabel = DASHBOARD_LABELS.includes(state.active)
+		? dashboardDisplayLabel(state.active)
+		: state.active;
+	const extraCrumbs = pathBarExtraCrumbs(spiritBook);
+	return `
+    <nav class="path-bar" aria-label="Current location" tabindex="0"${extraCrumbs.length ? ' data-focus-current="true"' : ""}>
       <button class="dashboard-home-link" data-action="home">Dashboard</button>
       ${state.active !== "Dashboard" ? `<span>/</span><button data-action="dashboard-root">${escapeHtml(activeLabel)}</button>` : ""}
       ${compendium ? `<span>/</span><button class="truncate" data-action="compendium-root">${escapeHtml(compendium.title)}</button>` : ""}
@@ -6145,23 +7474,24 @@ function pathBarHtml(compendium, section, spiritBook) {
 }
 
 function contentHtml(compendium, section) {
-  if (state.active === "Dashboard") return dashboardGridHtml();
-  if (state.active === "Settings") return settingsHtml();
-  if (state.active === "Gallery") return galleryHtml();
-  if (state.active === "Mind") return mindHtml(compendium, section);
-  if (state.active === "Body") return bodyHtml();
-  if (state.active === "Spirit") return spiritHtml();
-  if (state.active === "Life") return lifeHtml();
-  return dashboardArtifactHtml(state.active);
+	if (state.active === "Dashboard") return dashboardGridHtml();
+	if (state.active === "Settings") return settingsHtml();
+	if (state.active === "Gallery") return galleryHtml();
+	if (state.active === "Mind") return mindHtml(compendium, section);
+	if (state.active === "Body") return bodyHtml();
+	if (state.active === "Spirit") return spiritHtml();
+	if (state.active === "Life") return lifeHtml();
+	return dashboardArtifactHtml(state.active);
 }
 
 function dashboardGridHtml() {
-  return `
+	return `
     <div class="dashboard-home">
       ${dashboardAnalyticsHtml()}
       <div class="dashboard-divider" aria-hidden="true"></div>
       <div class="dashboard-grid">
-        ${DASHBOARD_LABELS.map((label) => `
+        ${DASHBOARD_LABELS.map(
+					(label) => `
           <button class="dashboard-card${state.flipped === label ? " is-flipped" : ""}" data-action="open-dashboard-card" data-section="${label}" data-balance-key="${label}" style="--card-color: ${dashboardColor(label)};">
             <span class="dashboard-card-inner">
               <span class="dashboard-card-face dashboard-card-front">
@@ -6172,20 +7502,23 @@ function dashboardGridHtml() {
               </span>
             </span>
           </button>
-        `).join("")}
+        `,
+				).join("")}
       </div>
     </div>
   `;
 }
 
 function dashboardPeriodSliderHtml(extraClass = "") {
-  const periodOption = dashboardPeriodOption(state.dashboardPeriod);
-  const periodIndex = dashboardPeriodIndex(periodOption.id);
-  const periodProgress = DASHBOARD_PERIOD_OPTIONS.length > 1
-    ? Math.round((periodIndex / (DASHBOARD_PERIOD_OPTIONS.length - 1)) * 100)
-    : 0;
-  const recentClass = state.dashboardPeriodGlowUntil > Date.now() ? " is-period-recent" : "";
-  return `
+	const periodOption = dashboardPeriodOption(state.dashboardPeriod);
+	const periodIndex = dashboardPeriodIndex(periodOption.id);
+	const periodProgress =
+		DASHBOARD_PERIOD_OPTIONS.length > 1
+			? Math.round((periodIndex / (DASHBOARD_PERIOD_OPTIONS.length - 1)) * 100)
+			: 0;
+	const recentClass =
+		state.dashboardPeriodGlowUntil > Date.now() ? " is-period-recent" : "";
+	return `
     <label class="dashboard-period-slider${extraClass ? ` ${extraClass}` : ""}${recentClass}">
       <span class="dashboard-period-slider-top">
         <span class="dashboard-period-slider-value">${escapeHtml(periodOption.label)}</span>
@@ -6200,57 +7533,75 @@ function dashboardPeriodSliderHtml(extraClass = "") {
 }
 
 function dashboardAnalyticsHtml() {
-  const labels = DASHBOARD_LABELS;
-  const pieLabels = ["Body", "Spirit", "Life", "Mind"];
-  const chartType = state.dashboardChartType === "bar" ? "bar" : "pie";
-  const periodOption = dashboardPeriodOption(state.dashboardPeriod);
-  const events = lifeEvents().filter((event) => eventIsInPeriod(event, periodOption.id));
-  const counts = Object.fromEntries(labels.map((label) => [label, 0]));
-  events.forEach((event) => {
-    if (counts[event.dashboard] !== undefined) counts[event.dashboard] += 1;
-  });
-  const total = labels.reduce((sum, label) => sum + counts[label], 0);
-  let cursor = 0;
-  const segments = pieLabels.map((label) => {
-    const value = total ? (counts[label] / total) * 100 : 25;
-    const start = cursor;
-    cursor += value;
-    return { label, value, start };
-  });
-  const periodLabel = periodOption.id === "day" ? "today" : `the last ${periodOption.label.toLowerCase()}`;
-  const ideal = total ? total / labels.length : 0;
-  const imbalance = total ? labels.map((label) => Math.abs(counts[label] - ideal)).reduce((sum, value) => sum + value, 0) / total : 0;
-  const balanceScore = Math.max(0, Math.round((1 - imbalance) * 100));
-  const maxCount = Math.max(1, ...labels.map((label) => counts[label]));
-  const chartHtml = chartType === "bar"
-    ? `
+	const labels = DASHBOARD_LABELS;
+	const pieLabels = ["Body", "Spirit", "Life", "Mind"];
+	const chartType = state.dashboardChartType === "bar" ? "bar" : "pie";
+	const periodOption = dashboardPeriodOption(state.dashboardPeriod);
+	const events = lifeEvents().filter((event) =>
+		eventIsInPeriod(event, periodOption.id),
+	);
+	const counts = Object.fromEntries(labels.map((label) => [label, 0]));
+	events.forEach((event) => {
+		if (counts[event.dashboard] !== undefined) counts[event.dashboard] += 1;
+	});
+	const total = labels.reduce((sum, label) => sum + counts[label], 0);
+	let cursor = 0;
+	const segments = pieLabels.map((label) => {
+		const value = total ? (counts[label] / total) * 100 : 25;
+		const start = cursor;
+		cursor += value;
+		return { label, value, start };
+	});
+	const periodLabel =
+		periodOption.id === "day"
+			? "today"
+			: `the last ${periodOption.label.toLowerCase()}`;
+	const ideal = total ? total / labels.length : 0;
+	const imbalance = total
+		? labels
+				.map((label) => Math.abs(counts[label] - ideal))
+				.reduce((sum, value) => sum + value, 0) / total
+		: 0;
+	const balanceScore = Math.max(0, Math.round((1 - imbalance) * 100));
+	const maxCount = Math.max(1, ...labels.map((label) => counts[label]));
+	const chartHtml =
+		chartType === "bar"
+			? `
       <div class="dashboard-bar-chart" role="img" aria-label="Balance bar chart">
-        ${labels.map((label) => {
-          const count = counts[label];
-          const displayLabel = dashboardDisplayLabel(label);
-          const barSize = count ? Math.max(10, Math.round((count / maxCount) * 100)) : 5;
-          return `
+        ${labels
+					.map((label) => {
+						const count = counts[label];
+						const displayLabel = dashboardDisplayLabel(label);
+						const barSize = count
+							? Math.max(10, Math.round((count / maxCount) * 100))
+							: 5;
+						return `
             <button class="dashboard-bar-button" data-action="open-dashboard-direct" data-section="${label}" data-balance-key="${label}" type="button" aria-label="Open ${escapeHtml(displayLabel)}, ${count} event${count === 1 ? "" : "s"}" style="--bar-color: ${dashboardColor(label)}; --bar-size: ${barSize}%;">
               <span class="dashboard-bar-value">${count}</span>
               <span class="dashboard-bar-track" aria-hidden="true"><span class="dashboard-bar-fill"></span></span>
             </button>
           `;
-        }).join("")}
+					})
+					.join("")}
       </div>
     `
-    : `
+			: `
       <div class="dashboard-pie">
         <svg class="dashboard-pie-chart" viewBox="0 0 148 148" aria-label="Open balance section">
-          ${segments.map(({ label, value, start }) => `
+          ${segments
+						.map(
+							({ label, value, start }) => `
             <circle class="dashboard-pie-segment" data-action="open-dashboard-direct" data-section="${label}" data-balance-key="${label}" tabindex="0" role="button" aria-label="Open ${escapeHtml(dashboardDisplayLabel(label))}" cx="74" cy="74" r="57" pathLength="100" style="--segment-color: ${dashboardColor(label)}; --segment-start: ${start}; --segment-size: ${value};"></circle>
-          `).join("")}
+          `,
+						)
+						.join("")}
         </svg>
         <span>${total}</span>
         <small>events</small>
       </div>
     `;
 
-  return `
+	return `
     <section class="dashboard-analytics" aria-label="Dashboard analytics">
       <div class="dashboard-analytics-header">
         <div>
@@ -6266,11 +7617,15 @@ function dashboardAnalyticsHtml() {
             ${dashboardPeriodSliderHtml()}
             <div class="dashboard-chart-switcher" role="group" aria-label="Balance chart type">
               ${[
-                ["pie", "tabler:chart-pie", "Pie"],
-                ["bar", "tabler:chart-bar", "Bar"]
-              ].map(([type, icon, label]) => `
+								["pie", "tabler:chart-pie", "Pie"],
+								["bar", "tabler:chart-bar", "Bar"],
+							]
+								.map(
+									([type, icon, label]) => `
                 <button class="${chartType === type ? "is-active" : ""}" data-action="set-dashboard-chart" data-chart="${type}" type="button" aria-pressed="${chartType === type ? "true" : "false"}" title="${label} chart">${buttonContent(icon, label)}</button>
-              `).join("")}
+              `,
+								)
+								.join("")}
             </div>
           </div>
         </div>
@@ -6280,18 +7635,25 @@ function dashboardAnalyticsHtml() {
 }
 
 function settingsHtml() {
-  const requestedTab = state.settingsTab === "dashboard" ? "interface" : state.settingsTab;
-  const tab = ["getting-started", "thoughts", "goals", "interface", "cloud"].includes(requestedTab)
-    ? requestedTab
-    : "getting-started";
-  const panels = {
-    "getting-started": settingsGettingStartedHtml(),
-    thoughts: settingsThoughtsHtml(),
-    goals: settingsGoalsHtml(),
-    interface: settingsInterfaceHtml(),
-    cloud: settingsCloudHtml()
-  };
-  return panelHtml(`
+	const requestedTab =
+		state.settingsTab === "dashboard" ? "interface" : state.settingsTab;
+	const tab = [
+		"getting-started",
+		"thoughts",
+		"goals",
+		"interface",
+		"cloud",
+	].includes(requestedTab)
+		? requestedTab
+		: "getting-started";
+	const panels = {
+		"getting-started": settingsGettingStartedHtml(),
+		thoughts: settingsThoughtsHtml(),
+		goals: settingsGoalsHtml(),
+		interface: settingsInterfaceHtml(),
+		cloud: settingsCloudHtml(),
+	};
+	return panelHtml(`
     ${headerHtml("Settings", "Getting started, Thoughts, Goals, Interface, and Cloud setup.")}
     <div class="settings-page">
       ${settingsTabsHtml(tab)}
@@ -6301,26 +7663,30 @@ function settingsHtml() {
 }
 
 function settingsTabsHtml(activeTab) {
-    const tabs = [
-      ["getting-started", "Getting Started", "tabler:sparkles"],
-      ["thoughts", "Thoughts", "tabler:message-circle"],
-      ["goals", "Goals", "tabler:target-arrow"],
-      ["interface", "Interface", "tabler:layout-dashboard"],
-      ["cloud", "Cloud", "tabler:cloud"]
-    ];
-  return `
+	const tabs = [
+		["getting-started", "Getting Started", "tabler:sparkles"],
+		["thoughts", "Thoughts", "tabler:message-circle"],
+		["goals", "Goals", "tabler:target-arrow"],
+		["interface", "Interface", "tabler:layout-dashboard"],
+		["cloud", "Cloud", "tabler:cloud"],
+	];
+	return `
     <nav class="settings-tabs" aria-label="Settings tabs">
-      ${tabs.map(([tab, label, icon]) => `
-        <button class="body-mode-button${activeTab === tab ? " is-active" : ""}" data-action="set-settings-tab" data-tab="${tab}" type="button" aria-pressed="${activeTab === tab ? "true" : "false"}"${activeTab === tab ? " aria-current=\"page\"" : ""}>
+      ${tabs
+				.map(
+					([tab, label, icon]) => `
+        <button class="body-mode-button${activeTab === tab ? " is-active" : ""}" data-action="set-settings-tab" data-tab="${tab}" type="button" aria-pressed="${activeTab === tab ? "true" : "false"}"${activeTab === tab ? ' aria-current="page"' : ""}>
           ${buttonContent(icon, label, "body-mode-label")}
         </button>
-      `).join("")}
+      `,
+				)
+				.join("")}
     </nav>
   `;
 }
 
 function settingsGettingStartedHtml() {
-  return `
+	return `
     <div class="settings-tab-panel getting-started-page">
       <section class="getting-started-intro">
         <h3>Build a clear picture of your life</h3>
@@ -6372,7 +7738,7 @@ function settingsGettingStartedHtml() {
 }
 
 function settingsThoughtsHtml() {
-  return `
+	return `
     <div class="settings-tab-panel thoughts-settings">
       <section class="thoughts-settings-intro">
         <div>
@@ -6381,7 +7747,8 @@ function settingsThoughtsHtml() {
         </div>
       </section>
       <div class="thoughts-settings-sections">
-        ${DASHBOARD_LABELS.map((dashboard) => `
+        ${DASHBOARD_LABELS.map(
+					(dashboard) => `
           <section class="thoughts-settings-section" style="--thought-color: ${dashboardColor(dashboard)};">
             <div class="body-card-heading">
               <div>
@@ -6393,14 +7760,15 @@ function settingsThoughtsHtml() {
             ${trackerEditFormHtml(dashboard, "thought")}
             ${trackerAddFormHtml(dashboard, "thought")}
           </section>
-        `).join("")}
+        `,
+				).join("")}
       </div>
     </div>
   `;
 }
 
 function settingsGoalsHtml() {
-  return `
+	return `
     <div class="settings-tab-panel thoughts-settings goals-settings">
       <section class="thoughts-settings-intro">
         <div>
@@ -6410,11 +7778,11 @@ function settingsGoalsHtml() {
       </section>
       <div class="thoughts-settings-sections">
         ${DASHBOARD_LABELS.map((dashboard) => {
-          const goals = state.goalSettings?.[dashboard] || [];
-          const enabledGoals = goals.filter((goal) => goal?.enabled);
-          const checks = goalProgressCount(dashboard);
-          const orbLabel = goals.length === 1 ? "orb" : "orbs";
-          return `
+					const goals = state.goalSettings?.[dashboard] || [];
+					const enabledGoals = goals.filter((goal) => goal?.enabled);
+					const checks = goalProgressCount(dashboard);
+					const orbLabel = goals.length === 1 ? "orb" : "orbs";
+					return `
           <section class="thoughts-settings-section" style="--thought-color: ${dashboardColor(dashboard)};">
             <div class="body-card-heading">
               <div>
@@ -6426,15 +7794,16 @@ function settingsGoalsHtml() {
             ${trackerEditFormHtml(dashboard, "goal")}
             ${trackerAddFormHtml(dashboard, "goal")}
           </section>
-        `; }).join("")}
+        `;
+				}).join("")}
       </div>
     </div>
   `;
 }
 
 function settingsInterfaceHtml() {
-  const identity = normalizeDashboardIdentity(state.dashboardIdentity);
-  return `
+	const identity = normalizeDashboardIdentity(state.dashboardIdentity);
+	return `
     <div class="settings-tab-panel interface-settings">
       <section class="interface-settings-section">
         <div class="body-card-heading">
@@ -6455,28 +7824,28 @@ function settingsInterfaceHtml() {
         </div>
         <div class="dashboard-identity-grid">
           ${DASHBOARD_LABELS.map((dashboard) => {
-            const item = identity.items[dashboard];
-            const fieldId = `dashboard-identity-${dashboard}-icon`;
-            const colorFieldId = `dashboard-identity-${dashboard}-color`;
-            const color = dashboardColor(dashboard);
-            return `
+						const item = identity.items[dashboard];
+						const fieldId = `dashboard-identity-${dashboard}-icon`;
+						const colorFieldId = `dashboard-identity-${dashboard}-color`;
+						const color = dashboardColor(dashboard);
+						return `
               <div class="dashboard-identity-card" style="--identity-color: ${color};">
                 <div class="dashboard-identity-input-row">
                   ${iconPickerFieldHtml({
-                    fieldId,
-                    value: item.icon,
-                    title: `${item.label || dashboard} icon`,
-                    color,
-                    colorFieldId,
-                    colorValue: item.color,
-                    showLabel: false
-                  })}
+										fieldId,
+										value: item.icon,
+										title: `${item.label || dashboard} icon`,
+										color,
+										colorFieldId,
+										colorValue: item.color,
+										showLabel: false,
+									})}
                   <input id="dashboard-identity-${dashboard}-label" type="text" value="${escapeHtml(item.label)}" placeholder="${escapeHtml(`Enter a title for the ${DEFAULT_DASHBOARD_IDENTITY.items[dashboard].label} category...`)}">
                   <button class="icon-button dashboard-identity-reset" data-action="reset-dashboard-identity-item" data-dashboard="${escapeHtml(dashboard)}" type="button" aria-label="Reset ${escapeHtml(item.label || dashboard)} to default" title="Reset">${iconHtml("tabler:restore")}</button>
                 </div>
               </div>
             `;
-          }).join("")}
+					}).join("")}
         </div>
       </section>
       <section class="interface-settings-section">
@@ -6487,7 +7856,8 @@ function settingsInterfaceHtml() {
           </div>
         </div>
         <div class="theme-choice-grid" role="group" aria-label="Interface theme">
-          ${APP_THEMES.map((theme) => `
+          ${APP_THEMES.map(
+						(theme) => `
             <button class="theme-choice${state.theme === theme.id ? " is-active" : ""}" data-action="set-theme" data-theme="${escapeHtml(theme.id)}" type="button" aria-pressed="${state.theme === theme.id ? "true" : "false"}">
               <span class="theme-choice-preview theme-choice-preview--${escapeHtml(theme.id)}" style="${escapeHtml(themePreviewStyle(theme))}" aria-hidden="true">
                 <i></i><i></i><i></i>
@@ -6496,7 +7866,8 @@ function settingsInterfaceHtml() {
               <small>${escapeHtml(theme.description)} Font: ${escapeHtml(themeFontLabel(theme))}.</small>
               ${themePaletteHtml(theme)}
             </button>
-          `).join("")}
+          `,
+					).join("")}
         </div>
       </section>
     </div>
@@ -6504,33 +7875,37 @@ function settingsInterfaceHtml() {
 }
 
 function settingsCloudHtml() {
-  const account = state.cloud || getCloudAccountState();
-  const entitlement = account.entitlement || {};
-  const signedIn = account.mode === "signed-in" && account.user;
-  const isCloud = entitlement.cloud === true || entitlement.admin === true;
-  const username = signedIn
-    ? (account.user.displayName || account.user.email || "Signed in")
-    : "";
-  const statusLabel = signedIn
-    ? (entitlement.admin ? "Admin / Cloud enabled" : isCloud ? "Cloud sync active" : "Cloud sync inactive")
-    : "Signed out";
-  const localUpdatedAt = localAppUpdatedAt({ persistDerived: false });
-  const localBytes = estimateJsonBytes({
-    schemaVersion: SCHEMA_VERSION,
-    rootId: state.artifactStore?.rootId || "ourstuff-root",
-    artifacts: state.artifactStore?.artifacts || [],
-    appState: {
-      bodyTracker: state.bodyTracker,
-      spiritProgress: state.spiritProgress,
-      lifePlanner: state.lifePlanner,
-      thoughtSettings: state.trackerSettings,
-      goalSettings: state.goalSettings,
-      dashboardIdentity: state.dashboardIdentity,
-      theme: state.theme
-    }
-  });
-  const busyAttr = account.busy ? " disabled" : "";
-  return `
+	const account = state.cloud || getCloudAccountState();
+	const entitlement = account.entitlement || {};
+	const signedIn = account.mode === "signed-in" && account.user;
+	const isCloud = entitlement.cloud === true || entitlement.admin === true;
+	const username = signedIn
+		? account.user.displayName || account.user.email || "Signed in"
+		: "";
+	const statusLabel = signedIn
+		? entitlement.admin
+			? "Admin / Cloud enabled"
+			: isCloud
+				? "Cloud sync active"
+				: "Cloud sync inactive"
+		: "Signed out";
+	const localUpdatedAt = localAppUpdatedAt({ persistDerived: false });
+	const localBytes = estimateJsonBytes({
+		schemaVersion: SCHEMA_VERSION,
+		rootId: state.artifactStore?.rootId || "ourstuff-root",
+		artifacts: state.artifactStore?.artifacts || [],
+		appState: {
+			bodyTracker: state.bodyTracker,
+			spiritProgress: state.spiritProgress,
+			lifePlanner: state.lifePlanner,
+			thoughtSettings: state.trackerSettings,
+			goalSettings: state.goalSettings,
+			dashboardIdentity: state.dashboardIdentity,
+			theme: state.theme,
+		},
+	});
+	const busyAttr = account.busy ? " disabled" : "";
+	return `
     <div class="settings-tab-panel cloud-settings">
       <section class="interface-settings-section cloud-account-section">
         <div class="body-card-heading">
@@ -6540,16 +7915,22 @@ function settingsCloudHtml() {
           </div>
           <div class="cloud-heading-controls">
             <span class="cloud-status-pill${isCloud ? " is-active" : ""}">${escapeHtml(statusLabel)}</span>
-            ${signedIn && isCloud ? `
+            ${
+							signedIn && isCloud
+								? `
               <div class="cloud-heading-actions" aria-label="Cloud sync actions">
                 <button class="primary-button" data-action="cloud-sync-now" type="button"${busyAttr}>${buttonContent("tabler:cloud-up", "Sync now")}</button>
                 <button class="secondary-button" data-action="cloud-load" type="button"${busyAttr}>${buttonContent("tabler:cloud-down", "Load cloud")}</button>
                 <button class="secondary-button" data-action="cloud-sign-out" type="button"${busyAttr}>${buttonContent("tabler:logout", "Sign out")}</button>
               </div>
-            ` : ""}
+            `
+								: ""
+						}
           </div>
         </div>
-        ${signedIn ? `
+        ${
+					signedIn
+						? `
           <div class="cloud-account-card">
             <span class="cloud-account-avatar">${iconHtml(account.isLocalDemo ? "tabler:cloud-check" : "tabler:user-circle")}</span>
             <div>
@@ -6564,14 +7945,19 @@ function settingsCloudHtml() {
             <span><strong>${escapeHtml(account.lastCloudSyncAt ? new Date(account.lastCloudSyncAt).toLocaleString() : "Not synced")}</strong><small>Last sync from this device</small></span>
             <span><strong>${escapeHtml(isCloud ? `Every ${cloudSyncIntervalLabel()}` : "Off")}</strong><small>Artifacts + encrypted media</small></span>
           </div>
-          ${(!isCloud || account.billingCapable) ? `
+          ${
+						!isCloud || account.billingCapable
+							? `
           <div class="action-row cloud-actions">
             ${!isCloud ? `<button class="primary-button" data-action="cloud-subscribe" type="button"${busyAttr}>${buttonContent("tabler:credit-card", "Subscribe")}</button>` : ""}
             ${account.billingCapable ? `<button class="secondary-button" data-action="cloud-billing" type="button"${busyAttr}>${buttonContent("tabler:receipt", "Manage Billing")}</button>` : ""}
             ${!isCloud ? `<button class="secondary-button" data-action="cloud-sign-out" type="button"${busyAttr}>${buttonContent("tabler:logout", "Sign out")}</button>` : ""}
           </div>
-          ` : ""}
-        ` : `
+          `
+							: ""
+					}
+        `
+						: `
           <div class="action-row cloud-actions">
             <button class="primary-button" data-action="cloud-sign-in" type="button"${busyAttr}>${buttonContent("tabler:login-2", "Sign in / Upgrade")}</button>
             <button class="secondary-button" data-action="cloud-google-sign-in" type="button"${busyAttr}>${buttonContent("tabler:brand-google", "Google")}</button>
@@ -6584,14 +7970,19 @@ function settingsCloudHtml() {
               <button class="secondary-button" data-action="cloud-email-create" type="button"${busyAttr}>${buttonContent("tabler:user-plus", "Create account")}</button>
             </div>
           </div>
-        `}
-        ${signedIn && isCloud ? `
+        `
+				}
+        ${
+					signedIn && isCloud
+						? `
           <div class="cloud-danger-links" aria-label="Destructive cloud actions">
             <button class="cloud-danger-link" data-action="cloud-delete-data" type="button"${busyAttr}>Delete cloud data</button>
             <span class="cloud-danger-separator" aria-hidden="true">|</span>
             <button class="cloud-danger-link" data-action="cloud-delete-account" type="button"${busyAttr}>Delete cloud account</button>
           </div>
-        ` : ""}
+        `
+						: ""
+				}
         ${account.message ? `<p class="cloud-status-message">${escapeHtml(account.message)}</p>` : ""}
         ${account.error ? `<p class="cloud-status-message cloud-status-message--error">${escapeHtml(account.error)}</p>` : ""}
       </section>
@@ -6600,21 +7991,21 @@ function settingsCloudHtml() {
 }
 
 function trackerAddFormHtml(area, kind = "thought") {
-  const normalizedKind = trackerKind(kind);
-  const config = trackerKindConfig(normalizedKind);
-  if (!isTrackerAddOpen(area, normalizedKind)) return "";
-  const fieldId = trackerFieldId(area, "icon");
-  const labelFieldId = trackerFieldId(area, "label");
-  return `
+	const normalizedKind = trackerKind(kind);
+	const config = trackerKindConfig(normalizedKind);
+	if (!isTrackerAddOpen(area, normalizedKind)) return "";
+	const fieldId = trackerFieldId(area, "icon");
+	const labelFieldId = trackerFieldId(area, "label");
+	return `
     <div class="tracker-add-form">
       <div class="tracker-title-icon-row" style="--identity-color: ${dashboardColor(area)};">
         ${iconPickerFieldHtml({
-          fieldId,
-          value: "tabler:circle",
-          title: `${dashboardDisplayLabel(area)} ${config.noun} icon`,
-          color: dashboardColor(area),
-          showLabel: false
-        })}
+					fieldId,
+					value: "tabler:circle",
+					title: `${dashboardDisplayLabel(area)} ${config.noun} icon`,
+					color: dashboardColor(area),
+					showLabel: false,
+				})}
         <input class="tracker-title-input" id="${labelFieldId}" data-area="${escapeHtml(area)}" data-target="add" type="text" placeholder="${escapeHtml(`${config.proper} name`)}" aria-label="${escapeHtml(`${config.proper} name`)}">
       </div>
       <div class="action-row body-actions">
@@ -6626,51 +8017,65 @@ function trackerAddFormHtml(area, kind = "thought") {
 }
 
 function trackerEditFormHtml(area, kind = "thought") {
-  const normalizedKind = trackerKind(kind);
-  const parsedKey = parseTrackerEditKey(state.trackerEditKey);
-  if (parsedKey.kind !== normalizedKind || parsedKey.area !== area || !parsedKey.id) return "";
-  const id = parsedKey.id;
-  const tracker = (trackerSettingsForKind(normalizedKind)?.[area] || []).find((item) => item.id === id);
-  if (!tracker) return "";
-  const target = `edit-${id}`;
-  const confirmDelete = state.trackerDeleteKey === trackerEditKey(area, id, normalizedKind);
-  const fieldId = trackerFieldId(`${area}-${id}`, "icon");
-  const enableFieldId = trackerFieldId(`${area}-${id}`, "enabled");
-  const isGoal = normalizedKind === "goal";
-  const frequencyFieldId = trackerFieldId(`${area}-${id}`, "frequency");
-  const customDaysFieldId = trackerFieldId(`${area}-${id}`, "custom-days");
-  const goalFrequency = normalizeGoalFrequency(tracker);
-  return `
+	const normalizedKind = trackerKind(kind);
+	const parsedKey = parseTrackerEditKey(state.trackerEditKey);
+	if (
+		parsedKey.kind !== normalizedKind ||
+		parsedKey.area !== area ||
+		!parsedKey.id
+	)
+		return "";
+	const id = parsedKey.id;
+	const tracker = (trackerSettingsForKind(normalizedKind)?.[area] || []).find(
+		(item) => item.id === id,
+	);
+	if (!tracker) return "";
+	const target = `edit-${id}`;
+	const confirmDelete =
+		state.trackerDeleteKey === trackerEditKey(area, id, normalizedKind);
+	const fieldId = trackerFieldId(`${area}-${id}`, "icon");
+	const enableFieldId = trackerFieldId(`${area}-${id}`, "enabled");
+	const isGoal = normalizedKind === "goal";
+	const frequencyFieldId = trackerFieldId(`${area}-${id}`, "frequency");
+	const customDaysFieldId = trackerFieldId(`${area}-${id}`, "custom-days");
+	const goalFrequency = normalizeGoalFrequency(tracker);
+	return `
     <div class="tracker-edit-form" data-tracker-edit-form data-area="${escapeHtml(area)}" data-id="${escapeHtml(id)}" data-kind="${normalizedKind}">
       <div class="tracker-edit-heading">
         <strong>Edit ${escapeHtml(tracker.label)}</strong>
         <div class="tracker-edit-heading-actions">
-          ${confirmDelete
-            ? `<button class="icon-button" data-action="cancel-remove-tracker" type="button" aria-label="Keep ${escapeHtml(tracker.label)}" title="Keep">${iconHtml("tabler:arrow-back-up")}</button><button class="icon-button danger-button" data-action="remove-tracker" data-kind="${normalizedKind}" data-area="${escapeHtml(area)}" data-id="${escapeHtml(id)}" type="button" aria-label="Confirm delete ${escapeHtml(tracker.label)}" title="Confirm Delete">${iconHtml("tabler:trash")}</button>`
-            : `<button class="icon-button danger-button" data-action="request-remove-tracker" data-kind="${normalizedKind}" data-area="${escapeHtml(area)}" data-id="${escapeHtml(id)}" type="button" aria-label="Delete ${escapeHtml(tracker.label)}" title="Delete">${iconHtml("tabler:trash")}</button>`}
+          ${
+						confirmDelete
+							? `<button class="icon-button" data-action="cancel-remove-tracker" type="button" aria-label="Keep ${escapeHtml(tracker.label)}" title="Keep">${iconHtml("tabler:arrow-back-up")}</button><button class="icon-button danger-button" data-action="remove-tracker" data-kind="${normalizedKind}" data-area="${escapeHtml(area)}" data-id="${escapeHtml(id)}" type="button" aria-label="Confirm delete ${escapeHtml(tracker.label)}" title="Confirm Delete">${iconHtml("tabler:trash")}</button>`
+							: `<button class="icon-button danger-button" data-action="request-remove-tracker" data-kind="${normalizedKind}" data-area="${escapeHtml(area)}" data-id="${escapeHtml(id)}" type="button" aria-label="Delete ${escapeHtml(tracker.label)}" title="Delete">${iconHtml("tabler:trash")}</button>`
+					}
           <button class="icon-button" data-action="cancel-edit-tracker" type="button" aria-label="Close ${escapeHtml(trackerKindConfig(normalizedKind).noun)} editor" title="Close">${iconHtml("tabler:x")}</button>
         </div>
       </div>
       <div class="tracker-add-form tracker-add-form--embedded">
         <div class="tracker-title-icon-row" style="--identity-color: ${dashboardColor(area)};">
           ${iconPickerFieldHtml({
-            fieldId,
-            value: tracker.icon,
-            title: `${tracker.label} icon`,
-            color: dashboardColor(area),
-            showLabel: false
-          })}
+						fieldId,
+						value: tracker.icon,
+						title: `${tracker.label} icon`,
+						color: dashboardColor(area),
+						showLabel: false,
+					})}
           <input class="tracker-title-input" id="${trackerFieldId(`${area}-${id}`, "label")}" data-area="${escapeHtml(area)}" data-target="${escapeHtml(target)}" type="text" value="${escapeHtml(tracker.label)}" aria-label="Button text">
-          ${isGoal
-            ? `
+          ${
+						isGoal
+							? `
             <label class="body-field tracker-enabled-toggle tracker-enabled-toggle--inline">
               <input id="${escapeHtml(enableFieldId)}" type="checkbox"${tracker.enabled ? " checked" : ""}>
               <i aria-hidden="true"></i>
               <span>Enabled</span>
             </label>`
-            : ""}
+							: ""
+					}
         </div>
-        ${isGoal ? `
+        ${
+					isGoal
+						? `
           <div class="goal-frequency-editor">
             <label class="body-field">Frequency
               <select class="tracker-frequency-input" id="${escapeHtml(frequencyFieldId)}">
@@ -6684,14 +8089,16 @@ function trackerEditFormHtml(area, kind = "thought") {
               </span>
             </label>
           </div>
-        ` : ""}
+        `
+						: ""
+				}
       </div>
     </div>
   `;
 }
 
-function settingsComingSoonHtml(label) {
-  return `
+function _settingsComingSoonHtml(label) {
+	return `
     <div class="settings-tab-panel">
       ${emptyStateHtml("Coming Soon", `${label} settings will live here.`)}
     </div>
@@ -6699,26 +8106,28 @@ function settingsComingSoonHtml(label) {
 }
 
 function formatStorageGb(size) {
-  const bytes = Number(size) || 0;
-  return `${(Math.max(0, bytes) / 1000000000).toFixed(1)}GB`;
+	const bytes = Number(size) || 0;
+	return `${(Math.max(0, bytes) / 1000000000).toFixed(1)}GB`;
 }
 
 function formatStorageLimitGb(size) {
-  const gb = Math.max(0, Number(size) || 0) / 1000000000;
-  return `${Number.isInteger(gb) ? gb.toFixed(0) : gb.toFixed(1)}GB`;
+	const gb = Math.max(0, Number(size) || 0) / 1000000000;
+	return `${Number.isInteger(gb) ? gb.toFixed(0) : gb.toFixed(1)}GB`;
 }
 
 function cloudStorageUsageHtml(usage) {
-  const loading = !usage;
-  const limitBytes = Number(usage?.limitBytes) || CLOUD_STORAGE_LIMIT_BYTES;
-  const totalBytes = Number(usage?.totalBytes) || 0;
-  const storageBytes = Number(usage?.storageBytes) || 0;
-  const firebaseBytes = Number(usage?.firebaseBytes) || 0;
-  const remainingBytes = Math.max(0, limitBytes - totalBytes);
-  const percent = loading ? 0 : storageUsagePercent(usage);
-  const overLimit = totalBytes > limitBytes;
-  const updatedAt = usage?.updatedAt ? new Date(usage.updatedAt).toLocaleString() : "";
-  return `
+	const loading = !usage;
+	const limitBytes = Number(usage?.limitBytes) || CLOUD_STORAGE_LIMIT_BYTES;
+	const totalBytes = Number(usage?.totalBytes) || 0;
+	const storageBytes = Number(usage?.storageBytes) || 0;
+	const firebaseBytes = Number(usage?.firebaseBytes) || 0;
+	const remainingBytes = Math.max(0, limitBytes - totalBytes);
+	const percent = loading ? 0 : storageUsagePercent(usage);
+	const overLimit = totalBytes > limitBytes;
+	const updatedAt = usage?.updatedAt
+		? new Date(usage.updatedAt).toLocaleString()
+		: "";
+	return `
     <div class="cloud-usage-card${overLimit ? " is-over-limit" : ""}" style="--cloud-storage-progress: ${percent}%;">
       <div class="cloud-usage-heading">
         <div>
@@ -6741,19 +8150,26 @@ function cloudStorageUsageHtml(usage) {
 }
 
 function galleryHtml() {
-  const images = state.galleryImages;
-  const selected = new Set(state.gallerySelectedIds);
-  const count = images?.length || 0;
-  const selectedCount = selected.size;
-  const thumbSize = Math.min(320, Math.max(110, Number(state.galleryThumbSize) || 180));
-  return panelHtml(`
-    ${headerHtml("Gallery", "Browse image uploads from this browser. Cloud media is encrypted before Firebase Storage upload.", `
+	const images = state.galleryImages;
+	const selected = new Set(state.gallerySelectedIds);
+	const count = images?.length || 0;
+	const selectedCount = selected.size;
+	const thumbSize = Math.min(
+		320,
+		Math.max(110, Number(state.galleryThumbSize) || 180),
+	);
+	return panelHtml(`
+    ${headerHtml(
+			"Gallery",
+			"Browse image uploads from this browser. Cloud media is encrypted before Firebase Storage upload.",
+			`
       <div class="action-row">
         <button class="secondary-button" data-action="gallery-select-all" type="button"${count ? "" : " disabled"}>${buttonContent("tabler:checks", "Select All")}</button>
         <button class="secondary-button" data-action="gallery-clear-selection" type="button"${selectedCount ? "" : " disabled"}>${buttonContent("tabler:square", "Clear")}</button>
         ${pageActionButton("gallery-delete-selected", "tabler:trash", selectedCount ? `Delete ${selectedCount}` : "Delete selected", { danger: true, disabled: !selectedCount })}
       </div>
-    `)}
+    `,
+		)}
     <div class="gallery-page">
       <div class="gallery-toolbar">
         <span>${images ? `${count} image${count === 1 ? "" : "s"}` : "Loading images"}</span>
@@ -6762,25 +8178,37 @@ function galleryHtml() {
           <input data-gallery-size-slider type="range" min="110" max="320" step="10" value="${thumbSize}" aria-label="Gallery image size">
         </label>
       </div>
-      ${images === null ? emptyStateHtml("Loading gallery.", "Reading your local image library.") : images.length ? `
+      ${
+				images === null
+					? emptyStateHtml(
+							"Loading gallery.",
+							"Reading your local image library.",
+						)
+					: images.length
+						? `
         <div class="gallery-grid${selectedCount ? " is-selecting" : ""}" style="--gallery-thumb-size: ${thumbSize}px;">
           ${images.map((image) => galleryImageCardHtml(image, selected.has(image.id))).join("")}
         </div>
-      ` : emptyStateHtml("No images yet.", "Images you upload into notes will appear here.")}
+      `
+						: emptyStateHtml(
+								"No images yet.",
+								"Images you upload into notes will appear here.",
+							)
+			}
     </div>
   `);
 }
 
 function galleryImageCardHtml(image, selected) {
-  const remoteUrl = galleryRemoteImageUrl(image);
-  const downloadName = image.name || `${image.id || "image"}.jpg`;
-  const imageLinkAttrs = remoteUrl
-    ? `href="${escapeHtml(remoteUrl)}" download="${escapeHtml(downloadName)}" target="_blank" rel="noopener noreferrer"`
-    : `href="#" download="${escapeHtml(downloadName)}" data-local-asset-link="${escapeHtml(image.id)}" data-local-asset-name="${escapeHtml(downloadName)}"`;
-  const imageAttrs = remoteUrl
-    ? `src="${escapeHtml(remoteUrl)}"`
-    : `data-local-asset="${escapeHtml(image.id)}"`;
-  return `
+	const remoteUrl = galleryRemoteImageUrl(image);
+	const downloadName = image.name || `${image.id || "image"}.jpg`;
+	const imageLinkAttrs = remoteUrl
+		? `href="${escapeHtml(remoteUrl)}" download="${escapeHtml(downloadName)}" target="_blank" rel="noopener noreferrer"`
+		: `href="#" download="${escapeHtml(downloadName)}" data-local-asset-link="${escapeHtml(image.id)}" data-local-asset-name="${escapeHtml(downloadName)}"`;
+	const imageAttrs = remoteUrl
+		? `src="${escapeHtml(remoteUrl)}"`
+		: `data-local-asset="${escapeHtml(image.id)}"`;
+	return `
     <article class="gallery-card${selected ? " is-selected" : ""}">
       <label class="gallery-select">
         <input data-gallery-select type="checkbox" value="${escapeHtml(image.id)}"${selected ? " checked" : ""} aria-label="Select ${escapeHtml(image.name || "image")}">
@@ -6793,101 +8221,132 @@ function galleryImageCardHtml(image, selected) {
 }
 
 function galleryRemoteImageUrl(image) {
-  const value = image?.url || image?.downloadUrl || image?.publicUrl || image?.storageUrl || "";
-  return /^https?:\/\/[^"'<>]+$/i.test(value) ? value : "";
+	const value =
+		image?.url ||
+		image?.downloadUrl ||
+		image?.publicUrl ||
+		image?.storageUrl ||
+		"";
+	return /^https?:\/\/[^"'<>]+$/i.test(value) ? value : "";
 }
 
 function selectAllGalleryImages() {
-  setState({ gallerySelectedIds: (state.galleryImages || []).map((image) => image.id) });
+	setState({
+		gallerySelectedIds: (state.galleryImages || []).map((image) => image.id),
+	});
 }
 
 function clearGallerySelection() {
-  setState({ gallerySelectedIds: [] });
+	setState({ gallerySelectedIds: [] });
 }
 
 function escapeRegExp(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function removeDeletedImageReferences(ids) {
-  if (!state.artifactStore || !ids.length) return;
-  const patterns = ids.map((id) => new RegExp(`!\\[[^\\]]*\\]\\(ourstuff-asset:${escapeRegExp(id)}\\)\\s*`, "g"));
-  let changed = false;
-  const now = nowIso();
-  const artifacts = state.artifactStore.artifacts.map((artifact) => {
-    if (typeof artifact.body !== "string") return artifact;
-    const nextBody = patterns.reduce((body, pattern) => body.replace(pattern, ""), artifact.body).trim();
-    if (nextBody === artifact.body) return artifact;
-    changed = true;
-    return { ...artifact, body: nextBody, edited: now };
-  });
-  if (changed) persistArtifactStore({ ...state.artifactStore, artifacts });
+	if (!state.artifactStore || !ids.length) return;
+	const patterns = ids.map(
+		(id) =>
+			new RegExp(
+				`!\\[[^\\]]*\\]\\(ourstuff-asset:${escapeRegExp(id)}\\)\\s*`,
+				"g",
+			),
+	);
+	let changed = false;
+	const now = nowIso();
+	const artifacts = state.artifactStore.artifacts.map((artifact) => {
+		if (typeof artifact.body !== "string") return artifact;
+		const nextBody = patterns
+			.reduce((body, pattern) => body.replace(pattern, ""), artifact.body)
+			.trim();
+		if (nextBody === artifact.body) return artifact;
+		changed = true;
+		return { ...artifact, body: nextBody, edited: now };
+	});
+	if (changed) persistArtifactStore({ ...state.artifactStore, artifacts });
 }
 
 async function deleteSelectedGalleryImages() {
-  const ids = state.gallerySelectedIds.filter((id) => (state.galleryImages || []).some((image) => image.id === id));
-  if (!ids.length) return;
-  const label = `${ids.length} image${ids.length === 1 ? "" : "s"}`;
-  if (!window.confirm(`Delete ${label} from the gallery and remove their note references?`)) return;
-  try {
-    await deleteLocalImages(ids);
-    removeDeletedImageReferences(ids);
-    setState({
-      galleryImages: (state.galleryImages || []).filter((image) => !ids.includes(image.id)),
-      gallerySelectedIds: []
-    });
-    scheduleCloudStorageUsageRefresh({ force: true });
-  } catch (error) {
-    window.alert(error instanceof Error ? error.message : `Could not delete ${label}.`);
-  }
+	const ids = state.gallerySelectedIds.filter((id) =>
+		(state.galleryImages || []).some((image) => image.id === id),
+	);
+	if (!ids.length) return;
+	const label = `${ids.length} image${ids.length === 1 ? "" : "s"}`;
+	if (
+		!window.confirm(
+			`Delete ${label} from the gallery and remove their note references?`,
+		)
+	)
+		return;
+	try {
+		await deleteLocalImages(ids);
+		removeDeletedImageReferences(ids);
+		setState({
+			galleryImages: (state.galleryImages || []).filter(
+				(image) => !ids.includes(image.id),
+			),
+			gallerySelectedIds: [],
+		});
+		scheduleCloudStorageUsageRefresh({ force: true });
+	} catch (error) {
+		window.alert(
+			error instanceof Error ? error.message : `Could not delete ${label}.`,
+		);
+	}
 }
 
 function spiritHtml() {
-  const note = findArtifact(state.artifactStore, state.selectedArtifactId);
-  if (note?.dashboard === "Spirit" && state.artifactMode === "editor") return dashboardNoteEditorHtml(note);
-  if (note?.dashboard === "Spirit" && state.artifactMode === "viewer") {
-    return panelHtml(`
+	const note = findArtifact(state.artifactStore, state.selectedArtifactId);
+	if (note?.dashboard === "Spirit" && state.artifactMode === "editor")
+		return dashboardNoteEditorHtml(note);
+	if (note?.dashboard === "Spirit" && state.artifactMode === "viewer") {
+		return panelHtml(`
       ${headerHtml(note.title, "", artifactViewerActions(note))}
       <div class="reader-panel"><div class="markdown-body">${readerBodyHtml(note.title, note.body)}</div></div>
     `);
-  }
-  if (state.spiritPlanError) {
-    return panelHtml(`
+	}
+	if (state.spiritPlanError) {
+		return panelHtml(`
       ${headerHtml(dashboardDisplayLabel("Spirit"), "Personal reading plans.", "", { titleHtml: dashboardHeaderTitleHtml("Spirit") })}
       ${emptyStateHtml("Plan could not load.", state.spiritPlanError)}
     `);
-  }
-  if (!state.spiritPlan) {
-    return panelHtml(`
+	}
+	if (!state.spiritPlan) {
+		return panelHtml(`
       ${headerHtml(dashboardDisplayLabel("Spirit"), "Personal reading plans.", "", { titleHtml: dashboardHeaderTitleHtml("Spirit") })}
       ${emptyStateHtml("Loading plan.", "Preparing the selected reading plan.")}
     `);
-  }
+	}
 
-  const selected = selectedSpiritBook();
-  if (selected) return spiritBookHtml(selected);
+	const selected = selectedSpiritBook();
+	if (selected) return spiritBookHtml(selected);
 
-  const works = spiritWorks();
-  const years = spiritYears();
-  const activeYear = years.includes(state.spiritYear) ? state.spiritYear : years[0];
-  const visibleWorks = works.filter((work) => work.year === activeYear);
-  const yearIndex = years.indexOf(activeYear);
+	const works = spiritWorks();
+	const years = spiritYears();
+	const activeYear = years.includes(state.spiritYear)
+		? state.spiritYear
+		: years[0];
+	const visibleWorks = works.filter((work) => work.year === activeYear);
+	const yearIndex = years.indexOf(activeYear);
 
-  const spiritControls = `
+	const spiritControls = `
     <div class="action-row spirit-actions spirit-selector-actions">
       <button class="secondary-button" data-action="new-artifact-note" data-dashboard="Spirit" type="button">${buttonContent("tabler:notes", "New Note")}</button>
       <label class="plan-select-label">
         <span>Plan</span>
         <select class="plan-select" data-action="select-spirit-plan" aria-label="Select reading plan">
-          ${SPIRIT_PLANS.map((plan) => `
+          ${SPIRIT_PLANS.map(
+						(plan) => `
             <option value="${escapeHtml(plan.id)}"${state.spiritPlanId === plan.id ? " selected" : ""}>${escapeHtml(plan.label)}</option>
-          `).join("")}
+          `,
+					).join("")}
         </select>
       </label>
     </div>
   `;
 
-  return panelHtml(`
+	return panelHtml(`
     ${headerHtml(dashboardDisplayLabel("Spirit"), "Personal reading plans.", "", { titleHtml: dashboardHeaderTitleHtml("Spirit") })}
     <div class="spirit-dashboard">
       <div class="spirit-nav-stack">
@@ -6896,11 +8355,15 @@ function spiritHtml() {
         <nav class="spirit-year-nav" aria-label="Plan years">
           <button class="secondary-button" data-action="spirit-prev-year" type="button"${yearIndex <= 0 ? " disabled" : ""}>Previous</button>
           <div class="spirit-year-buttons">
-            ${years.map((year) => `
+            ${years
+							.map(
+								(year) => `
               <button class="spirit-year-button${year === activeYear ? " is-active" : ""}" data-action="set-spirit-year" data-year="${year}" type="button" aria-pressed="${year === activeYear ? "true" : "false"}">
                 ${escapeHtml(year)}
               </button>
-            `).join("")}
+            `,
+							)
+							.join("")}
           </div>
           <button class="secondary-button" data-action="spirit-next-year" type="button"${yearIndex >= years.length - 1 ? " disabled" : ""}>Next</button>
         </nav>
@@ -6915,9 +8378,9 @@ function spiritHtml() {
 }
 
 function spiritReadingRowHtml(work, index) {
-  const complete = isSpiritComplete(work.key);
-  const sequenceNumber = index + 1;
-  return `
+	const complete = isSpiritComplete(work.key);
+	const sequenceNumber = index + 1;
+	return `
     <article class="spirit-reading-row${complete ? " is-complete" : ""}">
       <button class="spirit-reading-button" data-action="open-spirit-book" data-key="${escapeHtml(work.key)}" type="button">
         <span class="spirit-reading-order">${String(sequenceNumber).padStart(2, "0")}</span>
@@ -6931,17 +8394,25 @@ function spiritReadingRowHtml(work, index) {
 }
 
 function spiritBookHtml(work) {
-  const complete = isSpiritComplete(work.key);
-  const outputs = Array.isArray(work.blackBox?.outputs) ? work.blackBox.outputs : [];
-  const inputs = Array.isArray(work.blackBox?.inputs) ? work.blackBox.inputs : work.greatIdeas;
-  return panelHtml(`
-    ${headerHtml(work.title, `${work.author}${work.selection ? ` / ${work.selection}` : ""}`, `
+	const complete = isSpiritComplete(work.key);
+	const outputs = Array.isArray(work.blackBox?.outputs)
+		? work.blackBox.outputs
+		: [];
+	const inputs = Array.isArray(work.blackBox?.inputs)
+		? work.blackBox.inputs
+		: work.greatIdeas;
+	return panelHtml(`
+    ${headerHtml(
+			work.title,
+			`${work.author}${work.selection ? ` / ${work.selection}` : ""}`,
+			`
       <div class="action-row">
         <button class="secondary-button" data-action="add-spirit-book-note" data-key="${escapeHtml(work.key)}" type="button">${buttonContent("tabler:notes", "Add Note")}</button>
         <button class="secondary-button" data-action="toggle-spirit-complete" data-key="${escapeHtml(work.key)}" type="button">${buttonContent(complete ? "tabler:circle-off" : "tabler:circle-check", complete ? "Mark Incomplete" : "Mark Complete")}</button>
         <button class="icon-button close-viewer-button" data-action="exit-spirit-book" type="button" aria-label="Exit reading" title="Exit">${iconHtml("tabler:x")}</button>
       </div>
-    `)}
+    `,
+		)}
     <div class="spirit-book-dashboard">
       ${spiritLookupBarHtml(work)}
       <section class="spirit-detail-card">
@@ -6975,32 +8446,45 @@ function spiritBookHtml(work) {
 }
 
 function dashboardArtifactHtml(dashboard) {
-  const note = findArtifact(state.artifactStore, state.selectedArtifactId);
-  if (state.artifactMode === "editor" && note) return dashboardNoteEditorHtml(note);
-  if (state.artifactMode === "viewer" && note) return artifactReaderHtml(note, `${dashboardDisplayLabel(dashboard)} note`);
+	const note = findArtifact(state.artifactStore, state.selectedArtifactId);
+	if (state.artifactMode === "editor" && note)
+		return dashboardNoteEditorHtml(note);
+	if (state.artifactMode === "viewer" && note)
+		return artifactReaderHtml(note, `${dashboardDisplayLabel(dashboard)} note`);
 
-  const notes = rootNotesForDashboard(state.artifactStore, dashboard);
-  return panelHtml(`
+	const notes = rootNotesForDashboard(state.artifactStore, dashboard);
+	return panelHtml(`
     ${headerHtml(`${dashboardDisplayLabel(dashboard)} Notes`, "Shared artifacts stored in the local browser first, ready for later analysis across the full root database.", `<button class="secondary-button" data-action="new-artifact-note" data-dashboard="${dashboard}">${buttonContent("tabler:notes", "New Note")}</button>`)}
-    ${notes.length ? `
+    ${
+			notes.length
+				? `
       <div class="scroll-area">
         <div class="section-list">
-          ${notes.map((noteItem, index) => `
+          ${notes
+						.map(
+							(noteItem, index) => `
             <button class="section-row" data-action="open-artifact-note" data-id="${noteItem.id}">
               <span>${String(index + 1).padStart(2, "0")}</span>
               <strong>${escapeHtml(noteItem.title)}</strong>
               <small>${escapeHtml(shortSummary(noteItem.body, "No note text yet"))}</small>
               <em>${iconHtml("tabler:notes")} ${escapeHtml(dashboardDisplayLabel(noteItem.dashboard))}</em>
             </button>
-          `).join("")}
+          `,
+						)
+						.join("")}
         </div>
       </div>
-    ` : emptyStateHtml("No notes yet.", `Add the first ${dashboard.toLowerCase()} note to create an artifact.`)}
+    `
+				: emptyStateHtml(
+						"No notes yet.",
+						`Add the first ${dashboard.toLowerCase()} note to create an artifact.`,
+					)
+		}
   `);
 }
 
 function artifactViewerActions(note) {
-  return `
+	return `
     <div class="action-row">
       ${pageActionButton("edit-artifact-note", "tabler:pencil", "Edit note")}
       ${pageActionButton("delete-artifact-note", "tabler:trash", "Delete note", { danger: true, data: { id: note.id } })}
@@ -7010,235 +8494,263 @@ function artifactViewerActions(note) {
 }
 
 function readerBodyHtml(title, body, emptyText = "No note text yet.") {
-  const text = stripDuplicateTitleLine(title, body || "");
-  return text ? renderMarkdown(text) : (emptyText ? `<p>${escapeHtml(emptyText)}</p>` : "");
+	const text = stripDuplicateTitleLine(title, body || "");
+	return text
+		? renderMarkdown(text)
+		: emptyText
+			? `<p>${escapeHtml(emptyText)}</p>`
+			: "";
 }
 
 function stripDuplicateTitleLine(title, body) {
-  const lines = String(body || "").split(/\r?\n/);
-  const firstContentIndex = lines.findIndex((line) => line.trim());
-  if (firstContentIndex === -1) return "";
-  const normalizedTitle = normalizeReaderTitle(title);
-  const normalizedFirstLine = normalizeReaderTitle(lines[firstContentIndex]);
-  if (normalizedTitle && normalizedFirstLine === normalizedTitle) {
-    lines.splice(firstContentIndex, 1);
-  }
-  return lines.join("\n").trim();
+	const lines = String(body || "").split(/\r?\n/);
+	const firstContentIndex = lines.findIndex((line) => line.trim());
+	if (firstContentIndex === -1) return "";
+	const normalizedTitle = normalizeReaderTitle(title);
+	const normalizedFirstLine = normalizeReaderTitle(lines[firstContentIndex]);
+	if (normalizedTitle && normalizedFirstLine === normalizedTitle) {
+		lines.splice(firstContentIndex, 1);
+	}
+	return lines.join("\n").trim();
 }
 
 function normalizeReaderTitle(value) {
-  return String(value || "")
-    .replace(/^[#>\s*-]+/, "")
-    .replace(/[`*_~]/g, "")
-    .trim()
-    .toLowerCase();
+	return String(value || "")
+		.replace(/^[#>\s*-]+/, "")
+		.replace(/[`*_~]/g, "")
+		.trim()
+		.toLowerCase();
 }
 
-function artifactReaderHtml(note, subtitle) {
-  return panelHtml(`
+function artifactReaderHtml(note, _subtitle) {
+	return panelHtml(`
     ${headerHtml(note.title, "", artifactViewerActions(note))}
     <div class="reader-panel"><div class="markdown-body">${readerBodyHtml(note.title, note.body)}</div></div>
   `);
 }
 
 function lifeEvents() {
-  if (!state.artifactStore) return [];
-  const events = [];
-  const addEvent = (event) => {
-    const timestamp = event.timestamp || `${event.dateKey}T12:00:00`;
-    const minuteKey = Number.isNaN(new Date(timestamp).getTime())
-      ? String(timestamp)
-      : new Date(timestamp).toISOString().slice(0, 16);
-    const title = event.role === "thought" && event.thoughtLabel
-      ? event.thoughtLabel
-      : event.role === "goal-progress" && event.goalLabel
-        ? event.goalLabel
-        : event.title;
-    const eventKey = [
-      event.artifactId,
-      event.dashboard,
-      event.type,
-      minuteKey,
-      title
-    ].join("|");
-    if (events.some((existing) => existing.eventKey === eventKey)) return;
-    const artifact = findArtifact(state.artifactStore, event.artifactId);
-    events.push({ ...event, eventKey, parentId: artifact?.parentId || "" });
-  };
-  state.artifactStore.artifacts.forEach((artifact) => {
-    if (artifact.properties?.role === "spirit-reading-plan-item") return;
-    if (artifact.properties?.role === "thought") {
-      const timestamp = artifact.properties?.thoughtLoggedAt || artifact.created || artifact.edited;
-      addEvent({
-        id: `${artifact.id}-thought`,
-        artifactId: artifact.id,
-        title: artifact.title,
-        role: "thought",
-        thoughtLabel: artifact.properties?.thoughtLabel || "",
-        dashboard: artifact.dashboard,
-        type: artifact.type,
-        action: "created",
-        changed: [],
-        dateKey: dateKeyFromValue(artifact.properties?.dateKey || timestamp),
-        timestamp
-      });
-      return;
-    }
-    if (artifact.properties?.role === "goal-progress") {
-      const timestamp = artifact.properties?.goalLoggedAt || artifact.created || artifact.edited;
-      addEvent({
-        id: `${artifact.id}-goal`,
-        artifactId: artifact.id,
-        title: artifact.title,
-        role: "goal-progress",
-        goalLabel: artifact.properties?.goalLabel || "",
-        dashboard: artifact.dashboard,
-        type: artifact.type,
-        action: "created",
-        changed: [],
-        dateKey: dateKeyFromValue(artifact.properties?.dateKey || timestamp),
-        timestamp
-      });
-      return;
-    }
-    const auditEntries = Array.isArray(artifact.properties?.audit) ? artifact.properties.audit : [];
-    if (auditEntries.length) {
-      auditEntries.forEach((entry) => {
-        addEvent({
-          id: `${artifact.id}-${entry.at || entry.action}`,
-          artifactId: artifact.id,
-          title: artifact.title,
-          role: artifact.properties?.role || "",
-          thoughtLabel: artifact.properties?.thoughtLabel || "",
-          goalLabel: artifact.properties?.goalLabel || "",
-          dashboard: artifact.dashboard,
-          type: artifact.type,
-          action: entry.action || "edited",
-          changed: Array.isArray(entry.changed) ? entry.changed : [],
-          dateKey: dateKeyFromValue(entry.dateKey || entry.at || artifact.edited || artifact.created),
-          timestamp: entry.at || artifact.edited || artifact.created
-        });
-      });
-      return;
-    }
-    if (artifact.created) {
-      addEvent({
-        id: `${artifact.id}-created`,
-        artifactId: artifact.id,
-        title: artifact.title,
-        role: artifact.properties?.role || "",
-        thoughtLabel: artifact.properties?.thoughtLabel || "",
-        goalLabel: artifact.properties?.goalLabel || "",
-        dashboard: artifact.dashboard,
-        type: artifact.type,
-        action: "created",
-        changed: [],
-        dateKey: dateKeyFromValue(artifact.properties?.dateKey || artifact.created),
-        timestamp: artifact.created
-      });
-    }
-    if (artifact.edited && artifact.edited !== artifact.created) {
-      addEvent({
-        id: `${artifact.id}-edited`,
-        artifactId: artifact.id,
-        title: artifact.title,
-        role: artifact.properties?.role || "",
-        thoughtLabel: artifact.properties?.thoughtLabel || "",
-        goalLabel: artifact.properties?.goalLabel || "",
-        dashboard: artifact.dashboard,
-        type: artifact.type,
-        action: "edited",
-        changed: [],
-        dateKey: dateKeyFromValue(artifact.edited),
-        timestamp: artifact.edited
-      });
-    }
-  });
-  return events.sort((a, b) => (Date.parse(b.timestamp) || Date.parse(b.dateKey)) - (Date.parse(a.timestamp) || Date.parse(a.dateKey)));
+	if (!state.artifactStore) return [];
+	const events = [];
+	const addEvent = (event) => {
+		const timestamp = event.timestamp || `${event.dateKey}T12:00:00`;
+		const minuteKey = Number.isNaN(new Date(timestamp).getTime())
+			? String(timestamp)
+			: new Date(timestamp).toISOString().slice(0, 16);
+		const title =
+			event.role === "thought" && event.thoughtLabel
+				? event.thoughtLabel
+				: event.role === "goal-progress" && event.goalLabel
+					? event.goalLabel
+					: event.title;
+		const eventKey = [
+			event.artifactId,
+			event.dashboard,
+			event.type,
+			minuteKey,
+			title,
+		].join("|");
+		if (events.some((existing) => existing.eventKey === eventKey)) return;
+		const artifact = findArtifact(state.artifactStore, event.artifactId);
+		events.push({ ...event, eventKey, parentId: artifact?.parentId || "" });
+	};
+	state.artifactStore.artifacts.forEach((artifact) => {
+		if (artifact.properties?.role === "spirit-reading-plan-item") return;
+		if (artifact.properties?.role === "thought") {
+			const timestamp =
+				artifact.properties?.thoughtLoggedAt ||
+				artifact.created ||
+				artifact.edited;
+			addEvent({
+				id: `${artifact.id}-thought`,
+				artifactId: artifact.id,
+				title: artifact.title,
+				role: "thought",
+				thoughtLabel: artifact.properties?.thoughtLabel || "",
+				dashboard: artifact.dashboard,
+				type: artifact.type,
+				action: "created",
+				changed: [],
+				dateKey: dateKeyFromValue(artifact.properties?.dateKey || timestamp),
+				timestamp,
+			});
+			return;
+		}
+		if (artifact.properties?.role === "goal-progress") {
+			const timestamp =
+				artifact.properties?.goalLoggedAt ||
+				artifact.created ||
+				artifact.edited;
+			addEvent({
+				id: `${artifact.id}-goal`,
+				artifactId: artifact.id,
+				title: artifact.title,
+				role: "goal-progress",
+				goalLabel: artifact.properties?.goalLabel || "",
+				dashboard: artifact.dashboard,
+				type: artifact.type,
+				action: "created",
+				changed: [],
+				dateKey: dateKeyFromValue(artifact.properties?.dateKey || timestamp),
+				timestamp,
+			});
+			return;
+		}
+		const auditEntries = Array.isArray(artifact.properties?.audit)
+			? artifact.properties.audit
+			: [];
+		if (auditEntries.length) {
+			auditEntries.forEach((entry) => {
+				addEvent({
+					id: `${artifact.id}-${entry.at || entry.action}`,
+					artifactId: artifact.id,
+					title: artifact.title,
+					role: artifact.properties?.role || "",
+					thoughtLabel: artifact.properties?.thoughtLabel || "",
+					goalLabel: artifact.properties?.goalLabel || "",
+					dashboard: artifact.dashboard,
+					type: artifact.type,
+					action: entry.action || "edited",
+					changed: Array.isArray(entry.changed) ? entry.changed : [],
+					dateKey: dateKeyFromValue(
+						entry.dateKey || entry.at || artifact.edited || artifact.created,
+					),
+					timestamp: entry.at || artifact.edited || artifact.created,
+				});
+			});
+			return;
+		}
+		if (artifact.created) {
+			addEvent({
+				id: `${artifact.id}-created`,
+				artifactId: artifact.id,
+				title: artifact.title,
+				role: artifact.properties?.role || "",
+				thoughtLabel: artifact.properties?.thoughtLabel || "",
+				goalLabel: artifact.properties?.goalLabel || "",
+				dashboard: artifact.dashboard,
+				type: artifact.type,
+				action: "created",
+				changed: [],
+				dateKey: dateKeyFromValue(
+					artifact.properties?.dateKey || artifact.created,
+				),
+				timestamp: artifact.created,
+			});
+		}
+		if (artifact.edited && artifact.edited !== artifact.created) {
+			addEvent({
+				id: `${artifact.id}-edited`,
+				artifactId: artifact.id,
+				title: artifact.title,
+				role: artifact.properties?.role || "",
+				thoughtLabel: artifact.properties?.thoughtLabel || "",
+				goalLabel: artifact.properties?.goalLabel || "",
+				dashboard: artifact.dashboard,
+				type: artifact.type,
+				action: "edited",
+				changed: [],
+				dateKey: dateKeyFromValue(artifact.edited),
+				timestamp: artifact.edited,
+			});
+		}
+	});
+	return events.sort(
+		(a, b) =>
+			(Date.parse(b.timestamp) || Date.parse(b.dateKey)) -
+			(Date.parse(a.timestamp) || Date.parse(a.dateKey)),
+	);
 }
 
 function lifeCalendarEventTitle(event) {
-  if (event.role === "thought" && event.thoughtLabel) return event.thoughtLabel;
-  if (event.role === "goal-progress" && event.goalLabel) return event.goalLabel;
-  return event.title;
+	if (event.role === "thought" && event.thoughtLabel) return event.thoughtLabel;
+	if (event.role === "goal-progress" && event.goalLabel) return event.goalLabel;
+	return event.title;
 }
 
 function lifeCalendarEvents() {
-  return lifeEvents().map((event) => ({
-    id: event.id,
-    title: lifeCalendarEventTitle(event),
-    start: event.timestamp && !Number.isNaN(new Date(event.timestamp).getTime())
-      ? event.timestamp
-      : `${event.dateKey}T12:00:00`,
-    allDay: false,
-    extendedProps: {
-      artifactId: event.artifactId,
-      parentId: event.parentId || "",
-      dashboard: event.dashboard,
-      action: event.action,
-      fullTitle: event.title,
-      meta: event.changed.length ? event.changed.join(", ") : event.type
-    },
-    classNames: [`life-calendar-event--${event.dashboard.toLowerCase()}`]
-  }));
+	return lifeEvents().map((event) => ({
+		id: event.id,
+		title: lifeCalendarEventTitle(event),
+		start:
+			event.timestamp && !Number.isNaN(new Date(event.timestamp).getTime())
+				? event.timestamp
+				: `${event.dateKey}T12:00:00`,
+		allDay: false,
+		extendedProps: {
+			artifactId: event.artifactId,
+			parentId: event.parentId || "",
+			dashboard: event.dashboard,
+			action: event.action,
+			fullTitle: event.title,
+			meta: event.changed.length ? event.changed.join(", ") : event.type,
+		},
+		classNames: [`life-calendar-event--${event.dashboard.toLowerCase()}`],
+	}));
 }
 
 function renderLifeMonthCalendar() {
-  const calendarEl = document.getElementById("life-fullcalendar");
-  if (!calendarEl || state.active !== "Life" || state.lifeMode !== "month") return;
-  if (isMobileViewport()) {
-    calendarEl.innerHTML = lifeMobileMonthAgendaHtml();
-    return;
-  }
-  if (!window.FullCalendar?.Calendar) {
-    calendarEl.innerHTML = lifeMonthFallbackHtml();
-    return;
-  }
+	const calendarEl = document.getElementById("life-fullcalendar");
+	if (!calendarEl || state.active !== "Life" || state.lifeMode !== "month")
+		return;
+	if (isMobileViewport()) {
+		calendarEl.innerHTML = lifeMobileMonthAgendaHtml();
+		return;
+	}
+	if (!window.FullCalendar?.Calendar) {
+		calendarEl.innerHTML = lifeMonthFallbackHtml();
+		return;
+	}
 
-  const calendar = new window.FullCalendar.Calendar(calendarEl, {
-    initialView: "dayGridMonth",
-    initialDate: todayDateKey(),
-    height: "auto",
-    fixedWeekCount: true,
-    showNonCurrentDates: true,
-    headerToolbar: false,
-    dayMaxEvents: false,
-    events: lifeCalendarEvents(),
-    eventClick(info) {
-      const artifactId = info.event.extendedProps.artifactId;
-      if (artifactId) openActivityArtifact(artifactId);
-    },
-    eventContent(info) {
-      const timeText = info.timeText || formatEventTime(info.event.start);
-      const title = info.event.title;
-      const dashboard = info.event.extendedProps.dashboard || "";
-      const fullTitle = info.event.extendedProps.fullTitle || title;
-      const wrapper = document.createElement("div");
-      wrapper.className = "life-fc-event-inner";
-      wrapper.title = [timeText, fullTitle].filter(Boolean).join(" ");
-      wrapper.innerHTML = `
+	const calendar = new window.FullCalendar.Calendar(calendarEl, {
+		initialView: "dayGridMonth",
+		initialDate: todayDateKey(),
+		height: "auto",
+		fixedWeekCount: true,
+		showNonCurrentDates: true,
+		headerToolbar: false,
+		dayMaxEvents: false,
+		events: lifeCalendarEvents(),
+		eventClick(info) {
+			const artifactId = info.event.extendedProps.artifactId;
+			if (artifactId) openActivityArtifact(artifactId);
+		},
+		eventContent(info) {
+			const timeText = info.timeText || formatEventTime(info.event.start);
+			const title = info.event.title;
+			const dashboard = info.event.extendedProps.dashboard || "";
+			const fullTitle = info.event.extendedProps.fullTitle || title;
+			const wrapper = document.createElement("div");
+			wrapper.className = "life-fc-event-inner";
+			wrapper.title = [timeText, fullTitle].filter(Boolean).join(" ");
+			wrapper.innerHTML = `
         <span>${escapeHtml(timeText)}</span>
         <strong>${escapeHtml(title)}</strong>
         <em>${escapeHtml(dashboard)}</em>
       `;
-      return { domNodes: [wrapper] };
-    }
-  });
-  calendar.render();
+			return { domNodes: [wrapper] };
+		},
+	});
+	calendar.render();
 }
 
 function lifeMobileMonthAgendaHtml() {
-  const now = new Date();
-  const month = now.getMonth();
-  const year = now.getFullYear();
-  const days = Array.from({ length: new Date(year, month + 1, 0).getDate() }, (_, index) => {
-    const date = new Date(year, month, index + 1);
-    const dateKey = dateKeyFromDate(date);
-    return { dateKey, events: eventsForDate(dateKey) };
-  });
-  return `
+	const now = new Date();
+	const month = now.getMonth();
+	const year = now.getFullYear();
+	const days = Array.from(
+		{ length: new Date(year, month + 1, 0).getDate() },
+		(_, index) => {
+			const date = new Date(year, month, index + 1);
+			const dateKey = dateKeyFromDate(date);
+			return { dateKey, events: eventsForDate(dateKey) };
+		},
+	);
+	return `
     <div class="life-mobile-month-agenda" aria-label="${escapeHtml(new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" }).format(now))} agenda">
-      ${days.map(({ dateKey, events }) => `
+      ${days
+				.map(
+					({ dateKey, events }) => `
         <section class="life-mobile-month-day${events.length ? " has-events" : ""}">
           <div class="life-mobile-month-date">
             <strong>${escapeHtml(new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(new Date(`${dateKey}T12:00:00`)))}</strong>
@@ -7248,46 +8760,53 @@ function lifeMobileMonthAgendaHtml() {
             ${events.length ? events.map((event) => lifeEventRowHtml(event, "mobile-month")).join("") : "<p>No activity</p>"}
           </div>
         </section>
-      `).join("")}
+      `,
+				)
+				.join("")}
     </div>
   `;
 }
 
 function eventsForDate(dateKey) {
-  return lifeEvents().filter((event) => event.dateKey === dateKey);
+	return lifeEvents().filter((event) => event.dateKey === dateKey);
 }
 
 function lifeNotes() {
-  return rootNotesForDashboard(state.artifactStore, "Life")
-    .slice()
-    .sort((a, b) => {
-      const bKey = b.properties?.dateKey || b.edited || b.created || "";
-      const aKey = a.properties?.dateKey || a.edited || a.created || "";
-      return bKey.localeCompare(aKey);
-    });
+	return rootNotesForDashboard(state.artifactStore, "Life")
+		.slice()
+		.sort((a, b) => {
+			const bKey = b.properties?.dateKey || b.edited || b.created || "";
+			const aKey = a.properties?.dateKey || a.edited || a.created || "";
+			return bKey.localeCompare(aKey);
+		});
 }
 
 function lifeEventRowHtml(event, variant = "") {
-  const label = `${dashboardDisplayLabel(event.dashboard)} ${event.action}`;
-  const meta = event.changed.length ? event.changed.join(", ") : event.type;
-  const time = formatEventTime(event.timestamp);
-  const inner = `
+	const label = `${dashboardDisplayLabel(event.dashboard)} ${event.action}`;
+	const meta = event.changed.length ? event.changed.join(", ") : event.type;
+	const time = formatEventTime(event.timestamp);
+	const inner = `
     <span>${iconHtml(event.action === "created" ? "tabler:sparkles" : "tabler:history")}</span>
     <strong>${escapeHtml(event.title)}</strong>
     <small>${escapeHtml([time, meta].filter(Boolean).join(" / "))}</small>
     <em>${escapeHtml(label)}</em>
   `;
-  const artifact = findArtifact(state.artifactStore, event.artifactId);
-  const canOpen = artifact?.type === "compendium" || (artifact?.type === "note" && (!artifact.parentId || artifact.dashboard === "Mind"));
-  const className = `life-event-row${variant ? ` life-event-row--${variant}` : ""}`;
-  return canOpen
-    ? `<button class="${className}" data-action="open-life-activity" data-id="${event.artifactId}" type="button">${inner}</button>`
-    : `<div class="${className}">${inner}</div>`;
+	const artifact = findArtifact(state.artifactStore, event.artifactId);
+	const canOpen =
+		artifact?.type === "compendium" ||
+		(artifact?.type === "note" &&
+			(!artifact.parentId || artifact.dashboard === "Mind"));
+	const className = `life-event-row${variant ? ` life-event-row--${variant}` : ""}`;
+	return canOpen
+		? `<button class="${className}" data-action="open-life-activity" data-id="${event.artifactId}" type="button">${inner}</button>`
+		: `<div class="${className}">${inner}</div>`;
 }
 
 function lifeJournalMetaHtml(note) {
-  const habits = Array.isArray(note.properties?.habits) ? note.properties.habits : [];
-  return `
+	const habits = Array.isArray(note.properties?.habits)
+		? note.properties.habits
+		: [];
+	return `
     <div class="life-journal-meta">
       <span>${iconHtml("tabler:calendar")} ${escapeHtml(formatDateLabel(note.properties?.dateKey || note.edited || note.created, { weekday: true, year: true }))}</span>
       <span>${iconHtml("tabler:mood-smile")} ${escapeHtml(note.properties?.mood || "steady")}</span>
@@ -7298,13 +8817,27 @@ function lifeJournalMetaHtml(note) {
 }
 
 function lifeHtml() {
-  const note = findArtifact(state.artifactStore, state.selectedArtifactId);
-  if (state.artifactMode === "editor" && note?.dashboard === "Life" && note.properties?.role === "life-journal") return lifeJournalEditorHtml(note);
-  if (state.artifactMode === "editor" && note) return dashboardNoteEditorHtml(note);
-  if (state.artifactMode === "viewer" && note) {
-    if (note.dashboard !== "Life") return artifactReaderHtml(note, `${dashboardDisplayLabel(note.dashboard)} note`);
-    if (note.properties?.role !== "life-journal") return artifactReaderHtml(note, `${dashboardDisplayLabel("Life")} thought`);
-    return panelHtml(`
+	const note = findArtifact(state.artifactStore, state.selectedArtifactId);
+	if (
+		state.artifactMode === "editor" &&
+		note?.dashboard === "Life" &&
+		note.properties?.role === "life-journal"
+	)
+		return lifeJournalEditorHtml(note);
+	if (state.artifactMode === "editor" && note)
+		return dashboardNoteEditorHtml(note);
+	if (state.artifactMode === "viewer" && note) {
+		if (note.dashboard !== "Life")
+			return artifactReaderHtml(
+				note,
+				`${dashboardDisplayLabel(note.dashboard)} note`,
+			);
+		if (note.properties?.role !== "life-journal")
+			return artifactReaderHtml(
+				note,
+				`${dashboardDisplayLabel("Life")} thought`,
+			);
+		return panelHtml(`
       ${headerHtml(note.title, "", artifactViewerActions(note))}
       <div class="life-reader-grid">
         <section class="reader-panel life-reader-panel">
@@ -7313,9 +8846,9 @@ function lifeHtml() {
         </section>
       </div>
     `);
-  }
+	}
 
-  return panelHtml(`
+	return panelHtml(`
     ${headerHtml(dashboardDisplayLabel("Life"), "Calendar-first journal, habits, and app activity.", "", { titleHtml: dashboardHeaderTitleHtml("Life") })}
     <div class="life-dashboard">
       ${dashboardOrbNavHtml("Life")}
@@ -7328,19 +8861,25 @@ function lifeHtml() {
 }
 
 function lifeToolSwitcherHtml() {
-  const activeTool = ["todo", "projects", "calendar"].includes(state.lifeTool) ? state.lifeTool : "calendar";
-  const modes = [
-    ["calendar", "Calendar", "tabler:calendar-month"],
-    ["todo", "Todo List", "tabler:checkbox"],
-    ["projects", "Projects", "tabler:folders"]
-  ];
-  return `
+	const activeTool = ["todo", "projects", "calendar"].includes(state.lifeTool)
+		? state.lifeTool
+		: "calendar";
+	const modes = [
+		["calendar", "Calendar", "tabler:calendar-month"],
+		["todo", "Todo List", "tabler:checkbox"],
+		["projects", "Projects", "tabler:folders"],
+	];
+	return `
     <nav class="life-mode-switcher life-tool-switcher" aria-label="${escapeHtml(dashboardDisplayLabel("Life"))} tools">
-      ${modes.map(([mode, label, icon]) => `
+      ${modes
+				.map(
+					([mode, label, icon]) => `
         <button class="body-mode-button${activeTool === mode ? " is-active" : ""}" data-action="set-life-tool" data-tool="${mode}" type="button" aria-pressed="${activeTool === mode ? "true" : "false"}">
           ${buttonContent(icon, label, "body-mode-label")}
         </button>
-      `).join("")}
+      `,
+				)
+				.join("")}
       <button class="body-mode-button life-new-note-button" data-action="new-artifact-note" data-dashboard="Life" type="button">
         ${buttonContent("tabler:notes", "New Note", "body-mode-label")}
       </button>
@@ -7349,28 +8888,34 @@ function lifeToolSwitcherHtml() {
 }
 
 function lifeCalendarModeSwitcherHtml() {
-  const modes = [
-    ["month", "Month", "tabler:calendar-month"],
-    ["week", "Week", "tabler:calendar-week"],
-    ["day", "Day", "tabler:calendar-event"],
-    ["list", "List", "tabler:list-details"]
-  ];
-  return `
+	const modes = [
+		["month", "Month", "tabler:calendar-month"],
+		["week", "Week", "tabler:calendar-week"],
+		["day", "Day", "tabler:calendar-event"],
+		["list", "List", "tabler:list-details"],
+	];
+	return `
     <nav class="life-calendar-switcher" aria-label="Calendar views">
-      ${modes.map(([mode, label, icon]) => `
+      ${modes
+				.map(
+					([mode, label, icon]) => `
         <button class="body-mode-button${state.lifeMode === mode ? " is-active" : ""}" data-action="set-life-mode" data-mode="${mode}" type="button" aria-pressed="${state.lifeMode === mode ? "true" : "false"}">
           ${buttonContent(icon, label, "body-mode-label")}
         </button>
-      `).join("")}
+      `,
+				)
+				.join("")}
     </nav>
   `;
 }
 
 function lifePanelHtml() {
-  const tool = ["todo", "projects", "calendar"].includes(state.lifeTool) ? state.lifeTool : "calendar";
-  if (tool === "todo") return lifeTodoHtml();
-  if (tool === "projects") return lifeProjectsHtml();
-  return `
+	const tool = ["todo", "projects", "calendar"].includes(state.lifeTool)
+		? state.lifeTool
+		: "calendar";
+	if (tool === "todo") return lifeTodoHtml();
+	if (tool === "projects") return lifeProjectsHtml();
+	return `
     <div class="life-calendar-viewer">
       ${lifeCalendarModeSwitcherHtml()}
       ${lifeCalendarPanelHtml()}
@@ -7379,16 +8924,16 @@ function lifePanelHtml() {
 }
 
 function lifeCalendarPanelHtml() {
-  if (state.lifeMode === "day") return lifeDayHtml();
-  if (state.lifeMode === "week") return lifeWeekHtml();
-  if (state.lifeMode === "list") return lifeListHtml();
-  return lifeMonthHtml();
+	if (state.lifeMode === "day") return lifeDayHtml();
+	if (state.lifeMode === "week") return lifeWeekHtml();
+	if (state.lifeMode === "list") return lifeListHtml();
+	return lifeMonthHtml();
 }
 
 function lifeDayHtml() {
-  const dateKey = todayDateKey();
-  const events = eventsForDate(dateKey);
-  return `
+	const dateKey = todayDateKey();
+	const events = eventsForDate(dateKey);
+	return `
     <section class="body-card life-card">
       <div class="body-card-heading">
         <div>
@@ -7402,14 +8947,14 @@ function lifeDayHtml() {
 }
 
 function lifeWeekHtml() {
-  const now = new Date();
-  const start = addDays(now, -now.getDay());
-  const days = Array.from({ length: 7 }, (_, index) => {
-    const dateKey = dateKeyFromDate(addDays(start, index));
-    return { dateKey, events: eventsForDate(dateKey) };
-  });
-  const total = days.reduce((sum, day) => sum + day.events.length, 0);
-  return `
+	const now = new Date();
+	const start = addDays(now, -now.getDay());
+	const days = Array.from({ length: 7 }, (_, index) => {
+		const dateKey = dateKeyFromDate(addDays(start, index));
+		return { dateKey, events: eventsForDate(dateKey) };
+	});
+	const total = days.reduce((sum, day) => sum + day.events.length, 0);
+	return `
     <section class="body-card life-card">
       <div class="body-card-heading">
         <div>
@@ -7418,20 +8963,24 @@ function lifeWeekHtml() {
         </div>
       </div>
       <div class="life-date-list">
-        ${days.map(({ dateKey, events }) => `
+        ${days
+					.map(
+						({ dateKey, events }) => `
           <section class="life-date-group">
             <h3>${escapeHtml(formatDateLabel(dateKey, { weekday: true, year: true }))}</h3>
             <div class="life-event-list">${events.length ? events.map(lifeEventRowHtml).join("") : "<p>No activity.</p>"}</div>
           </section>
-        `).join("")}
+        `,
+					)
+					.join("")}
       </div>
     </section>
   `;
 }
 
 function lifeMonthHtml() {
-  const now = new Date();
-  return `
+	const now = new Date();
+	return `
     <section class="body-card life-card life-card--month">
       <div class="body-card-heading">
         <div>
@@ -7445,62 +8994,81 @@ function lifeMonthHtml() {
 }
 
 function lifeMonthFallbackHtml() {
-  const now = new Date();
-  const first = new Date(now.getFullYear(), now.getMonth(), 1);
-  const start = addDays(first, -first.getDay());
-  const month = now.getMonth();
-  return `
+	const now = new Date();
+	const first = new Date(now.getFullYear(), now.getMonth(), 1);
+	const start = addDays(first, -first.getDay());
+	const month = now.getMonth();
+	return `
       <div class="life-month-grid">
         ${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => `<span class="life-month-heading">${day}</span>`).join("")}
         ${Array.from({ length: 42 }, (_, index) => {
-          const date = addDays(start, index);
-          const dateKey = dateKeyFromDate(date);
-          const events = eventsForDate(dateKey);
-          const inMonth = date.getMonth() === month;
-          return `
+					const date = addDays(start, index);
+					const dateKey = dateKeyFromDate(date);
+					const events = eventsForDate(dateKey);
+					const inMonth = date.getMonth() === month;
+					return `
             <article class="life-month-day${inMonth ? "" : " is-muted"}">
               <span class="life-month-day-date">${date.getDate()}</span>
               <div class="life-month-day-items">
                 <strong>${events.length ? `${events.length} event${events.length === 1 ? "" : "s"}` : ""}</strong>
-                ${events.slice(0, 3).map((event) => `<small><em>${escapeHtml(formatEventTime(event.timestamp))}</em><span>${escapeHtml(dashboardDisplayLabel(event.dashboard))} ${escapeHtml(event.action)}</span></small>`).join("")}
+                ${events
+									.slice(0, 3)
+									.map(
+										(event) =>
+											`<small><em>${escapeHtml(formatEventTime(event.timestamp))}</em><span>${escapeHtml(dashboardDisplayLabel(event.dashboard))} ${escapeHtml(event.action)}</span></small>`,
+									)
+									.join("")}
               </div>
             </article>
           `;
-        }).join("")}
+				}).join("")}
       </div>
   `;
 }
 
 function lifeListHtml() {
-  const grouped = new Map();
-  lifeEvents().forEach((event) => {
-    if (!grouped.has(event.dateKey)) grouped.set(event.dateKey, []);
-    grouped.get(event.dateKey).push(event);
-  });
-  return `
+	const grouped = new Map();
+	lifeEvents().forEach((event) => {
+		if (!grouped.has(event.dateKey)) grouped.set(event.dateKey, []);
+		grouped.get(event.dateKey).push(event);
+	});
+	return `
     <section class="body-card life-card">
       <div class="life-date-list">
-        ${grouped.size ? Array.from(grouped.entries()).map(([dateKey, events]) => `
+        ${
+					grouped.size
+						? Array.from(grouped.entries())
+								.map(
+									([dateKey, events]) => `
           <section class="life-date-group">
             <h3>${escapeHtml(formatDateLabel(dateKey, { weekday: true, year: true }))}</h3>
             <div class="life-event-list">${events.map(lifeEventRowHtml).join("")}</div>
           </section>
-        `).join("") : emptyStateHtml("No activity yet.", "Create or edit notes to build the app activity calendar.")}
+        `,
+								)
+								.join("")
+						: emptyStateHtml(
+								"No activity yet.",
+								"Create or edit notes to build the app activity calendar.",
+							)
+				}
       </div>
     </section>
   `;
 }
 
 function lifeTodoCardHtml(task) {
-  const isProjectTask = task.source === "project-task";
-  const id = task.todoId || task.taskId;
-  const taskAttrs = `data-source="${escapeHtml(task.source)}" data-id="${escapeHtml(id)}"${isProjectTask ? ` data-project-id="${escapeHtml(task.projectId)}" data-phase-id="${escapeHtml(task.phaseId)}"` : ""}`;
-  const path = isProjectTask
-    ? [task.projectTitle, task.phaseTitle].filter(Boolean).join(" / ")
-    : "Standalone";
-  const dateLabel = task.assignedDate ? formatDateLabel(task.assignedDate, { year: true }) : "No date";
-  const notePreview = shortSummary(task.notes, "No notes yet");
-  return `
+	const isProjectTask = task.source === "project-task";
+	const id = task.todoId || task.taskId;
+	const taskAttrs = `data-source="${escapeHtml(task.source)}" data-id="${escapeHtml(id)}"${isProjectTask ? ` data-project-id="${escapeHtml(task.projectId)}" data-phase-id="${escapeHtml(task.phaseId)}"` : ""}`;
+	const path = isProjectTask
+		? [task.projectTitle, task.phaseTitle].filter(Boolean).join(" / ")
+		: "Standalone";
+	const dateLabel = task.assignedDate
+		? formatDateLabel(task.assignedDate, { year: true })
+		: "No date";
+	const notePreview = shortSummary(task.notes, "No notes yet");
+	return `
     <article class="life-todo-card${task.status === "complete" ? " is-complete" : ""}${isProjectTask ? " is-project-task" : ""}" data-action="open-life-task" ${taskAttrs} tabindex="0" role="button" aria-label="Open ${escapeHtml(task.title)}">
       <button class="life-todo-check" data-action="toggle-life-task" ${taskAttrs} type="button" aria-label="${task.status === "complete" ? "Reopen" : "Complete"} ${escapeHtml(task.title)}" title="${task.status === "complete" ? "Reopen" : "Complete"}">
         ${iconHtml(task.status === "complete" ? "tabler:circle-check" : "tabler:circle")}
@@ -7525,13 +9093,17 @@ function lifeTodoCardHtml(task) {
 }
 
 function lifeTodoHtml() {
-  const tasks = lifeTaskItems();
-  const open = tasks.filter((task) => task.status !== "complete");
-  const complete = tasks.filter((task) => task.status === "complete");
-  const projectCount = tasks.filter((task) => task.source === "project-task").length;
-  const standaloneCount = tasks.filter((task) => task.source === "todo").length;
-  const scheduledCount = tasks.filter((task) => task.assignedDate && task.status !== "complete").length;
-  return `
+	const tasks = lifeTaskItems();
+	const open = tasks.filter((task) => task.status !== "complete");
+	const complete = tasks.filter((task) => task.status === "complete");
+	const projectCount = tasks.filter(
+		(task) => task.source === "project-task",
+	).length;
+	const standaloneCount = tasks.filter((task) => task.source === "todo").length;
+	const scheduledCount = tasks.filter(
+		(task) => task.assignedDate && task.status !== "complete",
+	).length;
+	return `
     <section class="body-card life-card life-todo-view">
       <div class="life-todo-overview">
         <div>
@@ -7569,19 +9141,26 @@ function lifeTodoHtml() {
 }
 
 function lifeProjectNavButtonHtml(entity, action, active, attrs = "") {
-  const phaseCount = Array.isArray(entity.phases) ? entity.phases.length : null;
-  const taskCount = Array.isArray(entity.tasks)
-    ? entity.tasks.length
-    : Array.isArray(entity.phases)
-      ? entity.phases.reduce((sum, phase) => sum + (phase.tasks?.length || 0), 0)
-      : null;
-  const detail = [
-    entity.status || "planned",
-    phaseCount !== null ? `${phaseCount} phase${phaseCount === 1 ? "" : "s"}` : "",
-    taskCount !== null ? `${taskCount} task${taskCount === 1 ? "" : "s"}` : "",
-    entity.assignedDate ? formatDateLabel(entity.assignedDate) : ""
-  ].filter(Boolean).join(" / ");
-  return `
+	const phaseCount = Array.isArray(entity.phases) ? entity.phases.length : null;
+	const taskCount = Array.isArray(entity.tasks)
+		? entity.tasks.length
+		: Array.isArray(entity.phases)
+			? entity.phases.reduce(
+					(sum, phase) => sum + (phase.tasks?.length || 0),
+					0,
+				)
+			: null;
+	const detail = [
+		entity.status || "planned",
+		phaseCount !== null
+			? `${phaseCount} phase${phaseCount === 1 ? "" : "s"}`
+			: "",
+		taskCount !== null ? `${taskCount} task${taskCount === 1 ? "" : "s"}` : "",
+		entity.assignedDate ? formatDateLabel(entity.assignedDate) : "",
+	]
+		.filter(Boolean)
+		.join(" / ");
+	return `
     <button class="life-project-nav-button${active ? " is-active" : ""}" data-action="${action}" ${attrs} type="button">
       <strong>${escapeHtml(entity.title)}</strong>
       <small>${escapeHtml(detail)}</small>
@@ -7590,7 +9169,7 @@ function lifeProjectNavButtonHtml(entity, action, active, attrs = "") {
 }
 
 function lifeAttachmentsHtml(level, attachments = []) {
-  return `
+	return `
     <section class="life-attachments">
       <div class="body-card-heading">
         <div>
@@ -7600,35 +9179,50 @@ function lifeAttachmentsHtml(level, attachments = []) {
         <button class="secondary-button" data-action="upload-life-attachment" data-level="${level}" type="button">${buttonContent("tabler:paperclip", "Upload")}</button>
       </div>
       <div class="life-attachment-list">
-        ${attachments.length ? attachments.map((attachment) => `
+        ${
+					attachments.length
+						? attachments
+								.map(
+									(attachment) => `
           <div class="life-attachment-item">
             <a href="#" data-local-file-link="${escapeHtml(attachment.id)}" target="_blank" rel="noopener noreferrer">${iconHtml("tabler:file")} ${escapeHtml(attachment.name || attachment.id)}</a>
             <small>${escapeHtml(formatFileSize(attachment.size))}</small>
             <button class="icon-button danger-button" data-action="delete-life-attachment" data-level="${level}" data-id="${escapeHtml(attachment.id)}" type="button" aria-label="Remove attachment" title="Remove">${iconHtml("tabler:x")}</button>
           </div>
-        `).join("") : "<p>No attachments yet.</p>"}
+        `,
+								)
+								.join("")
+						: "<p>No attachments yet.</p>"
+				}
       </div>
     </section>
   `;
 }
 
 function formatFileSize(size) {
-  const bytes = Number(size) || 0;
-  if (bytes >= 1048576) return `${Math.round(bytes / 104857.6) / 10} MB`;
-  if (bytes >= 1024) return `${Math.round(bytes / 102.4) / 10} KB`;
-  return `${bytes} B`;
+	const bytes = Number(size) || 0;
+	if (bytes >= 1048576) return `${Math.round(bytes / 104857.6) / 10} MB`;
+	if (bytes >= 1024) return `${Math.round(bytes / 102.4) / 10} KB`;
+	return `${bytes} B`;
 }
 
 function lifeEntityStatusOptions(level, value) {
-  const options = level === "task"
-    ? ["todo", "active", "waiting", "complete"]
-    : ["planned", "active", "waiting", "complete"];
-  return options.map((option) => `<option value="${option}"${value === option ? " selected" : ""}>${escapeHtml(option)}</option>`).join("");
+	const options =
+		level === "task"
+			? ["todo", "active", "waiting", "complete"]
+			: ["planned", "active", "waiting", "complete"];
+	return options
+		.map(
+			(option) =>
+				`<option value="${option}"${value === option ? " selected" : ""}>${escapeHtml(option)}</option>`,
+		)
+		.join("");
 }
 
 function lifeProjectDetailHtml(level, entity) {
-  const label = level === "task" ? "Task" : level === "phase" ? "Phase" : "Project";
-  return `
+	const label =
+		level === "task" ? "Task" : level === "phase" ? "Phase" : "Project";
+	return `
     <div class="life-project-detail">
       <div class="body-card-heading">
         <div>
@@ -7652,24 +9246,47 @@ function lifeProjectDetailHtml(level, entity) {
 }
 
 function lifeProjectsHtml() {
-  const projects = lifeProjects();
-  const project = selectedLifeProject();
-  const phase = selectedLifePhase(project);
-  const task = selectedLifeTask(phase);
-  const phaseCount = projects.reduce((sum, item) => sum + (item.phases?.length || 0), 0);
-  const taskCount = projects.reduce((sum, item) =>
-    sum + (item.phases || []).reduce((phaseSum, phaseItem) => phaseSum + (phaseItem.tasks?.length || 0), 0), 0);
-  const openTaskCount = projects.reduce((sum, item) =>
-    sum + (item.phases || []).reduce((phaseSum, phaseItem) =>
-      phaseSum + (phaseItem.tasks || []).filter((taskItem) => taskItem.status !== "complete").length, 0), 0);
-  const detail = task
-    ? lifeProjectDetailHtml("task", task)
-    : phase
-      ? lifeProjectDetailHtml("phase", phase)
-      : project
-        ? lifeProjectDetailHtml("project", project)
-        : emptyStateHtml("Select or add a project.", "Projects organize phases, tasks, notes, status, assignments, and attachments.");
-  return `
+	const projects = lifeProjects();
+	const project = selectedLifeProject();
+	const phase = selectedLifePhase(project);
+	const task = selectedLifeTask(phase);
+	const phaseCount = projects.reduce(
+		(sum, item) => sum + (item.phases?.length || 0),
+		0,
+	);
+	const taskCount = projects.reduce(
+		(sum, item) =>
+			sum +
+			(item.phases || []).reduce(
+				(phaseSum, phaseItem) => phaseSum + (phaseItem.tasks?.length || 0),
+				0,
+			),
+		0,
+	);
+	const openTaskCount = projects.reduce(
+		(sum, item) =>
+			sum +
+			(item.phases || []).reduce(
+				(phaseSum, phaseItem) =>
+					phaseSum +
+					(phaseItem.tasks || []).filter(
+						(taskItem) => taskItem.status !== "complete",
+					).length,
+				0,
+			),
+		0,
+	);
+	const detail = task
+		? lifeProjectDetailHtml("task", task)
+		: phase
+			? lifeProjectDetailHtml("phase", phase)
+			: project
+				? lifeProjectDetailHtml("project", project)
+				: emptyStateHtml(
+						"Select or add a project.",
+						"Projects organize phases, tasks, notes, status, assignments, and attachments.",
+					);
+	return `
     <section class="body-card life-card life-projects-view">
       <div class="life-project-overview">
         <div>
@@ -7694,7 +9311,9 @@ function lifeProjectsHtml() {
           </div>
         </aside>
         <section class="life-project-workflow">
-          ${project ? `
+          ${
+						project
+							? `
             <div class="life-quick-add">
               <input id="life-phase-title" type="text" placeholder="New phase">
               <button class="secondary-button" data-action="add-life-phase" data-project-id="${escapeHtml(project.id)}" type="button">${buttonContent("tabler:plus", "Phase")}</button>
@@ -7703,8 +9322,15 @@ function lifeProjectsHtml() {
               <h4>Phases</h4>
               ${project.phases.length ? project.phases.map((item) => lifeProjectNavButtonHtml(item, "select-life-phase", item.id === phase?.id, `data-id="${escapeHtml(item.id)}"`)).join("") : "<p>No phases yet.</p>"}
             </div>
-          ` : emptyStateHtml("Pick a project.", "Choose a project to add phases and tasks.")}
-          ${project && phase ? `
+          `
+							: emptyStateHtml(
+									"Pick a project.",
+									"Choose a project to add phases and tasks.",
+								)
+					}
+          ${
+						project && phase
+							? `
             <div class="life-quick-add">
               <input id="life-task-title" type="text" placeholder="New task">
               <button class="secondary-button" data-action="add-life-project-task" data-project-id="${escapeHtml(project.id)}" data-phase-id="${escapeHtml(phase.id)}" type="button">${buttonContent("tabler:plus", "Task")}</button>
@@ -7713,7 +9339,9 @@ function lifeProjectsHtml() {
               <h4>Tasks</h4>
               ${phase.tasks.length ? phase.tasks.map((item) => lifeProjectNavButtonHtml(item, "select-life-task", item.id === task?.id, `data-task-id="${escapeHtml(item.id)}"`)).join("") : "<p>No tasks yet.</p>"}
             </div>
-          ` : ""}
+          `
+							: ""
+					}
         </section>
         <section class="life-project-body">
           ${detail}
@@ -7723,9 +9351,9 @@ function lifeProjectsHtml() {
   `;
 }
 
-function lifeNotesHtml() {
-  const notes = lifeNotes();
-  return `
+function _lifeNotesHtml() {
+	const notes = lifeNotes();
+	return `
     <section class="body-card life-card body-card--notes">
       <div class="body-card-heading">
         <div>
@@ -7734,40 +9362,53 @@ function lifeNotesHtml() {
         </div>
         <button class="secondary-button" data-action="new-artifact-note" data-dashboard="Life">${buttonContent("tabler:notes", "New Note")}</button>
       </div>
-      ${notes.length ? `
+      ${
+				notes.length
+					? `
         <div class="section-list body-notes-list">
-          ${notes.map((noteItem, index) => `
+          ${notes
+						.map(
+							(noteItem, index) => `
             <button class="section-row" data-action="open-artifact-note" data-id="${noteItem.id}">
               <span>${String(index + 1).padStart(2, "0")}</span>
               <strong>${escapeHtml(noteItem.title)}</strong>
               <small>${escapeHtml([noteItem.properties?.mood, ...(noteItem.properties?.habits || [])].filter(Boolean).join(" / ") || shortSummary(noteItem.body, "No journal text yet"))}</small>
               <em>${iconHtml("tabler:calendar")} ${escapeHtml(noteItem.properties?.dateKey || noteDateLabel(noteItem))}</em>
             </button>
-          `).join("")}
+          `,
+						)
+						.join("")}
         </div>
-        ` : emptyStateHtml(`No ${dashboardDisplayLabel("Life")} notes yet.`, "Add a journal note to track a day, habit, goal, or reflection.")}
+        `
+					: emptyStateHtml(
+							`No ${dashboardDisplayLabel("Life")} notes yet.`,
+							"Add a journal note to track a day, habit, goal, or reflection.",
+						)
+			}
     </section>
   `;
 }
 
 function bodyTimerSwitcherHtml() {
-  return `
+	return `
     <nav class="body-mode-switcher body-timer-switcher" aria-label="${escapeHtml(dashboardDisplayLabel("Body"))} timers">
-      ${BODY_TIMER_MODES.map(({ key, label, icon }) => `
+      ${BODY_TIMER_MODES.map(
+				({ key, label, icon }) => `
         <button class="body-mode-button${state.bodyTimerMode === key ? " is-active" : ""}" data-action="set-body-timer-mode" data-mode="${key}" type="button" aria-pressed="${state.bodyTimerMode === key ? "true" : "false"}">
           ${buttonContent(icon, label, "body-mode-label")}
         </button>
-      `).join("")}
+      `,
+			).join("")}
     </nav>
   `;
 }
 
 function bodyTimerPanelHtml(key = state.bodyTimerMode) {
-  const config = bodyTimerConfig(key);
-  const timer = bodyTimerState(key);
-  const progress = getBodyTimerProgress(key);
-  const dashOffset = RING_CIRCUMFERENCE * (1 - progress);
-  return `
+	const config = bodyTimerConfig(key);
+	const timer = bodyTimerState(key);
+	const progress = getBodyTimerProgress(key);
+	const dashOffset = RING_CIRCUMFERENCE * (1 - progress);
+	return `
     <section class="body-card body-card--timer is-active">
       <div class="body-ring-wrap">
         <svg class="body-ring" viewBox="0 0 220 220" aria-hidden="true">
@@ -7786,9 +9427,11 @@ function bodyTimerPanelHtml(key = state.bodyTimerMode) {
       </div>
       <div class="action-row body-actions">
         <button class="secondary-button" data-action="save-body-timer-settings" data-mode="${key}">${buttonContent("tabler:device-floppy", "Save")}</button>
-        ${timer.active
-          ? `<button class="secondary-button danger-button" data-action="stop-body-timer" data-mode="${key}">${buttonContent("tabler:player-stop", config.stopText)}</button>`
-          : `<button class="primary-button" data-action="start-body-timer" data-mode="${key}">${buttonContent("tabler:player-play", config.startText)}</button>`}
+        ${
+					timer.active
+						? `<button class="secondary-button danger-button" data-action="stop-body-timer" data-mode="${key}">${buttonContent("tabler:player-stop", config.stopText)}</button>`
+						: `<button class="primary-button" data-action="start-body-timer" data-mode="${key}">${buttonContent("tabler:player-play", config.startText)}</button>`
+				}
       </div>
       <p class="body-card-note">${timer.lastCompletedHours ? `Last completed: ${timer.lastCompletedHours.toFixed(1)} hours` : config.emptyText}</p>
     </section>
@@ -7796,7 +9439,7 @@ function bodyTimerPanelHtml(key = state.bodyTimerMode) {
 }
 
 function bodyTimersHtml() {
-  return `
+	return `
     <div class="body-timer-viewer">
       ${bodyTimerSwitcherHtml()}
       ${bodyTimerPanelHtml(state.bodyTimerMode)}
@@ -7805,23 +9448,27 @@ function bodyTimersHtml() {
 }
 
 function bodyNutritionSwitcherHtml() {
-  const modes = [
-    ["daily", "Daily Tracker", "tabler:clipboard-list"],
-    ["goals", "Nutrition Goals", "tabler:target-arrow"]
-  ];
-  return `
+	const modes = [
+		["daily", "Daily Tracker", "tabler:clipboard-list"],
+		["goals", "Nutrition Goals", "tabler:target-arrow"],
+	];
+	return `
     <nav class="body-mode-switcher body-nutrition-switcher" aria-label="Nutrition views">
-      ${modes.map(([mode, label, icon]) => `
+      ${modes
+				.map(
+					([mode, label, icon]) => `
         <button class="body-mode-button${state.bodyNutritionMode === mode ? " is-active" : ""}" data-action="set-body-nutrition-mode" data-mode="${mode}" type="button" aria-pressed="${state.bodyNutritionMode === mode ? "true" : "false"}">
           ${buttonContent(icon, label, "body-mode-label")}
         </button>
-      `).join("")}
+      `,
+				)
+				.join("")}
     </nav>
   `;
 }
 
 function nutritionGoalSummaryHtml(nutrition) {
-  return `
+	return `
     <div class="body-macro-row">
       <span>${Math.round(Number(nutrition.protein) || 0)} / ${Math.round(Number(nutrition.targetProtein) || 0)}g protein</span>
       <span>${Math.round(Number(nutrition.carbs) || 0)} / ${Math.round(Number(nutrition.targetCarbs) || 0)}g carbs</span>
@@ -7831,7 +9478,7 @@ function nutritionGoalSummaryHtml(nutrition) {
 }
 
 function bodyNutritionDailyHtml(nutrition, nutritionDashOffset) {
-  return `
+	return `
     <section class="body-card body-card--nutrition">
       <div class="body-ring-wrap body-ring-wrap--small">
         <svg class="body-ring" viewBox="0 0 220 220" aria-hidden="true">
@@ -7861,7 +9508,7 @@ function bodyNutritionDailyHtml(nutrition, nutritionDashOffset) {
 }
 
 function bodyNutritionGoalsHtml(nutrition) {
-  return `
+	return `
     <section class="body-card body-card--nutrition">
       <div class="body-card-heading">
         <div>
@@ -7883,31 +9530,35 @@ function bodyNutritionGoalsHtml(nutrition) {
 }
 
 function bodyNutritionHtml(nutrition, nutritionDashOffset) {
-  return `
+	return `
     <div class="body-nutrition-viewer">
       ${bodyNutritionSwitcherHtml()}
-      ${state.bodyNutritionMode === "goals"
-        ? bodyNutritionGoalsHtml(nutrition)
-        : bodyNutritionDailyHtml(nutrition, nutritionDashOffset)}
+      ${
+				state.bodyNutritionMode === "goals"
+					? bodyNutritionGoalsHtml(nutrition)
+					: bodyNutritionDailyHtml(nutrition, nutritionDashOffset)
+			}
     </div>
   `;
 }
 
 function bodyHtml() {
-  const note = findArtifact(state.artifactStore, state.selectedArtifactId);
-  if (state.artifactMode === "editor" && note) return dashboardNoteEditorHtml(note);
-  if (state.artifactMode === "viewer" && note) return artifactReaderHtml(note, `${dashboardDisplayLabel("Body")} note`);
+	const note = findArtifact(state.artifactStore, state.selectedArtifactId);
+	if (state.artifactMode === "editor" && note)
+		return dashboardNoteEditorHtml(note);
+	if (state.artifactMode === "viewer" && note)
+		return artifactReaderHtml(note, `${dashboardDisplayLabel("Body")} note`);
 
-  const notes = rootNotesForDashboard(state.artifactStore, "Body");
-  const nutrition = state.bodyTracker.nutrition;
-  const nutritionProgress = getNutritionProgress();
-  const nutritionDashOffset = RING_CIRCUMFERENCE * (1 - nutritionProgress);
+	const notes = rootNotesForDashboard(state.artifactStore, "Body");
+	const nutrition = state.bodyTracker.nutrition;
+	const nutritionProgress = getNutritionProgress();
+	const nutritionDashOffset = RING_CIRCUMFERENCE * (1 - nutritionProgress);
 
-  const panels = {
-    timers: bodyTimersHtml(),
-    nutrition: bodyNutritionHtml(nutrition, nutritionDashOffset),
+	const panels = {
+		timers: bodyTimersHtml(),
+		nutrition: bodyNutritionHtml(nutrition, nutritionDashOffset),
 
-    notes: `
+		notes: `
       <section class="body-card body-card--notes">
         <div class="body-card-heading">
           <div>
@@ -7916,21 +9567,32 @@ function bodyHtml() {
           </div>
           <button class="secondary-button" data-action="new-artifact-note" data-dashboard="Body">${buttonContent("tabler:notes", "New Note")}</button>
         </div>
-        ${notes.length ? `
+        ${
+					notes.length
+						? `
           <div class="section-list body-notes-list">
-            ${notes.map((noteItem, index) => `
+            ${notes
+							.map(
+								(noteItem, index) => `
               <button class="section-row" data-action="open-artifact-note" data-id="${noteItem.id}">
                 <span>${String(index + 1).padStart(2, "0")}</span>
                 <strong>${escapeHtml(noteItem.title)}</strong>
                 <small>${escapeHtml(shortSummary(noteItem.body, "No note text yet"))}</small>
                 <em>${iconHtml("tabler:notes")} Note</em>
               </button>
-            `).join("")}
+            `,
+							)
+							.join("")}
           </div>
-        ` : emptyStateHtml(`No ${dashboardDisplayLabel("Body")} notes yet.`, "Add a note to track fasting, meals, symptoms, workouts, or measurements.")}
+        `
+						: emptyStateHtml(
+								`No ${dashboardDisplayLabel("Body")} notes yet.`,
+								"Add a note to track fasting, meals, symptoms, workouts, or measurements.",
+							)
+				}
       </section>`,
 
-    workout: `
+		workout: `
       <section class="body-card body-card--workout">
         <div class="body-card-heading">
           <div>
@@ -7949,10 +9611,10 @@ function bodyHtml() {
           <button class="primary-button" data-action="add-body-workout">${buttonContent("tabler:notes", "Save Workout Note")}</button>
         </div>
         <p class="body-card-note">Saved workouts become ${escapeHtml(dashboardDisplayLabel("Body"))} notes with the workout details written into the note.</p>
-      </section>`
-  };
+      </section>`,
+	};
 
-  return panelHtml(`
+	return panelHtml(`
     ${headerHtml(dashboardDisplayLabel("Body"), "Timers, nutrition, movement, and notes.", "", { titleHtml: dashboardHeaderTitleHtml("Body") })}
     <div class="body-dashboard">
       ${dashboardOrbNavHtml("Body")}
@@ -7965,74 +9627,93 @@ function bodyHtml() {
 }
 
 function bodyModeSwitcherHtml() {
-  const modes = [
-    ["timers", "Timers", "tabler:clock-hour-4"],
-    ["nutrition", "Nutrition", "tabler:apple"],
-    ["workout", "Workout", "tabler:barbell"],
-    ["notes", "Notes", "tabler:notes"]
-  ];
-  return `
+	const modes = [
+		["timers", "Timers", "tabler:clock-hour-4"],
+		["nutrition", "Nutrition", "tabler:apple"],
+		["workout", "Workout", "tabler:barbell"],
+		["notes", "Notes", "tabler:notes"],
+	];
+	return `
     <nav class="body-mode-switcher body-tool-switcher" aria-label="${escapeHtml(dashboardDisplayLabel("Body"))} tools">
-      ${modes.map(([mode, label, icon]) => `
+      ${modes
+				.map(
+					([mode, label, icon]) => `
         <button class="body-mode-button${state.bodyMode === mode ? " is-active" : ""}" data-action="set-body-mode" data-mode="${mode}" type="button" aria-pressed="${state.bodyMode === mode ? "true" : "false"}">
           ${buttonContent(icon, label, "body-mode-label")}
         </button>
-      `).join("")}
+      `,
+				)
+				.join("")}
     </nav>
   `;
 }
 
 function mindHtml(compendium, section) {
-  const note = findArtifact(state.artifactStore, state.selectedArtifactId);
-  if (state.artifactMode === "editor" && note?.dashboard === "Mind") return dashboardNoteEditorHtml(note);
-  if (state.artifactMode === "viewer" && note?.dashboard === "Mind") return artifactReaderHtml(note, `${dashboardDisplayLabel("Mind")} note`);
-  if (state.mindMode === "compendium-editor" && compendium) return compendiumEditorHtml(compendium);
-  if (state.mindMode === "section-editor" && section) return sectionEditorHtml(section);
-  if (state.mindMode === "section-viewer" && section) {
-    return panelHtml(`
-      ${headerHtml(section.title, "", `
+	const note = findArtifact(state.artifactStore, state.selectedArtifactId);
+	if (state.artifactMode === "editor" && note?.dashboard === "Mind")
+		return dashboardNoteEditorHtml(note);
+	if (state.artifactMode === "viewer" && note?.dashboard === "Mind")
+		return artifactReaderHtml(note, `${dashboardDisplayLabel("Mind")} note`);
+	if (state.mindMode === "compendium-editor" && compendium)
+		return compendiumEditorHtml(compendium);
+	if (state.mindMode === "section-editor" && section)
+		return sectionEditorHtml(section);
+	if (state.mindMode === "section-viewer" && section) {
+		return panelHtml(`
+      ${headerHtml(
+				section.title,
+				"",
+				`
         <div class="action-row">
           ${pageActionButton("edit-section", "tabler:pencil", "Edit section")}
           ${pageActionButton("delete-section", "tabler:trash", "Delete section", { danger: true, data: { id: section.id } })}
           ${pageActionButton("manager", "tabler:x", "Close section viewer", { className: "close-viewer-button" })}
         </div>
-      `)}
+      `,
+			)}
       <div class="reader-panel"><div class="markdown-body">${readerBodyHtml(section.title, section.body)}</div></div>
     `);
-  }
-  if (state.mindMode === "reader" && compendium) return compendiumReaderHtml(compendium);
-  if (state.mindMode === "manager" && compendium) return compendiumManagerHtml(compendium);
-  return mindGridHtml();
+	}
+	if (state.mindMode === "reader" && compendium)
+		return compendiumReaderHtml(compendium);
+	if (state.mindMode === "manager" && compendium)
+		return compendiumManagerHtml(compendium);
+	return mindGridHtml();
 }
 
 function truncatedWordsText(value, maxWords = 15) {
-  const text = String(value || "").trim().replace(/\s+/g, " ");
-  if (!text) return { text: "", truncated: false, wordCount: 0 };
-  const words = text.split(" ");
-  if (words.length <= maxWords) return { text, truncated: false, wordCount: words.length };
-  return {
-    text: `${words.slice(0, maxWords).join(" ")}...`,
-    truncated: true,
-    wordCount: words.length
-  };
+	const text = String(value || "")
+		.trim()
+		.replace(/\s+/g, " ");
+	if (!text) return { text: "", truncated: false, wordCount: 0 };
+	const words = text.split(" ");
+	if (words.length <= maxWords)
+		return { text, truncated: false, wordCount: words.length };
+	return {
+		text: `${words.slice(0, maxWords).join(" ")}...`,
+		truncated: true,
+		wordCount: words.length,
+	};
 }
 
 function compendiumTitleSizeClass(title) {
-  const normalized = String(title || "").trim().replace(/\s+/g, " ");
-  const words = normalized ? normalized.split(" ").length : 0;
-  if (words > 11 || normalized.length > 68) return " is-very-long";
-  if (words > 7 || normalized.length > 44) return " is-long";
-  return "";
+	const normalized = String(title || "")
+		.trim()
+		.replace(/\s+/g, " ");
+	const words = normalized ? normalized.split(" ").length : 0;
+	if (words > 11 || normalized.length > 68) return " is-very-long";
+	if (words > 7 || normalized.length > 44) return " is-long";
+	return "";
 }
 
 function compendiumTitleHtml(compendium, className = "compendium-tile-title") {
-  const title = String(compendium?.title || "Untitled compendium");
-  const displayTitle = truncatedWordsText(title, 15);
-  return `<span class="${className}${compendiumTitleSizeClass(displayTitle.text)}" title="${escapeHtml(title)}">${escapeHtml(displayTitle.text)}</span>`;
+	const title = String(compendium?.title || "Untitled compendium");
+	const displayTitle = truncatedWordsText(title, 15);
+	return `<span class="${className}${compendiumTitleSizeClass(displayTitle.text)}" title="${escapeHtml(title)}">${escapeHtml(displayTitle.text)}</span>`;
 }
 
 function compendiumPickerPopoverHtml(perPage) {
-  return `
+	return `
     <div class="compendium-picker-popover" role="dialog" aria-label="All compendiums">
       <div class="compendium-picker-header">
         <div>
@@ -8041,68 +9722,97 @@ function compendiumPickerPopoverHtml(perPage) {
         </div>
         <button class="icon-button compendium-picker-add" data-action="new-compendium" type="button" aria-label="Add Compendium" title="Add Compendium">${iconHtml("tabler:plus")}</button>
       </div>
-      ${state.compendiums.length ? `
+      ${
+				state.compendiums.length
+					? `
         <div class="compendium-picker-grid">
-          ${state.compendiums.map((compendium, index) => `
+          ${state.compendiums
+						.map(
+							(compendium, index) => `
             <button class="compendium-picker-tile" data-action="select-mind-compendium" data-id="${compendium.id}" data-index="${index}" data-per-page="${perPage}" type="button">
               <b>${String(index + 1).padStart(2, "0")}</b>
               ${compendiumTitleHtml(compendium, "compendium-picker-title")}
             </button>
-          `).join("")}
+          `,
+						)
+						.join("")}
         </div>
-      ` : `<div class="compendium-picker-empty"><strong>No compendiums yet.</strong><span>Add one to start building the grid.</span></div>`}
+      `
+					: `<div class="compendium-picker-empty"><strong>No compendiums yet.</strong><span>Add one to start building the grid.</span></div>`
+			}
     </div>
   `;
 }
 
 function mindGridHtml() {
-  const columns = mindCompendiumColumns();
-  const perPage = mindCompendiumsPerPage();
-  const shouldPage = state.compendiums.length > perPage;
-  const pages = chunkItems(state.compendiums, perPage);
-  const maxPage = Math.max(0, pages.length - 1);
-  const page = mindCompendiumPage(maxPage);
-  const hasPrev = shouldPage && page > 0;
-  const hasNext = shouldPage && page < maxPage;
-  const currentStart = state.compendiums.length ? page * perPage + 1 : 0;
-  const currentEnd = state.compendiums.length ? Math.min(state.compendiums.length, currentStart + perPage - 1) : 0;
-  return panelHtml(`
+	const columns = mindCompendiumColumns();
+	const perPage = mindCompendiumsPerPage();
+	const shouldPage = state.compendiums.length > perPage;
+	const pages = chunkItems(state.compendiums, perPage);
+	const maxPage = Math.max(0, pages.length - 1);
+	const page = mindCompendiumPage(maxPage);
+	const hasPrev = shouldPage && page > 0;
+	const hasNext = shouldPage && page < maxPage;
+	const currentStart = state.compendiums.length ? page * perPage + 1 : 0;
+	const currentEnd = state.compendiums.length
+		? Math.min(state.compendiums.length, currentStart + perPage - 1)
+		: 0;
+	return panelHtml(`
     <div class="scroll-area mind-grid-scroll">
       ${headerHtml(dashboardDisplayLabel("Mind"), "Organize your knowledge with a compendium.", "", { titleHtml: dashboardHeaderTitleHtml("Mind") })}
       ${dashboardOrbNavHtml("Mind")}
-      ${state.compendiums.length ? `
+      ${
+				state.compendiums.length
+					? `
         <section class="compendium-rotator${state.mindCompendiumPickerOpen ? " is-picker-open" : ""}" aria-label="Compendiums" style="--compendium-columns: ${columns};">
           <div class="compendium-rotator-stage${shouldPage ? "" : " compendium-rotator-stage--single-page"}">
-            ${shouldPage ? `<button class="compendium-rotator-edge compendium-rotator-edge--prev${hasPrev ? " is-available" : ""}" data-action="mind-compendium-page" data-direction="prev" data-max-page="${maxPage}" type="button" aria-label="Previous compendiums"${hasPrev ? "" : " disabled"}>
+            ${
+							shouldPage
+								? `<button class="compendium-rotator-edge compendium-rotator-edge--prev${hasPrev ? " is-available" : ""}" data-action="mind-compendium-page" data-direction="prev" data-max-page="${maxPage}" type="button" aria-label="Previous compendiums"${hasPrev ? "" : " disabled"}>
               ${iconHtml("tabler:chevron-left")}
-            </button>` : ""}
+            </button>`
+								: ""
+						}
             <div class="compendium-rotator-window">
               <div class="compendium-rotator-track" style="--compendium-page: ${page};">
-                ${pages.map((compendiums, pageIndex) => `
+                ${pages
+									.map(
+										(compendiums, pageIndex) => `
                   <article class="compendium-rotator-slide${pageIndex === page ? " is-active" : ""}">
                     <div class="compendium-rotator-row">
-                      ${compendiums.map((compendium, itemIndex) => {
-                        const compendiumNumber = itemIndex + 1;
-                        return `
+                      ${compendiums
+												.map((compendium, itemIndex) => {
+													const compendiumNumber = itemIndex + 1;
+													return `
                         <button class="compendium-tile" data-action="open-compendium" data-id="${compendium.id}">
                           <b>${String(compendiumNumber).padStart(2, "0")}</b>
                           ${compendiumTitleHtml(compendium)}
                           <small>${compendium.sections.length} section${compendium.sections.length === 1 ? "" : "s"}</small>
                           <em>edited ${escapeHtml(compendium.edited)}</em>
                         </button>
-                      `; }).join("")}
+                      `;
+												})
+												.join("")}
                     </div>
                   </article>
-                `).join("")}
+                `,
+									)
+									.join("")}
               </div>
             </div>
-            ${shouldPage ? `<button class="compendium-rotator-edge compendium-rotator-edge--next${hasNext ? " is-available" : ""}" data-action="mind-compendium-page" data-direction="next" data-max-page="${maxPage}" type="button" aria-label="Next compendiums"${hasNext ? "" : " disabled"}>
+            ${
+							shouldPage
+								? `<button class="compendium-rotator-edge compendium-rotator-edge--next${hasNext ? " is-available" : ""}" data-action="mind-compendium-page" data-direction="next" data-max-page="${maxPage}" type="button" aria-label="Next compendiums"${hasNext ? "" : " disabled"}>
               ${iconHtml("tabler:chevron-right")}
-            </button>` : ""}
+            </button>`
+								: ""
+						}
             ${state.mindCompendiumPickerOpen ? compendiumPickerPopoverHtml(perPage) : ""}
           </div>
         </section>
-      ` : `<div class="compendium-empty-wrap">${emptyStateHtml("No compendiums yet.", `Add the first compendium to begin organizing ${dashboardDisplayLabel("Mind")}.`)}${state.mindCompendiumPickerOpen ? compendiumPickerPopoverHtml(perPage) : ""}</div>`}
+      `
+					: `<div class="compendium-empty-wrap">${emptyStateHtml("No compendiums yet.", `Add the first compendium to begin organizing ${dashboardDisplayLabel("Mind")}.`)}${state.mindCompendiumPickerOpen ? compendiumPickerPopoverHtml(perPage) : ""}</div>`
+			}
       <div class="compendium-grid-controls">
         <button class="reader-page-indicator compendium-page-indicator" data-action="toggle-mind-compendium-picker" type="button" aria-label="${state.mindCompendiumPickerOpen ? "Close compendium overview" : "Open compendium overview"}" aria-expanded="${state.mindCompendiumPickerOpen ? "true" : "false"}">
           <span class="reader-page-dot reader-page-dot--side${hasPrev ? " is-available" : ""}" aria-hidden="true"></span>
@@ -8115,7 +9825,7 @@ function mindGridHtml() {
 }
 
 function compendiumManagerHtml(compendium) {
-  const actions = `
+	const actions = `
     <div class="action-row">
       <button class="secondary-button" data-action="reader">${buttonContent("tabler:book-2", "Read")}</button>
       ${pageActionButton("edit-compendium", "tabler:pencil", "Edit compendium")}
@@ -8123,54 +9833,58 @@ function compendiumManagerHtml(compendium) {
       ${pageActionButton("delete-compendium", "tabler:trash", "Delete compendium", { danger: true, data: { id: compendium.id } })}
     </div>
   `;
-  return panelHtml(`
+	return panelHtml(`
     ${headerHtml(compendium.title, "Sections are ordered bottom to top. Start at 01 and work upward.", actions)}
     ${compendium.sections.length ? sectionListHtml(compendium) : emptyStateHtml("No sections yet.", "Add the first section to begin building the compendium.")}
   `);
 }
 
 function sectionListHtml(compendium) {
-  return `
+	return `
     <div class="scroll-area">
       <div class="section-list" data-section-sort-list data-compendium-id="${escapeHtml(compendium.id)}">
-        ${compendium.sections.map((section, index) => `
+        ${compendium.sections
+					.map(
+						(section, index) => `
           <button class="section-row" data-action="open-section" data-id="${escapeHtml(section.id)}" data-section-row>
             <span class="section-number-handle" data-section-drag-handle data-id="${escapeHtml(section.id)}" title="Drag to reorder" aria-label="Drag section ${String(compendium.sections.length - index).padStart(2, "0")} to reorder">${String(compendium.sections.length - index).padStart(2, "0")}</span>
             <strong>${escapeHtml(section.title)}</strong>
             <small>${escapeHtml(section.body.replace(/[#>*`-]/g, ""))}</small>
           </button>
-        `).join("")}
+        `,
+					)
+					.join("")}
       </div>
     </div>
   `;
 }
 
 function compendiumReaderHtml(compendium) {
-  const pages = [
-    {
-      key: "cover",
-      body: `
+	const pages = [
+		{
+			key: "cover",
+			body: `
         <section class="reader-section reader-section--cover">
           <h2 class="reader-compendium-title">${escapeHtml(compendium.title)}</h2>
           <div class="markdown-body">${readerBodyHtml(compendium.title, compendium.body, "")}</div>
         </section>
-      `
-    },
-    ...compendium.sections.map((section) => ({
-      key: section.id,
-      body: `
+      `,
+		},
+		...compendium.sections.map((section) => ({
+			key: section.id,
+			body: `
         <section class="reader-section">
           <button class="reader-section-title" data-action="open-section" data-id="${section.id}">${escapeHtml(section.title)}</button>
           <div class="markdown-body">${renderMarkdown(section.body)}</div>
         </section>
-      `
-    }))
-  ];
-  const page = compendiumReaderPage(compendium);
-  const maxPage = Math.max(0, pages.length - 1);
-  const hasPrev = page > 0;
-  const hasNext = page < maxPage;
-  return panelHtml(`
+      `,
+		})),
+	];
+	const page = compendiumReaderPage(compendium);
+	const maxPage = Math.max(0, pages.length - 1);
+	const hasPrev = page > 0;
+	const hasNext = page < maxPage;
+	return panelHtml(`
     <div class="reader-topbar">
       <button class="icon-button" data-action="manager" type="button" aria-label="Close reader" title="Close">${iconHtml("tabler:x")}</button>
     </div>
@@ -8181,11 +9895,15 @@ function compendiumReaderHtml(compendium) {
         </button>
         <div class="reader-book-window">
           <div class="reader-book-inner" style="--reader-page: ${page};">
-            ${pages.map((item, index) => `
+            ${pages
+							.map(
+								(item, index) => `
               <article class="reader-slide${index === page ? " is-active" : ""}" data-reader-page="${index}">
                 ${item.body}
               </article>
-            `).join("")}
+            `,
+							)
+							.join("")}
           </div>
         </div>
         <button class="reader-slider-edge reader-slider-edge--next${hasNext ? " is-available" : ""}" data-action="compendium-reader-page" data-id="${escapeHtml(compendium.id)}" data-direction="next" data-max-page="${maxPage}" type="button" aria-label="Next page"${hasNext ? "" : " disabled"}>
@@ -8202,73 +9920,87 @@ function compendiumReaderHtml(compendium) {
 }
 
 function compendiumEditorHtml(compendium) {
-  return editorHtml({
-    title: "Edit Compendium",
-    subtitle: "Title and body. Sections are managed inside the compendium.",
-    saveAction: "save-compendium",
-    cancelAction: "manager",
-    id: compendium.id,
-    valueTitle: compendium.title,
-    valueBody: compendium.body
-  });
+	return editorHtml({
+		title: "Edit Compendium",
+		subtitle: "Title and body. Sections are managed inside the compendium.",
+		saveAction: "save-compendium",
+		cancelAction: "manager",
+		id: compendium.id,
+		valueTitle: compendium.title,
+		valueBody: compendium.body,
+	});
 }
 
 function sectionEditorHtml(section) {
-  return editorHtml({
-    title: "Edit Section",
-    subtitle: "This can be a chapter, part, terms list, index, or any future compendium unit.",
-    saveAction: "save-section",
-    cancelAction: "section-viewer",
-    id: section.id,
-    valueTitle: section.title,
-    valueBody: section.body
-  });
+	return editorHtml({
+		title: "Edit Section",
+		subtitle:
+			"This can be a chapter, part, terms list, index, or any future compendium unit.",
+		saveAction: "save-section",
+		cancelAction: "section-viewer",
+		id: section.id,
+		valueTitle: section.title,
+		valueBody: section.body,
+	});
 }
 
 function dashboardNoteEditorHtml(note) {
-  if (note.dashboard === "Life" && note.properties?.role === "life-journal") return lifeJournalEditorHtml(note);
-  const isThought = note.properties?.role === "thought";
-  const isGoalProgress = note.properties?.role === "goal-progress";
-  const dashboardName = dashboardDisplayLabel(note.dashboard);
-  return editorHtml({
-    title: isGoalProgress ? "Edit Goal Progress" : isThought ? "Edit Thought" : "Edit Note",
-    subtitle: isGoalProgress
-      ? `${dashboardName} goal / ${note.properties?.goalLabel || "Goal progress"}`
-      : isThought
-        ? `${dashboardName} thought / ${note.properties?.thoughtLabel || "Quick thought"}`
-        : `${dashboardName} artifact note. It uses the same root schema as every dashboard.`,
-    saveAction: "save-artifact-note",
-    cancelAction: "artifact-viewer",
-    id: note.id,
-    statusLabel: note.properties?.isNewDraft ? "Unsaved" : "Saved",
-    valueTitle: note.title,
-    valueBody: note.body
-  });
+	if (note.dashboard === "Life" && note.properties?.role === "life-journal")
+		return lifeJournalEditorHtml(note);
+	const isThought = note.properties?.role === "thought";
+	const isGoalProgress = note.properties?.role === "goal-progress";
+	const dashboardName = dashboardDisplayLabel(note.dashboard);
+	return editorHtml({
+		title: isGoalProgress
+			? "Edit Goal Progress"
+			: isThought
+				? "Edit Thought"
+				: "Edit Note",
+		subtitle: isGoalProgress
+			? `${dashboardName} goal / ${note.properties?.goalLabel || "Goal progress"}`
+			: isThought
+				? `${dashboardName} thought / ${note.properties?.thoughtLabel || "Quick thought"}`
+				: `${dashboardName} artifact note. It uses the same root schema as every dashboard.`,
+		saveAction: "save-artifact-note",
+		cancelAction: "artifact-viewer",
+		id: note.id,
+		statusLabel: note.properties?.isNewDraft ? "Unsaved" : "Saved",
+		valueTitle: note.title,
+		valueBody: note.body,
+	});
 }
 
 function editorSaveStatusHtml(label) {
-  return label ? `<span class="editor-save-status">(${escapeHtml(label)})</span>` : "";
+	return label
+		? `<span class="editor-save-status">(${escapeHtml(label)})</span>`
+		: "";
 }
 
 function lifeJournalEditorHtml(note) {
-  const habits = Array.isArray(note.properties?.habits) ? note.properties.habits : [];
-  const habitOptions = [
-    ["Move", "tabler:walk"],
-    ["Read", "tabler:book-2"],
-    ["Create", "tabler:palette"],
-    ["Clean", "tabler:sparkles"],
-    ["Budget", "tabler:coins"],
-    ["Connect", "tabler:message-circle-heart"],
-    ["Pray", "tabler:hands-pray"],
-    ["Sleep", "tabler:moon"]
-  ];
-  return panelHtml(`
-      ${headerHtml("Edit Life Note", "Journal entry with quick habit markers.", `
+	const habits = Array.isArray(note.properties?.habits)
+		? note.properties.habits
+		: [];
+	const habitOptions = [
+		["Move", "tabler:walk"],
+		["Read", "tabler:book-2"],
+		["Create", "tabler:palette"],
+		["Clean", "tabler:sparkles"],
+		["Budget", "tabler:coins"],
+		["Connect", "tabler:message-circle-heart"],
+		["Pray", "tabler:hands-pray"],
+		["Sleep", "tabler:moon"],
+	];
+	return panelHtml(`
+      ${headerHtml(
+				"Edit Life Note",
+				"Journal entry with quick habit markers.",
+				`
       <div class="action-row">
         ${pageActionButton("delete-artifact-note", "tabler:trash", "Delete note", { danger: true, data: { id: note.id } })}
         ${pageActionButton("artifact-viewer", "tabler:x", "Close editor", { className: "close-viewer-button" })}
       </div>
-    `)}
+    `,
+			)}
     <form class="editor-form life-editor-form">
       ${editorSaveStatusHtml(note.properties?.isNewDraft ? "Unsaved" : "Saved")}
       <input id="editor-title" value="${escapeHtml(note.title)}" aria-label="Title">
@@ -8288,13 +10020,17 @@ function lifeJournalEditorHtml(note) {
       <fieldset class="life-habit-fieldset">
         <legend>Habits</legend>
         <div class="life-habit-grid">
-          ${habitOptions.map(([habit, icon]) => `
+          ${habitOptions
+						.map(
+							([habit, icon]) => `
             <label class="life-habit-pill">
               <input data-life-habit type="checkbox" value="${escapeHtml(habit)}"${habits.includes(habit) ? " checked" : ""}>
               <span class="life-habit-icon">${iconHtml(icon)}</span>
               <span class="life-habit-label">${escapeHtml(habit)}</span>
             </label>
-          `).join("")}
+          `,
+						)
+						.join("")}
         </div>
       </fieldset>
       <label class="body-field editor-body-field">Journal
@@ -8311,16 +10047,29 @@ function lifeJournalEditorHtml(note) {
   `);
 }
 
-function editorHtml({ title, subtitle, saveAction, cancelAction, id, statusLabel = "", valueTitle, valueBody }) {
-  return panelHtml(`
-    ${headerHtml(title, subtitle, `
+function editorHtml({
+	title,
+	subtitle,
+	saveAction,
+	cancelAction,
+	id,
+	statusLabel = "",
+	valueTitle,
+	valueBody,
+}) {
+	return panelHtml(`
+    ${headerHtml(
+			title,
+			subtitle,
+			`
       <div class="action-row">
         ${saveAction === "save-artifact-note" ? pageActionButton("delete-artifact-note", "tabler:trash", "Delete note", { danger: true, data: { id } }) : ""}
         ${saveAction === "save-compendium" ? pageActionButton("delete-compendium", "tabler:trash", "Delete compendium", { danger: true, data: { id } }) : ""}
         ${saveAction === "save-section" ? pageActionButton("delete-section", "tabler:trash", "Delete section", { danger: true, data: { id } }) : ""}
         ${pageActionButton(cancelAction, "tabler:x", "Close editor", { className: "close-viewer-button" })}
       </div>
-    `)}
+    `,
+		)}
     <form class="editor-form">
       ${editorSaveStatusHtml(statusLabel)}
       <input id="editor-title" value="${escapeHtml(valueTitle)}" aria-label="Title">
@@ -8337,12 +10086,15 @@ function editorHtml({ title, subtitle, saveAction, cancelAction, id, statusLabel
 }
 
 function prefersCameraCapture() {
-  return Boolean(window.matchMedia?.("(pointer: coarse)").matches || window.matchMedia?.("(max-width: 860px)").matches);
+	return Boolean(
+		window.matchMedia?.("(pointer: coarse)").matches ||
+			window.matchMedia?.("(max-width: 860px)").matches,
+	);
 }
 
 function editorImageButtonHtml() {
-  const camera = prefersCameraCapture();
-  return `
+	const camera = prefersCameraCapture();
+	return `
     <button class="icon-button editor-image-button" data-editor-image-button type="button" aria-label="${camera ? "Take photo" : "Upload image"}" title="${camera ? "Take Photo" : "Upload Image"}">
       ${iconHtml(camera ? "tabler:camera" : "tabler:photo")}
     </button>
@@ -8350,12 +10102,12 @@ function editorImageButtonHtml() {
 }
 
 function panelHtml(inner) {
-  return `<div class="panel">${inner}</div>`;
+	return `<div class="panel">${inner}</div>`;
 }
 
 function headerHtml(title, subtitle, actions = "", options = {}) {
-  const renderedTitle = options.titleHtml || escapeHtml(title);
-  return `
+	const renderedTitle = options.titleHtml || escapeHtml(title);
+	return `
     <header class="panel-header">
       ${actions ? `<div class="panel-header-actions">${actions}</div>` : ""}
       <div class="panel-header-copy">
@@ -8367,7 +10119,7 @@ function headerHtml(title, subtitle, actions = "", options = {}) {
 }
 
 function emptyStateHtml(title, body) {
-  return `
+	return `
     <div class="empty-state">
       <div>
         <h3>${escapeHtml(title)}</h3>
@@ -8378,835 +10130,1108 @@ function emptyStateHtml(title, body) {
 }
 
 function hideThoughtTooltip() {
-  window.clearTimeout(thoughtTooltipLongPressTimer);
-  thoughtTooltipLongPressTimer = null;
-  if (thoughtTooltipCleanup) {
-    thoughtTooltipCleanup();
-    thoughtTooltipCleanup = null;
-  }
-  document.querySelector(".thought-tooltip")?.remove();
+	window.clearTimeout(thoughtTooltipLongPressTimer);
+	thoughtTooltipLongPressTimer = null;
+	if (thoughtTooltipCleanup) {
+		thoughtTooltipCleanup();
+		thoughtTooltipCleanup = null;
+	}
+	document.querySelector(".thought-tooltip")?.remove();
 }
 
 function showThoughtTooltip(target) {
-  if (document.querySelector(".guided-tip-bubble")) return;
-  const label = simpleTooltipText(target?.dataset?.thoughtTooltip);
-  if (!label) return;
-  hideThoughtTooltip();
-  const tooltip = document.createElement("div");
-  tooltip.className = "thought-tooltip";
-  tooltip.setAttribute("role", "tooltip");
-  const thoughtColor = window.getComputedStyle(target).getPropertyValue("--thought-color").trim();
-  if (thoughtColor) tooltip.style.setProperty("--thought-color", thoughtColor);
-  tooltip.innerHTML = `<span>${escapeHtml(label)}</span><i aria-hidden="true"></i>`;
-  document.body.append(tooltip);
+	if (document.querySelector(".guided-tip-bubble")) return;
+	const label = simpleTooltipText(target?.dataset?.thoughtTooltip);
+	if (!label) return;
+	hideThoughtTooltip();
+	const tooltip = document.createElement("div");
+	tooltip.className = "thought-tooltip";
+	tooltip.setAttribute("role", "tooltip");
+	const thoughtColor = window
+		.getComputedStyle(target)
+		.getPropertyValue("--thought-color")
+		.trim();
+	if (thoughtColor) tooltip.style.setProperty("--thought-color", thoughtColor);
+	tooltip.innerHTML = `<span>${escapeHtml(label)}</span><i aria-hidden="true"></i>`;
+	document.body.append(tooltip);
 
-  const update = () => {
-    computePosition(target, tooltip, {
-      placement: "top",
-      strategy: "fixed",
-      middleware: [offset(10), flip(), shift({ padding: 8 })]
-    }).then(({ x, y }) => {
-      Object.assign(tooltip.style, {
-        left: `${x}px`,
-        top: `${y}px`
-      });
-      tooltip.dataset.ready = "true";
-    });
-  };
-  thoughtTooltipCleanup = autoUpdate(target, tooltip, update);
-  update();
+	const update = () => {
+		computePosition(target, tooltip, {
+			placement: "top",
+			strategy: "fixed",
+			middleware: [offset(10), flip(), shift({ padding: 8 })],
+		}).then(({ x, y }) => {
+			Object.assign(tooltip.style, {
+				left: `${x}px`,
+				top: `${y}px`,
+			});
+			tooltip.dataset.ready = "true";
+		});
+	};
+	thoughtTooltipCleanup = autoUpdate(target, tooltip, update);
+	update();
 }
 
 function hideGuidedTip() {
-  if (guidedTipCleanup) {
-    guidedTipCleanup();
-    guidedTipCleanup = null;
-  }
-  if (guidedTipTarget && guidedTipTargetClickHandler) {
-    guidedTipTarget.removeEventListener("click", guidedTipTargetClickHandler, true);
-    guidedTipTarget = null;
-    guidedTipTargetClickHandler = null;
-  }
-  document.querySelector(".guided-tip-bubble")?.remove();
-  app.querySelectorAll(".is-guided-tip-target").forEach((element) => {
-    element.classList.remove("is-guided-tip-target");
-  });
+	if (guidedTipCleanup) {
+		guidedTipCleanup();
+		guidedTipCleanup = null;
+	}
+	if (guidedTipTarget && guidedTipTargetClickHandler) {
+		guidedTipTarget.removeEventListener(
+			"click",
+			guidedTipTargetClickHandler,
+			true,
+		);
+		guidedTipTarget = null;
+		guidedTipTargetClickHandler = null;
+	}
+	document.querySelector(".guided-tip-bubble")?.remove();
+	app.querySelectorAll(".is-guided-tip-target").forEach((element) => {
+		element.classList.remove("is-guided-tip-target");
+	});
 }
 
 function isElementVisible(element) {
-  if (!element || element.closest("[hidden], [inert]")) return false;
-  const rect = element.getBoundingClientRect();
-  if (rect.width <= 0 || rect.height <= 0) return false;
-  const style = window.getComputedStyle(element);
-  return style.display !== "none" && style.visibility !== "hidden" && style.opacity !== "0";
+	if (!element || element.closest("[hidden], [inert]")) return false;
+	const rect = element.getBoundingClientRect();
+	if (rect.width <= 0 || rect.height <= 0) return false;
+	const style = window.getComputedStyle(element);
+	return (
+		style.display !== "none" &&
+		style.visibility !== "hidden" &&
+		style.opacity !== "0"
+	);
 }
 
 function activeGuidedTip() {
-  const dismissed = new Set(state.dismissedTips || []);
-  for (const tip of GUIDED_TIP_SEQUENCE) {
-    if (dismissed.has(tip.id) || (tip.when && !tip.when())) continue;
-    const target = app.querySelector(tip.selector);
-    if (isElementVisible(target)) return { ...tip, target };
-  }
-  return null;
+	const dismissed = new Set(state.dismissedTips || []);
+	for (const tip of GUIDED_TIP_SEQUENCE) {
+		if (dismissed.has(tip.id) || (tip.when && !tip.when())) continue;
+		const target = app.querySelector(tip.selector);
+		if (isElementVisible(target)) return { ...tip, target };
+	}
+	return null;
 }
 
 function advanceGuidedTip(tipId) {
-  rememberDismissedTip(tipId);
-  hideGuidedTip();
-  render();
+	rememberDismissedTip(tipId);
+	hideGuidedTip();
+	render();
 }
 
 function showGuidedTip(tip) {
-  if (!tip?.target) return;
-  hideThoughtTooltip();
-  hideGuidedTip();
-  const bubble = document.createElement("button");
-  bubble.className = "guided-tip-bubble";
-  bubble.type = "button";
-  bubble.innerHTML = `<span>${escapeHtml(simpleTooltipText(tip.label))}</span><i aria-hidden="true"></i>`;
-  bubble.setAttribute("aria-label", `${simpleTooltipText(tip.label)}. Next tip.`);
-  bubble.addEventListener("click", () => advanceGuidedTip(tip.id));
-  document.body.append(bubble);
-  tip.target.classList.add("is-guided-tip-target");
-  guidedTipTarget = tip.target;
-  guidedTipTargetClickHandler = () => {
-    rememberDismissedTip(tip.id);
-    hideGuidedTip();
-  };
-  tip.target.addEventListener("click", guidedTipTargetClickHandler, { capture: true, once: true });
+	if (!tip?.target) return;
+	hideThoughtTooltip();
+	hideGuidedTip();
+	const bubble = document.createElement("button");
+	bubble.className = "guided-tip-bubble";
+	bubble.type = "button";
+	bubble.innerHTML = `<span>${escapeHtml(simpleTooltipText(tip.label))}</span><i aria-hidden="true"></i>`;
+	bubble.setAttribute(
+		"aria-label",
+		`${simpleTooltipText(tip.label)}. Next tip.`,
+	);
+	bubble.addEventListener("click", () => advanceGuidedTip(tip.id));
+	document.body.append(bubble);
+	tip.target.classList.add("is-guided-tip-target");
+	guidedTipTarget = tip.target;
+	guidedTipTargetClickHandler = () => {
+		rememberDismissedTip(tip.id);
+		hideGuidedTip();
+	};
+	tip.target.addEventListener("click", guidedTipTargetClickHandler, {
+		capture: true,
+		once: true,
+	});
 
-  const update = () => {
-    computePosition(tip.target, bubble, {
-      placement: tip.placement || "top",
-      strategy: "fixed",
-      middleware: [offset(12), flip(), shift({ padding: 10 })]
-    }).then(({ x, y, placement }) => {
-      Object.assign(bubble.style, {
-        left: `${x}px`,
-        top: `${y}px`
-      });
-      bubble.dataset.placement = placement;
-      bubble.dataset.ready = "true";
-    });
-  };
-  guidedTipCleanup = autoUpdate(tip.target, bubble, update);
-  update();
+	const update = () => {
+		computePosition(tip.target, bubble, {
+			placement: tip.placement || "top",
+			strategy: "fixed",
+			middleware: [offset(12), flip(), shift({ padding: 10 })],
+		}).then(({ x, y, placement }) => {
+			Object.assign(bubble.style, {
+				left: `${x}px`,
+				top: `${y}px`,
+			});
+			bubble.dataset.placement = placement;
+			bubble.dataset.ready = "true";
+		});
+	};
+	guidedTipCleanup = autoUpdate(tip.target, bubble, update);
+	update();
 }
 
 function bindGuidedTips() {
-  window.requestAnimationFrame(() => {
-    const tip = activeGuidedTip();
-    if (tip) showGuidedTip(tip);
-  });
+	window.requestAnimationFrame(() => {
+		const tip = activeGuidedTip();
+		if (tip) showGuidedTip(tip);
+	});
 }
 
 function bindThoughtTooltips() {
-  app.querySelectorAll("[data-thought-tooltip]").forEach((element) => {
-    element.addEventListener("pointerenter", (event) => {
-      if (event.pointerType === "touch") return;
-      showThoughtTooltip(element);
-    });
-    element.addEventListener("pointerleave", hideThoughtTooltip);
-    element.addEventListener("focus", () => showThoughtTooltip(element));
-    element.addEventListener("blur", hideThoughtTooltip);
-    element.addEventListener("pointerdown", (event) => {
-      if (event.pointerType !== "touch") return;
-      window.clearTimeout(thoughtTooltipLongPressTimer);
-      thoughtTooltipSuppressClickTarget = null;
-      thoughtTooltipLongPressTimer = window.setTimeout(() => {
-        thoughtTooltipSuppressClickTarget = element;
-        showThoughtTooltip(element);
-      }, THOUGHT_TOOLTIP_LONG_PRESS_MS);
-    });
-    element.addEventListener("pointerup", () => window.clearTimeout(thoughtTooltipLongPressTimer));
-    element.addEventListener("pointercancel", hideThoughtTooltip);
-    element.addEventListener("click", (event) => {
-      if (thoughtTooltipSuppressClickTarget !== element) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      thoughtTooltipSuppressClickTarget = null;
-      hideThoughtTooltip();
-    }, { capture: true });
-  });
+	app.querySelectorAll("[data-thought-tooltip]").forEach((element) => {
+		element.addEventListener("pointerenter", (event) => {
+			if (event.pointerType === "touch") return;
+			showThoughtTooltip(element);
+		});
+		element.addEventListener("pointerleave", hideThoughtTooltip);
+		element.addEventListener("focus", () => showThoughtTooltip(element));
+		element.addEventListener("blur", hideThoughtTooltip);
+		element.addEventListener("pointerdown", (event) => {
+			if (event.pointerType !== "touch") return;
+			window.clearTimeout(thoughtTooltipLongPressTimer);
+			thoughtTooltipSuppressClickTarget = null;
+			thoughtTooltipLongPressTimer = window.setTimeout(() => {
+				thoughtTooltipSuppressClickTarget = element;
+				showThoughtTooltip(element);
+			}, THOUGHT_TOOLTIP_LONG_PRESS_MS);
+		});
+		element.addEventListener("pointerup", () =>
+			window.clearTimeout(thoughtTooltipLongPressTimer),
+		);
+		element.addEventListener("pointercancel", hideThoughtTooltip);
+		element.addEventListener(
+			"click",
+			(event) => {
+				if (thoughtTooltipSuppressClickTarget !== element) return;
+				event.preventDefault();
+				event.stopImmediatePropagation();
+				thoughtTooltipSuppressClickTarget = null;
+				hideThoughtTooltip();
+			},
+			{ capture: true },
+		);
+	});
 }
 
 function headerActionLabel(button) {
-  return (
-    button.dataset.thoughtTooltip ||
-    button.getAttribute("aria-label") ||
-    button.getAttribute("title") ||
-    button.querySelector(".button-label, .body-mode-label")?.textContent?.trim() ||
-    button.textContent?.trim() ||
-    ""
-  ).trim();
+	return (
+		button.dataset.thoughtTooltip ||
+		button.getAttribute("aria-label") ||
+		button.getAttribute("title") ||
+		button
+			.querySelector(".button-label, .body-mode-label")
+			?.textContent?.trim() ||
+		button.textContent?.trim() ||
+		""
+	).trim();
 }
 
 function bindHeaderActionTooltips() {
-  app.querySelectorAll(".panel-header-actions button").forEach((button) => {
-    const label = simpleTooltipText(headerActionLabel(button));
-    if (!label) return;
-    button.dataset.thoughtTooltip = label;
-    if (!button.getAttribute("aria-label")) button.setAttribute("aria-label", label);
-    if (!button.getAttribute("title")) button.setAttribute("title", label);
-  });
+	app.querySelectorAll(".panel-header-actions button").forEach((button) => {
+		const label = simpleTooltipText(headerActionLabel(button));
+		if (!label) return;
+		button.dataset.thoughtTooltip = label;
+		if (!button.getAttribute("aria-label"))
+			button.setAttribute("aria-label", label);
+		if (!button.getAttribute("title")) button.setAttribute("title", label);
+	});
 }
 
 function bindActions() {
-  app.querySelectorAll("[data-action]").forEach((element) => {
-    if (element.closest("[data-icon-picker-overlay]")) return;
-    const action = element.dataset.action;
-    if (action === "open-donation") return;
-    if (action === "select-spirit-plan") {
-      element.addEventListener("change", () => selectSpiritPlan(element.value));
-    } else {
-      element.addEventListener("click", (event) => {
-        const actionElement = eventActionElement(event);
-        if (actionElement && actionElement !== element) return;
-        handleAction(element);
-      });
-      element.addEventListener("keydown", (event) => {
-        if (event.target !== element || !["Enter", " "].includes(event.key)) return;
-        event.preventDefault();
-        handleAction(element);
-      });
-    }
-  });
+	app.querySelectorAll("[data-action]").forEach((element) => {
+		if (element.closest("[data-icon-picker-overlay]")) return;
+		const action = element.dataset.action;
+		if (action === "open-donation") return;
+		if (action === "select-spirit-plan") {
+			element.addEventListener("change", () => selectSpiritPlan(element.value));
+		} else {
+			element.addEventListener("click", (event) => {
+				const actionElement = eventActionElement(event);
+				if (actionElement && actionElement !== element) return;
+				handleAction(element);
+			});
+			element.addEventListener("keydown", (event) => {
+				if (event.target !== element || !["Enter", " "].includes(event.key))
+					return;
+				event.preventDefault();
+				handleAction(element);
+			});
+		}
+	});
 }
 
 function bindDashboardIdentityAutoSave() {
-  const panel = app.querySelector(".interface-settings");
-  if (!panel) return;
-  let saveTimer = null;
-  const scheduleSave = () => {
-    window.clearTimeout(saveTimer);
-    saveTimer = window.setTimeout(saveDashboardIdentitySettings, 200);
-  };
-  panel.querySelectorAll("input[name='dashboard-display-mode'], .dashboard-identity-input-row input").forEach((input) => {
-    input.addEventListener("input", scheduleSave);
-    input.addEventListener("change", saveDashboardIdentitySettings);
-  });
+	const panel = app.querySelector(".interface-settings");
+	if (!panel) return;
+	let saveTimer = null;
+	const scheduleSave = () => {
+		window.clearTimeout(saveTimer);
+		saveTimer = window.setTimeout(saveDashboardIdentitySettings, 200);
+	};
+	panel
+		.querySelectorAll(
+			"input[name='dashboard-display-mode'], .dashboard-identity-input-row input",
+		)
+		.forEach((input) => {
+			input.addEventListener("input", scheduleSave);
+			input.addEventListener("change", saveDashboardIdentitySettings);
+		});
 }
 
 function bindTrackerEditorAutoSave() {
-  app.querySelectorAll("[data-tracker-edit-form]").forEach((form) => {
-    const area = form.dataset.area || "";
-    const id = form.dataset.id || "";
-    const kind = form.dataset.kind || "thought";
-    let saveTimer = null;
-    const saveOpenEditor = () => updateTracker(area, id, kind, { close: false, silent: true });
-    const scheduleSave = () => {
-      window.clearTimeout(saveTimer);
-      saveTimer = window.setTimeout(saveOpenEditor, 250);
-    };
-    form.querySelectorAll(".tracker-title-input, .icon-picker-input").forEach((input) => {
-      input.addEventListener("input", scheduleSave);
-      input.addEventListener("change", saveOpenEditor);
-    });
-    form.querySelector(".tracker-enabled-toggle input")?.addEventListener("change", saveOpenEditor);
-    const frequencySelect = form.querySelector(".tracker-frequency-input[id$='-frequency']");
-    const customRange = form.querySelector(".goal-frequency-range");
-    const customOutput = form.querySelector(".goal-frequency-slider-row output");
-    const syncFrequencyControls = () => {
-      if (!customRange) return;
-      const isCustom = frequencySelect?.value === "custom";
-      customRange.disabled = !isCustom;
-      if (customOutput) {
-        const days = Math.max(1, Math.round(Number(customRange.value) || 1));
-        customOutput.textContent = `${days} day${days === 1 ? "" : "s"}`;
-      }
-    };
-    frequencySelect?.addEventListener("change", () => {
-      syncFrequencyControls();
-      saveOpenEditor();
-    });
-    customRange?.addEventListener("input", () => {
-      syncFrequencyControls();
-      scheduleSave();
-    });
-    customRange?.addEventListener("change", saveOpenEditor);
-    syncFrequencyControls();
-  });
+	app.querySelectorAll("[data-tracker-edit-form]").forEach((form) => {
+		const area = form.dataset.area || "";
+		const id = form.dataset.id || "";
+		const kind = form.dataset.kind || "thought";
+		let saveTimer = null;
+		const saveOpenEditor = () =>
+			updateTracker(area, id, kind, { close: false, silent: true });
+		const scheduleSave = () => {
+			window.clearTimeout(saveTimer);
+			saveTimer = window.setTimeout(saveOpenEditor, 250);
+		};
+		form
+			.querySelectorAll(".tracker-title-input, .icon-picker-input")
+			.forEach((input) => {
+				input.addEventListener("input", scheduleSave);
+				input.addEventListener("change", saveOpenEditor);
+			});
+		form
+			.querySelector(".tracker-enabled-toggle input")
+			?.addEventListener("change", saveOpenEditor);
+		const frequencySelect = form.querySelector(
+			".tracker-frequency-input[id$='-frequency']",
+		);
+		const customRange = form.querySelector(".goal-frequency-range");
+		const customOutput = form.querySelector(
+			".goal-frequency-slider-row output",
+		);
+		const syncFrequencyControls = () => {
+			if (!customRange) return;
+			const isCustom = frequencySelect?.value === "custom";
+			customRange.disabled = !isCustom;
+			if (customOutput) {
+				const days = Math.max(1, Math.round(Number(customRange.value) || 1));
+				customOutput.textContent = `${days} day${days === 1 ? "" : "s"}`;
+			}
+		};
+		frequencySelect?.addEventListener("change", () => {
+			syncFrequencyControls();
+			saveOpenEditor();
+		});
+		customRange?.addEventListener("input", () => {
+			syncFrequencyControls();
+			scheduleSave();
+		});
+		customRange?.addEventListener("change", saveOpenEditor);
+		syncFrequencyControls();
+	});
 }
 
 function eventActionElement(event) {
-  const direct = event.target?.closest?.("[data-action]");
-  if (direct) return direct;
-  return event.composedPath?.().find((node) => node?.dataset?.action) || null;
+	const direct = event.target?.closest?.("[data-action]");
+	if (direct) return direct;
+	return event.composedPath?.().find((node) => node?.dataset?.action) || null;
 }
 
 function bindSidebarResize() {
-  return;
+	return;
 }
 
 function bindSidebarHorizontalScroll() {
-  app.querySelectorAll(".sidebar-group-items").forEach((element) => {
-    element.addEventListener("wheel", (event) => {
-      if (element.scrollWidth <= element.clientWidth) return;
-      event.preventDefault();
-      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-      element.scrollBy({
-        left: delta,
-        behavior: "smooth"
-      });
-    }, { passive: false });
-  });
+	app.querySelectorAll(".sidebar-group-items").forEach((element) => {
+		element.addEventListener(
+			"wheel",
+			(event) => {
+				if (element.scrollWidth <= element.clientWidth) return;
+				event.preventDefault();
+				const delta =
+					Math.abs(event.deltaX) > Math.abs(event.deltaY)
+						? event.deltaX
+						: event.deltaY;
+				element.scrollBy({
+					left: delta,
+					behavior: "smooth",
+				});
+			},
+			{ passive: false },
+		);
+	});
 }
 
 function updatePathBarOverflow(pathBar) {
-  if (!pathBar) return;
-  const maxScroll = Math.max(0, pathBar.scrollWidth - pathBar.clientWidth);
-  pathBar.classList.toggle("is-overflow-left", pathBar.scrollLeft > 1);
-  pathBar.classList.toggle("is-overflow-right", pathBar.scrollLeft < maxScroll - 1);
+	if (!pathBar) return;
+	const maxScroll = Math.max(0, pathBar.scrollWidth - pathBar.clientWidth);
+	pathBar.classList.toggle("is-overflow-left", pathBar.scrollLeft > 1);
+	pathBar.classList.toggle(
+		"is-overflow-right",
+		pathBar.scrollLeft < maxScroll - 1,
+	);
 }
 
 function bindPathBarOverflow() {
-  const pathBar = app.querySelector(".path-bar");
-  if (!pathBar) return;
-  const refresh = () => updatePathBarOverflow(pathBar);
-  const focusCurrent = () => {
-    if (pathBar.dataset.focusCurrent !== "true" || pathBar.dataset.currentFocused === "true") return;
-    const maxScroll = Math.max(0, pathBar.scrollWidth - pathBar.clientWidth);
-    if (maxScroll > 0) pathBar.scrollLeft = maxScroll;
-    pathBar.dataset.currentFocused = "true";
-    refresh();
-  };
-  refresh();
-  requestAnimationFrame(() => {
-    focusCurrent();
-    refresh();
-  });
-  pathBar.addEventListener("scroll", refresh, { passive: true });
-  pathBar.addEventListener("wheel", (event) => {
-    if (pathBar.scrollWidth <= pathBar.clientWidth) return;
-    event.preventDefault();
-    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-    pathBar.scrollBy({ left: delta, behavior: "smooth" });
-    requestAnimationFrame(refresh);
-  }, { passive: false });
-  window.addEventListener("resize", refresh, { passive: true });
-  if (typeof ResizeObserver !== "undefined") {
-    const observer = new ResizeObserver(refresh);
-    observer.observe(pathBar);
-  }
+	const pathBar = app.querySelector(".path-bar");
+	if (!pathBar) return;
+	const refresh = () => updatePathBarOverflow(pathBar);
+	const focusCurrent = () => {
+		if (
+			pathBar.dataset.focusCurrent !== "true" ||
+			pathBar.dataset.currentFocused === "true"
+		)
+			return;
+		const maxScroll = Math.max(0, pathBar.scrollWidth - pathBar.clientWidth);
+		if (maxScroll > 0) pathBar.scrollLeft = maxScroll;
+		pathBar.dataset.currentFocused = "true";
+		refresh();
+	};
+	refresh();
+	requestAnimationFrame(() => {
+		focusCurrent();
+		refresh();
+	});
+	pathBar.addEventListener("scroll", refresh, { passive: true });
+	pathBar.addEventListener(
+		"wheel",
+		(event) => {
+			if (pathBar.scrollWidth <= pathBar.clientWidth) return;
+			event.preventDefault();
+			const delta =
+				Math.abs(event.deltaX) > Math.abs(event.deltaY)
+					? event.deltaX
+					: event.deltaY;
+			pathBar.scrollBy({ left: delta, behavior: "smooth" });
+			requestAnimationFrame(refresh);
+		},
+		{ passive: false },
+	);
+	window.addEventListener("resize", refresh, { passive: true });
+	if (typeof ResizeObserver !== "undefined") {
+		const observer = new ResizeObserver(refresh);
+		observer.observe(pathBar);
+	}
 }
 
 function sectionDropIndex(list, activeRow, pointerY) {
-  const rows = Array.from(list.querySelectorAll("[data-section-row]"))
-    .filter((row) => row !== activeRow);
-  const index = rows.findIndex((row) => {
-    const rect = row.getBoundingClientRect();
-    return pointerY < rect.top + rect.height / 2;
-  });
-  return index === -1 ? rows.length : index;
+	const rows = Array.from(list.querySelectorAll("[data-section-row]")).filter(
+		(row) => row !== activeRow,
+	);
+	const index = rows.findIndex((row) => {
+		const rect = row.getBoundingClientRect();
+		return pointerY < rect.top + rect.height / 2;
+	});
+	return index === -1 ? rows.length : index;
 }
 
 function moveSectionRow(list, activeRow, targetIndex) {
-  const rows = Array.from(list.querySelectorAll("[data-section-row]"))
-    .filter((row) => row !== activeRow);
-  list.insertBefore(activeRow, rows[targetIndex] || null);
+	const rows = Array.from(list.querySelectorAll("[data-section-row]")).filter(
+		(row) => row !== activeRow,
+	);
+	list.insertBefore(activeRow, rows[targetIndex] || null);
 }
 
 function renumberSectionRows(list) {
-  const rows = Array.from(list.querySelectorAll("[data-section-row]"));
-  rows.forEach((row, index) => {
-    const number = String(rows.length - index).padStart(2, "0");
-    const handle = row.querySelector("[data-section-drag-handle]");
-    if (handle) {
-      handle.textContent = number;
-      handle.setAttribute("aria-label", `Drag section ${number} to reorder`);
-    }
-  });
+	const rows = Array.from(list.querySelectorAll("[data-section-row]"));
+	rows.forEach((row, index) => {
+		const number = String(rows.length - index).padStart(2, "0");
+		const handle = row.querySelector("[data-section-drag-handle]");
+		if (handle) {
+			handle.textContent = number;
+			handle.setAttribute("aria-label", `Drag section ${number} to reorder`);
+		}
+	});
 }
 
 function scrollSectionListWhileDragging(scrollArea, pointerY) {
-  if (!scrollArea) return;
-  const rect = scrollArea.getBoundingClientRect();
-  const edge = 56;
-  if (pointerY < rect.top + edge) {
-    scrollArea.scrollTop -= Math.ceil((rect.top + edge - pointerY) / 3);
-  } else if (pointerY > rect.bottom - edge) {
-    scrollArea.scrollTop += Math.ceil((pointerY - (rect.bottom - edge)) / 3);
-  }
+	if (!scrollArea) return;
+	const rect = scrollArea.getBoundingClientRect();
+	const edge = 56;
+	if (pointerY < rect.top + edge) {
+		scrollArea.scrollTop -= Math.ceil((rect.top + edge - pointerY) / 3);
+	} else if (pointerY > rect.bottom - edge) {
+		scrollArea.scrollTop += Math.ceil((pointerY - (rect.bottom - edge)) / 3);
+	}
 }
 
 function bindCompendiumSectionSorting() {
-  const list = app.querySelector("[data-section-sort-list]");
-  if (!list) return;
+	const list = app.querySelector("[data-section-sort-list]");
+	if (!list) return;
 
-  list.querySelectorAll("[data-section-drag-handle]").forEach((handle) => {
-    handle.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-    });
+	list.querySelectorAll("[data-section-drag-handle]").forEach((handle) => {
+		handle.addEventListener("click", (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+		});
 
-    handle.addEventListener("pointerdown", (event) => {
-      if (event.button !== undefined && event.button !== 0) return;
-      const activeRow = handle.closest("[data-section-row]");
-      const compendiumId = list.dataset.compendiumId;
-      const sectionId = activeRow?.dataset.id;
-      if (!activeRow || !compendiumId || !sectionId) return;
+		handle.addEventListener("pointerdown", (event) => {
+			if (event.button !== undefined && event.button !== 0) return;
+			const activeRow = handle.closest("[data-section-row]");
+			const compendiumId = list.dataset.compendiumId;
+			const sectionId = activeRow?.dataset.id;
+			if (!activeRow || !compendiumId || !sectionId) return;
 
-      event.preventDefault();
-      event.stopPropagation();
-      handle.setPointerCapture?.(event.pointerId);
-      list.classList.add("is-sorting");
-      activeRow.classList.add("is-dragging");
-      handle.classList.add("is-active");
+			event.preventDefault();
+			event.stopPropagation();
+			handle.setPointerCapture?.(event.pointerId);
+			list.classList.add("is-sorting");
+			activeRow.classList.add("is-dragging");
+			handle.classList.add("is-active");
 
-      const scrollArea = list.closest(".scroll-area");
-      let moved = false;
+			const scrollArea = list.closest(".scroll-area");
+			let moved = false;
 
-      const onPointerMove = (moveEvent) => {
-        moveEvent.preventDefault();
-        scrollSectionListWhileDragging(scrollArea, moveEvent.clientY);
-        const targetIndex = sectionDropIndex(list, activeRow, moveEvent.clientY);
-        if (!reorderCompendiumSection(compendiumId, sectionId, targetIndex)) return;
-        moveSectionRow(list, activeRow, targetIndex);
-        renumberSectionRows(list);
-        moved = true;
-      };
+			const onPointerMove = (moveEvent) => {
+				moveEvent.preventDefault();
+				scrollSectionListWhileDragging(scrollArea, moveEvent.clientY);
+				const targetIndex = sectionDropIndex(
+					list,
+					activeRow,
+					moveEvent.clientY,
+				);
+				if (!reorderCompendiumSection(compendiumId, sectionId, targetIndex))
+					return;
+				moveSectionRow(list, activeRow, targetIndex);
+				renumberSectionRows(list);
+				moved = true;
+			};
 
-      const finishDrag = (finishEvent) => {
-        handle.releasePointerCapture?.(finishEvent.pointerId);
-        window.removeEventListener("pointermove", onPointerMove);
-        window.removeEventListener("pointerup", finishDrag);
-        window.removeEventListener("pointercancel", finishDrag);
-        list.classList.remove("is-sorting");
-        activeRow.classList.remove("is-dragging");
-        handle.classList.remove("is-active");
-        if (!moved) return;
-        touchCompendium(compendiumId);
-        persistCompendiums();
-      };
+			const finishDrag = (finishEvent) => {
+				handle.releasePointerCapture?.(finishEvent.pointerId);
+				window.removeEventListener("pointermove", onPointerMove);
+				window.removeEventListener("pointerup", finishDrag);
+				window.removeEventListener("pointercancel", finishDrag);
+				list.classList.remove("is-sorting");
+				activeRow.classList.remove("is-dragging");
+				handle.classList.remove("is-active");
+				if (!moved) return;
+				touchCompendium(compendiumId);
+				persistCompendiums();
+			};
 
-      window.addEventListener("pointermove", onPointerMove, { passive: false });
-      window.addEventListener("pointerup", finishDrag);
-      window.addEventListener("pointercancel", finishDrag);
-    });
-  });
+			window.addEventListener("pointermove", onPointerMove, { passive: false });
+			window.addEventListener("pointerup", finishDrag);
+			window.addEventListener("pointercancel", finishDrag);
+		});
+	});
 }
 
 function bindDashboardBalanceHover() {
-  const linkedElements = app.querySelectorAll("[data-balance-key]");
-  const setLinkedHover = (key, enabled) => {
-    linkedElements.forEach((element) => {
-      if (element.dataset.balanceKey === key) element.classList.toggle("is-linked-hover", enabled);
-    });
-  };
-  linkedElements.forEach((element) => {
-    const key = element.dataset.balanceKey;
-    element.addEventListener("pointerenter", () => setLinkedHover(key, true));
-    element.addEventListener("pointerleave", () => setLinkedHover(key, false));
-    element.addEventListener("focusin", () => setLinkedHover(key, true));
-    element.addEventListener("focusout", () => setLinkedHover(key, false));
-  });
+	const linkedElements = app.querySelectorAll("[data-balance-key]");
+	const setLinkedHover = (key, enabled) => {
+		linkedElements.forEach((element) => {
+			if (element.dataset.balanceKey === key)
+				element.classList.toggle("is-linked-hover", enabled);
+		});
+	};
+	linkedElements.forEach((element) => {
+		const key = element.dataset.balanceKey;
+		element.addEventListener("pointerenter", () => setLinkedHover(key, true));
+		element.addEventListener("pointerleave", () => setLinkedHover(key, false));
+		element.addEventListener("focusin", () => setLinkedHover(key, true));
+		element.addEventListener("focusout", () => setLinkedHover(key, false));
+	});
 }
 
 function bindDashboardPeriodSlider() {
-  app.querySelectorAll("[data-dashboard-period-slider]").forEach((input) => {
-    input.addEventListener("input", () => {
-      const option = dashboardPeriodOptionForIndex(input.value);
-      state.dashboardPeriod = option.id;
-      previewDashboardPeriodByIndex(input.value);
-    });
-    input.addEventListener("change", () => setDashboardPeriodByIndex(input.value));
-  });
+	app.querySelectorAll("[data-dashboard-period-slider]").forEach((input) => {
+		input.addEventListener("input", () => {
+			const option = dashboardPeriodOptionForIndex(input.value);
+			state.dashboardPeriod = option.id;
+			previewDashboardPeriodByIndex(input.value);
+		});
+		input.addEventListener("change", () =>
+			setDashboardPeriodByIndex(input.value),
+		);
+	});
 }
 
 function bindGalleryControls() {
-  app.querySelectorAll("[data-gallery-size-slider]").forEach((input) => {
-    input.addEventListener("input", () => {
-      state.galleryThumbSize = Math.min(320, Math.max(110, Number(input.value) || 180));
-      app.querySelectorAll(".gallery-grid").forEach((grid) => {
-        grid.style.setProperty("--gallery-thumb-size", `${state.galleryThumbSize}px`);
-      });
-    });
-  });
-  app.querySelectorAll("[data-gallery-select]").forEach((input) => {
-    input.addEventListener("change", () => {
-      const id = input.value;
-      const selected = new Set(state.gallerySelectedIds);
-      if (input.checked) selected.add(id);
-      else selected.delete(id);
-      setState({ gallerySelectedIds: Array.from(selected) });
-    });
-  });
+	app.querySelectorAll("[data-gallery-size-slider]").forEach((input) => {
+		input.addEventListener("input", () => {
+			state.galleryThumbSize = Math.min(
+				320,
+				Math.max(110, Number(input.value) || 180),
+			);
+			app.querySelectorAll(".gallery-grid").forEach((grid) => {
+				grid.style.setProperty(
+					"--gallery-thumb-size",
+					`${state.galleryThumbSize}px`,
+				);
+			});
+		});
+	});
+	app.querySelectorAll("[data-gallery-select]").forEach((input) => {
+		input.addEventListener("change", () => {
+			const id = input.value;
+			const selected = new Set(state.gallerySelectedIds);
+			if (input.checked) selected.add(id);
+			else selected.delete(id);
+			setState({ gallerySelectedIds: Array.from(selected) });
+		});
+	});
 }
 
 function bindEditorMedia() {
-  const editor = document.getElementById("editor-body");
-  if (!editor) return;
-  const imageButton = app.querySelector("[data-editor-image-button]");
-  if (imageButton) {
-    imageButton.addEventListener("pointerdown", (event) => {
-      event.preventDefault();
-      editor.focus();
-    });
-    imageButton.addEventListener("click", async () => {
-      const start = editor.selectionStart ?? editor.value.length;
-      const end = editor.selectionEnd ?? start;
-      const useCamera = prefersCameraCapture();
-      const input = document.createElement("input");
-      input.type = "file";
-      input.accept = "image/*";
-      input.multiple = !useCamera;
-      if (useCamera) input.setAttribute("capture", "environment");
-      input.addEventListener("change", async () => {
-        await insertEditorImages(Array.from(input.files || []), { start, end });
-      }, { once: true });
-      input.click();
-    });
-  }
-  editor.addEventListener("paste", async (event) => {
-    const files = Array.from(event.clipboardData?.items || [])
-      .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
-      .map((item) => item.getAsFile())
-      .filter(Boolean);
-    if (!files.length) return;
-    event.preventDefault();
-    await insertEditorImages(files);
-  });
-  editor.addEventListener("dragover", (event) => {
-    if (Array.from(event.dataTransfer?.items || []).some((item) => item.kind === "file" && item.type.startsWith("image/"))) {
-      event.preventDefault();
-    }
-  });
-  editor.addEventListener("drop", async (event) => {
-    const files = Array.from(event.dataTransfer?.files || []).filter((file) => file.type.startsWith("image/"));
-    if (!files.length) return;
-    event.preventDefault();
-    setEditorCursorFromPoint(event);
-    await insertEditorImages(files);
-  });
+	const editor = document.getElementById("editor-body");
+	if (!editor) return;
+	const imageButton = app.querySelector("[data-editor-image-button]");
+	if (imageButton) {
+		imageButton.addEventListener("pointerdown", (event) => {
+			event.preventDefault();
+			editor.focus();
+		});
+		imageButton.addEventListener("click", async () => {
+			const start = editor.selectionStart ?? editor.value.length;
+			const end = editor.selectionEnd ?? start;
+			const useCamera = prefersCameraCapture();
+			const input = document.createElement("input");
+			input.type = "file";
+			input.accept = "image/*";
+			input.multiple = !useCamera;
+			if (useCamera) input.setAttribute("capture", "environment");
+			input.addEventListener(
+				"change",
+				async () => {
+					await insertEditorImages(Array.from(input.files || []), {
+						start,
+						end,
+					});
+				},
+				{ once: true },
+			);
+			input.click();
+		});
+	}
+	editor.addEventListener("paste", async (event) => {
+		const files = Array.from(event.clipboardData?.items || [])
+			.filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+			.map((item) => item.getAsFile())
+			.filter(Boolean);
+		if (!files.length) return;
+		event.preventDefault();
+		await insertEditorImages(files);
+	});
+	editor.addEventListener("dragover", (event) => {
+		if (
+			Array.from(event.dataTransfer?.items || []).some(
+				(item) => item.kind === "file" && item.type.startsWith("image/"),
+			)
+		) {
+			event.preventDefault();
+		}
+	});
+	editor.addEventListener("drop", async (event) => {
+		const files = Array.from(event.dataTransfer?.files || []).filter((file) =>
+			file.type.startsWith("image/"),
+		);
+		if (!files.length) return;
+		event.preventDefault();
+		setEditorCursorFromPoint(event);
+		await insertEditorImages(files);
+	});
 }
 
 function setEditorCursorFromPoint(event) {
-  const editor = document.getElementById("editor-body");
-  if (!editor) return;
-  if (document.caretPositionFromPoint) {
-    const position = document.caretPositionFromPoint(event.clientX, event.clientY);
-    if (position?.offsetNode === editor.firstChild || position?.offsetNode === editor) {
-      editor.setSelectionRange(position.offset, position.offset);
-    }
-    return;
-  }
-  if (document.caretRangeFromPoint) {
-    const range = document.caretRangeFromPoint(event.clientX, event.clientY);
-    if (range) editor.setSelectionRange(range.startOffset, range.startOffset);
-  }
+	const editor = document.getElementById("editor-body");
+	if (!editor) return;
+	if (document.caretPositionFromPoint) {
+		const position = document.caretPositionFromPoint(
+			event.clientX,
+			event.clientY,
+		);
+		if (
+			position?.offsetNode === editor.firstChild ||
+			position?.offsetNode === editor
+		) {
+			editor.setSelectionRange(position.offset, position.offset);
+		}
+		return;
+	}
+	if (document.caretRangeFromPoint) {
+		const range = document.caretRangeFromPoint(event.clientX, event.clientY);
+		if (range) editor.setSelectionRange(range.startOffset, range.startOffset);
+	}
 }
 
 async function insertEditorImages(files, range = null) {
-  const editor = document.getElementById("editor-body");
-  if (!editor) return;
-  const images = files.filter((file) => file?.type?.startsWith("image/"));
-  if (!images.length) return;
-  const previousCursor = range?.start ?? editor.selectionStart ?? editor.value.length;
-  const previousEnd = range?.end ?? editor.selectionEnd ?? previousCursor;
-  const markdownItems = [];
-  try {
-    for (const image of images) {
-      const stored = await storeLocalImage(image, localMediaStoreOptions());
-      markdownItems.push(stored.markdown);
-    }
-    scheduleCloudStorageUsageRefresh({ force: true });
-  } catch (error) {
-    window.alert(error instanceof Error ? error.message : "Could not add image.");
-    return;
-  }
-  insertTextAtEditorCursor(markdownItems.join("\n\n"), previousCursor, previousEnd);
+	const editor = document.getElementById("editor-body");
+	if (!editor) return;
+	const images = files.filter((file) => file?.type?.startsWith("image/"));
+	if (!images.length) return;
+	const previousCursor =
+		range?.start ?? editor.selectionStart ?? editor.value.length;
+	const previousEnd = range?.end ?? editor.selectionEnd ?? previousCursor;
+	const markdownItems = [];
+	try {
+		for (const image of images) {
+			const stored = await storeLocalImage(image, localMediaStoreOptions());
+			markdownItems.push(stored.markdown);
+		}
+		scheduleCloudStorageUsageRefresh({ force: true });
+	} catch (error) {
+		window.alert(
+			error instanceof Error ? error.message : "Could not add image.",
+		);
+		return;
+	}
+	insertTextAtEditorCursor(
+		markdownItems.join("\n\n"),
+		previousCursor,
+		previousEnd,
+	);
 }
 
 function insertTextAtEditorCursor(text, start, end) {
-  const editor = document.getElementById("editor-body");
-  if (!editor) return;
-  const before = editor.value.slice(0, start);
-  const after = editor.value.slice(end);
-  const prefix = before && !before.endsWith("\n") ? "\n\n" : "";
-  const suffix = after && !after.startsWith("\n") ? "\n\n" : "\n";
-  const insert = `${prefix}${text}${suffix}`;
-  editor.value = `${before}${insert}${after}`;
-  const nextCursor = before.length + insert.length;
-  editor.focus();
-  editor.setSelectionRange(nextCursor, nextCursor);
+	const editor = document.getElementById("editor-body");
+	if (!editor) return;
+	const before = editor.value.slice(0, start);
+	const after = editor.value.slice(end);
+	const prefix = before && !before.endsWith("\n") ? "\n\n" : "";
+	const suffix = after && !after.startsWith("\n") ? "\n\n" : "\n";
+	const insert = `${prefix}${text}${suffix}`;
+	editor.value = `${before}${insert}${after}`;
+	const nextCursor = before.length + insert.length;
+	editor.focus();
+	editor.setSelectionRange(nextCursor, nextCursor);
 }
 
 function bindLocalAssetImages() {
-  app.querySelectorAll("img[data-local-asset]").forEach(async (image) => {
-    try {
-      const url = await resolveLocalImageUrl(image.dataset.localAsset);
-      if (url) image.src = url;
-      else image.classList.add("is-missing");
-    } catch {
-      image.classList.add("is-missing");
-    }
-  });
-  app.querySelectorAll("a[data-local-asset-link]").forEach(async (link) => {
-    link.addEventListener("click", (event) => {
-      if (!link.href || link.getAttribute("href") === "#") event.preventDefault();
-    });
-    try {
-      const resolved = await resolveLocalFile(link.dataset.localAssetLink);
-      if (resolved.url) {
-        link.href = resolved.url;
-        link.download = link.dataset.localAssetName || resolved.name || "image";
-      } else {
-        link.classList.add("is-missing");
-      }
-    } catch {
-      link.classList.add("is-missing");
-    }
-  });
-  app.querySelectorAll("a[data-local-file-link]").forEach(async (link) => {
-    link.addEventListener("click", (event) => {
-      if (!link.href || link.getAttribute("href") === "#") event.preventDefault();
-    });
-    try {
-      const resolved = await resolveLocalFile(link.dataset.localFileLink);
-      if (resolved.url) {
-        link.href = resolved.url;
-        link.download = resolved.name || link.download || "download";
-      } else {
-        link.classList.add("is-missing");
-      }
-    } catch {
-      link.classList.add("is-missing");
-    }
-  });
+	app.querySelectorAll("img[data-local-asset]").forEach(async (image) => {
+		try {
+			const url = await resolveLocalImageUrl(image.dataset.localAsset);
+			if (url) image.src = url;
+			else image.classList.add("is-missing");
+		} catch {
+			image.classList.add("is-missing");
+		}
+	});
+	app.querySelectorAll("a[data-local-asset-link]").forEach(async (link) => {
+		link.addEventListener("click", (event) => {
+			if (!link.href || link.getAttribute("href") === "#")
+				event.preventDefault();
+		});
+		try {
+			const resolved = await resolveLocalFile(link.dataset.localAssetLink);
+			if (resolved.url) {
+				link.href = resolved.url;
+				link.download = link.dataset.localAssetName || resolved.name || "image";
+			} else {
+				link.classList.add("is-missing");
+			}
+		} catch {
+			link.classList.add("is-missing");
+		}
+	});
+	app.querySelectorAll("a[data-local-file-link]").forEach(async (link) => {
+		link.addEventListener("click", (event) => {
+			if (!link.href || link.getAttribute("href") === "#")
+				event.preventDefault();
+		});
+		try {
+			const resolved = await resolveLocalFile(link.dataset.localFileLink);
+			if (resolved.url) {
+				link.href = resolved.url;
+				link.download = resolved.name || link.download || "download";
+			} else {
+				link.classList.add("is-missing");
+			}
+		} catch {
+			link.classList.add("is-missing");
+		}
+	});
 }
 
 function handleAction(element) {
-  const action = element.dataset.action;
-  const keepMenuOpenActions = new Set(["toggle-mobile-menu", "toggle-sidebar-section", "toggle-all-sidebar-sections", "sidebar-page"]);
-  if (!keepMenuOpenActions.has(action)) closeMobileMenu();
-  if (action === "home") goHome();
-  if (action === "dashboard-root") {
-    if (state.active === "Mind") {
-      setState({ active: "Mind", mindMode: "grid", selectedCompendiumId: null, selectedSectionId: null });
-    } else if (state.active === "Spirit") {
-      setState({ selectedSpiritBookKey: null, artifactMode: "grid", selectedArtifactId: null });
-    } else {
-      setState({ artifactMode: "grid", selectedArtifactId: null });
-    }
-  }
-  if (action === "compendium-root") setState({ mindMode: "manager", selectedSectionId: null });
-  if (action === "toggle-mobile-menu") {
-    if (state.suppressNextMenuToggle) {
-      state.suppressNextMenuToggle = false;
-    } else {
-      toggleMobileMenu();
-    }
-  }
-  if (action === "toggle-sidebar-section") toggleSidebarSection(element.dataset.section);
-  if (action === "toggle-all-sidebar-sections") toggleAllSidebarSections();
-  if (action === "sidebar-page") setSidebarPage(element.dataset.section, element.dataset.direction, Number(element.dataset.maxPage || 0));
-  if (action === "tracker-page") setTrackerPage(element.dataset.area, element.dataset.direction, Number(element.dataset.maxPage || 0), element.dataset.editable === "true", element.dataset.kind || "thought");
-  if (action === "open-dashboard-card") openDashboardCard(element.dataset.section);
-  if (action === "open-dashboard-direct") {
-    setState({
-      active: element.dataset.section,
-      flipped: null,
-      artifactMode: "grid",
-      selectedArtifactId: null,
-      selectedSpiritBookKey: null
-    });
-  }
-  if (action === "set-dashboard-period") setDashboardPeriod(element.dataset.period);
-  if (action === "set-dashboard-chart") setDashboardChartType(element.dataset.chart);
-  if (action === "set-theme") setTheme(element.dataset.theme);
-  if (action === "save-dashboard-identity") saveDashboardIdentitySettings();
-  if (action === "reset-dashboard-identity-item") resetDashboardIdentityItem(element.dataset.dashboard);
-  if (action === "open-icon-picker") openIconPicker(element);
-  if (action === "close-icon-picker") closeIconPicker();
-  if (action === "select-icon-picker-icon") selectIconPickerIcon(element.dataset.icon);
-  if (action === "select-icon-picker-color") selectIconPickerColor(element.dataset.color);
-  if (action === "save-icon-picker") saveIconPickerSelection();
-  if (action === "load-more-icon-picker") loadMoreIconPickerIcons();
-  if (action === "open-compendium") openCompendium(element.dataset.id);
-  if (action === "mind-compendium-page") setMindCompendiumPage(element.dataset.direction, Number(element.dataset.maxPage || 0));
-  if (action === "toggle-mind-compendium-picker") toggleMindCompendiumPicker();
-  if (action === "select-mind-compendium") selectMindCompendiumFromPicker(element.dataset.id, Number(element.dataset.index || 0), Number(element.dataset.perPage || 1));
-  if (action === "open-mind-section") openMindSection(element.dataset.parentId, element.dataset.id);
-  if (action === "open-artifact-note") openArtifactNote(element.dataset.id, element.dataset.returnActive || "");
-  if (action === "open-life-activity") openActivityArtifact(element.dataset.id);
-  if (action === "export-artifacts") exportArtifacts();
-  if (action === "import-artifacts") importArtifacts();
-  if (action === "factory-defaults") restoreFactoryDefaults();
-  if (action === "clear-app-data") clearAppData();
-  if (action === "reset-tips") resetTips();
-  if (action === "dismiss-tip") dismissTip(element.dataset.tip, element);
-  if (action === "open-gallery") openGallery();
-  if (action === "close-gallery") goHome();
-  if (action === "gallery-select-all") selectAllGalleryImages();
-  if (action === "gallery-clear-selection") clearGallerySelection();
-  if (action === "gallery-delete-selected") deleteSelectedGalleryImages();
-  if (action === "open-settings") {
-    setState({
-      active: "Settings",
-      flipped: null,
-      artifactMode: "grid",
-      selectedArtifactId: null,
-      selectedCompendiumId: null,
-      selectedSectionId: null,
-      selectedSpiritBookKey: null,
-      trackerAddArea: "",
-      trackerEditKey: "",
-      trackerDeleteKey: ""
-    });
-  }
-  if (action === "close-settings") goHome();
-  if (action === "set-settings-tab") setState({ settingsTab: element.dataset.tab === "dashboard" ? "interface" : element.dataset.tab || "getting-started", trackerAddArea: "", trackerEditKey: "", trackerDeleteKey: "" });
-  if (action === "cloud-sign-in") void runCloudAction("Signing in...", () => signInToCloud());
-  if (action === "cloud-google-sign-in") void runCloudAction("Opening Google sign-in...", () => signInWithGoogle());
-  if (action === "cloud-email-sign-in") void runCloudAction("Signing in...", () => signInWithEmailForm());
-  if (action === "cloud-email-create") void runCloudAction("Creating account...", () => signInWithEmailForm({ create: true }));
-  if (action === "cloud-sign-out") void runCloudAction("Signing out...", () => signOutCloud());
-  if (action === "cloud-subscribe") void runCloudAction("Opening subscription checkout...", () => startCloudSubscription(cloudReturnUrl()));
-  if (action === "cloud-billing") void runCloudAction("Opening billing portal...", () => openBillingPortal(cloudReturnUrl()));
-  if (action === "cloud-sync-now") void runCloudAction("Syncing to Cloud...", () => syncCloudNow());
-  if (action === "cloud-load") void runCloudAction("Loading Firebase artifacts...", () => loadCloudIntoLocalApp());
-  if (action === "cloud-delete-data") void runCloudAction("Deleting Cloud data...", () => deleteCloudData());
-  if (action === "cloud-delete-account") void runCloudAction("Deleting Cloud account...", () => deleteCloudAccountData());
-  if (action === "start-add-tracker") setState({ trackerAddArea: trackerAddKey(element.dataset.area || "", element.dataset.kind || "thought"), trackerEditKey: "", trackerDeleteKey: "" });
-  if (action === "cancel-add-tracker") setState({ trackerAddArea: "" });
-  if (action === "start-edit-tracker") {
-    if (state.suppressNextTrackerEditClick) {
-      state.suppressNextTrackerEditClick = false;
-      return;
-    }
-    setState({ trackerEditKey: trackerEditKey(element.dataset.area, element.dataset.id, element.dataset.kind || "thought"), trackerDeleteKey: "", trackerAddArea: "" });
-  }
-  if (action === "cancel-edit-tracker") setState({ trackerEditKey: "", trackerDeleteKey: "" });
-  if (action === "save-edit-tracker") updateTracker(element.dataset.area, element.dataset.id, element.dataset.kind || "thought");
-  if (action === "request-remove-tracker") setState({ trackerDeleteKey: trackerEditKey(element.dataset.area, element.dataset.id, element.dataset.kind || "thought") });
-  if (action === "cancel-remove-tracker") setState({ trackerDeleteKey: "" });
-  if (action === "save-tracker") addTracker(element.dataset.area, element.dataset.kind || "thought");
-  if (action === "remove-tracker") removeTracker(element.dataset.area, element.dataset.id, element.dataset.kind || "thought");
-  if (action === "quick-thought") quickThought(element.dataset.area, element.dataset.id);
-  if (action === "quick-goal") quickGoal(element.dataset.area, element.dataset.id, element);
-  if (action === "open-thought-toast-note") {
-    const noteId = element.dataset.id || state.thoughtToast?.noteId;
-    const dashboard = state.thoughtToast?.dashboard || findArtifact(state.artifactStore, noteId)?.dashboard || "";
-    applyThoughtToastTimestamp(noteId);
-    clearThoughtToast();
-    openArtifactNote(noteId, dashboard);
-  }
-  if (action === "submit-thought-toast-note") {
-    submitThoughtToastNote(element.dataset.id || state.thoughtToast?.noteId, document.getElementById("thought-toast-note")?.value || state.thoughtToast?.quickNote || "");
-  }
-  if (action === "delete-thought-toast-note") deleteThoughtToastNote(element.dataset.id || state.thoughtToast?.noteId);
-  if (action === "dismiss-thought-toast") clearThoughtToast();
-  if (action === "new-compendium") addCompendium();
-  if (action === "new-artifact-note") addDashboardNote(element.dataset.dashboard);
-  if (action === "delete-compendium") deleteCompendium(element.dataset.id);
-  if (action === "delete-section") deleteSection(element.dataset.id);
-  if (action === "delete-artifact-note") deleteDashboardNote(element.dataset.id);
-  if (action === "save-body-fast-settings") saveBodyFastSettings();
-  if (action === "start-body-fast") startBodyFast();
-  if (action === "stop-body-fast") stopBodyFast();
-  if (action === "save-body-timer-settings") saveBodyTimerSettings(element.dataset.mode);
-  if (action === "start-body-timer") startBodyTimer(element.dataset.mode);
-  if (action === "stop-body-timer") stopBodyTimer(element.dataset.mode);
-  if (action === "save-body-nutrition") saveBodyNutrition();
-  if (action === "save-body-nutrition-goals") saveBodyNutritionGoals();
-  if (action === "reset-body-nutrition") resetBodyNutrition();
-  if (action === "add-body-workout") addBodyWorkout();
-  if (action === "delete-body-workout") deleteBodyWorkout(element.dataset.id);
-  if (action === "set-body-mode") setBodyMode(element.dataset.mode);
-  if (action === "set-body-timer-mode") setBodyTimerMode(element.dataset.mode);
-  if (action === "set-body-nutrition-mode") setBodyNutritionMode(element.dataset.mode);
-  if (action === "set-life-tool") setLifeTool(element.dataset.tool);
-  if (action === "set-life-mode") setLifeMode(element.dataset.mode);
-  if (action === "add-life-todo") addLifeTodo();
-  if (action === "toggle-life-todo") toggleLifeTodo(element.dataset.id);
-  if (action === "toggle-life-task") toggleLifeTaskItem(element.dataset.source, element.dataset.id, element.dataset.projectId, element.dataset.phaseId);
-  if (action === "edit-life-task-notes") editLifeTaskNotes(element.dataset.source, element.dataset.id, element.dataset.projectId, element.dataset.phaseId);
-  if (action === "open-life-task") openLifeTaskItem(element.dataset.source, element.dataset.id, element.dataset.projectId, element.dataset.phaseId);
-  if (action === "open-life-project-task") openLifeProjectTask(element.dataset.projectId, element.dataset.phaseId, element.dataset.taskId);
-  if (action === "delete-life-todo") deleteLifeTodo(element.dataset.id);
-  if (action === "add-life-project") addLifeProject();
-  if (action === "select-life-project") selectLifeProject(element.dataset.id);
-  if (action === "select-life-phase") selectLifePhase(element.dataset.id);
-  if (action === "select-life-task") {
-    if (element.dataset.projectId && element.dataset.phaseId) {
-      setState({
-        lifeTool: "projects",
-        selectedLifeProjectId: element.dataset.projectId,
-        selectedLifePhaseId: element.dataset.phaseId,
-        selectedLifeTaskId: element.dataset.taskId
-      });
-    } else {
-      selectLifeTask(element.dataset.taskId);
-    }
-  }
-  if (action === "add-life-phase") addLifePhase(element.dataset.projectId);
-  if (action === "add-life-project-task") addLifeProjectTask(element.dataset.projectId, element.dataset.phaseId);
-  if (action === "save-life-project-entity") saveLifeProjectEntity(element.dataset.level);
-  if (action === "upload-life-attachment") uploadLifeAttachment(element.dataset.level);
-  if (action === "delete-life-attachment") deleteLifeAttachment(element.dataset.level, element.dataset.id);
-  if (action === "set-spirit-year") setSpiritYear(Number(element.dataset.year));
-  if (action === "spirit-prev-year") {
-    const years = spiritYears();
-    const index = years.indexOf(state.spiritYear);
-    if (index > 0) setSpiritYear(years[index - 1]);
-  }
-  if (action === "spirit-next-year") {
-    const years = spiritYears();
-    const index = years.indexOf(state.spiritYear);
-    if (index >= 0 && index < years.length - 1) setSpiritYear(years[index + 1]);
-  }
-  if (action === "open-spirit-book") openSpiritBook(element.dataset.key);
-  if (action === "exit-spirit-book") exitSpiritBook();
-  if (action === "exit-spirit-note") setState({ selectedArtifactId: null, artifactMode: "grid" });
-  if (action === "add-spirit-book-note") addSpiritBookNote(element.dataset.key);
-  if (action === "toggle-spirit-complete") toggleSpiritComplete(element.dataset.key);
-  if (action === "reader") setState({ mindMode: "reader" });
-  if (action === "manager") setState({ mindMode: "manager" });
-  if (action === "compendium-reader-page") setCompendiumReaderPage(element.dataset.id, element.dataset.direction, Number(element.dataset.maxPage || 0));
-  if (action === "edit-compendium") setState({ mindMode: "compendium-editor" });
-  if (action === "add-section") addSection();
-  if (action === "open-section") setState({ selectedSectionId: element.dataset.id, mindMode: "section-viewer" });
-  if (action === "edit-section") setState({ mindMode: "section-editor" });
-  if (action === "section-viewer") setState({ mindMode: "section-viewer" });
-  if (action === "edit-artifact-note") setState({ artifactMode: "editor" });
-  if (action === "artifact-viewer") closeArtifactEditor();
-  if (action === "close-artifact-viewer") closeArtifactViewer();
-  if (action === "save-compendium") saveCompendium(element.dataset.id, editorTitle(), editorBody());
-  if (action === "save-section") saveSection(element.dataset.id, editorTitle(), editorBody());
-  if (action === "save-artifact-note") saveDashboardNote(element.dataset.id, editorTitle(), editorBody());
+	const action = element.dataset.action;
+	const keepMenuOpenActions = new Set([
+		"toggle-mobile-menu",
+		"toggle-sidebar-section",
+		"toggle-all-sidebar-sections",
+		"sidebar-page",
+	]);
+	if (!keepMenuOpenActions.has(action)) closeMobileMenu();
+	if (action === "home") goHome();
+	if (action === "dashboard-root") {
+		if (state.active === "Mind") {
+			setState({
+				active: "Mind",
+				mindMode: "grid",
+				selectedCompendiumId: null,
+				selectedSectionId: null,
+			});
+		} else if (state.active === "Spirit") {
+			setState({
+				selectedSpiritBookKey: null,
+				artifactMode: "grid",
+				selectedArtifactId: null,
+			});
+		} else {
+			setState({ artifactMode: "grid", selectedArtifactId: null });
+		}
+	}
+	if (action === "compendium-root")
+		setState({ mindMode: "manager", selectedSectionId: null });
+	if (action === "toggle-mobile-menu") {
+		if (state.suppressNextMenuToggle) {
+			state.suppressNextMenuToggle = false;
+		} else {
+			toggleMobileMenu();
+		}
+	}
+	if (action === "toggle-sidebar-section")
+		toggleSidebarSection(element.dataset.section);
+	if (action === "toggle-all-sidebar-sections") toggleAllSidebarSections();
+	if (action === "sidebar-page")
+		setSidebarPage(
+			element.dataset.section,
+			element.dataset.direction,
+			Number(element.dataset.maxPage || 0),
+		);
+	if (action === "tracker-page")
+		setTrackerPage(
+			element.dataset.area,
+			element.dataset.direction,
+			Number(element.dataset.maxPage || 0),
+			element.dataset.editable === "true",
+			element.dataset.kind || "thought",
+		);
+	if (action === "open-dashboard-card")
+		openDashboardCard(element.dataset.section);
+	if (action === "open-dashboard-direct") {
+		setState({
+			active: element.dataset.section,
+			flipped: null,
+			artifactMode: "grid",
+			selectedArtifactId: null,
+			selectedSpiritBookKey: null,
+		});
+	}
+	if (action === "set-dashboard-period")
+		setDashboardPeriod(element.dataset.period);
+	if (action === "set-dashboard-chart")
+		setDashboardChartType(element.dataset.chart);
+	if (action === "set-theme") setTheme(element.dataset.theme);
+	if (action === "save-dashboard-identity") saveDashboardIdentitySettings();
+	if (action === "reset-dashboard-identity-item")
+		resetDashboardIdentityItem(element.dataset.dashboard);
+	if (action === "open-icon-picker") openIconPicker(element);
+	if (action === "close-icon-picker") closeIconPicker();
+	if (action === "select-icon-picker-icon")
+		selectIconPickerIcon(element.dataset.icon);
+	if (action === "select-icon-picker-color")
+		selectIconPickerColor(element.dataset.color);
+	if (action === "save-icon-picker") saveIconPickerSelection();
+	if (action === "load-more-icon-picker") loadMoreIconPickerIcons();
+	if (action === "open-compendium") openCompendium(element.dataset.id);
+	if (action === "mind-compendium-page")
+		setMindCompendiumPage(
+			element.dataset.direction,
+			Number(element.dataset.maxPage || 0),
+		);
+	if (action === "toggle-mind-compendium-picker") toggleMindCompendiumPicker();
+	if (action === "select-mind-compendium")
+		selectMindCompendiumFromPicker(
+			element.dataset.id,
+			Number(element.dataset.index || 0),
+			Number(element.dataset.perPage || 1),
+		);
+	if (action === "open-mind-section")
+		openMindSection(element.dataset.parentId, element.dataset.id);
+	if (action === "open-artifact-note")
+		openArtifactNote(element.dataset.id, element.dataset.returnActive || "");
+	if (action === "open-life-activity") openActivityArtifact(element.dataset.id);
+	if (action === "export-artifacts") exportArtifacts();
+	if (action === "import-artifacts") importArtifacts();
+	if (action === "factory-defaults") restoreFactoryDefaults();
+	if (action === "clear-app-data") clearAppData();
+	if (action === "reset-tips") resetTips();
+	if (action === "dismiss-tip") dismissTip(element.dataset.tip, element);
+	if (action === "open-gallery") openGallery();
+	if (action === "close-gallery") goHome();
+	if (action === "gallery-select-all") selectAllGalleryImages();
+	if (action === "gallery-clear-selection") clearGallerySelection();
+	if (action === "gallery-delete-selected") deleteSelectedGalleryImages();
+	if (action === "open-settings") {
+		setState({
+			active: "Settings",
+			flipped: null,
+			artifactMode: "grid",
+			selectedArtifactId: null,
+			selectedCompendiumId: null,
+			selectedSectionId: null,
+			selectedSpiritBookKey: null,
+			trackerAddArea: "",
+			trackerEditKey: "",
+			trackerDeleteKey: "",
+		});
+	}
+	if (action === "close-settings") goHome();
+	if (action === "set-settings-tab")
+		setState({
+			settingsTab:
+				element.dataset.tab === "dashboard"
+					? "interface"
+					: element.dataset.tab || "getting-started",
+			trackerAddArea: "",
+			trackerEditKey: "",
+			trackerDeleteKey: "",
+		});
+	if (action === "cloud-sign-in")
+		void runCloudAction("Signing in...", () => signInToCloud());
+	if (action === "cloud-google-sign-in")
+		void runCloudAction("Opening Google sign-in...", () => signInWithGoogle());
+	if (action === "cloud-email-sign-in")
+		void runCloudAction("Signing in...", () => signInWithEmailForm());
+	if (action === "cloud-email-create")
+		void runCloudAction("Creating account...", () =>
+			signInWithEmailForm({ create: true }),
+		);
+	if (action === "cloud-sign-out")
+		void runCloudAction("Signing out...", () => signOutCloud());
+	if (action === "cloud-subscribe")
+		void runCloudAction("Opening subscription checkout...", () =>
+			startCloudSubscription(cloudReturnUrl()),
+		);
+	if (action === "cloud-billing")
+		void runCloudAction("Opening billing portal...", () =>
+			openBillingPortal(cloudReturnUrl()),
+		);
+	if (action === "cloud-sync-now")
+		void runCloudAction("Syncing to Cloud...", () => syncCloudNow());
+	if (action === "cloud-load")
+		void runCloudAction("Loading Firebase artifacts...", () =>
+			loadCloudIntoLocalApp(),
+		);
+	if (action === "cloud-delete-data")
+		void runCloudAction("Deleting Cloud data...", () => deleteCloudData());
+	if (action === "cloud-delete-account")
+		void runCloudAction("Deleting Cloud account...", () =>
+			deleteCloudAccountData(),
+		);
+	if (action === "start-add-tracker")
+		setState({
+			trackerAddArea: trackerAddKey(
+				element.dataset.area || "",
+				element.dataset.kind || "thought",
+			),
+			trackerEditKey: "",
+			trackerDeleteKey: "",
+		});
+	if (action === "cancel-add-tracker") setState({ trackerAddArea: "" });
+	if (action === "start-edit-tracker") {
+		if (state.suppressNextTrackerEditClick) {
+			state.suppressNextTrackerEditClick = false;
+			return;
+		}
+		setState({
+			trackerEditKey: trackerEditKey(
+				element.dataset.area,
+				element.dataset.id,
+				element.dataset.kind || "thought",
+			),
+			trackerDeleteKey: "",
+			trackerAddArea: "",
+		});
+	}
+	if (action === "cancel-edit-tracker")
+		setState({ trackerEditKey: "", trackerDeleteKey: "" });
+	if (action === "save-edit-tracker")
+		updateTracker(
+			element.dataset.area,
+			element.dataset.id,
+			element.dataset.kind || "thought",
+		);
+	if (action === "request-remove-tracker")
+		setState({
+			trackerDeleteKey: trackerEditKey(
+				element.dataset.area,
+				element.dataset.id,
+				element.dataset.kind || "thought",
+			),
+		});
+	if (action === "cancel-remove-tracker") setState({ trackerDeleteKey: "" });
+	if (action === "save-tracker")
+		addTracker(element.dataset.area, element.dataset.kind || "thought");
+	if (action === "remove-tracker")
+		removeTracker(
+			element.dataset.area,
+			element.dataset.id,
+			element.dataset.kind || "thought",
+		);
+	if (action === "quick-thought")
+		quickThought(element.dataset.area, element.dataset.id);
+	if (action === "quick-goal")
+		quickGoal(element.dataset.area, element.dataset.id, element);
+	if (action === "open-thought-toast-note") {
+		const noteId = element.dataset.id || state.thoughtToast?.noteId;
+		const dashboard =
+			state.thoughtToast?.dashboard ||
+			findArtifact(state.artifactStore, noteId)?.dashboard ||
+			"";
+		applyThoughtToastTimestamp(noteId);
+		clearThoughtToast();
+		openArtifactNote(noteId, dashboard);
+	}
+	if (action === "submit-thought-toast-note") {
+		submitThoughtToastNote(
+			element.dataset.id || state.thoughtToast?.noteId,
+			document.getElementById("thought-toast-note")?.value ||
+				state.thoughtToast?.quickNote ||
+				"",
+		);
+	}
+	if (action === "delete-thought-toast-note")
+		deleteThoughtToastNote(element.dataset.id || state.thoughtToast?.noteId);
+	if (action === "dismiss-thought-toast") clearThoughtToast();
+	if (action === "new-compendium") addCompendium();
+	if (action === "new-artifact-note")
+		addDashboardNote(element.dataset.dashboard);
+	if (action === "delete-compendium") deleteCompendium(element.dataset.id);
+	if (action === "delete-section") deleteSection(element.dataset.id);
+	if (action === "delete-artifact-note")
+		deleteDashboardNote(element.dataset.id);
+	if (action === "save-body-fast-settings") saveBodyFastSettings();
+	if (action === "start-body-fast") startBodyFast();
+	if (action === "stop-body-fast") stopBodyFast();
+	if (action === "save-body-timer-settings")
+		saveBodyTimerSettings(element.dataset.mode);
+	if (action === "start-body-timer") startBodyTimer(element.dataset.mode);
+	if (action === "stop-body-timer") stopBodyTimer(element.dataset.mode);
+	if (action === "save-body-nutrition") saveBodyNutrition();
+	if (action === "save-body-nutrition-goals") saveBodyNutritionGoals();
+	if (action === "reset-body-nutrition") resetBodyNutrition();
+	if (action === "add-body-workout") addBodyWorkout();
+	if (action === "delete-body-workout") deleteBodyWorkout(element.dataset.id);
+	if (action === "set-body-mode") setBodyMode(element.dataset.mode);
+	if (action === "set-body-timer-mode") setBodyTimerMode(element.dataset.mode);
+	if (action === "set-body-nutrition-mode")
+		setBodyNutritionMode(element.dataset.mode);
+	if (action === "set-life-tool") setLifeTool(element.dataset.tool);
+	if (action === "set-life-mode") setLifeMode(element.dataset.mode);
+	if (action === "add-life-todo") addLifeTodo();
+	if (action === "toggle-life-todo") toggleLifeTodo(element.dataset.id);
+	if (action === "toggle-life-task")
+		toggleLifeTaskItem(
+			element.dataset.source,
+			element.dataset.id,
+			element.dataset.projectId,
+			element.dataset.phaseId,
+		);
+	if (action === "edit-life-task-notes")
+		editLifeTaskNotes(
+			element.dataset.source,
+			element.dataset.id,
+			element.dataset.projectId,
+			element.dataset.phaseId,
+		);
+	if (action === "open-life-task")
+		openLifeTaskItem(
+			element.dataset.source,
+			element.dataset.id,
+			element.dataset.projectId,
+			element.dataset.phaseId,
+		);
+	if (action === "open-life-project-task")
+		openLifeProjectTask(
+			element.dataset.projectId,
+			element.dataset.phaseId,
+			element.dataset.taskId,
+		);
+	if (action === "delete-life-todo") deleteLifeTodo(element.dataset.id);
+	if (action === "add-life-project") addLifeProject();
+	if (action === "select-life-project") selectLifeProject(element.dataset.id);
+	if (action === "select-life-phase") selectLifePhase(element.dataset.id);
+	if (action === "select-life-task") {
+		if (element.dataset.projectId && element.dataset.phaseId) {
+			setState({
+				lifeTool: "projects",
+				selectedLifeProjectId: element.dataset.projectId,
+				selectedLifePhaseId: element.dataset.phaseId,
+				selectedLifeTaskId: element.dataset.taskId,
+			});
+		} else {
+			selectLifeTask(element.dataset.taskId);
+		}
+	}
+	if (action === "add-life-phase") addLifePhase(element.dataset.projectId);
+	if (action === "add-life-project-task")
+		addLifeProjectTask(element.dataset.projectId, element.dataset.phaseId);
+	if (action === "save-life-project-entity")
+		saveLifeProjectEntity(element.dataset.level);
+	if (action === "upload-life-attachment")
+		uploadLifeAttachment(element.dataset.level);
+	if (action === "delete-life-attachment")
+		deleteLifeAttachment(element.dataset.level, element.dataset.id);
+	if (action === "set-spirit-year") setSpiritYear(Number(element.dataset.year));
+	if (action === "spirit-prev-year") {
+		const years = spiritYears();
+		const index = years.indexOf(state.spiritYear);
+		if (index > 0) setSpiritYear(years[index - 1]);
+	}
+	if (action === "spirit-next-year") {
+		const years = spiritYears();
+		const index = years.indexOf(state.spiritYear);
+		if (index >= 0 && index < years.length - 1) setSpiritYear(years[index + 1]);
+	}
+	if (action === "open-spirit-book") openSpiritBook(element.dataset.key);
+	if (action === "exit-spirit-book") exitSpiritBook();
+	if (action === "exit-spirit-note")
+		setState({ selectedArtifactId: null, artifactMode: "grid" });
+	if (action === "add-spirit-book-note") addSpiritBookNote(element.dataset.key);
+	if (action === "toggle-spirit-complete")
+		toggleSpiritComplete(element.dataset.key);
+	if (action === "reader") setState({ mindMode: "reader" });
+	if (action === "manager") setState({ mindMode: "manager" });
+	if (action === "compendium-reader-page")
+		setCompendiumReaderPage(
+			element.dataset.id,
+			element.dataset.direction,
+			Number(element.dataset.maxPage || 0),
+		);
+	if (action === "edit-compendium") setState({ mindMode: "compendium-editor" });
+	if (action === "add-section") addSection();
+	if (action === "open-section")
+		setState({
+			selectedSectionId: element.dataset.id,
+			mindMode: "section-viewer",
+		});
+	if (action === "edit-section") setState({ mindMode: "section-editor" });
+	if (action === "section-viewer") setState({ mindMode: "section-viewer" });
+	if (action === "edit-artifact-note") setState({ artifactMode: "editor" });
+	if (action === "artifact-viewer") closeArtifactEditor();
+	if (action === "close-artifact-viewer") closeArtifactViewer();
+	if (action === "save-compendium")
+		saveCompendium(element.dataset.id, editorTitle(), editorBody());
+	if (action === "save-section")
+		saveSection(element.dataset.id, editorTitle(), editorBody());
+	if (action === "save-artifact-note")
+		saveDashboardNote(element.dataset.id, editorTitle(), editorBody());
 }
 
 function editorTitle() {
-  return document.getElementById("editor-title")?.value.trim() || "Untitled";
+	return document.getElementById("editor-title")?.value.trim() || "Untitled";
 }
 
 function editorBody() {
-  return document.getElementById("editor-body")?.value || "";
+	return document.getElementById("editor-body")?.value || "";
 }
 
 function updateBodyTimerDom() {
-  BODY_TIMER_MODES.forEach(({ key }) => {
-    const timer = bodyTimerState(key);
-    if (!timer.active) return;
+	BODY_TIMER_MODES.forEach(({ key }) => {
+		const timer = bodyTimerState(key);
+		if (!timer.active) return;
 
-    const timeEl = document.getElementById(`body-timer-${key}-time`);
-    const ringEl = document.getElementById(`body-timer-${key}-ring`);
-    if (!timeEl || !ringEl) return;
+		const timeEl = document.getElementById(`body-timer-${key}-time`);
+		const ringEl = document.getElementById(`body-timer-${key}-ring`);
+		if (!timeEl || !ringEl) return;
 
-    timeEl.textContent = formatDuration(getBodyTimerElapsedMs(key));
-    ringEl.style.strokeDashoffset = String(RING_CIRCUMFERENCE * (1 - getBodyTimerProgress(key)));
-  });
+		timeEl.textContent = formatDuration(getBodyTimerElapsedMs(key));
+		ringEl.style.strokeDashoffset = String(
+			RING_CIRCUMFERENCE * (1 - getBodyTimerProgress(key)),
+		);
+	});
 }
 
 applyEnvironmentClasses();
 render();
 void initCloudAccount((cloud) => {
-  state.cloud = cloud;
-  configureMediaCloudContext(cloud);
-  render();
-  configureCloudAutoSync();
-  if (state.artifactStore) void maybePromptCloudImport(cloud);
+	state.cloud = cloud;
+	configureMediaCloudContext(cloud);
+	render();
+	configureCloudAutoSync();
+	if (state.artifactStore) void maybePromptCloudImport(cloud);
 });
 
 const installedAppMedia = window.matchMedia?.(INSTALLED_APP_QUERY);
@@ -9219,20 +11244,26 @@ bindEnvironmentMedia(compendiumTwoMedia);
 bindEnvironmentMedia(compendiumOneMedia);
 
 loadArtifactStore().then(async (artifactStore) => {
-  if (artifactStore.appState && !hasStoredAppState()) {
-    await restoreImportedAppState(artifactStore.appState);
-  }
-  artifactStore = migrateBodyWorkoutsToNotes(artifactStore);
-  if (artifactStore.artifacts?.some((artifact) => artifact.properties?.sourceType === "workout")) {
-    saveArtifactStore(artifactStore);
-  }
-  setState({
-    artifactStore,
-    compendiums: normalizeCompendiums(artifactStoreToCompendiums(artifactStore))
-  });
-  configureMediaCloudContext(state.cloud);
-  configureCloudAutoSync();
-  void maybePromptCloudImport(state.cloud);
+	if (artifactStore.appState && !hasStoredAppState()) {
+		await restoreImportedAppState(artifactStore.appState);
+	}
+	artifactStore = migrateBodyWorkoutsToNotes(artifactStore);
+	if (
+		artifactStore.artifacts?.some(
+			(artifact) => artifact.properties?.sourceType === "workout",
+		)
+	) {
+		saveArtifactStore(artifactStore);
+	}
+	setState({
+		artifactStore,
+		compendiums: normalizeCompendiums(
+			artifactStoreToCompendiums(artifactStore),
+		),
+	});
+	configureMediaCloudContext(state.cloud);
+	configureCloudAutoSync();
+	void maybePromptCloudImport(state.cloud);
 });
 
 loadSpiritPlan();
