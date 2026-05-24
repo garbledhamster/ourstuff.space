@@ -3,6 +3,7 @@ import { donationModalHtml, bindDonationFlow } from "./donations.js";
 import {
   deleteCloudAccount,
   deleteCloudStateJson,
+  estimateCloudStateStorageUsage,
   estimateJsonBytes,
   getCloudAccountState,
   getCloudStateInfo,
@@ -16,8 +17,9 @@ import {
   signInWithGoogle,
   signOutCloud,
   startCloudSubscription
-} from "./cloud.js?v=firebase-artifacts-20260523a";
-import { clearLocalFiles, deleteLocalImages, exportLocalFiles, importLocalFiles, listLocalImages, resolveLocalFileUrl, resolveLocalImageUrl, storeLocalFile, storeLocalImage } from "./localMedia.js";
+} from "./cloud.js?v=storage-quota-20260523a";
+import { CLOUD_STORAGE_LIMIT_BYTES } from "./config.js?v=storage-quota-20260523a";
+import { clearLocalFiles, configureCloudMedia, deleteLocalImages, exportLocalFiles, importLocalFiles, listLocalFiles, listLocalImages, migrateLocalMediaToCloud, resolveLocalFile, resolveLocalFileUrl, resolveLocalImageUrl, storeLocalFile, storeLocalImage, storeLocalImageFromDataUrl } from "./localMedia.js?v=gallery-downloads-20260523a";
 import { escapeHtml, renderMarkdown } from "./markdown.js";
 import {
   applyThemeVariables as applyThemeSystemVariables,
@@ -278,6 +280,9 @@ let cloudAutoSyncTimer = null;
 let cloudAutoSyncDebounceTimer = null;
 let lastCloudAutoSyncAttemptAt = 0;
 let cloudAutoSyncPrimedFor = "";
+let cloudStorageUsageRefreshTimer = null;
+let cloudStorageUsageRefreshInFlight = false;
+let cloudStorageUsageSignature = "";
 const SPIRIT_PLANS = [
   {
     id: "ten-year",
@@ -1466,7 +1471,7 @@ function loadLifePlanner() {
   }
 }
 
-async function exportAppState() {
+async function exportAppState(options = {}) {
   return {
     bodyTracker: state.bodyTracker || createDefaultBodyTracker(),
     spiritProgress: state.spiritProgress || {},
@@ -1475,11 +1480,11 @@ async function exportAppState() {
     goalSettings: normalizeGoalSettings(state.goalSettings || cloneDefaultGoals()),
     dashboardIdentity: normalizeDashboardIdentity(state.dashboardIdentity || cloneDefaultDashboardIdentity()),
     theme: normalizeTheme(state.theme),
-    localFiles: await exportLocalFiles().catch(() => [])
+    localFiles: await exportLocalFiles({ includeData: options.includeLocalFileData !== false }).catch(() => [])
   };
 }
 
-async function exportAppStateJson() {
+async function exportAppStateJson(options = {}) {
   return {
     schemaVersion: SCHEMA_VERSION,
     rootId: state.artifactStore?.rootId || "ourstuff-root",
@@ -1489,7 +1494,7 @@ async function exportAppStateJson() {
       exportedAt: nowIso(),
       deviceId: state.cloud?.deviceId || ""
     },
-    appState: await exportAppState()
+    appState: await exportAppState(options)
   };
 }
 
@@ -1522,7 +1527,8 @@ async function restoreImportedAppState(appState) {
   saveDashboardIdentity(dashboardIdentity);
   saveTheme(theme);
   if (Array.isArray(appState.localFiles)) {
-    await importLocalFiles(appState.localFiles);
+    await importLocalFiles(appState.localFiles, localMediaImportOptions());
+    scheduleCloudStorageUsageRefresh({ force: true });
   }
 }
 
@@ -1574,6 +1580,90 @@ function cloudHasSyncAccess(cloud = state.cloud) {
   );
 }
 
+function cloudMediaSyncAccess(cloud = state.cloud) {
+  return Boolean(
+    cloud?.mode === "signed-in"
+    && cloud.user?.uid
+    && !cloud.isLocalDemo
+    && (cloud.entitlement?.cloud === true || cloud.entitlement?.admin === true)
+  );
+}
+
+function configureMediaCloudContext(cloud = state.cloud) {
+  configureCloudMedia({
+    uid: cloud?.user?.uid || "",
+    enabled: cloudMediaSyncAccess(cloud)
+  });
+}
+
+function safeMigratedImageName(artifact, index) {
+  const title = String(artifact?.title || artifact?.id || "note-image")
+    .replace(/[^a-z0-9._-]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "note-image";
+  return `${title}-${index + 1}`;
+}
+
+function inlineBase64ImageMatches(body) {
+  const matcher = /!\[([^\]]*)\]\((data:image\/[a-z0-9.+-]+;base64,[^)]+)\)/gi;
+  return Array.from(String(body || "").matchAll(matcher));
+}
+
+async function migrateInlineBase64ImagesInArtifacts() {
+  if (!state.artifactStore?.artifacts?.length || !cloudMediaSyncAccess()) return { migrated: 0 };
+
+  let migrated = 0;
+  const now = nowIso();
+  const artifacts = [];
+
+  for (const artifact of state.artifactStore.artifacts) {
+    const matches = inlineBase64ImageMatches(artifact.body);
+    if (!matches.length) {
+      artifacts.push(artifact);
+      continue;
+    }
+
+    let body = artifact.body;
+    for (let index = 0; index < matches.length; index += 1) {
+      const [fullMarkdown, altText, dataUrl] = matches[index];
+      const stored = await storeLocalImageFromDataUrl(dataUrl, safeMigratedImageName(artifact, index), localMediaStoreOptions());
+      const label = String(altText || stored.name || "image").replace(/[\][()]/g, "").trim() || "image";
+      body = body.replace(fullMarkdown, `![${label}](ourstuff-asset:${stored.id})`);
+      migrated += 1;
+    }
+
+    artifacts.push({ ...artifact, body, edited: now });
+  }
+
+  if (migrated > 0) {
+    const nextStore = { ...state.artifactStore, artifacts };
+    state.artifactStore = nextStore;
+    state.compendiums = normalizeCompendiums(artifactStoreToCompendiums(nextStore));
+    writeArtifactStore(nextStore);
+    saveLocalAppUpdatedAt(now);
+    if (state.active === "Gallery") await refreshGalleryImages();
+  }
+
+  return { migrated };
+}
+
+function assertNoCloudBase64Images(json) {
+  const serialized = JSON.stringify(json ?? {});
+  if (/data:image\/[a-z0-9.+-]+;base64,/i.test(serialized)) {
+    throw new Error("Base64 images must be migrated to encrypted Firebase Storage before Firebase artifact sync.");
+  }
+}
+
+async function migrateLocalImagesToCloudBeforeSync() {
+  configureMediaCloudContext();
+  if (!cloudMediaSyncAccess()) return { migrated: 0 };
+  const inline = await migrateInlineBase64ImagesInArtifacts();
+  const local = await migrateLocalMediaToCloud({ uid: state.cloud.user.uid, ...localMediaStoreOptions() });
+  const migrated = (inline.migrated || 0) + (local.migrated || 0);
+  if (migrated > 0 && state.active === "Gallery") await refreshGalleryImages();
+  return { migrated };
+}
+
 function cloudSyncIntervalLabel() {
   const minutes = Math.max(1, Math.round(CLOUD_SYNC_INTERVAL_MS / 60000));
   return `${minutes} min`;
@@ -1583,11 +1673,171 @@ function cloudInfoUpdatedAt(info) {
   return normalizeIsoTimestamp(info?.updatedAt || info?.updated_at || info?.savedAt || info?.createdAt);
 }
 
+function localFileStorageBytes(file) {
+  return Math.max(0, Number(file?.storageBytes) || Number(file?.cloudStorageBytes) || Number(file?.size) || 0);
+}
+
+function sumLocalFileStorageBytes(files) {
+  return (Array.isArray(files) ? files : []).reduce((total, file) => total + localFileStorageBytes(file), 0);
+}
+
+async function localMediaStorageBytes() {
+  return sumLocalFileStorageBytes(await listLocalFiles());
+}
+
+function storageUsagePercent(usage) {
+  const limit = Math.max(1, Number(usage?.limitBytes) || CLOUD_STORAGE_LIMIT_BYTES);
+  return Math.min(100, Math.max(0, (Number(usage?.totalBytes) || 0) / limit * 100));
+}
+
+function storageUsageWithTotals({ storageBytes = 0, firebaseBytes = 0, updatedAt = "", source = "current-device" } = {}) {
+  const normalizedStorageBytes = Math.max(0, Number(storageBytes) || 0);
+  const normalizedFirebaseBytes = Math.max(0, Number(firebaseBytes) || 0);
+  const totalBytes = normalizedStorageBytes + normalizedFirebaseBytes;
+  return {
+    limitBytes: CLOUD_STORAGE_LIMIT_BYTES,
+    storageBytes: normalizedStorageBytes,
+    firebaseBytes: normalizedFirebaseBytes,
+    totalBytes,
+    percent: storageUsagePercent({ limitBytes: CLOUD_STORAGE_LIMIT_BYTES, totalBytes }),
+    updatedAt,
+    source
+  };
+}
+
+async function calculateCloudStorageUsage(options = {}) {
+  const storageBytes = Number.isFinite(Number(options.storageBytes))
+    ? Math.max(0, Number(options.storageBytes))
+    : await localMediaStorageBytes();
+  if (options.json) {
+    const projected = estimateCloudStateStorageUsage(options.json, {
+      uid: state.cloud?.user?.uid || "",
+      deviceId: state.cloud?.deviceId || "",
+      storageBytes
+    });
+    return storageUsageWithTotals({
+      storageBytes,
+      firebaseBytes: projected.firebaseBytes,
+      updatedAt: projected.updatedAt || nowIso(),
+      source: "current-sync-payload"
+    });
+  }
+
+  if (cloudHasSyncAccess()) {
+    const info = await getCloudStateInfo().catch((error) => {
+      if (options.requireCloudInfo) throw error;
+      return null;
+    });
+    const storedUsage = info?.storageUsage || {};
+    return storageUsageWithTotals({
+      storageBytes,
+      firebaseBytes: Number(storedUsage.firebaseBytes) || Number(info?.firebaseBytes) || Number(info?.jsonBytes) || 0,
+      updatedAt: cloudInfoUpdatedAt(info) || storedUsage.updatedAt || "",
+      source: info?.exists ? "firebase-artifacts" : "current-device"
+    });
+  }
+
+  return storageUsageWithTotals({ storageBytes, firebaseBytes: 0 });
+}
+
+function cloudStorageUsageMessage(usage) {
+  const totalBytes = Math.max(0, Number(usage?.totalBytes) || 0);
+  const limitBytes = Math.max(1, Number(usage?.limitBytes) || CLOUD_STORAGE_LIMIT_BYTES);
+  return `Cloud storage limit reached: ${formatStorageGb(totalBytes)} would exceed the ${formatStorageLimitGb(limitBytes)} limit. Delete uploads or cloud data before adding more.`;
+}
+
+function assertCloudStorageUsageAllowed(usage) {
+  if ((Number(usage?.totalBytes) || 0) <= CLOUD_STORAGE_LIMIT_BYTES) return;
+  throw new Error(cloudStorageUsageMessage(usage));
+}
+
+async function assertCanStoreLocalMedia(metadata) {
+  const files = await listLocalFiles();
+  const currentStorageBytes = sumLocalFileStorageBytes(files);
+  const existingBytes = localFileStorageBytes(files.find((file) => file.id === metadata?.id));
+  const usage = await calculateCloudStorageUsage({ storageBytes: currentStorageBytes, requireCloudInfo: true });
+  const projected = storageUsageWithTotals({
+    storageBytes: Math.max(0, usage.storageBytes - existingBytes + localFileStorageBytes(metadata)),
+    firebaseBytes: usage.firebaseBytes,
+    updatedAt: usage.updatedAt,
+    source: "local-upload"
+  });
+  assertCloudStorageUsageAllowed(projected);
+}
+
+function localMediaStoreOptions() {
+  return { beforeStore: assertCanStoreLocalMedia };
+}
+
+async function assertCanImportLocalMedia(records) {
+  const importedStorageBytes = sumLocalFileStorageBytes(records);
+  const usage = await calculateCloudStorageUsage({ storageBytes: 0, requireCloudInfo: true });
+  assertCloudStorageUsageAllowed(storageUsageWithTotals({
+    storageBytes: importedStorageBytes,
+    firebaseBytes: usage.firebaseBytes,
+    updatedAt: usage.updatedAt,
+    source: "local-import"
+  }));
+}
+
+function localMediaImportOptions() {
+  return { beforeImport: assertCanImportLocalMedia };
+}
+
+function cloudStorageUsageFingerprint(usage) {
+  return [
+    usage?.limitBytes || 0,
+    usage?.storageBytes || 0,
+    usage?.firebaseBytes || 0,
+    usage?.totalBytes || 0,
+    usage?.updatedAt || "",
+    usage?.source || ""
+  ].join("|");
+}
+
+function scheduleCloudStorageUsageRefresh(options = {}) {
+  if (!isReady()) return;
+  if (cloudStorageUsageRefreshTimer) window.clearTimeout(cloudStorageUsageRefreshTimer);
+  cloudStorageUsageRefreshTimer = window.setTimeout(() => {
+    cloudStorageUsageRefreshTimer = null;
+    void refreshCloudStorageUsage(options);
+  }, options.delayMs ?? 0);
+}
+
+async function refreshCloudStorageUsage(options = {}) {
+  if (cloudStorageUsageRefreshInFlight) return;
+  cloudStorageUsageRefreshInFlight = true;
+  try {
+    const usage = await calculateCloudStorageUsage();
+    const fingerprint = cloudStorageUsageFingerprint(usage);
+    if (options.force || fingerprint !== cloudStorageUsageSignature) {
+      cloudStorageUsageSignature = fingerprint;
+      setState({ cloudStorageUsage: usage });
+    }
+  } catch (error) {
+    const fallback = storageUsageWithTotals({ source: "usage-error" });
+    fallback.error = error instanceof Error ? error.message : "Could not calculate storage usage.";
+    const fingerprint = cloudStorageUsageFingerprint(fallback);
+    if (options.force || fingerprint !== cloudStorageUsageSignature) {
+      cloudStorageUsageSignature = fingerprint;
+      setState({ cloudStorageUsage: fallback });
+    }
+  } finally {
+    cloudStorageUsageRefreshInFlight = false;
+  }
+}
+
 async function uploadLocalStateToCloud() {
-  const json = await exportAppStateJson();
-  const result = await saveCloudStateJson(json);
+  await migrateLocalImagesToCloudBeforeSync();
+  const json = await exportAppStateJson({ includeLocalFileData: false });
+  assertNoCloudBase64Images(json);
+  const storageBytes = await localMediaStorageBytes();
+  const usage = await calculateCloudStorageUsage({ json, storageBytes });
+  assertCloudStorageUsageAllowed(usage);
+  const result = await saveCloudStateJson(json, { storageBytes });
   const updatedAt = normalizeIsoTimestamp(result?.updatedAt) || nowIso();
   saveLocalAppUpdatedAt(updatedAt);
+  scheduleCloudStorageUsageRefresh({ force: true });
   return { updatedAt };
 }
 
@@ -1597,6 +1847,10 @@ async function importCloudInfoIntoLocal(info) {
   await importAppStateJson(json, {
     sourceUpdatedAt: cloudUpdatedAt || normalizeIsoTimestamp(json?.metadata?.localUpdatedAt) || nowIso()
   });
+  const migration = await migrateLocalImagesToCloudBeforeSync();
+  if (migration.migrated > 0) {
+    return await uploadLocalStateToCloud();
+  }
   return { updatedAt: cloudUpdatedAt };
 }
 
@@ -1609,7 +1863,7 @@ async function clearLocalFromCloudDelete(info) {
 
 function cloudSyncMessage(action, source = "manual") {
   const prefix = source === "manual" ? "Sync" : "Auto sync";
-  if (action === "uploaded") return `${prefix} saved this device to Firebase artifacts.`;
+  if (action === "uploaded") return `${prefix} saved this device to Firebase artifacts and encrypted media.`;
   if (action === "downloaded") return `${prefix} loaded Firebase artifacts into this device.`;
   if (action === "cleared") return `${prefix} applied the Firebase deletion.`;
   return `${prefix} checked. Already current.`;
@@ -1797,6 +2051,7 @@ const state = {
   goalSettings: loadGoalSettings(),
   localAppUpdatedAt: loadLocalAppUpdatedAt(),
   cloud: getCloudAccountState(),
+  cloudStorageUsage: null,
   spiritPlan: null,
   spiritPlanError: "",
   spiritPlanId: "ten-year",
@@ -3886,6 +4141,7 @@ async function clearAppData(options = {}) {
   state.selectedLifeTaskId = null;
   state.galleryImages = null;
   state.gallerySelectedIds = [];
+  state.cloudStorageUsage = null;
   saveTrackerSettings();
   saveGoalSettings();
   goHome();
@@ -3935,6 +4191,7 @@ async function restoreFactoryDefaults() {
   state.selectedLifeTaskId = null;
   state.galleryImages = null;
   state.gallerySelectedIds = [];
+  state.cloudStorageUsage = null;
   if (seedStore.appState) await restoreImportedAppState(seedStore.appState);
   saveArtifactStore(seedStore);
   saveDashboardIdentity(state.dashboardIdentity);
@@ -5109,12 +5366,13 @@ async function uploadLifeAttachment(level) {
     try {
       const attachments = [];
       for (const file of files) {
-        attachments.push(await storeLocalFile(file));
+        attachments.push(await storeLocalFile(file, "life-attachments", localMediaStoreOptions()));
       }
       updateLifeProjectEntity(level, (entity) => ({
         ...entity,
         attachments: [...(entity.attachments || []), ...attachments]
       }));
+      scheduleCloudStorageUsageRefresh({ force: true });
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "Could not upload attachment.");
     }
@@ -5127,7 +5385,9 @@ function deleteLifeAttachment(level, attachmentId) {
     ...entity,
     attachments: (entity.attachments || []).filter((attachment) => attachment.id !== attachmentId)
   }));
-  deleteLocalImages([attachmentId]).catch(() => {});
+  deleteLocalImages([attachmentId])
+    .then(() => scheduleCloudStorageUsageRefresh({ force: true }))
+    .catch(() => {});
 }
 
 function setDashboardPeriod(period) {
@@ -5292,6 +5552,9 @@ function render() {
   renderLifeMonthCalendar();
   focusThoughtEditor();
   restoreThoughtToastFocus(thoughtToastFocus);
+  if (state.active === "Settings" && (state.settingsTab === "cloud")) {
+    scheduleCloudStorageUsageRefresh();
+  }
 }
 
 function thoughtToastHtml() {
@@ -6275,7 +6538,16 @@ function settingsCloudHtml() {
             <h3>Cloud</h3>
             <p>Local use is free. Cloud sync requires a subscription.</p>
           </div>
-          <span class="cloud-status-pill${isCloud ? " is-active" : ""}">${escapeHtml(statusLabel)}</span>
+          <div class="cloud-heading-controls">
+            <span class="cloud-status-pill${isCloud ? " is-active" : ""}">${escapeHtml(statusLabel)}</span>
+            ${signedIn && isCloud ? `
+              <div class="cloud-heading-actions" aria-label="Cloud sync actions">
+                <button class="primary-button" data-action="cloud-sync-now" type="button"${busyAttr}>${buttonContent("tabler:cloud-up", "Sync now")}</button>
+                <button class="secondary-button" data-action="cloud-load" type="button"${busyAttr}>${buttonContent("tabler:cloud-down", "Load cloud")}</button>
+                <button class="secondary-button" data-action="cloud-sign-out" type="button"${busyAttr}>${buttonContent("tabler:logout", "Sign out")}</button>
+              </div>
+            ` : ""}
+          </div>
         </div>
         ${signedIn ? `
           <div class="cloud-account-card">
@@ -6285,24 +6557,19 @@ function settingsCloudHtml() {
               <small>${escapeHtml(account.isLocalDemo ? "Local subscribed demo" : account.user.email || "Firebase account")}</small>
             </div>
           </div>
+          ${cloudStorageUsageHtml(state.cloudStorageUsage)}
           <div class="cloud-sync-grid">
-            <span><strong>${escapeHtml(formatFileSize(localBytes))}</strong><small>Current local JSON estimate</small></span>
+            <span><strong>${escapeHtml(formatStorageGb(localBytes))}</strong><small>Current app JSON estimate</small></span>
             <span><strong>${escapeHtml(localUpdatedAt ? new Date(localUpdatedAt).toLocaleString() : "No local changes")}</strong><small>Last local change</small></span>
             <span><strong>${escapeHtml(account.lastCloudSyncAt ? new Date(account.lastCloudSyncAt).toLocaleString() : "Not synced")}</strong><small>Last sync from this device</small></span>
-            <span><strong>${escapeHtml(isCloud ? `Every ${cloudSyncIntervalLabel()}` : "Off")}</strong><small>Firebase artifact writes</small></span>
+            <span><strong>${escapeHtml(isCloud ? `Every ${cloudSyncIntervalLabel()}` : "Off")}</strong><small>Artifacts + encrypted media</small></span>
           </div>
+          ${(!isCloud || account.billingCapable) ? `
           <div class="action-row cloud-actions">
-            ${isCloud ? `<button class="primary-button" data-action="cloud-sync-now" type="button"${busyAttr}>${buttonContent("tabler:cloud-up", "Sync now")}</button>` : ""}
-            ${isCloud ? `<button class="secondary-button" data-action="cloud-load" type="button"${busyAttr}>${buttonContent("tabler:cloud-down", "Load cloud")}</button>` : ""}
             ${!isCloud ? `<button class="primary-button" data-action="cloud-subscribe" type="button"${busyAttr}>${buttonContent("tabler:credit-card", "Subscribe")}</button>` : ""}
             ${account.billingCapable ? `<button class="secondary-button" data-action="cloud-billing" type="button"${busyAttr}>${buttonContent("tabler:receipt", "Manage Billing")}</button>` : ""}
-            <button class="secondary-button" data-action="cloud-sign-out" type="button"${busyAttr}>${buttonContent("tabler:logout", "Sign out")}</button>
+            ${!isCloud ? `<button class="secondary-button" data-action="cloud-sign-out" type="button"${busyAttr}>${buttonContent("tabler:logout", "Sign out")}</button>` : ""}
           </div>
-          ${isCloud ? `
-            <div class="action-row cloud-actions">
-              <button class="secondary-button danger-button" data-action="cloud-delete-data" type="button"${busyAttr}>${buttonContent("tabler:cloud-x", "Delete cloud data")}</button>
-              <button class="secondary-button danger-button" data-action="cloud-delete-account" type="button"${busyAttr}>${buttonContent("tabler:user-x", "Delete cloud account")}</button>
-            </div>
           ` : ""}
         ` : `
           <div class="action-row cloud-actions">
@@ -6318,6 +6585,13 @@ function settingsCloudHtml() {
             </div>
           </div>
         `}
+        ${signedIn && isCloud ? `
+          <div class="cloud-danger-links" aria-label="Destructive cloud actions">
+            <button class="cloud-danger-link" data-action="cloud-delete-data" type="button"${busyAttr}>Delete cloud data</button>
+            <span class="cloud-danger-separator" aria-hidden="true">|</span>
+            <button class="cloud-danger-link" data-action="cloud-delete-account" type="button"${busyAttr}>Delete cloud account</button>
+          </div>
+        ` : ""}
         ${account.message ? `<p class="cloud-status-message">${escapeHtml(account.message)}</p>` : ""}
         ${account.error ? `<p class="cloud-status-message cloud-status-message--error">${escapeHtml(account.error)}</p>` : ""}
       </section>
@@ -6424,6 +6698,48 @@ function settingsComingSoonHtml(label) {
   `;
 }
 
+function formatStorageGb(size) {
+  const bytes = Number(size) || 0;
+  return `${(Math.max(0, bytes) / 1000000000).toFixed(1)}GB`;
+}
+
+function formatStorageLimitGb(size) {
+  const gb = Math.max(0, Number(size) || 0) / 1000000000;
+  return `${Number.isInteger(gb) ? gb.toFixed(0) : gb.toFixed(1)}GB`;
+}
+
+function cloudStorageUsageHtml(usage) {
+  const loading = !usage;
+  const limitBytes = Number(usage?.limitBytes) || CLOUD_STORAGE_LIMIT_BYTES;
+  const totalBytes = Number(usage?.totalBytes) || 0;
+  const storageBytes = Number(usage?.storageBytes) || 0;
+  const firebaseBytes = Number(usage?.firebaseBytes) || 0;
+  const remainingBytes = Math.max(0, limitBytes - totalBytes);
+  const percent = loading ? 0 : storageUsagePercent(usage);
+  const overLimit = totalBytes > limitBytes;
+  const updatedAt = usage?.updatedAt ? new Date(usage.updatedAt).toLocaleString() : "";
+  return `
+    <div class="cloud-usage-card${overLimit ? " is-over-limit" : ""}" style="--cloud-storage-progress: ${percent}%;">
+      <div class="cloud-usage-heading">
+        <div>
+          <strong>${loading ? "Calculating usage" : `${formatStorageGb(totalBytes)} out of ${formatStorageLimitGb(limitBytes)}`}</strong>
+          <small>${loading ? `Limit: ${formatStorageLimitGb(limitBytes)}` : `${formatStorageGb(storageBytes)} Storage / ${formatStorageGb(firebaseBytes)} Firebase`}</small>
+        </div>
+        <span>${loading ? "--" : `${Math.round(percent * 10) / 10}%`}</span>
+      </div>
+      <div class="cloud-usage-meter" aria-hidden="true"><i></i></div>
+      <div class="cloud-sync-grid cloud-usage-breakdown">
+        <span><strong>${escapeHtml(formatStorageGb(storageBytes))}</strong><small>Storage files</small></span>
+        <span><strong>${escapeHtml(formatStorageGb(firebaseBytes))}</strong><small>Firebase artifacts</small></span>
+      </div>
+      <p class="cloud-status-message${usage?.error || overLimit ? " cloud-status-message--error" : ""}">
+        ${escapeHtml(usage?.error || (loading ? "Reading Storage and Firebase totals." : overLimit ? `Storage is over the ${formatStorageLimitGb(limitBytes)} limit. Uploads and sync will stop until space is freed.` : `${formatStorageGb(remainingBytes)} remaining before uploads stop.`))}
+      </p>
+      ${updatedAt ? `<p class="cloud-usage-updated">Firebase usage from ${escapeHtml(updatedAt)}.</p>` : ""}
+    </div>
+  `;
+}
+
 function galleryHtml() {
   const images = state.galleryImages;
   const selected = new Set(state.gallerySelectedIds);
@@ -6431,7 +6747,7 @@ function galleryHtml() {
   const selectedCount = selected.size;
   const thumbSize = Math.min(320, Math.max(110, Number(state.galleryThumbSize) || 180));
   return panelHtml(`
-    ${headerHtml("Gallery", "Browse image uploads from this browser. The image records keep storage metadata so the same gallery can resolve remote image URLs later.", `
+    ${headerHtml("Gallery", "Browse image uploads from this browser. Cloud media is encrypted before Firebase Storage upload.", `
       <div class="action-row">
         <button class="secondary-button" data-action="gallery-select-all" type="button"${count ? "" : " disabled"}>${buttonContent("tabler:checks", "Select All")}</button>
         <button class="secondary-button" data-action="gallery-clear-selection" type="button"${selectedCount ? "" : " disabled"}>${buttonContent("tabler:square", "Clear")}</button>
@@ -6457,9 +6773,10 @@ function galleryHtml() {
 
 function galleryImageCardHtml(image, selected) {
   const remoteUrl = galleryRemoteImageUrl(image);
+  const downloadName = image.name || `${image.id || "image"}.jpg`;
   const imageLinkAttrs = remoteUrl
-    ? `href="${escapeHtml(remoteUrl)}"`
-    : `href="#" data-local-asset-link="${escapeHtml(image.id)}"`;
+    ? `href="${escapeHtml(remoteUrl)}" download="${escapeHtml(downloadName)}" target="_blank" rel="noopener noreferrer"`
+    : `href="#" download="${escapeHtml(downloadName)}" data-local-asset-link="${escapeHtml(image.id)}" data-local-asset-name="${escapeHtml(downloadName)}"`;
   const imageAttrs = remoteUrl
     ? `src="${escapeHtml(remoteUrl)}"`
     : `data-local-asset="${escapeHtml(image.id)}"`;
@@ -6468,7 +6785,7 @@ function galleryImageCardHtml(image, selected) {
       <label class="gallery-select">
         <input data-gallery-select type="checkbox" value="${escapeHtml(image.id)}"${selected ? " checked" : ""} aria-label="Select ${escapeHtml(image.name || "image")}">
       </label>
-      <a class="gallery-image-link" ${imageLinkAttrs} target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeHtml(image.name || "image")} in a new tab">
+      <a class="gallery-image-link" ${imageLinkAttrs} aria-label="Download ${escapeHtml(image.name || "image")}">
         <img ${imageAttrs} alt="${escapeHtml(image.name || "Uploaded image")}" loading="lazy">
       </a>
     </article>
@@ -6519,6 +6836,7 @@ async function deleteSelectedGalleryImages() {
       galleryImages: (state.galleryImages || []).filter((image) => !ids.includes(image.id)),
       gallerySelectedIds: []
     });
+    scheduleCloudStorageUsageRefresh({ force: true });
   } catch (error) {
     window.alert(error instanceof Error ? error.message : `Could not delete ${label}.`);
   }
@@ -7277,7 +7595,7 @@ function lifeAttachmentsHtml(level, attachments = []) {
       <div class="body-card-heading">
         <div>
           <h3>Attachments</h3>
-          <p>Files stay local now and keep storage metadata for later cloud storage.</p>
+          <p>Files stay local offline and sync as encrypted Firebase Storage media when Cloud is active.</p>
         </div>
         <button class="secondary-button" data-action="upload-life-attachment" data-level="${level}" type="button">${buttonContent("tabler:paperclip", "Upload")}</button>
       </div>
@@ -8589,9 +8907,10 @@ async function insertEditorImages(files, range = null) {
   const markdownItems = [];
   try {
     for (const image of images) {
-      const stored = await storeLocalImage(image);
+      const stored = await storeLocalImage(image, localMediaStoreOptions());
       markdownItems.push(stored.markdown);
     }
+    scheduleCloudStorageUsageRefresh({ force: true });
   } catch (error) {
     window.alert(error instanceof Error ? error.message : "Could not add image.");
     return;
@@ -8628,9 +8947,13 @@ function bindLocalAssetImages() {
       if (!link.href || link.getAttribute("href") === "#") event.preventDefault();
     });
     try {
-      const url = await resolveLocalImageUrl(link.dataset.localAssetLink);
-      if (url) link.href = url;
-      else link.classList.add("is-missing");
+      const resolved = await resolveLocalFile(link.dataset.localAssetLink);
+      if (resolved.url) {
+        link.href = resolved.url;
+        link.download = link.dataset.localAssetName || resolved.name || "image";
+      } else {
+        link.classList.add("is-missing");
+      }
     } catch {
       link.classList.add("is-missing");
     }
@@ -8640,9 +8963,13 @@ function bindLocalAssetImages() {
       if (!link.href || link.getAttribute("href") === "#") event.preventDefault();
     });
     try {
-      const url = await resolveLocalFileUrl(link.dataset.localFileLink);
-      if (url) link.href = url;
-      else link.classList.add("is-missing");
+      const resolved = await resolveLocalFile(link.dataset.localFileLink);
+      if (resolved.url) {
+        link.href = resolved.url;
+        link.download = resolved.name || link.download || "download";
+      } else {
+        link.classList.add("is-missing");
+      }
     } catch {
       link.classList.add("is-missing");
     }
@@ -8876,6 +9203,7 @@ applyEnvironmentClasses();
 render();
 void initCloudAccount((cloud) => {
   state.cloud = cloud;
+  configureMediaCloudContext(cloud);
   render();
   configureCloudAutoSync();
   if (state.artifactStore) void maybePromptCloudImport(cloud);
@@ -8902,6 +9230,7 @@ loadArtifactStore().then(async (artifactStore) => {
     artifactStore,
     compendiums: normalizeCompendiums(artifactStoreToCompendiums(artifactStore))
   });
+  configureMediaCloudContext(state.cloud);
   configureCloudAutoSync();
   void maybePromptCloudImport(state.cloud);
 });

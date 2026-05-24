@@ -1,12 +1,13 @@
 import {
   APP_ID,
+  CLOUD_STORAGE_LIMIT_BYTES,
   FIREBASE_CONFIG,
   FIREBASE_SDK_VERSION,
   LOCAL_CLOUD_DEMO_CONFIG_URL,
   MAX_FIRESTORE_APPSTATE_BYTES,
   PAYMENTS_WORKER_URL,
   SITE_ID
-} from "./config.js";
+} from "./config.js?v=storage-quota-20260523a";
 
 const DEVICE_ID_KEY = "ourstuff.cloudDeviceId.v1";
 const LAST_SYNC_KEY = "ourstuff.lastCloudSyncAt.v1";
@@ -243,30 +244,39 @@ export async function openBillingPortal(returnUrl = currentReturnUrl()) {
   return result;
 }
 
-export async function saveCloudStateJson(json) {
+export async function saveCloudStateJson(json, options = {}) {
   requireCloudEntitlement();
   const jsonBytes = estimateJsonBytes(json);
 
   if (cloudState.isLocalDemo) {
     const savedAt = new Date().toISOString();
+    const usage = estimateCloudStateStorageUsage(json, {
+      uid: cloudState.user?.uid || "local-demo-subscribed-user",
+      updatedAt: savedAt,
+      deviceId: getDeviceId(),
+      storageBytes: options.storageBytes
+    });
+    assertStorageUsageWithinLimit(usage);
     window.localStorage.setItem(LOCAL_DEMO_STATE_KEY, JSON.stringify({
       appId: APP_ID,
       version: 1,
       updatedAt: savedAt,
       deviceId: getDeviceId(),
       jsonBytes,
+      storageUsage: usage,
       json
     }));
     saveLastCloudSyncAt(savedAt);
     emitCloudState({ lastCloudSyncAt: savedAt, message: "Local demo cloud state saved.", error: "" });
-    return { updatedAt: savedAt, jsonBytes };
+    return { updatedAt: savedAt, jsonBytes, storageUsage: usage, ...usage };
   }
 
   const user = requireSignedInFirebaseUser();
   const savedAt = new Date().toISOString();
   const result = await replaceCloudArtifactCollection(user.uid, json, {
     updatedAt: savedAt,
-    deviceId: getDeviceId()
+    deviceId: getDeviceId(),
+    storageBytes: options.storageBytes
   });
   const syncedAt = normalizeSyncTimestamp(result?.updatedAt || savedAt);
   saveLastCloudSyncAt(syncedAt);
@@ -313,6 +323,7 @@ export async function getCloudStateInfo() {
       deviceId: parsed?.deviceId || null,
       updatedAt: parsed?.updatedAt || "",
       jsonBytes: parsed?.jsonBytes || 0,
+      storageUsage: normalizeStoredUsage(parsed?.storageUsage, parsed?.jsonBytes || 0),
       json: parsed?.json || null
     };
   }
@@ -377,29 +388,23 @@ async function replaceCloudArtifactCollection(uid, json, options = {}) {
   const updatedAt = normalizeSyncTimestamp(options.updatedAt) || new Date().toISOString();
   const deviceId = options.deviceId || getDeviceId();
   const normalized = normalizeExportJson(json, { updatedAt, deviceId });
+  assertNoBase64MediaForCloud(normalized);
   const docs = appJsonToCloudArtifactDocs(normalized, uid, { updatedAt, deviceId });
   assertCloudDocsWithinLimit(docs);
+  const usageResult = cloudStorageUsageResult(normalized, docs, {
+    uid,
+    updatedAt,
+    deviceId,
+    storageBytes: options.storageBytes
+  });
+  assertStorageUsageWithinLimit(usageResult.storageUsage);
 
   const collectionRef = userAppArtifactsCollectionRef(modules, uid);
   await deleteCollectionDocs(modules, collectionRef);
   await writeCollectionDocs(modules, collectionRef, docs);
 
   const appDoc = userAppDocRef(modules, uid);
-  const jsonBytes = estimateJsonBytes(normalized);
-  await modules.setDoc(appDoc, {
-    appId: APP_ID,
-    version: CLOUD_STORAGE_VERSION,
-    schemaVersion: normalized.schemaVersion,
-    storage: "firestore-artifacts",
-    collection: CLOUD_ARTIFACTS_COLLECTION,
-    deleted: false,
-    rootId: normalized.rootId,
-    updatedAt,
-    deviceId,
-    jsonBytes,
-    docCount: docs.length,
-    artifactCount: normalized.artifacts.length
-  }, { merge: true });
+  await modules.setDoc(appDoc, usageResult.appDoc, { merge: true });
 
   return {
     appId: APP_ID,
@@ -409,7 +414,12 @@ async function replaceCloudArtifactCollection(uid, json, options = {}) {
     collection: CLOUD_ARTIFACTS_COLLECTION,
     updatedAt,
     deviceId,
-    jsonBytes,
+    jsonBytes: usageResult.appDoc.jsonBytes,
+    firebaseBytes: usageResult.storageUsage.firebaseBytes,
+    storageBytes: usageResult.storageUsage.storageBytes,
+    totalBytes: usageResult.storageUsage.totalBytes,
+    limitBytes: usageResult.storageUsage.limitBytes,
+    storageUsage: usageResult.storageUsage,
     docCount: docs.length,
     artifactCount: normalized.artifacts.length
   };
@@ -430,6 +440,7 @@ async function readCloudArtifactCollection(uid) {
       updatedAt,
       deviceId: appData?.deviceId || "",
       jsonBytes: Number(appData?.jsonBytes) || 0,
+      storageUsage: normalizeStoredUsage(appData?.storageUsage, 0),
       docCount: 0,
       json: null
     };
@@ -442,6 +453,7 @@ async function readCloudArtifactCollection(uid) {
   }));
   const exists = docs.length > 0;
   const json = exists ? cloudArtifactDocsToAppJson(docs, appData) : null;
+  const firebaseBytes = estimateFirestorePayloadBytes(appData, docs);
   return {
     appId: APP_ID,
     exists,
@@ -451,6 +463,8 @@ async function readCloudArtifactCollection(uid) {
     updatedAt: updatedAt || normalizeSyncTimestamp(json?.metadata?.localUpdatedAt),
     deviceId: appData?.deviceId || "",
     jsonBytes: Number(appData?.jsonBytes) || (json ? estimateJsonBytes(json) : 0),
+    firebaseBytes,
+    storageUsage: normalizeStoredUsage(appData?.storageUsage, firebaseBytes),
     docCount: docs.length,
     artifactCount: json?.artifacts?.length || 0,
     json
@@ -475,7 +489,8 @@ async function deleteCloudArtifactCollection(uid, options = {}) {
     deviceId,
     jsonBytes: 0,
     docCount: 0,
-    artifactCount: 0
+    artifactCount: 0,
+    storageUsage: emptyStorageUsage(updatedAt)
   }, { merge: true });
   return {
     appId: APP_ID,
@@ -485,7 +500,8 @@ async function deleteCloudArtifactCollection(uid, options = {}) {
     collection: CLOUD_ARTIFACTS_COLLECTION,
     updatedAt,
     deviceId,
-    deletedDocs
+    deletedDocs,
+    storageUsage: emptyStorageUsage(updatedAt)
   };
 }
 
@@ -550,6 +566,108 @@ function normalizeExportJson(json, context = {}) {
     },
     appState: json?.appState && typeof json.appState === "object" ? jsonSafe(json.appState) : {}
   };
+}
+
+export function estimateCloudStateStorageUsage(json, options = {}) {
+  const updatedAt = normalizeSyncTimestamp(options.updatedAt || json?.metadata?.localUpdatedAt) || new Date().toISOString();
+  const deviceId = options.deviceId || json?.metadata?.deviceId || getDeviceId();
+  const uid = String(options.uid || cloudState.user?.uid || "storage-estimate-user");
+  const normalized = normalizeExportJson(json, { updatedAt, deviceId });
+  assertNoBase64MediaForCloud(normalized);
+  const docs = appJsonToCloudArtifactDocs(normalized, uid, { updatedAt, deviceId });
+  assertCloudDocsWithinLimit(docs);
+  return cloudStorageUsageResult(normalized, docs, {
+    uid,
+    updatedAt,
+    deviceId,
+    storageBytes: options.storageBytes
+  }).storageUsage;
+}
+
+function cloudAppDocBase(json, docs, context = {}) {
+  return {
+    appId: APP_ID,
+    version: CLOUD_STORAGE_VERSION,
+    schemaVersion: json.schemaVersion,
+    storage: "firestore-artifacts",
+    collection: CLOUD_ARTIFACTS_COLLECTION,
+    deleted: false,
+    rootId: json.rootId,
+    updatedAt: context.updatedAt,
+    deviceId: context.deviceId,
+    jsonBytes: estimateJsonBytes(json),
+    docCount: docs.length,
+    artifactCount: json.artifacts.length
+  };
+}
+
+function cloudStorageUsageResult(json, docs, context = {}) {
+  const docsBytes = docs.reduce((total, doc) => total + estimateJsonBytes(doc), 0);
+  const storageBytes = Math.max(0, Number(context.storageBytes) || 0);
+  const baseAppDoc = cloudAppDocBase(json, docs, context);
+  let appDoc = { ...baseAppDoc };
+  let storageUsage = emptyStorageUsage(context.updatedAt);
+
+  for (let index = 0; index < 8; index += 1) {
+    const firebaseBytes = docsBytes + estimateJsonBytes(appDoc);
+    const nextUsage = {
+      limitBytes: CLOUD_STORAGE_LIMIT_BYTES,
+      storageBytes,
+      firebaseBytes,
+      totalBytes: storageBytes + firebaseBytes,
+      updatedAt: context.updatedAt
+    };
+    if (
+      nextUsage.firebaseBytes === storageUsage.firebaseBytes
+      && nextUsage.totalBytes === storageUsage.totalBytes
+      && appDoc.storageUsage
+    ) {
+      storageUsage = nextUsage;
+      break;
+    }
+    storageUsage = nextUsage;
+    appDoc = { ...baseAppDoc, storageUsage };
+  }
+
+  appDoc = { ...baseAppDoc, storageUsage };
+  return { appDoc, storageUsage };
+}
+
+function emptyStorageUsage(updatedAt = "") {
+  return {
+    limitBytes: CLOUD_STORAGE_LIMIT_BYTES,
+    storageBytes: 0,
+    firebaseBytes: 0,
+    totalBytes: 0,
+    updatedAt
+  };
+}
+
+function normalizeStoredUsage(value, firebaseBytes = 0) {
+  const storageBytes = Math.max(0, Number(value?.storageBytes) || 0);
+  const normalizedFirebaseBytes = Math.max(0, Number(value?.firebaseBytes) || Number(firebaseBytes) || 0);
+  return {
+    limitBytes: Number(value?.limitBytes) || CLOUD_STORAGE_LIMIT_BYTES,
+    storageBytes,
+    firebaseBytes: normalizedFirebaseBytes,
+    totalBytes: Math.max(0, Number(value?.totalBytes) || (storageBytes + normalizedFirebaseBytes)),
+    updatedAt: value?.updatedAt ? normalizeSyncTimestamp(value.updatedAt) : ""
+  };
+}
+
+function estimateFirestorePayloadBytes(appData, docs) {
+  return estimateJsonBytes(appData || {}) + docs.reduce((total, doc) => total + estimateJsonBytes(doc), 0);
+}
+
+function formatStorageGb(size) {
+  const bytes = Math.max(0, Number(size) || 0);
+  return `${(bytes / 1000000000).toFixed(1)}GB`;
+}
+
+function assertStorageUsageWithinLimit(usage) {
+  const totalBytes = Math.max(0, Number(usage?.totalBytes) || 0);
+  if (totalBytes <= CLOUD_STORAGE_LIMIT_BYTES) return;
+  throw new Error(`Cloud storage limit reached: ${formatStorageGb(totalBytes)} would exceed the 1GB limit.`);
 }
 
 function appJsonToCloudArtifactDocs(json, uid, context = {}) {
@@ -672,7 +790,7 @@ function appStateToCloudDoc(stateKey, value, uid, context = {}) {
 }
 
 function localFileToCloudDoc(file, uid, context = {}) {
-  const safeFile = jsonSafe(file || {});
+  const safeFile = cloudSafeLocalFile(file);
   const fileId = firestoreDocId(safeFile.id, `local-file-${context.order || 0}`);
   const updatedAt = normalizeSyncTimestamp(safeFile.created) || context.updatedAt || new Date().toISOString();
   return cloudDocBase({
@@ -710,6 +828,15 @@ function localFileToCloudDoc(file, uid, context = {}) {
       extraAttribute5: APP_ID
     }
   });
+}
+
+function cloudSafeLocalFile(file) {
+  const safeFile = jsonSafe(file || {});
+  delete safeFile.blob;
+  delete safeFile.dataUrl;
+  if (typeof safeFile.url === "string" && safeFile.url.startsWith("data:")) delete safeFile.url;
+  if (typeof safeFile.downloadUrl === "string" && safeFile.downloadUrl.startsWith("data:")) delete safeFile.downloadUrl;
+  return safeFile;
 }
 
 function cloudDocBase({ id, uid, type, title, tags, status, createdAt, updatedAt, refs, data, extraAttributes }) {
@@ -819,6 +946,13 @@ function assertCloudDocsWithinLimit(docs) {
   const oversized = docs.find((doc) => estimateJsonBytes(doc) > MAX_FIRESTORE_APPSTATE_BYTES);
   if (!oversized) return;
   throw new Error(`Firebase artifact "${oversized.title || oversized.id}" is too large to sync as one document.`);
+}
+
+function assertNoBase64MediaForCloud(json) {
+  const serialized = JSON.stringify(json ?? {});
+  if (/data:image\/[a-z0-9.+-]+;base64,/i.test(serialized)) {
+    throw new Error("Base64 images must be uploaded to encrypted Firebase Storage before Firebase artifact sync.");
+  }
 }
 
 function collectLocalAssetRefs(artifact) {
@@ -1001,7 +1135,7 @@ async function ensureFirebase() {
     firebaseModulesPromise = Promise.all([
       import(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-app.js`),
       import(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-auth.js`),
-      import(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-firestore.js`)
+      import(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-firestore-lite.js`)
     ]).then(([appModule, authModule, firestoreModule]) => ({
       ...appModule,
       ...authModule,

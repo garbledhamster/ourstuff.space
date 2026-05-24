@@ -3,6 +3,7 @@ export const SITE_ID = "ourstuff";
 export const APP_NAME = "Ourstuff";
 export const PAYMENTS_WORKER_URL = "https://stripe-worker-api.jrice.workers.dev";
 export const MAX_FIRESTORE_APPSTATE_BYTES = 900000;
+export const CLOUD_STORAGE_LIMIT_BYTES = 1000000000;
 export const FIREBASE_SDK_VERSION = "10.12.5";
 export const LOCAL_CLOUD_DEMO_CONFIG_URL = "/assets/local-cloud-dev.json";
 

@@ -182,6 +182,7 @@ Only public config goes in frontend files.
 - Initialize Firebase app.
 - Export `auth`.
 - Export `db`.
+- Prefer Firestore Lite for one-shot app-data sync flows that do not use `onSnapshot`, offline persistence, or latency compensation.
 - Do not include service-account secrets.
 
 ### auth.js

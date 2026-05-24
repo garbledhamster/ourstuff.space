@@ -1,12 +1,21 @@
+import { APP_ID, FIREBASE_CONFIG, FIREBASE_SDK_VERSION } from "./config.js";
+
 const DB_NAME = "ourstuff.localMedia.v1";
 const DB_VERSION = 1;
 const STORE_NAME = "files";
 const ASSET_PREFIX = "ourstuff-asset:";
 const MAX_IMAGE_EDGE = 1080;
 const JPEG_QUALITY = 0.84;
+const REMOTE_STORAGE_NAME = "firebase-storage-encrypted";
+const MEDIA_KEY_PREFIX = "ourstuff.mediaCryptoKey.v1.";
 
 let dbPromise = null;
 const objectUrlCache = new Map();
+const mediaKeyCache = new Map();
+let remoteMediaContext = { enabled: false, uid: "" };
+let firebaseStoragePromise = null;
+let firebaseStorageModules = null;
+let firebaseStorage = null;
 
 function openDb() {
   if (dbPromise) return dbPromise;
@@ -33,6 +42,138 @@ function requestToPromise(request) {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
+}
+
+export function configureCloudMedia(context = {}) {
+  const uid = String(context.uid || "").trim();
+  remoteMediaContext = {
+    enabled: Boolean(context.enabled && uid),
+    uid
+  };
+}
+
+function cloudMediaReady(uid = remoteMediaContext.uid) {
+  return Boolean(remoteMediaContext.enabled && uid);
+}
+
+function bytesToBase64(bytes) {
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary);
+}
+
+function base64ToBytes(value) {
+  const binary = atob(String(value || ""));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+function hexFromBytes(bytes) {
+  return Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function sha256Hex(bytes) {
+  const hash = await crypto.subtle.digest("SHA-256", bytes);
+  return hexFromBytes(new Uint8Array(hash));
+}
+
+function mediaKeyStorageKey(uid) {
+  return `${MEDIA_KEY_PREFIX}${uid}`;
+}
+
+async function mediaCryptoKey(uid) {
+  if (!uid) throw new Error("Sign in before syncing private media.");
+  if (mediaKeyCache.has(uid)) return mediaKeyCache.get(uid);
+
+  let encoded = "";
+  try {
+    encoded = window.localStorage.getItem(mediaKeyStorageKey(uid)) || "";
+  } catch {
+    encoded = "";
+  }
+
+  let raw = encoded ? base64ToBytes(encoded) : null;
+  if (!raw || raw.byteLength !== 32) {
+    raw = crypto.getRandomValues(new Uint8Array(32));
+    try {
+      window.localStorage.setItem(mediaKeyStorageKey(uid), bytesToBase64(raw));
+    } catch {
+      throw new Error("This browser could not save the private media key.");
+    }
+  }
+
+  const key = await crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+  const keyId = (await sha256Hex(raw)).slice(0, 24);
+  const result = { key, keyId };
+  mediaKeyCache.set(uid, result);
+  return result;
+}
+
+async function encryptBlob(blob, uid) {
+  const { key, keyId } = await mediaCryptoKey(uid);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, await blob.arrayBuffer());
+  return {
+    blob: new Blob([encrypted], { type: "application/octet-stream" }),
+    encryption: {
+      version: 1,
+      algorithm: "AES-GCM",
+      iv: bytesToBase64(iv),
+      keyId,
+      contentType: blob.type || "application/octet-stream"
+    }
+  };
+}
+
+async function decryptBlob(blob, record, uid) {
+  const encryption = record?.encryption || {};
+  const { key, keyId } = await mediaCryptoKey(uid);
+  if (encryption.keyId && encryption.keyId !== keyId) {
+    throw new Error("This device does not have the private media key for that file.");
+  }
+  const iv = base64ToBytes(encryption.iv);
+  const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, await blob.arrayBuffer());
+  return new Blob([decrypted], { type: encryption.contentType || record.type || "application/octet-stream" });
+}
+
+async function ensureFirebaseStorage() {
+  if (firebaseStorageModules && firebaseStorage) return firebaseStorageModules;
+  if (!firebaseStoragePromise) {
+    firebaseStoragePromise = Promise.all([
+      import(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-app.js`),
+      import(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-auth.js`),
+      import(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-storage.js`)
+    ]).then(([appModule, authModule, storageModule]) => ({
+      ...appModule,
+      ...authModule,
+      ...storageModule
+    }));
+  }
+
+  firebaseStorageModules = await firebaseStoragePromise;
+  const firebaseApp = firebaseStorageModules.getApps().length
+    ? firebaseStorageModules.getApps()[0]
+    : firebaseStorageModules.initializeApp(FIREBASE_CONFIG);
+  firebaseStorage = firebaseStorageModules.getStorage(firebaseApp);
+  return firebaseStorageModules;
+}
+
+async function remoteUserContext(uid = remoteMediaContext.uid) {
+  const modules = await ensureFirebaseStorage();
+  const app = modules.getApps()[0] || modules.initializeApp(FIREBASE_CONFIG);
+  const auth = modules.getAuth(app);
+  const currentUid = auth.currentUser?.uid || "";
+  if (!currentUid || currentUid !== uid) {
+    throw new Error("Sign in again before syncing private media.");
+  }
+  return { modules, uid: currentUid };
 }
 
 function blobToDataUrl(blob) {
@@ -105,6 +246,95 @@ function storageExtensionForType(type, fallback = "jpg") {
   return fallback;
 }
 
+function filenameWithExtension(name, type, fallbackName = "file") {
+  const extension = storageExtensionForType(type, "bin");
+  const safeName = safeStorageName(name || `${fallbackName}.${extension}`);
+  const stem = safeName.replace(/\.[a-z0-9]+$/i, "") || fallbackName;
+  const currentExtension = (safeName.match(/\.([a-z0-9]+)$/i)?.[1] || "").toLowerCase();
+  if (extension === "bin" && currentExtension) return safeName;
+  if (currentExtension === extension || (extension === "jpg" && currentExtension === "jpeg")) {
+    return safeName;
+  }
+  return `${stem}.${extension}`;
+}
+
+function metadataFromRecord(record) {
+  const { blob, dataUrl, ...metadata } = record || {};
+  const size = Number(metadata.size) || Number(blob?.size) || 0;
+  const cloudStorageBytes = Number(metadata.cloudStorageBytes) || 0;
+  return {
+    ...metadata,
+    name: filenameWithExtension(metadata.name, metadata.type, metadata.id || "file"),
+    size,
+    storageBytes: cloudStorageBytes || size
+  };
+}
+
+async function runBeforeStore(record, options = {}) {
+  if (typeof options.beforeStore !== "function") return;
+  await options.beforeStore(metadataFromRecord(record));
+}
+
+function encryptedStoragePath(uid, record) {
+  const cleanName = filenameWithExtension(record.name, record.type, record.id || "file");
+  return `users/${uid}/apps/${APP_ID}/media/${record.id}/${cleanName}.enc`;
+}
+
+function cloudMetadata(record, encryption) {
+  return {
+    contentType: "application/octet-stream",
+    customMetadata: {
+      appId: APP_ID,
+      encrypted: "true",
+      algorithm: encryption.algorithm,
+      keyId: encryption.keyId,
+      originalContentType: encryption.contentType || record.type || "application/octet-stream"
+    }
+  };
+}
+
+async function uploadRecordToCloud(record, options = {}) {
+  const uid = String(options.uid || remoteMediaContext.uid || "").trim();
+  if (!cloudMediaReady(uid)) return record;
+  if (record.cloudStoragePath && record.storage === REMOTE_STORAGE_NAME && record.encryption) return record;
+  const blob = record.blob || (record.dataUrl ? await dataUrlToBlob(record.dataUrl) : null);
+  if (!blob) return record;
+
+  const { modules } = await remoteUserContext(uid);
+  const path = encryptedStoragePath(uid, record);
+  const encrypted = await encryptBlob(blob, uid);
+  const uploaded = {
+    ...record,
+    blob,
+    storage: REMOTE_STORAGE_NAME,
+    cloudStoragePath: path,
+    cloudStorageBytes: encrypted.blob.size,
+    encryption: encrypted.encryption,
+    uploadedAt: new Date().toISOString()
+  };
+  delete uploaded.dataUrl;
+  await runBeforeStore(uploaded, options);
+  await modules.uploadBytes(modules.ref(firebaseStorage, path), encrypted.blob, cloudMetadata(record, encrypted.encryption));
+  return uploaded;
+}
+
+async function downloadRemoteRecord(record) {
+  if (!record?.cloudStoragePath || !record?.encryption) return null;
+  const uid = remoteMediaContext.uid;
+  if (!cloudMediaReady(uid)) return null;
+  const { modules } = await remoteUserContext(uid);
+  const encryptedUrl = await modules.getDownloadURL(modules.ref(firebaseStorage, record.cloudStoragePath));
+  const response = await fetch(encryptedUrl);
+  if (!response.ok) throw new Error("Could not download private media.");
+  return await decryptBlob(await response.blob(), record, uid);
+}
+
+async function deleteRemoteRecord(record) {
+  if (!record?.cloudStoragePath || !cloudMediaReady()) return;
+  const { modules } = await remoteUserContext(remoteMediaContext.uid);
+  await modules.deleteObject(modules.ref(firebaseStorage, record.cloudStoragePath));
+}
+
 export function localAssetUrl(id) {
   return `${ASSET_PREFIX}${id}`;
 }
@@ -114,7 +344,7 @@ export function localAssetIdFromUrl(url) {
   return text.startsWith(ASSET_PREFIX) ? text.slice(ASSET_PREFIX.length) : "";
 }
 
-export async function storeLocalImage(file) {
+export async function storeLocalImage(file, options = {}) {
   if (!file?.type?.startsWith("image/")) throw new Error("Only image files can be added.");
   const image = await blobToImage(file);
   const originalWidth = image.naturalWidth || image.width;
@@ -139,7 +369,9 @@ export async function storeLocalImage(file) {
   const id = `img-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const record = {
     id,
-    name: file.name || `${id}.${extension}`,
+    name: useOriginal
+      ? filenameWithExtension(file.name || `${id}.${extension}`, type, id)
+      : filenameWithExtension(file.name || `${id}.${extension}`, type, id),
     type,
     size: blob.size,
     width,
@@ -151,20 +383,33 @@ export async function storeLocalImage(file) {
     futureStoragePath: `note-images/${id}.${extension}`,
     blob
   };
+  const uploadedRecord = cloudMediaReady()
+    ? await uploadRecordToCloud(record, options)
+    : record;
+  if (!cloudMediaReady()) await runBeforeStore(uploadedRecord, options);
   const store = await transaction("readwrite");
-  await requestToPromise(store.put(record));
+  await requestToPromise(store.put(uploadedRecord));
   return {
-    ...record,
+    ...metadataFromRecord(uploadedRecord),
     markdown: `![${safeAltText(record.name)}](${localAssetUrl(id)})`
   };
 }
 
-export async function storeLocalFile(file, folder = "life-attachments") {
+export async function storeLocalImageFromDataUrl(dataUrl, name = "image", options = {}) {
+  const blob = await dataUrlToBlob(dataUrl);
+  const extension = storageExtensionForType(blob.type, "png");
+  const file = typeof File === "function"
+    ? new File([blob], `${safeStorageName(name)}.${extension}`, { type: blob.type || "image/png" })
+    : Object.assign(blob, { name: `${safeStorageName(name)}.${extension}` });
+  return await storeLocalImage(file, options);
+}
+
+export async function storeLocalFile(file, folder = "life-attachments", options = {}) {
   if (!file) throw new Error("No file selected.");
   const id = `file-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const record = {
     id,
-    name: file.name || id,
+    name: filenameWithExtension(file.name || id, file.type || "application/octet-stream", id),
     type: file.type || "application/octet-stream",
     size: file.size || 0,
     created: new Date().toISOString(),
@@ -172,24 +417,37 @@ export async function storeLocalFile(file, folder = "life-attachments") {
     futureStoragePath: `${folder}/${id}-${safeStorageName(file.name || id)}`,
     blob: file
   };
+  const uploadedRecord = cloudMediaReady()
+    ? await uploadRecordToCloud(record, options)
+    : record;
+  if (!cloudMediaReady()) await runBeforeStore(uploadedRecord, options);
   const store = await transaction("readwrite");
-  await requestToPromise(store.put(record));
-  const { blob, ...metadata } = record;
+  await requestToPromise(store.put(uploadedRecord));
+  const { blob, dataUrl, ...metadata } = uploadedRecord;
   return metadata;
 }
 
-export async function listLocalImages() {
+export async function listLocalFiles() {
   const store = await transaction("readonly");
   const records = await requestToPromise(store.getAll());
   return records
+    .map(metadataFromRecord)
+    .sort((a, b) => String(b.created || "").localeCompare(String(a.created || "")));
+}
+
+export async function listLocalImages() {
+  const records = await listLocalFiles();
+  return records
     .filter((record) => record?.type?.startsWith("image/"))
-    .map(({ blob, ...metadata }) => metadata)
     .sort((a, b) => String(b.created || "").localeCompare(String(a.created || "")));
 }
 
 export async function deleteLocalImages(ids) {
   const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
   if (!uniqueIds.length) return;
+  const readStore = await transaction("readonly");
+  const records = await Promise.all(uniqueIds.map((id) => requestToPromise(readStore.get(id))));
+  await Promise.all(records.filter(Boolean).map((record) => deleteRemoteRecord(record).catch(() => {})));
   const store = await transaction("readwrite");
   await Promise.all(uniqueIds.map((id) => requestToPromise(store.delete(id))));
   uniqueIds.forEach((id) => {
@@ -199,48 +457,108 @@ export async function deleteLocalImages(ids) {
   });
 }
 
-export async function clearLocalFiles() {
+export async function clearLocalFiles(options = {}) {
+  if (options.deleteRemote !== false) {
+    const readStore = await transaction("readonly");
+    const records = await requestToPromise(readStore.getAll());
+    await Promise.all(records.filter(Boolean).map((record) => deleteRemoteRecord(record).catch(() => {})));
+  }
   const store = await transaction("readwrite");
   await requestToPromise(store.clear());
   objectUrlCache.forEach((url) => URL.revokeObjectURL(url));
   objectUrlCache.clear();
 }
 
-export async function exportLocalFiles() {
+export async function exportLocalFiles(options = {}) {
+  const includeData = options.includeData !== false;
   const store = await transaction("readonly");
   const records = await requestToPromise(store.getAll());
   return await Promise.all(records.map(async (record) => {
     const { blob, ...metadata } = record;
-    return {
-      ...metadata,
-      dataUrl: blob ? await blobToDataUrl(blob) : ""
-    };
+    const exported = { ...metadata };
+    if (includeData) exported.dataUrl = blob ? await blobToDataUrl(blob) : "";
+    return exported;
   }));
 }
 
-export async function importLocalFiles(records) {
+export async function importLocalFiles(records, options = {}) {
   if (!Array.isArray(records)) return;
-  await clearLocalFiles();
   const restoredRecords = await Promise.all(records.filter((record) => record?.id).map(async (record) => {
     const { dataUrl, ...metadata } = record;
-    const blob = dataUrl ? await dataUrlToBlob(dataUrl) : new Blob([], { type: metadata.type || "application/octet-stream" });
-    return { ...metadata, blob };
+    const restored = { ...metadata };
+    if (dataUrl) restored.blob = await dataUrlToBlob(dataUrl);
+    return restored;
   }));
+  if (typeof options.beforeImport === "function") {
+    await options.beforeImport(restoredRecords.map(metadataFromRecord));
+  }
+  await clearLocalFiles({ deleteRemote: false });
   const store = await transaction("readwrite");
   await Promise.all(restoredRecords.map((record) => requestToPromise(store.put(record))));
 }
 
+export async function migrateLocalMediaToCloud(options = {}) {
+  const uid = String(options.uid || remoteMediaContext.uid || "").trim();
+  if (!cloudMediaReady(uid)) return { migrated: 0, skipped: 0 };
+
+  const store = await transaction("readonly");
+  const records = await requestToPromise(store.getAll());
+  let migrated = 0;
+  let skipped = 0;
+
+  for (const record of records) {
+    if (!record?.id || record.cloudStoragePath) {
+      skipped += 1;
+      continue;
+    }
+    const blob = record.blob || (record.dataUrl ? await dataUrlToBlob(record.dataUrl) : null);
+    if (!blob) {
+      skipped += 1;
+      continue;
+    }
+    const uploaded = await uploadRecordToCloud({ ...record, blob }, { ...options, uid });
+    const writeStore = await transaction("readwrite");
+    await requestToPromise(writeStore.put(uploaded));
+    migrated += 1;
+  }
+
+  return { migrated, skipped };
+}
+
 export async function resolveLocalImageUrl(id) {
-  if (!id) return "";
-  if (objectUrlCache.has(id)) return objectUrlCache.get(id);
+  const resolved = await resolveLocalFile(id);
+  return resolved.url;
+}
+
+export async function resolveLocalFile(id) {
+  if (!id) return { url: "", name: "", type: "" };
   const store = await transaction("readonly");
   const record = await requestToPromise(store.get(id));
-  if (!record?.blob) return "";
-  const url = URL.createObjectURL(record.blob);
+  if (!record) return { url: "", name: "", type: "" };
+  if (objectUrlCache.has(id)) {
+    return {
+      ...metadataFromRecord(record),
+      url: objectUrlCache.get(id)
+    };
+  }
+  let blob = record.blob || null;
+  if (!blob && record.cloudStoragePath && record.encryption) {
+    blob = await downloadRemoteRecord(record);
+    if (blob) {
+      const writeStore = await transaction("readwrite");
+      await requestToPromise(writeStore.put({ ...record, blob }));
+    }
+  }
+  if (!blob) return { ...metadataFromRecord(record), url: "" };
+  const url = URL.createObjectURL(blob);
   objectUrlCache.set(id, url);
-  return url;
+  return {
+    ...metadataFromRecord({ ...record, blob }),
+    url
+  };
 }
 
 export async function resolveLocalFileUrl(id) {
-  return resolveLocalImageUrl(id);
+  const resolved = await resolveLocalFile(id);
+  return resolved.url;
 }
