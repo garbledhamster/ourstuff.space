@@ -3018,7 +3018,10 @@ function iconPickerOverlayHtml() {
             <h2>${escapeHtml(title)}</h2>
             <p>Search icons and pick one from the grid.</p>
           </div>
-          <button class="icon-button icon-picker-close" data-action="close-icon-picker" type="button" aria-label="Exit icon picker" title="Exit">${iconHtml("tabler:x")}</button>
+          <div class="icon-picker-header-actions" aria-label="Icon picker actions">
+            <button class="icon-button icon-picker-cancel" data-action="close-icon-picker" type="button" aria-label="Cancel icon selection" title="Cancel">${iconHtml("tabler:x")}</button>
+            <button class="icon-button icon-picker-save" data-action="save-icon-picker" type="button" aria-label="Save icon selection" title="Save">${iconHtml("tabler:device-floppy")}</button>
+          </div>
         </header>
         <label class="icon-picker-search">
           <span>Search</span>
@@ -3028,10 +3031,6 @@ function iconPickerOverlayHtml() {
         <div class="icon-picker-results" data-icon-picker-results>
           ${iconPickerGridHtml()}
         </div>
-        <footer class="icon-picker-actions">
-          <button class="secondary-button" data-action="close-icon-picker" type="button">${buttonContent("tabler:x", "Cancel")}</button>
-          <button class="primary-button" data-action="save-icon-picker" type="button">${buttonContent("tabler:device-floppy", "Save")}</button>
-        </footer>
       </section>
     </div>
   `;

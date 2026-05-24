@@ -22,6 +22,7 @@
 	--muted: #94a3b8;
 	--faint: #64748b;
 	--accent: #38bdf8;
+	--accent-2: #22c55e;
 	--danger: #fca5a5;
 	--theme-hover: #1e293b;
 	--theme-control: #0f172a;
@@ -34,6 +35,12 @@
 	--theme-select-option-active-text: #ffffff;
 	--theme-ring: rgba(56, 189, 248, 0.34);
 	--theme-shadow: rgba(2, 6, 23, 0.48);
+	--on-bg: #f8fafc;
+	--on-surface: #f8fafc;
+	--on-surface-2: #f8fafc;
+	--on-accent: #020617;
+	--on-accent-2: #020617;
+	--on-danger: #020617;
 	--tooltip-bg: color-mix(in srgb, var(--surface) 94%, var(--bg));
 	--tooltip-text: var(--on-surface, var(--text));
 	--tooltip-border: color-mix(in srgb, var(--accent) 58%, var(--border));
@@ -91,6 +98,7 @@
 	--muted: #d6d3c9;
 	--faint: #aaa79f;
 	--accent: #efeee7;
+	--accent-2: #d6d3c9;
 	--danger: #f0b7b7;
 	--theme-select-bg: #050505;
 	--theme-select-text: #f1f0e8;
@@ -98,6 +106,12 @@
 	--theme-select-option-text: #f1f0e8;
 	--theme-select-option-active: #efeee7;
 	--theme-select-option-active-text: #050505;
+	--on-bg: #f1f0e8;
+	--on-surface: #f1f0e8;
+	--on-surface-2: #f1f0e8;
+	--on-accent: #050505;
+	--on-accent-2: #050505;
+	--on-danger: #050505;
 }
 
 @supports (height: 100dvh) {
@@ -3436,7 +3450,7 @@ select option:checked {
 
 .icon-picker-panel {
 	display: grid;
-	grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+	grid-template-rows: auto auto auto minmax(0, 1fr);
 	width: min(760px, 100%);
 	max-height: min(720px, calc(100dvh - 36px));
 	border: 1px solid var(--border);
@@ -3454,6 +3468,27 @@ select option:checked {
 	align-items: center;
 	padding: 16px;
 	border-bottom: 1px solid var(--border-soft);
+}
+
+.icon-picker-header-actions {
+	display: inline-flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 8px;
+}
+
+.icon-picker-save {
+	border-color: color-mix(
+		in srgb,
+		var(--icon-picker-color, var(--accent)) 64%,
+		var(--border-soft)
+	);
+	background: color-mix(
+		in srgb,
+		var(--icon-picker-color, var(--accent)) 30%,
+		var(--theme-control)
+	);
+	color: var(--text);
 }
 
 .icon-picker-current {
@@ -3691,15 +3726,53 @@ select option:checked {
 	margin-top: 12px;
 }
 
-.icon-picker-actions {
-	display: flex;
-	justify-content: flex-end;
-	gap: 10px;
-	border-top: 1px solid var(--border-soft);
-	padding: 14px 16px;
-}
-
 .thought-toast {
+	--thought-toast-accent: var(--accent-2, var(--accent));
+	--thought-toast-on-accent: var(
+		--on-accent-2,
+		var(--on-accent, var(--text))
+	);
+	--thought-toast-bg: color-mix(
+		in srgb,
+		var(--surface) 70%,
+		var(--thought-toast-accent) 30%
+	);
+	--thought-toast-bg-deep: color-mix(
+		in srgb,
+		var(--bg) 72%,
+		var(--thought-toast-accent) 28%
+	);
+	--thought-toast-panel: color-mix(
+		in srgb,
+		var(--theme-control) 68%,
+		var(--thought-toast-accent) 32%
+	);
+	--thought-toast-panel-hover: color-mix(
+		in srgb,
+		var(--theme-control-hover) 58%,
+		var(--thought-toast-accent) 42%
+	);
+	--thought-toast-border: color-mix(
+		in srgb,
+		var(--thought-toast-accent) 74%,
+		var(--border)
+	);
+	--thought-toast-border-soft: color-mix(
+		in srgb,
+		var(--thought-toast-accent) 44%,
+		var(--border-soft)
+	);
+	--thought-toast-text: var(--text);
+	--thought-toast-muted: color-mix(
+		in srgb,
+		var(--text) 70%,
+		var(--thought-toast-accent) 30%
+	);
+	--thought-toast-label: color-mix(
+		in srgb,
+		var(--text) 52%,
+		var(--thought-toast-accent) 48%
+	);
 	position: fixed;
 	left: 50%;
 	right: auto;
@@ -3713,12 +3786,19 @@ select option:checked {
 	align-items: stretch;
 	gap: 12px;
 	width: min(860px, calc(100vw - 44px));
-	border: 1px solid var(--border);
+	border: 1px solid var(--thought-toast-border);
 	border-radius: 16px;
-	background: #0f172a;
-	color: var(--text);
+	background: linear-gradient(
+		135deg,
+		var(--thought-toast-bg),
+		var(--thought-toast-bg-deep)
+	);
+	color: var(--thought-toast-text);
 	padding: 12px 14px;
-	box-shadow: 0 18px 42px rgba(0, 0, 0, 0.36);
+	box-shadow:
+		0 18px 42px var(--theme-shadow, rgba(0, 0, 0, 0.36)),
+		0 0 0 1px
+		color-mix(in srgb, var(--thought-toast-accent) 32%, transparent) inset;
 	opacity: 1;
 	transform: translateX(-50%) translateY(0);
 	transition:
@@ -3753,14 +3833,14 @@ select option:checked {
 }
 
 .thought-toast strong {
-	color: #fff;
+	color: var(--thought-toast-text);
 	font-family: var(--font-label);
 	font-weight: 900;
 }
 
 .thought-toast small {
 	margin-top: 3px;
-	color: var(--muted);
+	color: var(--thought-toast-muted);
 	font-size: 0.86rem;
 }
 
@@ -3782,7 +3862,7 @@ select option:checked {
 
 .thought-toast-input-label span,
 .thought-toast-time-fields span {
-	color: var(--faint);
+	color: var(--thought-toast-label);
 	font-family: var(--font-label);
 	font-size: 0.62rem;
 	font-weight: 900;
@@ -3802,12 +3882,16 @@ select option:checked {
 	width: 100%;
 	min-width: 0;
 	height: 38px;
-	border: 1px solid var(--border-soft);
+	border: 1px solid var(--thought-toast-border-soft);
 	border-radius: 10px;
-	background: #020617;
-	color: #fff;
+	background: var(--thought-toast-panel);
+	color: var(--thought-toast-text);
 	padding: 8px 10px;
 	outline: none;
+}
+
+.thought-toast-input::placeholder {
+	color: color-mix(in srgb, var(--thought-toast-muted) 72%, transparent);
 }
 
 .thought-toast-input-label .thought-toast-input {
@@ -3825,12 +3909,20 @@ select option:checked {
 }
 
 .thought-toast-input:focus {
-	border-color: var(--accent);
+	border-color: var(--thought-toast-accent);
+	background: var(--thought-toast-panel-hover);
+	box-shadow: 0 0 0 3px
+		color-mix(in srgb, var(--thought-toast-accent) 24%, transparent);
 }
 
 .thought-toast-delete {
-	border-color: rgba(248, 113, 113, 0.55);
-	color: #fecaca;
+	border-color: color-mix(
+		in srgb,
+		var(--danger) 72%,
+		var(--thought-toast-border-soft)
+	);
+	background: color-mix(in srgb, var(--danger) 12%, var(--thought-toast-panel));
+	color: var(--danger);
 }
 
 .thought-toast > .icon-button {
@@ -8430,6 +8522,78 @@ button.life-event-row:hover {
 	text-underline-offset: 3px;
 }
 
+:root.theme-palette .thought-toast > .icon-button,
+:root.theme-consolas .thought-toast > .icon-button,
+.thought-toast > .icon-button {
+	border-color: var(--thought-toast-border-soft);
+	background: var(--thought-toast-panel);
+	color: var(--thought-toast-text);
+	box-shadow: none;
+}
+
+:root.theme-palette .thought-toast > .icon-button:hover,
+:root.theme-palette .thought-toast > .icon-button:focus-visible,
+:root.theme-consolas .thought-toast > .icon-button:hover,
+:root.theme-consolas .thought-toast > .icon-button:focus-visible,
+.thought-toast > .icon-button:hover,
+.thought-toast > .icon-button:focus-visible {
+	border-color: var(--thought-toast-accent);
+	background: var(--thought-toast-panel-hover);
+	color: var(--thought-toast-text);
+	outline: none;
+	transform: translateY(-1px);
+}
+
+:root.theme-palette .thought-toast > .thought-toast-action,
+:root.theme-consolas .thought-toast > .thought-toast-action,
+.thought-toast > .thought-toast-action {
+	border-color: var(--thought-toast-accent);
+	background: var(--thought-toast-accent);
+	color: var(--thought-toast-on-accent);
+	box-shadow:
+		0 10px 22px var(--theme-shadow, rgba(0, 0, 0, 0.28)),
+		0 0 0 1px
+		color-mix(in srgb, var(--thought-toast-on-accent) 18%, transparent) inset;
+}
+
+:root.theme-palette .thought-toast > .thought-toast-action:hover,
+:root.theme-palette .thought-toast > .thought-toast-action:focus-visible,
+:root.theme-consolas .thought-toast > .thought-toast-action:hover,
+:root.theme-consolas .thought-toast > .thought-toast-action:focus-visible,
+.thought-toast > .thought-toast-action:hover,
+.thought-toast > .thought-toast-action:focus-visible {
+	border-color: var(--thought-toast-accent);
+	background: color-mix(
+		in srgb,
+		var(--thought-toast-accent) 86%,
+		var(--thought-toast-text) 14%
+	);
+	color: var(--thought-toast-on-accent);
+}
+
+:root.theme-palette .thought-toast > .thought-toast-delete,
+:root.theme-consolas .thought-toast > .thought-toast-delete,
+.thought-toast > .thought-toast-delete {
+	border-color: color-mix(
+		in srgb,
+		var(--danger) 74%,
+		var(--thought-toast-border-soft)
+	);
+	background: color-mix(in srgb, var(--danger) 14%, var(--thought-toast-panel));
+	color: var(--danger);
+}
+
+:root.theme-palette .thought-toast > .thought-toast-delete:hover,
+:root.theme-palette .thought-toast > .thought-toast-delete:focus-visible,
+:root.theme-consolas .thought-toast > .thought-toast-delete:hover,
+:root.theme-consolas .thought-toast > .thought-toast-delete:focus-visible,
+.thought-toast > .thought-toast-delete:hover,
+.thought-toast > .thought-toast-delete:focus-visible {
+	border-color: var(--danger);
+	background: var(--danger);
+	color: var(--on-danger, var(--thought-toast-on-accent));
+}
+
 @media (max-width: 860px) {
 	:root {
 		--content-pad: 16px;
@@ -8762,10 +8926,6 @@ button.life-event-row:hover {
 	.icon-picker-option {
 		min-height: 70px;
 		border-radius: 10px;
-	}
-
-	.icon-picker-actions {
-		padding: 12px;
 	}
 
 	.panel > .dashboard-orb-nav + .scroll-area {
