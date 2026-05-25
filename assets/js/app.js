@@ -23,7 +23,7 @@ import {
 	signInWithGoogle,
 	signOutCloud,
 	startCloudSubscription,
-} from "./cloud.js?v=media-key-sync-20260525a";
+} from "./cloud.js?v=media-key-repair-20260525a";
 import { CLOUD_STORAGE_LIMIT_BYTES } from "./config.js?v=storage-quota-20260523a";
 import { today } from "./data.js";
 import { bindDonationFlow, donationModalHtml } from "./donations.js";
@@ -43,7 +43,7 @@ import {
 	storeLocalFile,
 	storeLocalImage,
 	storeLocalImageFromDataUrl,
-} from "./localMedia.js?v=media-key-sync-20260525a";
+} from "./localMedia.js?v=media-key-repair-20260525a";
 import { escapeHtml, renderMarkdown } from "./markdown.js";
 import {
 	DEFAULT_PYXIDA_SETTINGS,
@@ -2255,7 +2255,7 @@ async function exportAppState(options = {}) {
 			state.dashboardChartTabs || DEFAULT_DASHBOARD_CHART_TABS,
 		),
 		theme: normalizeTheme(state.theme),
-		cloudMediaKey: exportCloudMediaKey(),
+		cloudMediaKey: await exportCloudMediaKey(),
 		localFiles: await exportLocalFiles({
 			includeData: options.includeLocalFileData !== false,
 		}).catch(() => []),
@@ -2481,6 +2481,7 @@ async function migrateLocalImagesToCloudBeforeSync() {
 	const inline = await migrateInlineBase64ImagesInArtifacts();
 	const local = await migrateLocalMediaToCloud({
 		uid: state.cloud.user.uid,
+		repairMissingRemote: true,
 		...localMediaStoreOptions(),
 	});
 	const migrated = (inline.migrated || 0) + (local.migrated || 0);
@@ -14070,14 +14071,42 @@ function insertTextAtEditorCursor(text, start, end) {
 	editor.setSelectionRange(nextCursor, nextCursor);
 }
 
+function localAssetErrorMessage(error) {
+	const code = String(error?.code || "");
+	const message =
+		error instanceof Error ? error.message : String(error || "").trim();
+	if (code.includes("storage/unauthorized")) {
+		return "Firebase Storage denied access to this media file.";
+	}
+	if (code.includes("storage/object-not-found")) {
+		return "The synced media file was not found in Firebase Storage.";
+	}
+	if (/private media key/i.test(message)) {
+		return "This browser does not have the private media key for this file.";
+	}
+	return message || "Could not load this synced media file.";
+}
+
+function markLocalAssetMissing(element, error) {
+	const message = localAssetErrorMessage(error);
+	element.classList.add("is-missing");
+	element.title = message;
+	element.dataset.mediaError = message;
+	console.warn("ourstuff_media_load_failed", {
+		id: element.dataset.localAsset || element.dataset.localAssetLink || "",
+		message,
+		code: error?.code || "",
+	});
+}
+
 function bindLocalAssetImages() {
 	app.querySelectorAll("img[data-local-asset]").forEach(async (image) => {
 		try {
 			const url = await resolveLocalImageUrl(image.dataset.localAsset);
 			if (url) image.src = url;
-			else image.classList.add("is-missing");
-		} catch {
-			image.classList.add("is-missing");
+			else markLocalAssetMissing(image, "No local or cloud media file was found.");
+		} catch (error) {
+			markLocalAssetMissing(image, error);
 		}
 	});
 	app.querySelectorAll("a[data-local-asset-link]").forEach(async (link) => {
@@ -14091,10 +14120,10 @@ function bindLocalAssetImages() {
 				link.href = resolved.url;
 				link.download = link.dataset.localAssetName || resolved.name || "image";
 			} else {
-				link.classList.add("is-missing");
+				markLocalAssetMissing(link, "No local or cloud media file was found.");
 			}
-		} catch {
-			link.classList.add("is-missing");
+		} catch (error) {
+			markLocalAssetMissing(link, error);
 		}
 	});
 	app.querySelectorAll("a[data-local-file-link]").forEach(async (link) => {
@@ -14108,10 +14137,10 @@ function bindLocalAssetImages() {
 				link.href = resolved.url;
 				link.download = resolved.name || link.download || "download";
 			} else {
-				link.classList.add("is-missing");
+				markLocalAssetMissing(link, "No local or cloud media file was found.");
 			}
-		} catch {
-			link.classList.add("is-missing");
+		} catch (error) {
+			markLocalAssetMissing(link, error);
 		}
 	});
 }

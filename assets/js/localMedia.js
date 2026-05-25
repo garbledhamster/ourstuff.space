@@ -54,15 +54,37 @@ export function configureCloudMedia(context = {}) {
 	};
 }
 
-export function exportCloudMediaKey() {
+export async function exportCloudMediaKey() {
 	const uid = String(remoteMediaContext.uid || "").trim();
 	if (!cloudMediaReady(uid)) return null;
+	let raw = "";
 	try {
-		const raw = window.localStorage.getItem(mediaKeyStorageKey(uid)) || "";
-		return raw ? { version: 1, uid, key: raw } : null;
+		raw = window.localStorage.getItem(mediaKeyStorageKey(uid)) || "";
 	} catch {
 		return null;
 	}
+	if (!raw) return null;
+
+	let bytes = null;
+	try {
+		bytes = base64ToBytes(raw);
+	} catch {
+		return null;
+	}
+	if (bytes.byteLength !== 32) return null;
+
+	const keyId = (await sha256Hex(bytes)).slice(0, 24);
+	const store = await transaction("readonly");
+	const records = await requestToPromise(store.getAll()).catch(() => []);
+	const encryptedRecords = records.filter((record) => record?.encryption?.keyId);
+	if (
+		encryptedRecords.length &&
+		!encryptedRecords.some((record) => record.encryption.keyId === keyId)
+	) {
+		return null;
+	}
+
+	return { version: 1, uid, key: raw, keyId };
 }
 
 export function importCloudMediaKey(value = {}) {
@@ -122,9 +144,10 @@ function mediaKeyStorageKey(uid) {
 	return `${MEDIA_KEY_PREFIX}${uid}`;
 }
 
-async function mediaCryptoKey(uid) {
+async function mediaCryptoKey(uid, options = {}) {
 	if (!uid) throw new Error("Sign in before syncing private media.");
 	if (mediaKeyCache.has(uid)) return mediaKeyCache.get(uid);
+	const createIfMissing = options.createIfMissing !== false;
 
 	let encoded = "";
 	try {
@@ -133,8 +156,18 @@ async function mediaCryptoKey(uid) {
 		encoded = "";
 	}
 
-	let raw = encoded ? base64ToBytes(encoded) : null;
+	let raw = null;
+	if (encoded) {
+		try {
+			raw = base64ToBytes(encoded);
+		} catch {
+			raw = null;
+		}
+	}
 	if (!raw || raw.byteLength !== 32) {
+		if (!createIfMissing) {
+			throw new Error("This device does not have the private media key for that file.");
+		}
 		raw = crypto.getRandomValues(new Uint8Array(32));
 		try {
 			window.localStorage.setItem(mediaKeyStorageKey(uid), bytesToBase64(raw));
@@ -178,7 +211,7 @@ async function encryptBlob(blob, uid) {
 
 async function decryptBlob(blob, record, uid) {
 	const encryption = record?.encryption || {};
-	const { key, keyId } = await mediaCryptoKey(uid);
+	const { key, keyId } = await mediaCryptoKey(uid, { createIfMissing: false });
 	if (encryption.keyId && encryption.keyId !== keyId) {
 		throw new Error(
 			"This device does not have the private media key for that file.",
@@ -377,6 +410,7 @@ async function uploadRecordToCloud(record, options = {}) {
 	const uid = String(options.uid || remoteMediaContext.uid || "").trim();
 	if (!cloudMediaReady(uid)) return record;
 	if (
+		!options.forceUpload &&
 		record.cloudStoragePath &&
 		record.storage === REMOTE_STORAGE_NAME &&
 		record.encryption
@@ -407,6 +441,12 @@ async function uploadRecordToCloud(record, options = {}) {
 		cloudMetadata(record, encrypted.encryption),
 	);
 	return uploaded;
+}
+
+async function remoteRecordExists(record, modules) {
+	if (!record?.cloudStoragePath) return false;
+	await modules.getMetadata(modules.ref(firebaseStorage, record.cloudStoragePath));
+	return true;
 }
 
 async function downloadRemoteRecord(record) {
@@ -615,6 +655,15 @@ export async function exportLocalFiles(options = {}) {
 
 export async function importLocalFiles(records, options = {}) {
 	if (!Array.isArray(records)) return;
+	const existingStore = await transaction("readonly");
+	const existingRecords = await requestToPromise(existingStore.getAll()).catch(
+		() => [],
+	);
+	const existingById = new Map(
+		existingRecords
+			.filter((record) => record?.id)
+			.map((record) => [record.id, record]),
+	);
 	const restoredRecords = await Promise.all(
 		records
 			.filter((record) => record?.id)
@@ -622,6 +671,12 @@ export async function importLocalFiles(records, options = {}) {
 				const { dataUrl, ...metadata } = record;
 				const restored = { ...metadata };
 				if (dataUrl) restored.blob = await dataUrlToBlob(dataUrl);
+				else {
+					const existing = existingById.get(restored.id);
+					if (existing?.blob) restored.blob = existing.blob;
+					else if (existing?.dataUrl)
+						restored.blob = await dataUrlToBlob(existing.dataUrl);
+				}
 				return restored;
 			}),
 	);
@@ -645,20 +700,37 @@ export async function migrateLocalMediaToCloud(options = {}) {
 	let skipped = 0;
 
 	for (const record of records) {
-		if (!record?.id || record.cloudStoragePath) {
+		if (!record?.id) {
 			skipped += 1;
 			continue;
 		}
 		const blob =
 			record.blob ||
 			(record.dataUrl ? await dataUrlToBlob(record.dataUrl) : null);
+		const hasRemoteRecord = Boolean(record.cloudStoragePath && record.encryption);
 		if (!blob) {
 			skipped += 1;
 			continue;
 		}
+		if (hasRemoteRecord && options.repairMissingRemote !== true) {
+			skipped += 1;
+			continue;
+		}
+		if (hasRemoteRecord) {
+			const { modules } = await remoteUserContext(uid);
+			try {
+				await remoteRecordExists(record, modules);
+				skipped += 1;
+				continue;
+			} catch (error) {
+				if (!String(error?.code || "").includes("storage/object-not-found")) {
+					throw error;
+				}
+			}
+		}
 		const uploaded = await uploadRecordToCloud(
 			{ ...record, blob },
-			{ ...options, uid },
+			{ ...options, uid, forceUpload: hasRemoteRecord },
 		);
 		const writeStore = await transaction("readwrite");
 		await requestToPromise(writeStore.put(uploaded));
