@@ -1,2 +1,6 @@
 *.md
 assets/local-cloud-dev.json
+firebase-debug.log
+functions/venv/
+functions/__pycache__/
+functions/node_modules/

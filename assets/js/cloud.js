@@ -80,6 +80,14 @@ export function getCloudAccountState() {
 	};
 }
 
+export async function getCloudIdToken(options = {}) {
+	if (!currentFirebaseUser) {
+		if (options.optional === true) return null;
+		throw new Error("Sign in before using PYXDIA.");
+	}
+	return currentFirebaseUser.getIdToken(options.forceRefresh === true);
+}
+
 export function subscribeCloudAccount(listener) {
 	listeners.add(listener);
 	listener(getCloudAccountState());

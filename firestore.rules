@@ -40,5 +40,43 @@ service cloud.firestore {
       allow create, update: if canUseCloud(uid) && ownsIncomingArtifact(uid);
       allow delete: if canUseCloud(uid);
     }
+
+    match /users/{uid}/apps/{appId}/pyxdiaSettings/{docId} {
+      allow read: if isSelf(uid);
+      allow create, update: if isSelf(uid)
+        && request.resource.data.owner == uid
+        && !("admin" in request.resource.data);
+      allow delete: if isSelf(uid);
+    }
+
+    match /users/{uid}/apps/{appId}/pyxdiaThreads/{threadId} {
+      allow read: if isSelf(uid);
+      allow create, update: if isSelf(uid)
+        && request.resource.data.owner == uid;
+      allow delete: if isSelf(uid);
+    }
+
+    match /users/{uid}/apps/{appId}/pyxdiaLetters/{letterId} {
+      allow read: if isSelf(uid);
+      allow create, update: if isSelf(uid)
+        && request.resource.data.owner == uid
+        && request.resource.data.state == "draft"
+        && !("outputText" in request.resource.data);
+      allow delete: if isSelf(uid);
+    }
+
+    match /users/{uid}/apps/{appId}/pyxdiaMemories/{memoryId} {
+      allow read, delete: if isSelf(uid);
+      allow create, update: if false;
+    }
+
+    match /users/{uid}/apps/{appId}/pyxdiaProcessingJobs/{jobId} {
+      allow read: if isSelf(uid);
+      allow create, update, delete: if false;
+    }
+
+    match /users/{uid}/apps/{appId}/pyxdiaRateLimits/{bucketId} {
+      allow read, create, update, delete: if false;
+    }
   }
 }

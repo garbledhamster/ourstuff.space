@@ -856,6 +856,75 @@ select option:checked {
 	color: #fff;
 }
 
+.sidebar-group--pyxdia {
+	border: 1px solid rgba(125, 211, 252, 0.22);
+	border-radius: 14px;
+	background: rgba(2, 6, 23, 0.34);
+	padding: 10px;
+}
+
+.pyxdia-sidebar-toggle {
+	padding-bottom: 9px;
+}
+
+.pyxdia-sidebar-title {
+	display: inline-flex;
+	align-items: center;
+	min-width: 0;
+	gap: 8px;
+}
+
+.pyxdia-sidebar-title .button-icon {
+	width: 18px;
+	height: 18px;
+	color: #7dd3fc;
+}
+
+.pyxdia-sidebar-items {
+	gap: 8px;
+}
+
+.sidebar-item--pyxdia,
+.sidebar-item--pyxdia-thread {
+	grid-template-columns: 34px minmax(0, 1fr);
+	padding: 9px;
+}
+
+.sidebar-item--pyxdia .button-content {
+	justify-content: flex-start;
+	gap: 7px;
+	min-width: 0;
+}
+
+.sidebar-item--pyxdia .button-icon {
+	width: 17px;
+	height: 17px;
+}
+
+.pyxdia-sidebar-conversations {
+	display: grid;
+	gap: 7px;
+	margin-top: 2px;
+}
+
+.pyxdia-sidebar-conversations > span {
+	color: var(--faint);
+	font-family: var(--font-label);
+	font-size: 0.58rem;
+	font-weight: 900;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+
+.pyxdia-sidebar-empty {
+	border: 1px dashed var(--border-soft);
+	border-radius: 10px;
+	color: var(--faint);
+	padding: 10px;
+	font-size: 0.78rem;
+	line-height: 1.35;
+}
+
 .sidebar-item--mind-compendium.is-active,
 .sidebar-item--mind-section.is-active {
 	width: calc(100% - 6px);
@@ -1976,7 +2045,7 @@ select option:checked {
 
 .settings-tabs {
 	display: grid;
-	grid-template-columns: repeat(5, minmax(0, 1fr));
+	grid-template-columns: repeat(6, minmax(0, 1fr));
 	gap: 8px;
 	border: 1px solid var(--border-soft);
 	border-radius: 16px;
@@ -2031,6 +2100,12 @@ select option:checked {
 	gap: 14px;
 }
 
+.pyxdia-settings {
+	display: grid;
+	align-content: start;
+	gap: 14px;
+}
+
 .thoughts-settings-intro,
 .thoughts-settings-section,
 .interface-settings-section {
@@ -2058,6 +2133,290 @@ select option:checked {
 	margin: 0;
 	color: var(--muted);
 	line-height: 1.5;
+}
+
+.pyxdia-page {
+	display: grid;
+	align-content: start;
+	gap: 14px;
+	height: calc(100% - 80px);
+	min-height: 0;
+	overflow-y: auto;
+	padding-right: 8px;
+}
+
+.pyxdia-mode-switcher {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 8px;
+}
+
+.pyxdia-mode-switcher .body-mode-button {
+	min-width: 0;
+	min-height: 42px;
+	padding: 0 10px;
+}
+
+.pyxdia-mode-switcher .body-mode-label {
+	position: static;
+	width: auto;
+	height: auto;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	overflow: visible;
+	clip: auto;
+	white-space: normal;
+	line-height: 1.15;
+}
+
+.pyxdia-status-strip {
+	display: grid;
+	gap: 8px;
+	border: 1px solid var(--border-soft);
+	border-radius: 14px;
+	background: rgba(2, 6, 23, 0.5);
+	padding: 12px;
+}
+
+.pyxdia-status-strip > div {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.pyxdia-status-strip span {
+	display: inline-flex;
+	align-items: center;
+	min-height: 24px;
+	border: 1px solid var(--border-soft);
+	border-radius: 999px;
+	background: rgba(15, 23, 42, 0.78);
+	color: #dbeafe;
+	padding: 4px 9px;
+	font-family: var(--font-label);
+	font-size: 0.68rem;
+	font-weight: 900;
+	line-height: 1;
+}
+
+.pyxdia-status-strip p {
+	margin: 0;
+	color: var(--muted);
+	line-height: 1.45;
+}
+
+.pyxdia-status-strip.has-error {
+	border-color: rgba(248, 113, 113, 0.5);
+}
+
+.pyxdia-status-strip .pyxdia-error {
+	color: #fecaca;
+}
+
+.pyxdia-letter-editor {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+	gap: 14px;
+}
+
+.pyxdia-letter-main,
+.pyxdia-letter-side,
+.pyxdia-output,
+.pyxdia-thread,
+.pyxdia-memory-card {
+	border: 1px solid var(--border-soft);
+	border-radius: 16px;
+	background: rgba(2, 6, 23, 0.5);
+	padding: 16px;
+}
+
+.pyxdia-letter-main {
+	display: grid;
+	align-content: start;
+	gap: 12px;
+}
+
+.pyxdia-letter-field textarea {
+	min-height: 280px;
+}
+
+.pyxdia-letter-counter {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 8px;
+	color: var(--faint);
+	font-family: var(--font-label);
+	font-size: 0.72rem;
+	font-weight: 900;
+}
+
+.pyxdia-letter-counter.is-over-limit {
+	color: #fecaca;
+}
+
+.pyxdia-letter-side {
+	display: grid;
+	align-content: start;
+	gap: 12px;
+	min-width: 0;
+}
+
+.pyxdia-note-ref-list {
+	display: grid;
+	gap: 8px;
+	max-height: 460px;
+	overflow-y: auto;
+	padding-right: 4px;
+}
+
+.pyxdia-note-ref {
+	display: grid;
+	grid-template-columns: 18px minmax(0, 1fr);
+	align-items: start;
+	gap: 9px;
+	border: 1px solid var(--border-soft);
+	border-radius: 10px;
+	background: rgba(15, 23, 42, 0.66);
+	padding: 9px;
+	color: var(--text);
+}
+
+.pyxdia-note-ref input {
+	margin-top: 2px;
+	accent-color: var(--accent);
+}
+
+.pyxdia-note-ref span {
+	display: grid;
+	gap: 3px;
+	min-width: 0;
+}
+
+.pyxdia-note-ref strong,
+.pyxdia-note-ref small {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.pyxdia-note-ref small {
+	color: var(--faint);
+	font-family: var(--font-label);
+	font-size: 0.62rem;
+	font-weight: 900;
+	text-transform: uppercase;
+}
+
+.pyxdia-letter-actions {
+	grid-column: 1 / -1;
+}
+
+.pyxdia-output,
+.pyxdia-thread {
+	display: grid;
+	gap: 14px;
+}
+
+.pyxdia-output-text,
+.pyxdia-thread-input,
+.pyxdia-thread-output {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	line-height: 1.6;
+}
+
+.pyxdia-output-text {
+	border: 1px solid var(--border-soft);
+	border-radius: 14px;
+	background: #020617;
+	color: #e2e8f0;
+	padding: 18px;
+}
+
+.pyxdia-pending-card {
+	display: grid;
+	gap: 5px;
+	border: 1px dashed var(--border-soft);
+	border-radius: 14px;
+	background: rgba(15, 23, 42, 0.52);
+	padding: 18px;
+}
+
+.pyxdia-pending-card strong {
+	color: #e2e8f0;
+	text-transform: capitalize;
+}
+
+.pyxdia-pending-card span {
+	color: var(--muted);
+}
+
+.pyxdia-thread-list,
+.pyxdia-memory-entry-list {
+	display: grid;
+	gap: 10px;
+}
+
+.pyxdia-thread-letter,
+.pyxdia-memory-entry {
+	display: grid;
+	gap: 10px;
+	border: 1px solid var(--border-soft);
+	border-radius: 14px;
+	background: rgba(15, 23, 42, 0.52);
+	padding: 14px;
+}
+
+.pyxdia-thread-letter header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	color: var(--muted);
+	font-family: var(--font-label);
+	font-size: 0.72rem;
+	font-weight: 900;
+	text-transform: uppercase;
+}
+
+.pyxdia-thread-output {
+	border-left: 2px solid #7dd3fc;
+	color: #e2e8f0;
+	padding-left: 12px;
+}
+
+.pyxdia-settings-toggles,
+.pyxdia-delay-grid {
+	margin-top: 14px;
+}
+
+.pyxdia-settings .body-field {
+	margin-top: 14px;
+}
+
+.pyxdia-memory-card {
+	display: grid;
+	gap: 12px;
+}
+
+.pyxdia-memory-card p {
+	margin: 0;
+	color: var(--muted);
+	line-height: 1.5;
+}
+
+.pyxdia-memory-entry strong {
+	color: #e2e8f0;
+	line-height: 1.35;
+}
+
+.pyxdia-memory-entry small {
+	color: var(--faint);
+	line-height: 1.35;
 }
 
 .dashboard-identity-toggles {
@@ -8794,6 +9153,29 @@ button.life-event-row:hover {
 		padding: 0 8px;
 	}
 
+	.pyxdia-page {
+		height: auto;
+		overflow: visible;
+		padding-right: 0;
+	}
+
+	.pyxdia-mode-switcher,
+	.pyxdia-letter-editor {
+		grid-template-columns: 1fr;
+	}
+
+	.pyxdia-letter-actions {
+		grid-column: auto;
+	}
+
+	.pyxdia-letter-field textarea {
+		min-height: 240px;
+	}
+
+	.pyxdia-note-ref-list {
+		max-height: 280px;
+	}
+
 	.thoughts-settings-intro {
 		display: grid;
 		align-items: start;
@@ -9252,6 +9634,16 @@ button.life-event-row:hover {
 	}
 
 	.settings-tabs .body-mode-label {
+		position: static;
+		width: auto;
+		height: auto;
+		margin: 0;
+		overflow: visible;
+		clip: auto;
+		white-space: normal;
+	}
+
+	.pyxdia-mode-switcher .body-mode-label {
 		position: static;
 		width: auto;
 		height: auto;
