@@ -1,9 +1,9 @@
-import { PYXDIA_API_URL } from "./config.js?v=pyxdia-20260524a";
+import { PYXIDA_API_URL } from "./config.js?v=pyxdia-20260524a";
 
-export const PYXDIA_LETTER_MAX_WORDS = 650;
-export const PYXDIA_LETTER_MAX_CHARS = 3500;
+export const PYXIDA_LETTER_MAX_WORDS = 650;
+export const PYXIDA_LETTER_MAX_CHARS = 3500;
 
-export const DEFAULT_PYXDIA_SETTINGS = {
+export const DEFAULT_PYXIDA_SETTINGS = {
 	enabled: true,
 	delayEnabled: true,
 	delayMinHours: 24,
@@ -13,8 +13,8 @@ export const DEFAULT_PYXDIA_SETTINGS = {
 		"Be a reflective growth companion. Be direct, kind, practical, and non-clinical.",
 	userWantsPyxdiaToKnow: "",
 	plainTextOnly: true,
-	letterMaxWords: PYXDIA_LETTER_MAX_WORDS,
-	letterMaxChars: PYXDIA_LETTER_MAX_CHARS,
+	letterMaxWords: PYXIDA_LETTER_MAX_WORDS,
+	letterMaxChars: PYXIDA_LETTER_MAX_CHARS,
 	schemaVersion: 1,
 };
 
@@ -23,7 +23,7 @@ export function normalizePyxdiaSettings(value = {}) {
 	const min = clampNumber(source.delayMinHours, 0, 168, 24);
 	const max = clampNumber(source.delayMaxHours, min, 336, 72);
 	return {
-		...DEFAULT_PYXDIA_SETTINGS,
+		...DEFAULT_PYXIDA_SETTINGS,
 		enabled: source.enabled !== false,
 		delayEnabled: source.delayEnabled !== false,
 		delayMinHours: min,
@@ -31,7 +31,7 @@ export function normalizePyxdiaSettings(value = {}) {
 		memoryEnabled: source.memoryEnabled !== false,
 		generalInstructions: cleanText(
 			source.generalInstructions,
-			DEFAULT_PYXDIA_SETTINGS.generalInstructions,
+			DEFAULT_PYXIDA_SETTINGS.generalInstructions,
 		),
 		userWantsPyxdiaToKnow: cleanText(source.userWantsPyxdiaToKnow, ""),
 		plainTextOnly: true,
@@ -39,13 +39,13 @@ export function normalizePyxdiaSettings(value = {}) {
 			source.letterMaxWords,
 			1,
 			2000,
-			PYXDIA_LETTER_MAX_WORDS,
+			PYXIDA_LETTER_MAX_WORDS,
 		),
 		letterMaxChars: clampNumber(
 			source.letterMaxChars,
 			100,
 			12000,
-			PYXDIA_LETTER_MAX_CHARS,
+			PYXIDA_LETTER_MAX_CHARS,
 		),
 		schemaVersion: 1,
 	};
@@ -129,7 +129,7 @@ async function pyxdiaRequest(path, options = {}) {
 		...(options.body === undefined ? {} : { "content-type": "application/json" }),
 	};
 	if (token) headers.authorization = `Bearer ${token}`;
-	const response = await fetch(`${PYXDIA_API_URL}${path}`, {
+	const response = await fetch(`${PYXIDA_API_URL}${path}`, {
 		method: options.method || "GET",
 		headers,
 		body: options.body === undefined ? undefined : JSON.stringify(options.body),
@@ -137,7 +137,7 @@ async function pyxdiaRequest(path, options = {}) {
 	const result = await response.json().catch(() => ({}));
 	if (!response.ok) {
 		throw new Error(
-			result?.error?.message || result?.message || "PYXDIA request failed.",
+			result?.error?.message || result?.message || "PYXIDA request failed.",
 		);
 	}
 	return result;

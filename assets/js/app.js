@@ -44,7 +44,7 @@ import {
 } from "./localMedia.js?v=gallery-downloads-20260523a";
 import { escapeHtml, renderMarkdown } from "./markdown.js";
 import {
-	DEFAULT_PYXDIA_SETTINGS,
+	DEFAULT_PYXIDA_SETTINGS,
 	estimatePyxdiaLetterSize,
 	fetchPyxdiaState,
 	normalizePyxdiaSettings,
@@ -89,8 +89,8 @@ const GOAL_SETTINGS_KEY = "ourstuff.goals.v1";
 const DASHBOARD_IDENTITY_KEY = "ourstuff.dashboardIdentity.v1";
 const SIDEBAR_WIDTH_KEY = "ourstuff.sidebarWidth.v1";
 const THEME_KEY = "ourstuff.theme.v1";
-const PYXDIA_SETTINGS_KEY = "ourstuff.pyxdiaSettings.v1";
-const PYXDIA_LOCAL_STATE_KEY = "ourstuff.pyxdiaPenpal.v1";
+const PYXIDA_SETTINGS_KEY = "ourstuff.pyxdiaSettings.v1";
+const PYXIDA_LOCAL_STATE_KEY = "ourstuff.pyxdiaPenpal.v1";
 const DISMISSED_TIPS_KEY = "ourstuff.dismissedTips.v1";
 const ICONIFY_SEARCH_CACHE_KEY = "ourstuff.iconifySearchCache.v1";
 const LOCAL_APP_UPDATED_AT_KEY = "ourstuff.localAppUpdatedAt.v1";
@@ -1168,31 +1168,31 @@ function saveTheme(theme) {
 
 function loadPyxdiaSettings() {
 	try {
-		const raw = window.localStorage.getItem(PYXDIA_SETTINGS_KEY);
+		const raw = window.localStorage.getItem(PYXIDA_SETTINGS_KEY);
 		const parsed = raw ? JSON.parse(raw) : null;
 		const normalized = normalizePyxdiaSettings(parsed);
 		if (raw && JSON.stringify(parsed) !== JSON.stringify(normalized)) {
 			window.localStorage.setItem(
-				PYXDIA_SETTINGS_KEY,
+				PYXIDA_SETTINGS_KEY,
 				JSON.stringify(normalized),
 			);
 		}
 		return normalized;
 	} catch {
-		return normalizePyxdiaSettings(DEFAULT_PYXDIA_SETTINGS);
+		return normalizePyxdiaSettings(DEFAULT_PYXIDA_SETTINGS);
 	}
 }
 
 function savePyxdiaSettingsLocal(settings = state.pyxdiaSettings) {
 	const normalized = normalizePyxdiaSettings(settings);
-	window.localStorage.setItem(PYXDIA_SETTINGS_KEY, JSON.stringify(normalized));
+	window.localStorage.setItem(PYXIDA_SETTINGS_KEY, JSON.stringify(normalized));
 	return normalized;
 }
 
 function createEmptyPyxdiaMemory() {
 	return {
 		owner: "",
-		title: "PYXDIA memories",
+		title: "PYXIDA memories",
 		summary: "",
 		recurringThemes: [],
 		userStatedGoals: [],
@@ -1258,7 +1258,7 @@ function normalizePyxdiaThread(value = {}) {
 	return {
 		id: String(value.id || ""),
 		owner: String(value.owner || ""),
-		title: String(value.title || "PYXDIA letter thread"),
+		title: String(value.title || "PYXIDA letter thread"),
 		status: String(value.status || "active"),
 		letterIds: Array.isArray(value.letterIds)
 			? value.letterIds.map(String).filter(Boolean)
@@ -1353,7 +1353,7 @@ function normalizePyxdiaLocalState(value = {}) {
 
 function loadPyxdiaLocalState() {
 	try {
-		const raw = window.localStorage.getItem(PYXDIA_LOCAL_STATE_KEY);
+		const raw = window.localStorage.getItem(PYXIDA_LOCAL_STATE_KEY);
 		return normalizePyxdiaLocalState(raw ? JSON.parse(raw) : null);
 	} catch {
 		return createEmptyPyxdiaLocalState();
@@ -1367,7 +1367,7 @@ function savePyxdiaLocalState() {
 		draft: state.pyxdiaDraft,
 		memory: state.pyxdiaMemory,
 	});
-	window.localStorage.setItem(PYXDIA_LOCAL_STATE_KEY, JSON.stringify(next));
+	window.localStorage.setItem(PYXIDA_LOCAL_STATE_KEY, JSON.stringify(next));
 	return next;
 }
 
@@ -2796,8 +2796,8 @@ function hasStoredAppState() {
 			window.localStorage.getItem(TRACKER_SETTINGS_KEY) ||
 			window.localStorage.getItem(GOAL_SETTINGS_KEY) ||
 			window.localStorage.getItem(DASHBOARD_IDENTITY_KEY) ||
-			window.localStorage.getItem(PYXDIA_SETTINGS_KEY) ||
-			window.localStorage.getItem(PYXDIA_LOCAL_STATE_KEY) ||
+			window.localStorage.getItem(PYXIDA_SETTINGS_KEY) ||
+			window.localStorage.getItem(PYXIDA_LOCAL_STATE_KEY) ||
 			window.localStorage.getItem(THEME_KEY),
 	);
 }
@@ -5116,11 +5116,11 @@ function isPyxdiaSignedIn() {
 function pyxdiaStatusText(letter) {
 	const stateLabel = String(letter?.state || "").toLowerCase();
 	if (stateLabel === "completed") return "Reply ready.";
-	if (stateLabel === "processing") return "PYXDIA is writing back.";
+	if (stateLabel === "processing") return "PYXIDA is writing back.";
 	if (stateLabel === "queued" || stateLabel === "submitted")
 		return "Reply pending.";
 	if (stateLabel === "failed")
-		return letter?.errorMessageSafe || "PYXDIA could not finish. Try again.";
+		return letter?.errorMessageSafe || "PYXIDA could not finish. Try again.";
 	return "Draft saved.";
 }
 
@@ -5128,7 +5128,7 @@ function pyxdiaThreadTitleFromText(text = "") {
 	const clean = String(text || "")
 		.replace(/\s+/g, " ")
 		.trim();
-	if (!clean) return "PYXDIA letter thread";
+	if (!clean) return "PYXIDA letter thread";
 	return clean.length > 44 ? `${clean.slice(0, 41)}...` : clean;
 }
 
@@ -5239,7 +5239,7 @@ function applyPyxdiaStatePayload(payload = {}) {
 
 function openPyxdia(view = "input", patch = {}) {
 	setState({
-		active: "PYXDIA",
+		active: "PYXIDA",
 		pyxdiaExpanded: true,
 		pyxdiaView: view,
 		flipped: null,
@@ -5256,7 +5256,7 @@ function openPyxdia(view = "input", patch = {}) {
 }
 
 function pyxdiaSettingsFromForm() {
-	const current = state.pyxdiaSettings || DEFAULT_PYXDIA_SETTINGS;
+	const current = state.pyxdiaSettings || DEFAULT_PYXIDA_SETTINGS;
 	return normalizePyxdiaSettings({
 		...current,
 		enabled: document.getElementById("pyxdia-setting-enabled")?.checked,
@@ -5281,7 +5281,7 @@ async function runPyxdiaAction(message, action) {
 		setState({
 			pyxdiaBusy: false,
 			pyxdiaError:
-				error instanceof Error ? error.message : "PYXDIA action failed.",
+				error instanceof Error ? error.message : "PYXIDA action failed.",
 		});
 	}
 }
@@ -5293,7 +5293,7 @@ async function refreshPyxdiaState(options = {}) {
 		setState({
 			pyxdiaBusy: false,
 			pyxdiaError: "",
-			pyxdiaStatus: options.silent ? state.pyxdiaStatus : "PYXDIA refreshed.",
+			pyxdiaStatus: options.silent ? state.pyxdiaStatus : "PYXIDA refreshed.",
 			pyxdiaLastRefreshAt: nowIso(),
 		});
 		return;
@@ -5303,7 +5303,7 @@ async function refreshPyxdiaState(options = {}) {
 	setState({
 		pyxdiaBusy: false,
 		pyxdiaError: "",
-		pyxdiaStatus: options.silent ? state.pyxdiaStatus : "PYXDIA refreshed.",
+		pyxdiaStatus: options.silent ? state.pyxdiaStatus : "PYXIDA refreshed.",
 		pyxdiaLastRefreshAt: nowIso(),
 	});
 }
@@ -5338,7 +5338,7 @@ async function sendPyxdiaLetterAction() {
 	if (!settings.enabled) {
 		setState({
 			pyxdiaBusy: false,
-			pyxdiaError: "PYXDIA is turned off in Settings.",
+			pyxdiaError: "PYXIDA is turned off in Settings.",
 		});
 		return;
 	}
@@ -5346,7 +5346,7 @@ async function sendPyxdiaLetterAction() {
 		setState({
 			pyxdiaBusy: false,
 			pyxdiaStatus: "",
-			pyxdiaError: "Sign in to send PYXDIA letters.",
+			pyxdiaError: "Sign in to send PYXIDA letters.",
 			settingsTab: "cloud",
 		});
 		return;
@@ -5414,13 +5414,13 @@ async function savePyxdiaSettingsAction() {
 	setState({
 		pyxdiaSettings: settings,
 		pyxdiaBusy: false,
-		pyxdiaStatus: "PYXDIA settings saved.",
+		pyxdiaStatus: "PYXIDA settings saved.",
 		pyxdiaError: "",
 	});
 }
 
 async function resetPyxdiaMemoryAction() {
-	const confirmed = window.confirm("Reset PYXDIA memory for this app?");
+	const confirmed = window.confirm("Reset PYXIDA memory for this app?");
 	if (!confirmed) {
 		setState({ pyxdiaBusy: false, pyxdiaStatus: "", pyxdiaError: "" });
 		return;
@@ -5435,7 +5435,7 @@ async function resetPyxdiaMemoryAction() {
 	setState({
 		pyxdiaMemory: state.pyxdiaMemory,
 		pyxdiaBusy: false,
-		pyxdiaStatus: "PYXDIA memory reset.",
+		pyxdiaStatus: "PYXIDA memory reset.",
 		pyxdiaError: "",
 	});
 }
@@ -5496,7 +5496,7 @@ async function submitLocalPyxdiaLetter(draft, settings) {
 		pyxdiaView: "output",
 		pyxdiaStatus: settings.delayEnabled
 			? "Reply pending."
-			: "PYXDIA is preparing a reply.",
+			: "PYXIDA is preparing a reply.",
 		pyxdiaBusy: false,
 		pyxdiaError: "",
 	});
@@ -5537,7 +5537,7 @@ async function completeLocalPyxdiaLetter(letterId) {
 	setState({
 		pyxdiaLetters: state.pyxdiaLetters,
 		pyxdiaThreads: state.pyxdiaThreads,
-		pyxdiaStatus: "PYXDIA is writing back.",
+		pyxdiaStatus: "PYXIDA is writing back.",
 		pyxdiaError: "",
 	});
 	await new Promise((resolve) => window.setTimeout(resolve, 650));
@@ -5588,7 +5588,7 @@ function buildLocalPyxdiaReply(letter, settings) {
 		"",
 		"One useful next step is to write the smallest honest promise you can keep in the next day. Make it concrete enough that future you can see whether it happened.",
 		"",
-		"PYXDIA",
+		"PYXIDA",
 	].join("\n");
 }
 
@@ -5599,7 +5599,7 @@ function updateLocalPyxdiaMemory(letter, outputText) {
 			.replace(/\s+/g, " ")
 			.split(/[.!?]/)
 			.map((item) => item.trim())
-			.find(Boolean) || "User continued a PYXDIA letter thread.";
+			.find(Boolean) || "User continued a PYXIDA letter thread.";
 	const entry = {
 		id: makeId("pyxdia-memory"),
 		text: firstSentence.length > 180 ? `${firstSentence.slice(0, 177)}...` : firstSentence,
@@ -5945,8 +5945,8 @@ async function clearAppData(options = {}) {
 	window.localStorage.removeItem(TRACKER_SETTINGS_KEY);
 	window.localStorage.removeItem(GOAL_SETTINGS_KEY);
 	window.localStorage.removeItem(DASHBOARD_IDENTITY_KEY);
-	window.localStorage.removeItem(PYXDIA_SETTINGS_KEY);
-	window.localStorage.removeItem(PYXDIA_LOCAL_STATE_KEY);
+	window.localStorage.removeItem(PYXIDA_SETTINGS_KEY);
+	window.localStorage.removeItem(PYXIDA_LOCAL_STATE_KEY);
 	window.localStorage.removeItem(SIDEBAR_WIDTH_KEY);
 	window.localStorage.removeItem(THEME_KEY);
 	window.localStorage.removeItem(ICONIFY_SEARCH_CACHE_KEY);
@@ -5963,7 +5963,7 @@ async function clearAppData(options = {}) {
 	state.goalSettings = createEmptyTrackerSettings();
 	state.dashboardIdentity = cloneDefaultDashboardIdentity();
 	state.theme = "default";
-	state.pyxdiaSettings = normalizePyxdiaSettings(DEFAULT_PYXDIA_SETTINGS);
+	state.pyxdiaSettings = normalizePyxdiaSettings(DEFAULT_PYXIDA_SETTINGS);
 	state.pyxdiaThreads = [];
 	state.pyxdiaLetters = [];
 	state.pyxdiaDraft = createEmptyPyxdiaDraft();
@@ -6011,8 +6011,8 @@ async function restoreFactoryDefaults() {
 	window.localStorage.removeItem(TRACKER_SETTINGS_KEY);
 	window.localStorage.removeItem(GOAL_SETTINGS_KEY);
 	window.localStorage.removeItem(DASHBOARD_IDENTITY_KEY);
-	window.localStorage.removeItem(PYXDIA_SETTINGS_KEY);
-	window.localStorage.removeItem(PYXDIA_LOCAL_STATE_KEY);
+	window.localStorage.removeItem(PYXIDA_SETTINGS_KEY);
+	window.localStorage.removeItem(PYXIDA_LOCAL_STATE_KEY);
 	window.localStorage.removeItem(SIDEBAR_WIDTH_KEY);
 	window.localStorage.removeItem(THEME_KEY);
 	window.localStorage.removeItem(ICONIFY_SEARCH_CACHE_KEY);
@@ -6030,7 +6030,7 @@ async function restoreFactoryDefaults() {
 	state.goalSettings = cloneDefaultGoals();
 	state.dashboardIdentity = cloneDefaultDashboardIdentity();
 	state.theme = "default";
-	state.pyxdiaSettings = normalizePyxdiaSettings(DEFAULT_PYXDIA_SETTINGS);
+	state.pyxdiaSettings = normalizePyxdiaSettings(DEFAULT_PYXIDA_SETTINGS);
 	state.pyxdiaThreads = [];
 	state.pyxdiaLetters = [];
 	state.pyxdiaDraft = createEmptyPyxdiaDraft();
@@ -8133,21 +8133,21 @@ function pyxdiaSidebarHtml() {
 	return `
     <section class="sidebar-group sidebar-group--pyxdia${expanded ? " is-expanded" : " is-collapsed"}">
       <button class="sidebar-group-toggle pyxdia-sidebar-toggle" data-action="toggle-pyxdia-menu" type="button" aria-expanded="${expanded ? "true" : "false"}">
-        <span class="pyxdia-sidebar-title">${iconHtml("tabler:sparkles")}<span>PYXDIA PENPAL</span></span>
+        <span class="pyxdia-sidebar-title">${iconHtml("tabler:sparkles")}<span>PYXIDA PENPAL</span></span>
         <span class="sidebar-group-chevron" aria-hidden="true">${expanded ? "-" : "+"}</span>
       </button>
       <div class="sidebar-group-items pyxdia-sidebar-items"${expanded ? "" : " hidden"}>
         ${actionItems
 					.map(
 						([action, label, icon, detail], index) => `
-          <button class="sidebar-item sidebar-item--pyxdia${state.active === "PYXDIA" && ((action === "pyxdia-open-input" && state.pyxdiaView === "input") || (action === "pyxdia-open-output" && state.pyxdiaView === "output")) ? " is-active" : ""}" data-action="${action}" type="button">
+          <button class="sidebar-item sidebar-item--pyxdia${state.active === "PYXIDA" && ((action === "pyxdia-open-input" && state.pyxdiaView === "input") || (action === "pyxdia-open-output" && state.pyxdiaView === "output")) ? " is-active" : ""}" data-action="${action}" type="button">
             <span class="sidebar-item-number">${String(index + 1).padStart(2, "0")}</span>
             <span class="sidebar-item-label"><strong>${buttonContent(icon, label)}</strong><small>${escapeHtml(detail)}</small></span>
           </button>
         `,
 					)
 					.join("")}
-        <div class="pyxdia-sidebar-conversations" aria-label="PYXDIA conversations">
+        <div class="pyxdia-sidebar-conversations" aria-label="PYXIDA conversations">
           <span>Conversations</span>
           ${
 						threads.length
@@ -8162,7 +8162,7 @@ function pyxdiaSidebarHtml() {
             `,
 									)
 									.join("")
-							: `<div class="pyxdia-sidebar-empty">No PYXDIA letters yet.</div>`
+							: `<div class="pyxdia-sidebar-empty">No PYXIDA letters yet.</div>`
 					}
         </div>
       </div>
@@ -8443,7 +8443,7 @@ function pathBarExtraCrumbs(spiritBook) {
 	if (state.active === "Body") return bodyPathCrumbs();
 	if (state.active === "Life") return lifePathCrumbs();
 	if (state.active === "Spirit") return spiritPathCrumbs(spiritBook);
-	if (state.active === "PYXDIA") {
+	if (state.active === "PYXIDA") {
 		const labels = {
 			input: "Input Letter",
 			output: "Output Letter",
@@ -8478,7 +8478,7 @@ function contentHtml(compendium, section) {
 	if (state.active === "Dashboard") return dashboardGridHtml();
 	if (state.active === "Settings") return settingsHtml();
 	if (state.active === "Gallery") return galleryHtml();
-	if (state.active === "PYXDIA") return pyxdiaHtml();
+	if (state.active === "PYXIDA") return pyxdiaHtml();
 	if (state.active === "Mind") return mindHtml(compendium, section);
 	if (state.active === "Body") return bodyHtml();
 	if (state.active === "Spirit") return spiritHtml();
@@ -8653,7 +8653,7 @@ function pyxdiaHtml() {
 				: pyxdiaInputHtml();
 	return panelHtml(`
     ${headerHtml(
-			"PYXDIA PENPAL",
+			"PYXIDA PENPAL",
 			subtitle,
 			`
         <div class="action-row">
@@ -8663,7 +8663,7 @@ function pyxdiaHtml() {
       `,
 		)}
     <div class="pyxdia-page">
-      <div class="body-mode-switcher pyxdia-mode-switcher" role="tablist" aria-label="PYXDIA views">
+      <div class="body-mode-switcher pyxdia-mode-switcher" role="tablist" aria-label="PYXIDA views">
         ${[
 					["input", "Input Letter", "tabler:pencil"],
 					["output", "Output Letter", "tabler:mail-opened"],
@@ -8716,7 +8716,7 @@ function pyxdiaInputHtml() {
       <div class="pyxdia-letter-main">
         <label class="body-field body-field--full pyxdia-letter-field">
           Letter
-          <textarea id="pyxdia-letter-input" aria-label="PYXDIA input letter" placeholder="Write the letter you want PYXDIA to answer later.">${escapeHtml(draft.inputText)}</textarea>
+          <textarea id="pyxdia-letter-input" aria-label="PYXIDA input letter" placeholder="Write the letter you want PYXIDA to answer later.">${escapeHtml(draft.inputText)}</textarea>
         </label>
         <div class="pyxdia-letter-counter${overLimit ? " is-over-limit" : ""}" data-pyxdia-counter>
           <span>${escapeHtml(`${size.words} / ${settings.letterMaxWords} words`)}</span>
@@ -8724,7 +8724,7 @@ function pyxdiaInputHtml() {
         </div>
         <label class="body-field body-field--full">
           Optional note context to include
-          <textarea id="pyxdia-context-input" aria-label="User-approved PYXDIA note context" placeholder="Paste any note content you explicitly want included. Full notes are never sent automatically.">${escapeHtml(draft.userIncludedContext)}</textarea>
+          <textarea id="pyxdia-context-input" aria-label="User-approved PYXIDA note context" placeholder="Paste any note content you explicitly want included. Full notes are never sent automatically.">${escapeHtml(draft.userIncludedContext)}</textarea>
         </label>
       </div>
       <aside class="pyxdia-letter-side">
@@ -8772,7 +8772,7 @@ function pyxdiaOutputHtml() {
 	const latest = latestCompletedPyxdiaLetter() || latestPyxdiaLetter();
 	if (!latest) {
 		return emptyStateHtml(
-			"No PYXDIA output yet",
+			"No PYXIDA output yet",
 			"Send a letter to create the first pending reply.",
 		);
 	}
@@ -8807,7 +8807,7 @@ function pyxdiaThreadHtml() {
 	const letters = selectedPyxdiaThreadLetters();
 	if (!thread) {
 		return emptyStateHtml(
-			"No PYXDIA conversations yet",
+			"No PYXIDA conversations yet",
 			"Draft and send a letter to start one.",
 		);
 	}
@@ -8865,7 +8865,7 @@ function settingsHtml() {
 		cloud: settingsCloudHtml(),
 	};
 	return panelHtml(`
-    ${headerHtml("Settings", "Getting started, Thoughts, Goals, Interface, PYXDIA, and Cloud setup.")}
+    ${headerHtml("Settings", "Getting started, Thoughts, Goals, Interface, PYXIDA, and Cloud setup.")}
     <div class="settings-page">
       ${settingsTabsHtml(tab)}
       ${panels[tab]}
@@ -8879,7 +8879,7 @@ function settingsTabsHtml(activeTab) {
 		["thoughts", "Thoughts", "tabler:message-circle"],
 		["goals", "Goals", "tabler:target-arrow"],
 		["interface", "Interface", "tabler:layout-dashboard"],
-		["pyxdia", "PYXDIA", "tabler:sparkles"],
+		["pyxdia", "PYXIDA", "tabler:sparkles"],
 		["cloud", "Cloud", "tabler:cloud"],
 	];
 	return `
@@ -9093,13 +9093,13 @@ function settingsPyxdiaHtml() {
 		memory.summary ||
 		(memory.entries?.length
 			? memory.entries.map((entry) => entry.text).join(" ")
-			: "No PYXDIA memory has been saved yet.");
+			: "No PYXIDA memory has been saved yet.");
 	return `
     <div class="settings-tab-panel pyxdia-settings">
       <section class="interface-settings-section">
         <div class="body-card-heading">
           <div>
-            <h3>PYXDIA</h3>
+            <h3>PYXIDA</h3>
             <p>Letter exchange, delay, personality, and memory controls.</p>
           </div>
           <button class="secondary-button" data-action="pyxdia-refresh" type="button"${state.pyxdiaBusy ? " disabled" : ""}>${buttonContent("tabler:refresh", "Refresh")}</button>
@@ -9107,7 +9107,7 @@ function settingsPyxdiaHtml() {
         <div class="pyxdia-settings-toggles">
           <label class="dashboard-identity-toggle">
             <input id="pyxdia-setting-enabled" type="checkbox"${settings.enabled ? " checked" : ""}>
-            <span>Enable PYXDIA</span>
+            <span>Enable PYXIDA</span>
           </label>
           <label class="dashboard-identity-toggle">
             <input id="pyxdia-setting-delay" type="checkbox"${settings.delayEnabled ? " checked" : ""}>
@@ -9125,7 +9125,7 @@ function settingsPyxdiaHtml() {
         <label class="body-field body-field--full">Instructions / personality
           <textarea id="pyxdia-general-instructions" rows="4">${escapeHtml(settings.generalInstructions)}</textarea>
         </label>
-        <label class="body-field body-field--full">What PYXDIA should know
+        <label class="body-field body-field--full">What PYXIDA should know
           <textarea id="pyxdia-know" rows="4">${escapeHtml(settings.userWantsPyxdiaToKnow)}</textarea>
         </label>
         <div class="editor-footer-actions">
@@ -9136,7 +9136,7 @@ function settingsPyxdiaHtml() {
       <section class="interface-settings-section">
         <div class="body-card-heading">
           <div>
-            <h3>PYXDIA Memory</h3>
+            <h3>PYXIDA Memory</h3>
             <p>Compact, visible, resettable memory. Full letters are not copied here.</p>
           </div>
         </div>
@@ -12202,7 +12202,7 @@ function handleAction(element) {
 				artifactMode: "grid",
 				selectedArtifactId: null,
 			});
-		} else if (state.active === "PYXDIA") {
+		} else if (state.active === "PYXIDA") {
 			openPyxdia("input");
 		} else {
 			setState({ artifactMode: "grid", selectedArtifactId: null });
@@ -12344,15 +12344,15 @@ function handleAction(element) {
 	if (action === "pyxdia-send-letter")
 		void runPyxdiaAction("Sending letter...", sendPyxdiaLetterAction);
 	if (action === "pyxdia-refresh")
-		void runPyxdiaAction("Refreshing PYXDIA...", refreshPyxdiaState);
+		void runPyxdiaAction("Refreshing PYXIDA...", refreshPyxdiaState);
 	if (action === "pyxdia-retry-letter")
 		void runPyxdiaAction("Retrying letter...", () =>
 			retryPyxdiaLetterAction(element.dataset.id),
 		);
 	if (action === "pyxdia-save-settings")
-		void runPyxdiaAction("Saving PYXDIA settings...", savePyxdiaSettingsAction);
+		void runPyxdiaAction("Saving PYXIDA settings...", savePyxdiaSettingsAction);
 	if (action === "pyxdia-reset-memory")
-		void runPyxdiaAction("Resetting PYXDIA memory...", resetPyxdiaMemoryAction);
+		void runPyxdiaAction("Resetting PYXIDA memory...", resetPyxdiaMemoryAction);
 	if (action === "cloud-sign-in")
 		void runCloudAction("Signing in...", () => signInToCloud());
 	if (action === "cloud-google-sign-in")

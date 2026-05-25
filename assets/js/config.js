@@ -3,9 +3,9 @@ export const SITE_ID = "ourstuff";
 export const APP_NAME = "Ourstuff";
 export const PAYMENTS_WORKER_URL =
 	"https://stripe-worker-api.jrice.workers.dev";
-export const PYXDIA_API_URL =
+export const PYXIDA_API_URL =
 	"https://us-central1-ourstuff-firebase.cloudfunctions.net/pyxdiaApi";
-export const PYXDIA_AI_API_URL =
+export const PYXIDA_AI_API_URL =
 	"https://us-central1-ourstuff-firebase.cloudfunctions.net/aiApi";
 export const MAX_FIRESTORE_APPSTATE_BYTES = 900000;
 export const CLOUD_STORAGE_LIMIT_BYTES = 1000000000;

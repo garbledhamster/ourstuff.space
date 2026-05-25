@@ -83,7 +83,7 @@ export function getCloudAccountState() {
 export async function getCloudIdToken(options = {}) {
 	if (!currentFirebaseUser) {
 		if (options.optional === true) return null;
-		throw new Error("Sign in before using PYXDIA.");
+		throw new Error("Sign in before using PYXIDA.");
 	}
 	return currentFirebaseUser.getIdToken(options.forceRefresh === true);
 }

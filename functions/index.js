@@ -28,17 +28,17 @@ const DEFAULT_SETTINGS = {
 	schemaVersion: 1,
 };
 const SAFE_ERRORS = {
-	auth_required: "Sign in to send PYXDIA letters.",
-	feature_disabled: "PYXDIA is turned off in Settings.",
-	letter_too_large: "This PYXDIA letter is too large.",
+	auth_required: "Sign in to send PYXIDA letters.",
+	feature_disabled: "PYXIDA is turned off in Settings.",
+	letter_too_large: "This PYXIDA letter is too large.",
 	blocked_secret_detected:
 		"This letter contains content that cannot be sent to the AI. Edit and try again.",
 	blocked_cardholder_data_detected:
 		"This letter contains content that cannot be sent to the AI. Edit and try again.",
-	entitlement_required: "PYXDIA AI replies require an active Cloud subscription.",
-	rate_limited: "Too many PYXDIA requests. Wait a little and try again.",
-	provider_failed: "PYXDIA could not finish. Try again.",
-	output_validation_failed: "PYXDIA could not finish safely. Try again.",
+	entitlement_required: "PYXIDA AI replies require an active Cloud subscription.",
+	rate_limited: "Too many PYXIDA requests. Wait a little and try again.",
+	provider_failed: "PYXIDA could not finish. Try again.",
+	output_validation_failed: "PYXIDA could not finish safely. Try again.",
 };
 
 exports.pyxdiaApi = onRequest({ cors: ALLOWED_ORIGINS, timeoutSeconds: 120 }, async (req, res) => {
@@ -70,7 +70,7 @@ exports.pyxdiaApi = onRequest({ cors: ALLOWED_ORIGINS, timeoutSeconds: 120 }, as
 			await enforceRateLimit(uid, "memory", 20, 3600);
 			return res.json(await resetMemory(uid));
 		}
-		return sendError(res, "not_found", "PYXDIA route not found.", 404);
+		return sendError(res, "not_found", "PYXIDA route not found.", 404);
 	} catch (error) {
 		return sendCaught(res, error);
 	}
@@ -416,7 +416,7 @@ async function failJob(uid, jobRef, letterRef, job, code, message) {
 
 async function requirePaidAiAccessIfNeeded(uid, auth = null) {
 	if (!providerConfigured()) return;
-	if (String(process.env.PYXDIA_ALLOW_ALL_SIGNED_IN || "").toLowerCase() === "true") return;
+	if (String(process.env.PYXIDA_ALLOW_ALL_SIGNED_IN || "").toLowerCase() === "true") return;
 	if (await hasPaidAiAccess(uid, auth)) return;
 	throw policyError("entitlement_required", SAFE_ERRORS.entitlement_required, 403);
 }
@@ -547,10 +547,10 @@ async function generateLetter(prompt, settings) {
 			authorization: `Bearer ${apiKey}`,
 			"content-type": "application/json",
 			"http-referer": "https://ourstuff.space",
-			"x-title": "Ourstuff PYXDIA",
+			"x-title": "Ourstuff PYXIDA",
 		},
 		body: JSON.stringify({
-			model: process.env.PYXDIA_MODEL || "openai/gpt-4o-mini",
+			model: process.env.PYXIDA_MODEL || "openai/gpt-4o-mini",
 			messages: [
 				{ role: "system", content: "Return plain letter text only." },
 				{ role: "user", content: prompt },
@@ -562,7 +562,7 @@ async function generateLetter(prompt, settings) {
 	const payload = await response.json();
 	return {
 		letter_text: String(payload.choices?.[0]?.message?.content || "").trim(),
-		model: process.env.PYXDIA_MODEL || "openai/gpt-4o-mini",
+		model: process.env.PYXIDA_MODEL || "openai/gpt-4o-mini",
 	};
 }
 
@@ -572,9 +572,9 @@ function providerConfigured() {
 
 function buildPrompt({ settings, memory, threadContext, noteMetadata, includedContext, letter }) {
 	return [
-		"SYSTEM:\nYou are PYXDIA PENPAL, a reflective growth companion and AI trainer.\nYou are not a therapist, doctor, clinician, crisis service, or replacement for professional care.\nDraw lightly from Adlerian growth themes, DBT-informed emotional regulation, and Jungian archetypes as interpretive metaphors.\nDo not diagnose or claim clinical authority.\nReturn plain letter text only in the user-visible letter.\n\nInput may be scrubbed. Do not reconstruct placeholders or personal identifiers.\nFocus on meaning, values, patterns, choices, and user intent.",
+		"SYSTEM:\nYou are PYXIDA PENPAL, a reflective growth companion and AI trainer.\nYou are not a therapist, doctor, clinician, crisis service, or replacement for professional care.\nDraw lightly from Adlerian growth themes, DBT-informed emotional regulation, and Jungian archetypes as interpretive metaphors.\nDo not diagnose or claim clinical authority.\nReturn plain letter text only in the user-visible letter.\n\nInput may be scrubbed. Do not reconstruct placeholders or personal identifiers.\nFocus on meaning, values, patterns, choices, and user intent.",
 		`USER SETTINGS:\n${settings.generalInstructions || ""}`,
-		`WHAT THE USER WANTS PYXDIA TO KNOW:\n${settings.userWantsPyxdiaToKnow || ""}`,
+		`WHAT THE USER WANTS PYXIDA TO KNOW:\n${settings.userWantsPyxdiaToKnow || ""}`,
 		`MEMORY:\n${memory.summary || ""}`,
 		`THREAD CONTEXT:\n${threadContext || ""}`,
 		`NOTE METADATA:\n${noteMetadata || ""}`,
@@ -597,7 +597,7 @@ function fallbackLetter(prompt) {
 		"",
 		"Write one small promise you can keep in the next day. Make it concrete enough that future you can tell whether it happened.",
 		"",
-		"PYXDIA",
+		"PYXIDA",
 	].join("\n");
 }
 
@@ -623,7 +623,7 @@ function updateMemory(uid, current, letter, outputText) {
 			.replace(/\s+/g, " ")
 			.split(/[.!?]/)
 			.map((item) => item.trim())
-			.find(Boolean) || "User continued a PYXDIA letter thread.";
+			.find(Boolean) || "User continued a PYXIDA letter thread.";
 	const entry = {
 		id: `memory-${crypto.randomUUID()}`,
 		text: sentence.slice(0, 180),
@@ -657,7 +657,7 @@ function updateMemory(uid, current, letter, outputText) {
 function emptyMemory(uid = "") {
 	return {
 		owner: uid,
-		title: "PYXDIA memories",
+		title: "PYXIDA memories",
 		summary: "",
 		recurringThemes: [],
 		userStatedGoals: [],
@@ -743,7 +743,7 @@ function hashUid(uid) {
 
 function threadTitle(text) {
 	const clean = String(text || "").replace(/\s+/g, " ").trim();
-	return clean.length > 44 ? `${clean.slice(0, 41)}...` : clean || "PYXDIA letter thread";
+	return clean.length > 44 ? `${clean.slice(0, 41)}...` : clean || "PYXIDA letter thread";
 }
 
 function availableAtFor(settings) {
