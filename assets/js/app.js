@@ -106,6 +106,7 @@ const LIFE_PLANNER_KEY = "ourstuff.lifePlanner.v1";
 const TRACKER_SETTINGS_KEY = "ourstuff.thoughts.v1";
 const GOAL_SETTINGS_KEY = "ourstuff.goals.v1";
 const DASHBOARD_IDENTITY_KEY = "ourstuff.dashboardIdentity.v1";
+const DASHBOARD_CHART_TABS_KEY = "ourstuff.dashboardChartTabs.v1";
 const SIDEBAR_WIDTH_KEY = "ourstuff.sidebarWidth.v1";
 const THEME_KEY = "ourstuff.theme.v1";
 const PYXIDA_SETTINGS_KEY = "ourstuff.pyxdiaSettings.v1";
@@ -229,7 +230,7 @@ const GUIDED_TIP_SEQUENCE = [
 	{
 		id: "dashboard-chart-tip",
 		selector: ".dashboard-chart-switcher",
-		label: "Switch chart style",
+		label: "Switch dashboard tab",
 		placement: "top",
 	},
 	{
@@ -331,6 +332,12 @@ const DASHBOARD_PERIOD_OPTIONS = [
 	{ id: "7-years", label: "7 years", days: 365 * 7 },
 	{ id: "10-years", label: "10 years", days: 365 * 10 },
 ];
+const DEFAULT_DASHBOARD_CHART_TABS = ["orbs", "pie", "bar"];
+const DASHBOARD_CHART_TAB_DEFS = {
+	orbs: { id: "orbs", icon: "ph:sphere", label: "Orbs", title: "Orbs" },
+	pie: { id: "pie", icon: "tabler:chart-pie", label: "Pie", title: "Pie chart" },
+	bar: { id: "bar", icon: "tabler:chart-bar", label: "Bar", title: "Bar chart" },
+};
 const BODY_TIMER_MODES = [
 	{
 		key: "fasting",
@@ -418,6 +425,8 @@ let cloudStorageUsageRefreshTimer = null;
 let cloudStorageUsageRefreshInFlight = false;
 let cloudStorageUsageSignature = "";
 let pyxdiaSettingsPersistTimer = null;
+let cameraStream = null;
+let cameraRequestToken = 0;
 const SPIRIT_PLANS = [
 	{
 		id: "ten-year",
@@ -990,6 +999,41 @@ function saveDashboardIdentity(identity = state.dashboardIdentity) {
 	markLocalAppChanged();
 }
 
+function normalizeDashboardChartTabs(value) {
+	const allowed = new Set(Object.keys(DASHBOARD_CHART_TAB_DEFS));
+	const source = Array.isArray(value) ? value : DEFAULT_DASHBOARD_CHART_TABS;
+	const tabs = source.filter((tab) => allowed.has(tab));
+	DEFAULT_DASHBOARD_CHART_TABS.forEach((tab) => {
+		if (!tabs.includes(tab)) tabs.push(tab);
+	});
+	return tabs;
+}
+
+function loadDashboardChartTabs() {
+	try {
+		const raw = window.localStorage.getItem(DASHBOARD_CHART_TABS_KEY);
+		const parsed = raw ? JSON.parse(raw) : null;
+		const normalized = normalizeDashboardChartTabs(parsed);
+		if (raw && JSON.stringify(parsed) !== JSON.stringify(normalized)) {
+			window.localStorage.setItem(
+				DASHBOARD_CHART_TABS_KEY,
+				JSON.stringify(normalized),
+			);
+		}
+		return normalized;
+	} catch {
+		return [...DEFAULT_DASHBOARD_CHART_TABS];
+	}
+}
+
+function saveDashboardChartTabs(tabs = state.dashboardChartTabs) {
+	window.localStorage.setItem(
+		DASHBOARD_CHART_TABS_KEY,
+		JSON.stringify(normalizeDashboardChartTabs(tabs)),
+	);
+	markLocalAppChanged();
+}
+
 function normalizeTracker(tracker, dashboard, index, fallbackType = "Thought") {
 	const rawId = String(
 		tracker?.id ||
@@ -1004,11 +1048,17 @@ function normalizeTracker(tracker, dashboard, index, fallbackType = "Thought") {
 		normalizeIconSource(
 			tracker?.icon || tracker?.source || tracker?.url || "tabler:circle",
 		) || "tabler:circle";
-	return {
+	const normalized = {
 		id,
 		label,
 		icon,
 	};
+	if (typeof tracker?.enabled === "boolean") normalized.enabled = tracker.enabled;
+	if (typeof tracker?.isGoal === "boolean") normalized.isGoal = tracker.isGoal;
+	if (tracker?.frequency || tracker?.customDays) {
+		Object.assign(normalized, normalizeGoalFrequency(tracker));
+	}
+	return normalized;
 }
 
 function normalizeGoalFrequency(value) {
@@ -1046,6 +1096,7 @@ function normalizeGoalTracker(goal, dashboard, index) {
 	return {
 		...normalized,
 		...frequency,
+		isGoal: true,
 		enabled: typeof goal?.enabled === "boolean" ? goal.enabled : true,
 	};
 }
@@ -1529,6 +1580,7 @@ function applyCoreTooltips() {
 		[".mobile-menu-toggle", "Open menu"],
 		[".dashboard-home-link", "Return home"],
 		[".dashboard-period-range", "Change time range"],
+		[".dashboard-chart-switcher [data-chart='orbs']", "Orbs"],
 		[".dashboard-chart-switcher [data-chart='pie']", "Pie chart"],
 		[".dashboard-chart-switcher [data-chart='bar']", "Bar chart"],
 		[".sidebar-menu-nav-button", "Toggle side sections"],
@@ -1947,6 +1999,7 @@ async function resetLocalAppForAccountSwitch(ownerId) {
 	state.trackerAddArea = "";
 	state.trackerEditKey = "";
 	state.trackerDeleteKey = "";
+	state.suppressNextDashboardChartClick = false;
 	state.active = "Dashboard";
 	state.flipped = null;
 	state.mindMode = "grid";
@@ -2196,6 +2249,9 @@ async function exportAppState(options = {}) {
 		dashboardIdentity: normalizeDashboardIdentity(
 			state.dashboardIdentity || cloneDefaultDashboardIdentity(),
 		),
+		dashboardChartTabs: normalizeDashboardChartTabs(
+			state.dashboardChartTabs || DEFAULT_DASHBOARD_CHART_TABS,
+		),
 		theme: normalizeTheme(state.theme),
 		localFiles: await exportLocalFiles({
 			includeData: options.includeLocalFileData !== false,
@@ -2242,6 +2298,9 @@ async function restoreImportedAppState(appState) {
 	const dashboardIdentity = normalizeDashboardIdentity(
 		appState?.dashboardIdentity || cloneDefaultDashboardIdentity(),
 	);
+	const dashboardChartTabs = normalizeDashboardChartTabs(
+		appState?.dashboardChartTabs || DEFAULT_DASHBOARD_CHART_TABS,
+	);
 	const theme = normalizeTheme(appState?.theme || state.theme);
 
 	state.bodyTracker = bodyTracker;
@@ -2250,6 +2309,8 @@ async function restoreImportedAppState(appState) {
 	state.trackerSettings = trackerSettings;
 	state.goalSettings = goalSettings;
 	state.dashboardIdentity = dashboardIdentity;
+	state.dashboardChartTabs = dashboardChartTabs;
+	state.dashboardChartType = dashboardChartTabs[0] || DEFAULT_DASHBOARD_CHART_TABS[0];
 	state.theme = theme;
 	saveBodyTracker();
 	saveSpiritProgress();
@@ -2257,6 +2318,7 @@ async function restoreImportedAppState(appState) {
 	saveTrackerSettings();
 	saveGoalSettings();
 	saveDashboardIdentity(dashboardIdentity);
+	saveDashboardChartTabs(dashboardChartTabs);
 	saveTheme(theme);
 	if (Array.isArray(appState.localFiles)) {
 		await importLocalFiles(appState.localFiles, localMediaImportOptions());
@@ -2899,6 +2961,7 @@ function hasStoredAppState() {
 			window.localStorage.getItem(TRACKER_SETTINGS_KEY) ||
 			window.localStorage.getItem(GOAL_SETTINGS_KEY) ||
 			window.localStorage.getItem(DASHBOARD_IDENTITY_KEY) ||
+			window.localStorage.getItem(DASHBOARD_CHART_TABS_KEY) ||
 			window.localStorage.getItem(PYXIDA_SETTINGS_KEY) ||
 			window.localStorage.getItem(PYXIDA_LOCAL_STATE_KEY) ||
 			window.localStorage.getItem(THEME_KEY),
@@ -2912,6 +2975,7 @@ function hasStoredLocalData() {
 }
 
 const initialPyxdiaLocalState = loadPyxdiaLocalState();
+const initialDashboardChartTabs = loadDashboardChartTabs();
 
 const state = {
 	active: "Dashboard",
@@ -2952,6 +3016,7 @@ const state = {
 	trackerEditKey: "",
 	trackerDeleteKey: "",
 	suppressNextTrackerEditClick: false,
+	suppressNextDashboardChartClick: false,
 	iconPicker: null,
 	iconSearchCache: loadIconifySearchCache(),
 	iconSearchInFlight: {},
@@ -2960,7 +3025,8 @@ const state = {
 	thoughtCreateLocks: {},
 	dashboardPeriod: "day",
 	dashboardPeriodGlowUntil: 0,
-	dashboardChartType: "pie",
+	dashboardChartTabs: initialDashboardChartTabs,
+	dashboardChartType: initialDashboardChartTabs[0] || DEFAULT_DASHBOARD_CHART_TABS[0],
 	bodyTracker: loadBodyTracker(),
 	trackerSettings: loadTrackerSettings(),
 	goalSettings: loadGoalSettings(),
@@ -2973,6 +3039,11 @@ const state = {
 	trashBusy: false,
 	trashStatus: "",
 	trashError: "",
+	cameraOpen: false,
+	cameraTarget: null,
+	cameraStatus: "",
+	cameraError: "",
+	cameraBusy: false,
 	editorDrafts: {},
 	spiritPlan: null,
 	spiritPlanError: "",
@@ -3127,6 +3198,73 @@ function pageActionButton(action, icon, label, options = {}) {
 				.join("")
 		: "";
 	return `<button class="icon-button page-action-button${options.danger ? " danger-button" : ""}${options.className ? ` ${escapeHtml(options.className)}` : ""}" data-action="${escapeHtml(action)}"${dataAttrs} type="button" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}"${options.disabled ? " disabled" : ""}>${iconHtml(icon)}</button>`;
+}
+
+function activeCameraTarget() {
+	if (state.active === "PYXIDA") return { kind: "pyxdia" };
+	if (DASHBOARD_LABELS.includes(state.active)) {
+		return { kind: "dashboard", dashboard: state.active };
+	}
+	return null;
+}
+
+function normalizeCameraTarget(target = {}) {
+	const kind =
+		target.kind === "pyxdia" || target.kind === "editor"
+			? target.kind
+			: "dashboard";
+	const dashboard = DASHBOARD_LABELS.includes(target.dashboard)
+		? target.dashboard
+		: DASHBOARD_LABELS.includes(state.active)
+			? state.active
+			: "Mind";
+	return {
+		kind,
+		dashboard,
+		start: Number.isFinite(target.start) ? target.start : null,
+		end: Number.isFinite(target.end) ? target.end : null,
+	};
+}
+
+function cameraTargetFromElement(element) {
+	const explicitKind = element?.dataset?.cameraTarget || "";
+	if (explicitKind === "pyxdia") return { kind: "pyxdia" };
+	if (explicitKind === "editor") return { kind: "editor" };
+	const dashboard = element?.dataset?.dashboard || state.active;
+	return normalizeCameraTarget({ kind: "dashboard", dashboard });
+}
+
+function cameraTargetLabel(target = state.cameraTarget) {
+	const normalized = normalizeCameraTarget(target || activeCameraTarget() || {});
+	if (normalized.kind === "pyxdia") return "PYXIDA letter";
+	if (normalized.kind === "editor") return "Current note";
+	return `${dashboardDisplayLabel(normalized.dashboard)} note`;
+}
+
+function pathCameraButtonHtml() {
+	const target = activeCameraTarget();
+	if (!target) return "";
+	const attrs =
+		target.kind === "pyxdia"
+			? 'data-camera-target="pyxdia"'
+			: `data-camera-target="dashboard" data-dashboard="${escapeHtml(
+					target.dashboard,
+				)}"`;
+	return `
+      <button class="path-camera-button" data-action="open-camera" ${attrs} type="button" aria-label="Open camera" title="Open camera">
+        ${iconHtml("tabler:camera")}
+      </button>
+  `;
+}
+
+function cameraClosedState() {
+	return {
+		cameraOpen: false,
+		cameraTarget: null,
+		cameraStatus: "",
+		cameraError: "",
+		cameraBusy: false,
+	};
 }
 
 function dashboardIdentityItem(dashboard) {
@@ -3730,6 +3868,7 @@ function trackerOrbHtml(
 	editable = false,
 	kind = "thought",
 	allowReorder = false,
+	options = {},
 ) {
 	const resolvedKind = tracker?.trackerKind || kind;
 	const normalizedKind = trackerKind(resolvedKind);
@@ -3752,8 +3891,12 @@ function trackerOrbHtml(
 			? "Enable in settings first"
 			: trackerTooltipLabel(dashboard, tracker, normalizedKind);
 	const isDraggable = editable || allowReorder;
+	const wrapClass = options.wrapClass ? ` ${escapeHtml(options.wrapClass)}` : "";
+	const wrapStyle = options.inlineColor
+		? ` style="--thought-color: ${escapeHtml(dashboardColor(dashboard))};"`
+		: "";
 	return `
-    <span class="tracker-orb-wrap"${isDraggable ? ` data-tracker-orb-wrap data-kind="${normalizedKind}" data-area="${escapeHtml(dashboard)}" data-id="${escapeHtml(tracker.id)}"` : ""}>
+    <span class="tracker-orb-wrap${wrapClass}"${isDraggable ? ` data-tracker-orb-wrap data-kind="${normalizedKind}" data-area="${escapeHtml(dashboard)}" data-id="${escapeHtml(tracker.id)}"` : ""}${wrapStyle}>
       <button class="tracker-orb${isCooling ? " is-cooling" : ""}${isEditing ? " is-editing" : ""}${isEnabled ? "" : " is-disabled"}" type="button"${actionAttrs} data-thought-tooltip="${escapeHtml(tooltip)}" aria-label="${escapeHtml(`${dashboardDisplayLabel(dashboard)} ${config.noun}: ${tracker.label}`)}"${isCooling || (!isEnabled && !editable) ? " disabled" : ""}>
         ${isCooling ? `<span class="tracker-cooldown-pie" aria-hidden="true"${thoughtCooldownPieStyle(cooldownRemaining)}></span>` : ""}
         <span class="tracker-orb-icon">${trackerIconHtml(tracker.icon)}</span>
@@ -3775,6 +3918,61 @@ function dashboardOrbNavHtml(dashboard) {
 	return `
     <div class="dashboard-orb-nav" aria-label="${escapeHtml(dashboardDisplayLabel(dashboard))} orbs">
       ${trackerStripHtml(dashboard, { combined: true, label: "", icon: "tabler:planet" })}
+    </div>
+  `;
+}
+
+function dashboardQuickOrbEntries(kind) {
+	const normalizedKind = trackerKind(kind);
+	const settings = trackerSettingsForKind(normalizedKind) || {};
+	return DASHBOARD_LABELS.flatMap((dashboard) =>
+		(settings[dashboard] || [])
+			.filter((tracker) =>
+				normalizedKind === "goal" ? tracker?.enabled : true,
+			)
+			.map((tracker) => ({ dashboard, tracker, kind: normalizedKind })),
+	);
+}
+
+function dashboardQuickOrbGroupHtml(kind, label) {
+	const entries = dashboardQuickOrbEntries(kind);
+	const config = trackerKindConfig(kind);
+	const emptyText = kind === "goal" ? "No active goals" : "No active thoughts";
+	return `
+    <fieldset class="dashboard-orb-fieldset dashboard-orb-fieldset--${escapeHtml(kind)}">
+      <legend>${escapeHtml(label)}</legend>
+      <div class="dashboard-orb-scroll" data-dashboard-orb-scroll tabindex="0" aria-label="${escapeHtml(label)} quick ${escapeHtml(config.plural)}">
+        <div class="dashboard-orb-scroll-track">
+          ${
+						entries.length
+							? entries
+									.map(({ dashboard, tracker }) =>
+										trackerOrbHtml(
+											dashboard,
+											tracker,
+											false,
+											kind,
+											false,
+											{
+												inlineColor: true,
+												wrapClass: "dashboard-orb-quick-item",
+											},
+										),
+									)
+									.join("")
+							: `<span class="dashboard-orb-empty">${escapeHtml(emptyText)}</span>`
+					}
+        </div>
+      </div>
+    </fieldset>
+  `;
+}
+
+function dashboardQuickOrbsHtml() {
+	return `
+    <div class="dashboard-orbs-panel" aria-label="Quick tracker orbs">
+      ${dashboardQuickOrbGroupHtml("thought", "Thoughts")}
+      ${dashboardQuickOrbGroupHtml("goal", "Goals")}
     </div>
   `;
 }
@@ -3807,6 +4005,7 @@ function addTracker(area, kind = "thought") {
 				id: makeId(`${area.toLowerCase()}-tracker`),
 				label,
 				icon,
+				isGoal: normalizedKind === "goal",
 				...(normalizedKind === "goal"
 					? { enabled: true, ...normalizeGoalFrequency({}) }
 					: {}),
@@ -3820,55 +4019,69 @@ function addTracker(area, kind = "thought") {
 	setState({ trackerAddArea: "", trackerEditKey: "", trackerDeleteKey: "" });
 }
 
-function updateTracker(area, id, kind = "thought", options = {}) {
-	if (!DASHBOARD_LABELS.includes(area) || !id) return;
-	const closeEditor = options.close !== false;
-	const silent = Boolean(options.silent);
+function trackerDraftFromEditForm(area, id, kind = "thought", current = {}) {
 	const normalizedKind = trackerKind(kind);
-	const config = trackerKindConfig(normalizedKind);
 	const label = document
 		.getElementById(trackerFieldId(`${area}-${id}`, "label"))
 		?.value.trim();
 	const iconInput = document
 		.getElementById(trackerFieldId(`${area}-${id}`, "icon"))
 		?.value.trim();
+	const icon =
+		iconInput || firstIconSuggestion(label, current.icon || "tabler:circle");
+	const draft = {
+		...current,
+		label,
+		icon,
+	};
+	if (normalizedKind === "goal") {
+		const enabledInput = document.getElementById(
+			trackerFieldId(`${area}-${id}`, "enabled"),
+		);
+		const frequencyInput = document.getElementById(
+			trackerFieldId(`${area}-${id}`, "frequency"),
+		);
+		const customDaysInput = document.getElementById(
+			trackerFieldId(`${area}-${id}`, "custom-days"),
+		);
+		return {
+			...draft,
+			enabled: Boolean(enabledInput?.checked),
+			...normalizeGoalFrequency({
+				frequency: frequencyInput?.value || current.frequency,
+				customDays: customDaysInput?.value || current.customDays,
+			}),
+		};
+	}
+	return draft;
+}
+
+function updateTracker(area, id, kind = "thought", options = {}) {
+	if (!DASHBOARD_LABELS.includes(area) || !id) return;
+	const closeEditor = options.close !== false;
+	const silent = Boolean(options.silent);
+	const normalizedKind = trackerKind(kind);
+	const config = trackerKindConfig(normalizedKind);
 	const isGoal = normalizedKind === "goal";
-	const enabledInput = isGoal
-		? document.getElementById(trackerFieldId(`${area}-${id}`, "enabled"))
-		: null;
-	const frequencyInput = isGoal
-		? document.getElementById(trackerFieldId(`${area}-${id}`, "frequency"))
-		: null;
-	const customDaysInput = isGoal
-		? document.getElementById(trackerFieldId(`${area}-${id}`, "custom-days"))
-		: null;
 	const currentSettings = trackerSettingsForKind(normalizedKind);
 	const current = (currentSettings?.[area] || []).find(
 		(tracker) => tracker.id === id,
 	);
+	const draft = current ? trackerDraftFromEditForm(area, id, normalizedKind, current) : null;
+	const label = draft?.label;
 	if (!current || !label) {
 		if (!silent) window.alert(config.emptyNameAlert);
 		return;
 	}
-	const icon =
-		iconInput || firstIconSuggestion(label, current.icon || "tabler:circle");
 	const next = {
 		...currentSettings,
 		[area]: (currentSettings?.[area] || []).map((tracker) =>
 			tracker.id === id
 				? {
 						...tracker,
-						label,
-						icon,
-						...(isGoal
-							? {
-									enabled: Boolean(enabledInput?.checked),
-									...normalizeGoalFrequency({
-										frequency: frequencyInput?.value,
-										customDays: customDaysInput?.value,
-									}),
-								}
-							: {}),
+						...draft,
+						isGoal,
+						...(isGoal ? normalizeGoalFrequency(draft) : {}),
 					}
 				: tracker,
 		),
@@ -3878,6 +4091,72 @@ function updateTracker(area, id, kind = "thought", options = {}) {
 	else state.trackerSettings = normalizeTrackerSettings(next);
 	saveTrackerSettingsForKind(normalizedKind);
 	if (closeEditor) setState({ trackerEditKey: "", trackerDeleteKey: "" });
+}
+
+function transferTrackerKind(area, id, kind = "thought") {
+	if (!DASHBOARD_LABELS.includes(area) || !id) return;
+	const sourceKind = trackerKind(kind);
+	const targetKind = sourceKind === "goal" ? "thought" : "goal";
+	const sourceSettings = trackerSettingsForKind(sourceKind);
+	const targetSettings = trackerSettingsForKind(targetKind);
+	const sourceTrackers = sourceSettings?.[area] || [];
+	const current = sourceTrackers.find((tracker) => tracker.id === id);
+	if (!current) return;
+	const sourceConfig = trackerKindConfig(sourceKind);
+	const targetConfig = trackerKindConfig(targetKind);
+	const draft = trackerDraftFromEditForm(area, id, sourceKind, current);
+	if (!draft.label) {
+		window.alert(sourceConfig.emptyNameAlert);
+		return;
+	}
+	const movedTracker =
+		targetKind === "goal"
+			? normalizeGoalTracker(
+					{
+						...draft,
+						isGoal: true,
+						enabled: typeof draft.enabled === "boolean" ? draft.enabled : true,
+						...normalizeGoalFrequency(draft),
+					},
+					area,
+					(targetSettings?.[area] || []).length,
+				)
+			: normalizeTracker(
+					{ ...draft, isGoal: false },
+					area,
+					(targetSettings?.[area] || []).length,
+				);
+	const nextSource = {
+		...sourceSettings,
+		[area]: sourceTrackers.filter((tracker) => tracker.id !== id),
+	};
+	const nextTarget = {
+		...targetSettings,
+		[area]: [
+			...(targetSettings?.[area] || []).filter((tracker) => tracker.id !== id),
+			movedTracker,
+		],
+	};
+	if (sourceKind === "goal") {
+		state.goalSettings = normalizeGoalSettings(nextSource);
+		state.trackerSettings = normalizeTrackerSettings(nextTarget);
+	} else {
+		state.trackerSettings = normalizeTrackerSettings(nextSource);
+		state.goalSettings = normalizeGoalSettings(nextTarget);
+	}
+	saveTrackerSettings();
+	saveGoalSettings();
+	setState({
+		trackerEditKey: trackerEditKey(area, id, targetKind),
+		trackerDeleteKey: "",
+		trackerAddArea: "",
+		settingsTab:
+			state.active === "Settings"
+				? targetKind === "goal"
+					? "goals"
+					: "thoughts"
+				: state.settingsTab,
+	});
 }
 
 function reorderTracker(area, trackerId, targetIndex, kind = "thought") {
@@ -6614,6 +6893,7 @@ async function clearAppData(options = {}) {
 	window.localStorage.removeItem(TRACKER_SETTINGS_KEY);
 	window.localStorage.removeItem(GOAL_SETTINGS_KEY);
 	window.localStorage.removeItem(DASHBOARD_IDENTITY_KEY);
+	window.localStorage.removeItem(DASHBOARD_CHART_TABS_KEY);
 	window.localStorage.removeItem(PYXIDA_SETTINGS_KEY);
 	window.localStorage.removeItem(PYXIDA_LOCAL_STATE_KEY);
 	window.localStorage.removeItem(SIDEBAR_WIDTH_KEY);
@@ -6631,6 +6911,8 @@ async function clearAppData(options = {}) {
 	state.trackerSettings = createEmptyTrackerSettings();
 	state.goalSettings = createEmptyTrackerSettings();
 	state.dashboardIdentity = cloneDefaultDashboardIdentity();
+	state.dashboardChartTabs = [...DEFAULT_DASHBOARD_CHART_TABS];
+	state.dashboardChartType = DEFAULT_DASHBOARD_CHART_TABS[0];
 	state.theme = "default";
 	state.pyxdiaSettings = normalizePyxdiaSettings(DEFAULT_PYXIDA_SETTINGS);
 	state.pyxdiaThreads = [];
@@ -6653,6 +6935,7 @@ async function clearAppData(options = {}) {
 	state.trackerAddArea = "";
 	state.trackerEditKey = "";
 	state.trackerDeleteKey = "";
+	state.suppressNextDashboardChartClick = false;
 	state.active = "Dashboard";
 	state.flipped = null;
 	state.mindMode = "grid";
@@ -6670,6 +6953,7 @@ async function clearAppData(options = {}) {
 	state.cloudStorageUsage = null;
 	saveTrackerSettings();
 	saveGoalSettings();
+	saveDashboardChartTabs(state.dashboardChartTabs);
 	goHome();
 }
 
@@ -6686,6 +6970,7 @@ async function restoreFactoryDefaults() {
 	window.localStorage.removeItem(TRACKER_SETTINGS_KEY);
 	window.localStorage.removeItem(GOAL_SETTINGS_KEY);
 	window.localStorage.removeItem(DASHBOARD_IDENTITY_KEY);
+	window.localStorage.removeItem(DASHBOARD_CHART_TABS_KEY);
 	window.localStorage.removeItem(PYXIDA_SETTINGS_KEY);
 	window.localStorage.removeItem(PYXIDA_LOCAL_STATE_KEY);
 	window.localStorage.removeItem(SIDEBAR_WIDTH_KEY);
@@ -6704,6 +6989,8 @@ async function restoreFactoryDefaults() {
 	state.trackerSettings = cloneDefaultTrackers();
 	state.goalSettings = cloneDefaultGoals();
 	state.dashboardIdentity = cloneDefaultDashboardIdentity();
+	state.dashboardChartTabs = [...DEFAULT_DASHBOARD_CHART_TABS];
+	state.dashboardChartType = DEFAULT_DASHBOARD_CHART_TABS[0];
 	state.theme = "default";
 	state.pyxdiaSettings = normalizePyxdiaSettings(DEFAULT_PYXIDA_SETTINGS);
 	state.pyxdiaThreads = [];
@@ -6744,6 +7031,7 @@ async function restoreFactoryDefaults() {
 	if (seedStore.appState) await restoreImportedAppState(seedStore.appState);
 	saveArtifactStore(seedStore);
 	saveDashboardIdentity(state.dashboardIdentity);
+	saveDashboardChartTabs(state.dashboardChartTabs);
 	saveTheme(state.theme);
 	setState({
 		active: "Dashboard",
@@ -8158,9 +8446,45 @@ function previewDashboardPeriodByIndex(index) {
 	});
 }
 
+function dashboardChartTabs() {
+	return normalizeDashboardChartTabs(state.dashboardChartTabs);
+}
+
+function activeDashboardChartType() {
+	const tabs = dashboardChartTabs();
+	return tabs.includes(state.dashboardChartType)
+		? state.dashboardChartType
+		: tabs[0] || DEFAULT_DASHBOARD_CHART_TABS[0];
+}
+
 function setDashboardChartType(chartType) {
+	const tabs = dashboardChartTabs();
+	const nextType = tabs.includes(chartType)
+		? chartType
+		: tabs[0] || DEFAULT_DASHBOARD_CHART_TABS[0];
 	setState({
-		dashboardChartType: ["pie", "bar"].includes(chartType) ? chartType : "pie",
+		dashboardChartTabs: tabs,
+		dashboardChartType: nextType,
+	});
+}
+
+function reorderDashboardChartTabs(tabId, targetIndex) {
+	const tabs = dashboardChartTabs();
+	const sourceIndex = tabs.indexOf(tabId);
+	if (sourceIndex < 0) return;
+	const resolvedTarget = Number.isFinite(Number(targetIndex))
+		? Number(targetIndex)
+		: 0;
+	const clampedTarget = Math.min(Math.max(resolvedTarget, 0), tabs.length);
+	if (sourceIndex === clampedTarget) return;
+	const reordered = [...tabs];
+	const [moved] = reordered.splice(sourceIndex, 1);
+	reordered.splice(clampedTarget, 0, moved);
+	state.dashboardChartTabs = normalizeDashboardChartTabs(reordered);
+	saveDashboardChartTabs(state.dashboardChartTabs);
+	setState({
+		dashboardChartTabs: state.dashboardChartTabs,
+		dashboardChartType: activeDashboardChartType(),
 	});
 }
 
@@ -8245,6 +8569,7 @@ function resetTips() {
 
 function render() {
 	applyEnvironmentClasses();
+	if (cameraStream) stopCameraStream();
 
 	if (!isReady()) {
 		app.innerHTML = `
@@ -8293,12 +8618,14 @@ function render() {
     ${donationModalHtml()}
     ${thoughtToastHtml()}
     ${iconPickerOverlayHtml()}
+    ${cameraModalHtml()}
   `;
 	const sidebarScroll = app.querySelector(".sidebar-list-scroll");
 	if (sidebarScroll) sidebarScroll.scrollTop = sidebarScrollTop;
 	const settingsScroll = app.querySelector(".settings-tab-panel");
 	if (settingsScroll) settingsScroll.scrollTop = settingsScrollTop;
 	bindActions();
+	bindCameraControls();
 	bindDashboardIdentityAutoSave();
 	bindTrackerEditorAutoSave();
 	bindHeaderActionTooltips();
@@ -8315,6 +8642,8 @@ function render() {
 	bindCompendiumSectionSorting();
 	bindDashboardBalanceHover();
 	bindDashboardPeriodSlider();
+	bindDashboardChartTabSorting();
+	bindDashboardOrbScroll();
 	bindGalleryControls();
 	bindEditorMedia();
 	bindLocalAssetImages();
@@ -8861,6 +9190,9 @@ function sidebarHtml(_compendium) {
             ${iconHtml(allExpanded ? "tabler:chevrons-up" : "tabler:chevrons-down")}
           </button>
           ${dashboardPeriodSliderHtml("sidebar-period-slider")}
+          <button class="sidebar-menu-nav-button sidebar-menu-nav-trash" data-action="open-trash" type="button" aria-label="Open Trash" title="Trash">
+            ${iconHtml("tabler:trash")}
+          </button>
         </nav>
       </div>
       <div class="sidebar-list-scroll">
@@ -8932,7 +9264,6 @@ function sidebarHtml(_compendium) {
       </div>
       <div class="sidebar-donate-row">
         <button class="primary-button full-width donate-sidebar" data-action="open-donation" type="button">${buttonContent("tabler:heart-handshake", "Thanks / Donate")}</button>
-        <button class="secondary-button full-width trash-sidebar" data-action="open-trash" type="button">${buttonContent("tabler:trash", "Trash")}</button>
         <div class="sidebar-footer-links">
           <button class="sidebar-text-link" data-action="open-settings" type="button">Settings</button>
           <span aria-hidden="true">/</span>
@@ -8943,8 +9274,6 @@ function sidebarHtml(_compendium) {
           <button class="sidebar-text-link" data-action="export-artifacts" type="button">Export</button>
           <span aria-hidden="true">/</span>
           <button class="sidebar-text-link" data-action="reset-tips" type="button">Reset tips</button>
-          <span aria-hidden="true">/</span>
-          <button class="sidebar-text-link" data-action="clear-app-data" type="button">Clear Data</button>
         </div>
       </div>
     </aside>
@@ -9149,6 +9478,7 @@ function pathBarHtml(compendium, section, spiritBook) {
       ${compendium ? `<span>/</span><button class="truncate" data-action="compendium-root">${escapeHtml(compendium.title)}</button>` : ""}
       ${section ? `<span>/</span><span class="truncate muted">${escapeHtml(section.title)}</span>` : ""}
       ${state.active === "Mind" ? "" : pathBarCrumbsHtml(extraCrumbs)}
+      ${pathCameraButtonHtml()}
     </nav>
   `;
 }
@@ -9217,7 +9547,8 @@ function dashboardPeriodSliderHtml(extraClass = "") {
 function dashboardAnalyticsHtml() {
 	const labels = DASHBOARD_LABELS;
 	const pieLabels = ["Body", "Spirit", "Life", "Mind"];
-	const chartType = state.dashboardChartType === "bar" ? "bar" : "pie";
+	const chartType = activeDashboardChartType();
+	const chartTabs = dashboardChartTabs();
 	const periodOption = dashboardPeriodOption(state.dashboardPeriod);
 	const events = lifeEvents().filter((event) =>
 		eventIsInPeriod(event, periodOption.id),
@@ -9247,7 +9578,9 @@ function dashboardAnalyticsHtml() {
 	const balanceScore = Math.max(0, Math.round((1 - imbalance) * 100));
 	const maxCount = Math.max(1, ...labels.map((label) => counts[label]));
 	const chartHtml =
-		chartType === "bar"
+		chartType === "orbs"
+			? dashboardQuickOrbsHtml()
+			: chartType === "bar"
 			? `
       <div class="dashboard-bar-chart" role="img" aria-label="Balance bar chart">
         ${labels
@@ -9282,7 +9615,6 @@ function dashboardAnalyticsHtml() {
         <small>events</small>
       </div>
     `;
-
 	return `
     <section class="dashboard-analytics" aria-label="Dashboard analytics">
       <div class="dashboard-analytics-header">
@@ -9292,19 +9624,18 @@ function dashboardAnalyticsHtml() {
         </div>
       </div>
       <div class="dashboard-analytics-body">
-        <div class="dashboard-pie-wrap">
+        <div class="dashboard-pie-wrap dashboard-pie-wrap--${escapeHtml(chartType)}">
           ${chartHtml}
-          <strong>${balanceScore}% balanced</strong>
+          ${chartType === "orbs" ? "" : `<strong>${balanceScore}% balanced</strong>`}
           <div class="dashboard-chart-controls">
             ${dashboardPeriodSliderHtml()}
-            <div class="dashboard-chart-switcher" role="tablist" aria-label="Balance chart type">
-              ${[
-								["pie", "tabler:chart-pie", "Pie"],
-								["bar", "tabler:chart-bar", "Bar"],
-							]
+            <div class="dashboard-chart-switcher" data-dashboard-chart-switcher role="tablist" aria-label="Balance chart type" style="--dashboard-chart-tab-count: ${chartTabs.length};">
+              ${chartTabs
+								.map((type) => DASHBOARD_CHART_TAB_DEFS[type])
+								.filter(Boolean)
 								.map(
-									([type, icon, label]) => `
-                <button class="${chartType === type ? "is-active" : ""}" data-action="set-dashboard-chart" data-chart="${type}" type="button" role="tab" aria-selected="${chartType === type ? "true" : "false"}" aria-pressed="${chartType === type ? "true" : "false"}" title="${label} chart">${buttonContent(icon, label)}</button>
+									(tab) => `
+                <button class="${chartType === tab.id ? "is-active" : ""}" data-action="set-dashboard-chart" data-dashboard-chart-tab data-chart="${tab.id}" type="button" role="tab" aria-selected="${chartType === tab.id ? "true" : "false"}" aria-pressed="${chartType === tab.id ? "true" : "false"}" title="${escapeHtml(tab.title)}">${buttonContent(tab.icon, tab.label)}</button>
               `,
 								)
 								.join("")}
@@ -9667,7 +9998,7 @@ function settingsHtml() {
 		cloud: settingsCloudHtml(),
 	};
 	return panelHtml(`
-    ${headerHtml("Settings", "Getting started, Thoughts, Goals, Interface, PYXIDA, and Cloud setup.")}
+    ${headerHtml("Settings", "Getting started, Thoughts, Goals, Interface, PYXIDA, and data controls.")}
     <div class="settings-page">
       ${settingsTabsHtml(tab)}
       ${panels[tab]}
@@ -9682,7 +10013,7 @@ function settingsTabsHtml(activeTab) {
 		["goals", "Goals", "tabler:target-arrow"],
 		["interface", "Interface", "tabler:layout-dashboard"],
 		["pyxdia", "PYXIDA", "tabler:sparkles"],
-		["cloud", "Cloud", "tabler:cloud"],
+		["cloud", "Data Controls", "tabler:database-cog"],
 	];
 	return `
     <nav class="settings-tabs page-tool-switcher" aria-label="Settings tabs">
@@ -10112,6 +10443,17 @@ function settingsCloudHtml() {
         ${account.message ? `<p class="cloud-status-message">${escapeHtml(account.message)}</p>` : ""}
         ${account.error ? `<p class="cloud-status-message cloud-status-message--error">${escapeHtml(account.error)}</p>` : ""}
       </section>
+      <section class="interface-settings-section data-controls-section">
+        <div class="body-card-heading">
+          <div>
+            <h3>Local Data</h3>
+            <p>Clear this browser's saved Ourstuff data from this device.</p>
+          </div>
+          <div class="action-row data-controls-actions">
+            <button class="secondary-button danger-button" data-action="clear-app-data" type="button">${buttonContent("tabler:database-x", "Clear Data")}</button>
+          </div>
+        </div>
+      </section>
     </div>
   `;
 }
@@ -10162,6 +10504,7 @@ function trackerEditFormHtml(area, kind = "thought") {
 	const fieldId = trackerFieldId(`${area}-${id}`, "icon");
 	const enableFieldId = trackerFieldId(`${area}-${id}`, "enabled");
 	const isGoal = normalizedKind === "goal";
+	const transferLabel = isGoal ? "Move to Thoughts" : "Move to Goals";
 	const frequencyFieldId = trackerFieldId(`${area}-${id}`, "frequency");
 	const customDaysFieldId = trackerFieldId(`${area}-${id}`, "custom-days");
 	const goalFrequency = normalizeGoalFrequency(tracker);
@@ -10170,6 +10513,7 @@ function trackerEditFormHtml(area, kind = "thought") {
       <div class="tracker-edit-heading">
         <strong>Edit ${escapeHtml(tracker.label)}</strong>
         <div class="tracker-edit-heading-actions">
+          <button class="icon-button" data-action="transfer-tracker-kind" data-kind="${normalizedKind}" data-area="${escapeHtml(area)}" data-id="${escapeHtml(id)}" type="button" aria-label="${escapeHtml(transferLabel)}" title="${escapeHtml(transferLabel)}">${iconHtml("tabler:transfer")}</button>
           ${
 						confirmDelete
 							? `<button class="icon-button" data-action="cancel-remove-tracker" type="button" aria-label="Keep ${escapeHtml(tracker.label)}" title="Keep">${iconHtml("tabler:arrow-back-up")}</button><button class="icon-button danger-button" data-action="remove-tracker" data-kind="${normalizedKind}" data-area="${escapeHtml(area)}" data-id="${escapeHtml(id)}" type="button" aria-label="Confirm delete ${escapeHtml(tracker.label)}" title="Confirm Delete">${iconHtml("tabler:trash")}</button>`
@@ -10218,6 +10562,10 @@ function trackerEditFormHtml(area, kind = "thought") {
         `
 						: ""
 				}
+        <div class="action-row body-actions tracker-edit-actions">
+          <button class="secondary-button" data-action="cancel-edit-tracker" type="button">${buttonContent("tabler:x", "Cancel")}</button>
+          <button class="primary-button" data-action="save-edit-tracker" data-kind="${normalizedKind}" data-area="${escapeHtml(area)}" data-id="${escapeHtml(id)}" type="button">${buttonContent("tabler:device-floppy", "Save")}</button>
+        </div>
       </div>
     </div>
   `;
@@ -12244,18 +12592,13 @@ function editorHtml({
   `);
 }
 
-function prefersCameraCapture() {
-	return Boolean(
-		window.matchMedia?.("(pointer: coarse)").matches ||
-			window.matchMedia?.("(max-width: 860px)").matches,
-	);
-}
-
 function editorImageButtonHtml() {
-	const camera = prefersCameraCapture();
 	return `
-    <button class="icon-button editor-image-button" data-editor-image-button type="button" aria-label="${camera ? "Take photo" : "Upload image"}" title="${camera ? "Take Photo" : "Upload Image"}">
-      ${iconHtml(camera ? "tabler:camera" : "tabler:photo")}
+    <button class="icon-button editor-image-button editor-camera-button" data-editor-camera-button type="button" aria-label="Open camera" title="Open camera">
+      ${iconHtml("tabler:camera")}
+    </button>
+    <button class="icon-button editor-image-button editor-upload-button" data-editor-image-button type="button" aria-label="Upload image" title="Upload image">
+      ${iconHtml("tabler:photo")}
     </button>
   `;
 }
@@ -12274,6 +12617,34 @@ function headerHtml(title, subtitle, actions = "", options = {}) {
         ${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ""}
       </div>
     </header>
+  `;
+}
+
+function cameraModalHtml() {
+	if (!state.cameraOpen) return "";
+	const message =
+		state.cameraError || state.cameraStatus || "Opening camera...";
+	return `
+    <div class="camera-modal" data-camera-modal role="dialog" aria-modal="true" aria-labelledby="camera-modal-title" tabindex="-1">
+      <section class="camera-panel">
+        <header class="camera-panel-header">
+          <div>
+            <h2 id="camera-modal-title">Camera</h2>
+            <p>${escapeHtml(cameraTargetLabel())}</p>
+          </div>
+          <button class="icon-button" data-action="close-camera" type="button" aria-label="Close camera" title="Close camera">${iconHtml("tabler:x")}</button>
+        </header>
+        <div class="camera-preview">
+          <video data-camera-video autoplay playsinline muted></video>
+          <div class="camera-placeholder" data-camera-placeholder>${iconHtml("tabler:camera")}</div>
+        </div>
+        <p class="camera-status${state.cameraError ? " has-error" : ""}" data-camera-status role="status">${escapeHtml(message)}</p>
+        <div class="camera-actions">
+          <button class="secondary-button" data-action="close-camera" type="button">${buttonContent("tabler:x", "Cancel")}</button>
+          <button class="primary-button" data-action="capture-camera" data-camera-capture type="button" disabled>${buttonContent("tabler:camera", "Capture")}</button>
+        </div>
+      </section>
+    </div>
   `;
 }
 
@@ -12489,6 +12860,260 @@ function bindHeaderActionTooltips() {
 	});
 }
 
+function openCamera(target = {}) {
+	stopCameraStream();
+	setState({
+		cameraOpen: true,
+		cameraTarget: normalizeCameraTarget(target),
+		cameraStatus: "Opening camera...",
+		cameraError: "",
+		cameraBusy: false,
+	});
+}
+
+function closeCamera(options = {}) {
+	stopCameraStream();
+	const next = cameraClosedState();
+	if (options.render === false) {
+		Object.assign(state, next);
+		return;
+	}
+	setState(next);
+}
+
+function stopCameraStream() {
+	cameraRequestToken += 1;
+	if (cameraStream) {
+		cameraStream.getTracks().forEach((track) => track.stop());
+		cameraStream = null;
+	}
+	const video = app.querySelector("[data-camera-video]");
+	if (video) video.srcObject = null;
+}
+
+function cameraErrorMessage(error) {
+	const name = error?.name || "";
+	if (name === "NotAllowedError" || name === "SecurityError")
+		return "Camera permission was blocked.";
+	if (name === "NotFoundError" || name === "OverconstrainedError")
+		return "No webcam camera was found.";
+	if (!window.isSecureContext)
+		return "Camera access needs HTTPS or localhost.";
+	return error instanceof Error ? error.message : "Camera could not open.";
+}
+
+function updateCameraStatus(status = "", error = "") {
+	state.cameraStatus = status;
+	state.cameraError = error;
+	const statusEl = app.querySelector("[data-camera-status]");
+	if (statusEl) {
+		statusEl.textContent = error || status || "";
+		statusEl.classList.toggle("has-error", Boolean(error));
+	}
+	const captureButton = app.querySelector("[data-camera-capture]");
+	if (captureButton) {
+		captureButton.disabled =
+			state.cameraBusy || !cameraStream || Boolean(error);
+	}
+	const placeholder = app.querySelector("[data-camera-placeholder]");
+	if (placeholder) placeholder.hidden = Boolean(cameraStream && !error);
+}
+
+async function startCameraStream(video) {
+	if (!video || !state.cameraOpen) return;
+	stopCameraStream();
+	const token = ++cameraRequestToken;
+	updateCameraStatus("Opening camera...", "");
+	if (!window.isSecureContext) {
+		updateCameraStatus("", "Camera access needs HTTPS or localhost.");
+		return;
+	}
+	if (!navigator.mediaDevices?.getUserMedia) {
+		updateCameraStatus("", "This browser does not expose a webcam camera.");
+		return;
+	}
+
+	try {
+		const stream = await navigator.mediaDevices.getUserMedia({
+			audio: false,
+			video: {
+				facingMode: { ideal: "environment" },
+				width: { ideal: 1280 },
+				height: { ideal: 720 },
+			},
+		});
+		if (token !== cameraRequestToken || !state.cameraOpen) {
+			stream.getTracks().forEach((track) => track.stop());
+			return;
+		}
+		cameraStream = stream;
+		video.srcObject = stream;
+		await video.play().catch(() => {});
+		updateCameraStatus("Camera ready.", "");
+	} catch (error) {
+		if (token === cameraRequestToken) {
+			updateCameraStatus("", cameraErrorMessage(error));
+		}
+	}
+}
+
+function bindCameraControls() {
+	const modal = app.querySelector("[data-camera-modal]");
+	if (!modal || !state.cameraOpen) return;
+	modal.addEventListener("click", (event) => {
+		if (event.target === modal) closeCamera();
+	});
+	modal.addEventListener("keydown", (event) => {
+		if (event.key === "Escape") {
+			event.preventDefault();
+			closeCamera();
+		}
+	});
+	modal.focus();
+	void startCameraStream(modal.querySelector("[data-camera-video]"));
+}
+
+function cameraBlobFromVideo(video) {
+	return new Promise((resolve, reject) => {
+		const width = video?.videoWidth || 0;
+		const height = video?.videoHeight || 0;
+		if (!width || !height) {
+			reject(new Error("Camera is not ready yet."));
+			return;
+		}
+		const canvas = document.createElement("canvas");
+		canvas.width = width;
+		canvas.height = height;
+		const context = canvas.getContext("2d", { alpha: false });
+		context.drawImage(video, 0, 0, width, height);
+		canvas.toBlob(
+			(blob) => {
+				if (blob) resolve(blob);
+				else reject(new Error("Could not capture camera photo."));
+			},
+			"image/jpeg",
+			0.92,
+		);
+	});
+}
+
+async function cameraFileFromVideo(video) {
+	const blob = await cameraBlobFromVideo(video);
+	const name = `camera-${todayDateKey()}-${Date.now()}.jpg`;
+	if (typeof File === "function")
+		return new File([blob], name, { type: blob.type });
+	return Object.assign(blob, { name, type: blob.type || "image/jpeg" });
+}
+
+async function createCameraDashboardNote(file, dashboard) {
+	const normalizedDashboard = DASHBOARD_LABELS.includes(dashboard)
+		? dashboard
+		: "Mind";
+	const stored = await storeLocalImage(file, localMediaStoreOptions());
+	scheduleCloudStorageUsageRefresh({ force: true });
+	const now = nowIso();
+	const title = `Camera Photo`;
+	const body = `## ${title}\n\nCaptured: ${currentTimestampLabel()}\n\n${stored.markdown}`;
+	const isLife = normalizedDashboard === "Life";
+	const note = {
+		id: makeId("artifact"),
+		type: "note",
+		dashboard: normalizedDashboard,
+		parentId: null,
+		title,
+		body,
+		created: now,
+		edited: now,
+		childIds: [],
+		properties: {
+			role: isLife ? "life-journal" : "dashboard-note",
+			status: "active",
+			source: "camera",
+			isNewDraft: false,
+			dateKey: todayDateKey(),
+			...(isLife
+				? {
+						mood: "steady",
+						energy: "medium",
+						habits: [],
+					}
+				: {}),
+			audit: [
+				{
+					at: now,
+					action: "created",
+					title,
+					dateKey: todayDateKey(),
+					changed: ["photo"],
+				},
+			],
+		},
+		analysis: {},
+	};
+	persistArtifactStore(upsertArtifact(state.artifactStore, note));
+	return {
+		active: normalizedDashboard,
+		selectedArtifactId: note.id,
+		artifactMode: "editor",
+		artifactReturnActive: "",
+		selectedCompendiumId: null,
+		selectedSectionId: null,
+		selectedSpiritBookKey: null,
+	};
+}
+
+async function applyCameraCapture(file) {
+	const target = normalizeCameraTarget(state.cameraTarget || {});
+	if (target.kind === "editor") {
+		const inserted = await insertEditorImages([file], {
+			start: target.start,
+			end: target.end,
+		});
+		if (!inserted) throw new Error("Could not add camera photo.");
+		return {};
+	}
+	if (target.kind === "pyxdia") {
+		const draft = await uploadPyxdiaImagesAndInsert([file], { render: false });
+		if (!draft) {
+			throw new Error(state.pyxdiaError || "Could not add camera photo.");
+		}
+		return {
+			active: "PYXIDA",
+			pyxdiaView: "input",
+			pyxdiaDraft: draft,
+			pyxdiaStatus: "Photo added.",
+			pyxdiaError: "",
+		};
+	}
+	return await createCameraDashboardNote(file, target.dashboard);
+}
+
+async function captureCameraPhoto() {
+	if (state.cameraBusy) return;
+	const video = app.querySelector("[data-camera-video]");
+	if (!video || !cameraStream) {
+		updateCameraStatus("", "Camera is not ready yet.");
+		return;
+	}
+	state.cameraBusy = true;
+	updateCameraStatus("Capturing photo...", "");
+	try {
+		const file = await cameraFileFromVideo(video);
+		const patch = await applyCameraCapture(file);
+		stopCameraStream();
+		setState({
+			...cameraClosedState(),
+			...patch,
+		});
+	} catch (error) {
+		state.cameraBusy = false;
+		updateCameraStatus(
+			"",
+			error instanceof Error ? error.message : "Could not capture photo.",
+		);
+	}
+}
+
 function bindActions() {
 	app.querySelectorAll("[data-action]").forEach((element) => {
 		if (element.closest("[data-icon-picker-overlay]")) return;
@@ -12598,21 +13223,39 @@ function bindPyxdiaControls() {
 	}
 }
 
-async function insertPyxdiaLetterImages(files) {
-	const input = document.getElementById("pyxdia-letter-input");
-	if (!input) return;
+function textWithMarkdownInsert(value, text, start, end) {
+	const source = String(value || "");
+	const from = Math.min(Math.max(Number(start) || 0, 0), source.length);
+	const to = Math.min(Math.max(Number(end) || from, from), source.length);
+	const before = source.slice(0, from);
+	const after = source.slice(to);
+	const prefix = before && !before.endsWith("\n") ? "\n\n" : "";
+	const suffix = after && !after.startsWith("\n") ? "\n\n" : "\n";
+	const insert = `${prefix}${text}${suffix}`;
+	return {
+		value: `${before}${insert}${after}`,
+		cursor: before.length + insert.length,
+	};
+}
+
+async function uploadPyxdiaImagesAndInsert(files, options = {}) {
 	const images = files.filter((file) => file?.type?.startsWith("image/"));
-	if (!images.length) return;
+	if (!images.length) return null;
+	const fail = (message) => {
+		state.pyxdiaError = message;
+		if (options.renderOnError) setState({ pyxdiaError: message });
+		return null;
+	};
 	if (!isPyxdiaSignedIn() || state.cloud?.isLocalDemo) {
-		setState({
-			pyxdiaError: "Sign in with Cloud before pasting images into PYXIDA letters.",
-		});
-		return;
+		return fail("Sign in with Cloud before adding images to PYXIDA letters.");
 	}
+	const input = document.getElementById("pyxdia-letter-input");
 	const uid = state.cloud?.user?.uid || "";
 	const letterId = pyxdiaCurrentClientLetterId();
-	const start = input.selectionStart ?? input.value.length;
-	const end = input.selectionEnd ?? start;
+	const currentDraft = normalizePyxdiaDraft(state.pyxdiaDraft);
+	const currentText = input ? input.value : currentDraft.inputText;
+	const start = options.start ?? input?.selectionStart ?? currentText.length;
+	const end = options.end ?? input?.selectionEnd ?? start;
 	const uploadedRefs = [];
 	try {
 		for (const image of images) {
@@ -12624,20 +13267,25 @@ async function insertPyxdiaLetterImages(files) {
 			);
 		}
 	} catch (error) {
-		setState({
-			pyxdiaError:
-				error instanceof Error ? error.message : "Could not upload PYXIDA image.",
-		});
-		return;
+		return fail(
+			error instanceof Error ? error.message : "Could not upload PYXIDA image.",
+		);
 	}
-	insertTextAtPyxdiaCursor(
+	const inserted = textWithMarkdownInsert(
+		currentText,
 		uploadedRefs.map((ref) => pyxdiaImageMarkdown(ref)).join("\n\n"),
 		start,
 		end,
 	);
+	if (input) {
+		input.value = inserted.value;
+		input.focus();
+		input.setSelectionRange(inserted.cursor, inserted.cursor);
+	}
 	const draft = normalizePyxdiaDraft({
 		...pyxdiaDraftFromDom(),
 		clientLetterId: letterId,
+		inputText: inserted.value,
 		imageRefs: [
 			...(state.pyxdiaDraft?.imageRefs || []),
 			...uploadedRefs,
@@ -12660,20 +13308,20 @@ async function insertPyxdiaLetterImages(files) {
           <span>${escapeHtml(`${size.chars} / ${settings.letterMaxChars} chars`)}</span>
         `;
 	}
+	return draft;
+}
+
+async function insertPyxdiaLetterImages(files) {
+	await uploadPyxdiaImagesAndInsert(files, { renderOnError: true });
 }
 
 function insertTextAtPyxdiaCursor(text, start, end) {
 	const input = document.getElementById("pyxdia-letter-input");
 	if (!input) return;
-	const before = input.value.slice(0, start);
-	const after = input.value.slice(end);
-	const prefix = before && !before.endsWith("\n") ? "\n\n" : "";
-	const suffix = after && !after.startsWith("\n") ? "\n\n" : "\n";
-	const insert = `${prefix}${text}${suffix}`;
-	input.value = `${before}${insert}${after}`;
-	const nextCursor = before.length + insert.length;
+	const inserted = textWithMarkdownInsert(input.value, text, start, end);
+	input.value = inserted.value;
 	input.focus();
-	input.setSelectionRange(nextCursor, nextCursor);
+	input.setSelectionRange(inserted.cursor, inserted.cursor);
 }
 
 function schedulePyxdiaSettingsPersist(options = {}) {
@@ -12752,25 +13400,6 @@ function bindDashboardIdentityAutoSave() {
 
 function bindTrackerEditorAutoSave() {
 	app.querySelectorAll("[data-tracker-edit-form]").forEach((form) => {
-		const area = form.dataset.area || "";
-		const id = form.dataset.id || "";
-		const kind = form.dataset.kind || "thought";
-		let saveTimer = null;
-		const saveOpenEditor = () =>
-			updateTracker(area, id, kind, { close: false, silent: true });
-		const scheduleSave = () => {
-			window.clearTimeout(saveTimer);
-			saveTimer = window.setTimeout(saveOpenEditor, 250);
-		};
-		form
-			.querySelectorAll(".tracker-title-input, .icon-picker-input")
-			.forEach((input) => {
-				input.addEventListener("input", scheduleSave);
-				input.addEventListener("change", saveOpenEditor);
-			});
-		form
-			.querySelector(".tracker-enabled-toggle input")
-			?.addEventListener("change", saveOpenEditor);
 		const frequencySelect = form.querySelector(
 			".tracker-frequency-input[id$='-frequency']",
 		);
@@ -12789,13 +13418,10 @@ function bindTrackerEditorAutoSave() {
 		};
 		frequencySelect?.addEventListener("change", () => {
 			syncFrequencyControls();
-			saveOpenEditor();
 		});
 		customRange?.addEventListener("input", () => {
 			syncFrequencyControls();
-			scheduleSave();
 		});
-		customRange?.addEventListener("change", saveOpenEditor);
 		syncFrequencyControls();
 	});
 }
@@ -13016,6 +13642,129 @@ function bindDashboardPeriodSlider() {
 	});
 }
 
+function dashboardChartTabDropIndex(row, activeButton, pointerX) {
+	const buttons = Array.from(
+		row.querySelectorAll("[data-dashboard-chart-tab]"),
+	).filter((button) => button !== activeButton);
+	const index = buttons.findIndex((button) => {
+		const rect = button.getBoundingClientRect();
+		return pointerX < rect.left + rect.width / 2;
+	});
+	return index === -1 ? buttons.length : index;
+}
+
+function clearDashboardChartTabMarkers(row) {
+	row.querySelectorAll(".is-drop-before, .is-drop-after").forEach((button) => {
+		button.classList.remove("is-drop-before", "is-drop-after");
+	});
+}
+
+function setDashboardChartTabMarker(row, activeButton, targetIndex) {
+	clearDashboardChartTabMarkers(row);
+	const buttons = Array.from(
+		row.querySelectorAll("[data-dashboard-chart-tab]"),
+	).filter((button) => button !== activeButton);
+	if (!buttons.length) return;
+	const targetButton = buttons[targetIndex];
+	if (targetButton) targetButton.classList.add("is-drop-before");
+	else buttons[buttons.length - 1].classList.add("is-drop-after");
+}
+
+function bindDashboardChartTabSorting() {
+	const row = app.querySelector("[data-dashboard-chart-switcher]");
+	if (!row) return;
+	row.querySelectorAll("[data-dashboard-chart-tab]").forEach((button) => {
+		button.addEventListener("pointerdown", (event) => {
+			if (event.button !== undefined && event.button !== 0) return;
+			const tabId = button.dataset.chart || "";
+			if (!tabId) return;
+			const startX = event.clientX;
+			const startY = event.clientY;
+			let isDragging = false;
+			let targetIndex = null;
+
+			const startDrag = (moveEvent) => {
+				isDragging = true;
+				row.classList.add("is-reordering");
+				button.classList.add("is-dragging");
+				button.setPointerCapture?.(event.pointerId);
+				targetIndex = dashboardChartTabDropIndex(row, button, moveEvent.clientX);
+				setDashboardChartTabMarker(row, button, targetIndex);
+			};
+
+			const onPointerMove = (moveEvent) => {
+				const moved = Math.hypot(
+					moveEvent.clientX - startX,
+					moveEvent.clientY - startY,
+				);
+				if (!isDragging && moved < 6) return;
+				moveEvent.preventDefault();
+				if (!isDragging) startDrag(moveEvent);
+				targetIndex = dashboardChartTabDropIndex(row, button, moveEvent.clientX);
+				setDashboardChartTabMarker(row, button, targetIndex);
+			};
+
+			const finishDrag = (finishEvent) => {
+				window.removeEventListener("pointermove", onPointerMove);
+				window.removeEventListener("pointerup", finishDrag);
+				window.removeEventListener("pointercancel", finishDrag);
+				button.releasePointerCapture?.(finishEvent.pointerId);
+				row.classList.remove("is-reordering");
+				button.classList.remove("is-dragging");
+				clearDashboardChartTabMarkers(row);
+				if (!isDragging) return;
+				finishEvent.preventDefault();
+				state.suppressNextDashboardChartClick = true;
+				reorderDashboardChartTabs(tabId, targetIndex ?? 0);
+				window.setTimeout(() => {
+					state.suppressNextDashboardChartClick = false;
+				}, 0);
+			};
+
+			window.addEventListener("pointermove", onPointerMove, { passive: false });
+			window.addEventListener("pointerup", finishDrag);
+			window.addEventListener("pointercancel", finishDrag);
+		});
+	});
+}
+
+function updateDashboardOrbScrollOverflow(element) {
+	if (!element) return;
+	const maxScroll = Math.max(0, element.scrollWidth - element.clientWidth);
+	element.classList.toggle("is-overflow-left", element.scrollLeft > 1);
+	element.classList.toggle(
+		"is-overflow-right",
+		element.scrollLeft < maxScroll - 1,
+	);
+}
+
+function bindDashboardOrbScroll() {
+	app.querySelectorAll("[data-dashboard-orb-scroll]").forEach((element) => {
+		const refresh = () => updateDashboardOrbScrollOverflow(element);
+		refresh();
+		requestAnimationFrame(refresh);
+		element.addEventListener("scroll", refresh, { passive: true });
+		element.addEventListener(
+			"wheel",
+			(event) => {
+				if (element.scrollWidth <= element.clientWidth) return;
+				event.preventDefault();
+				const delta =
+					Math.abs(event.deltaX) > Math.abs(event.deltaY)
+						? event.deltaX
+						: event.deltaY;
+				element.scrollBy({ left: delta, behavior: "smooth" });
+				requestAnimationFrame(refresh);
+			},
+			{ passive: false },
+		);
+		if (typeof ResizeObserver !== "undefined") {
+			const observer = new ResizeObserver(refresh);
+			observer.observe(element);
+		}
+	});
+}
+
 function bindGalleryControls() {
 	app.querySelectorAll("[data-gallery-size-slider]").forEach((input) => {
 		input.addEventListener("input", () => {
@@ -13045,6 +13794,21 @@ function bindGalleryControls() {
 function bindEditorMedia() {
 	const editor = document.getElementById("editor-body");
 	if (!editor) return;
+	const cameraButton = app.querySelector("[data-editor-camera-button]");
+	if (cameraButton) {
+		cameraButton.addEventListener("pointerdown", (event) => {
+			event.preventDefault();
+			editor.focus();
+		});
+		cameraButton.addEventListener("click", () => {
+			openCamera({
+				kind: "editor",
+				dashboard: state.active,
+				start: editor.selectionStart ?? editor.value.length,
+				end: editor.selectionEnd ?? editor.selectionStart ?? editor.value.length,
+			});
+		});
+	}
 	const imageButton = app.querySelector("[data-editor-image-button]");
 	if (imageButton) {
 		imageButton.addEventListener("pointerdown", (event) => {
@@ -13054,12 +13818,10 @@ function bindEditorMedia() {
 		imageButton.addEventListener("click", async () => {
 			const start = editor.selectionStart ?? editor.value.length;
 			const end = editor.selectionEnd ?? start;
-			const useCamera = prefersCameraCapture();
 			const input = document.createElement("input");
 			input.type = "file";
 			input.accept = "image/*";
-			input.multiple = !useCamera;
-			if (useCamera) input.setAttribute("capture", "environment");
+			input.multiple = true;
 			input.addEventListener(
 				"change",
 				async () => {
@@ -13126,9 +13888,9 @@ function setEditorCursorFromPoint(event) {
 
 async function insertEditorImages(files, range = null) {
 	const editor = document.getElementById("editor-body");
-	if (!editor) return;
+	if (!editor) return false;
 	const images = files.filter((file) => file?.type?.startsWith("image/"));
-	if (!images.length) return;
+	if (!images.length) return false;
 	const previousCursor =
 		range?.start ?? editor.selectionStart ?? editor.value.length;
 	const previousEnd = range?.end ?? editor.selectionEnd ?? previousCursor;
@@ -13143,13 +13905,14 @@ async function insertEditorImages(files, range = null) {
 		window.alert(
 			error instanceof Error ? error.message : "Could not add image.",
 		);
-		return;
+		return false;
 	}
 	insertTextAtEditorCursor(
 		markdownItems.join("\n\n"),
 		previousCursor,
 		previousEnd,
 	);
+	return true;
 }
 
 function insertTextAtEditorCursor(text, start, end) {
@@ -13222,6 +13985,9 @@ function handleAction(element) {
 		"sidebar-page",
 	]);
 	if (!keepMenuOpenActions.has(action)) closeMobileMenu();
+	if (action === "open-camera") openCamera(cameraTargetFromElement(element));
+	if (action === "close-camera") closeCamera();
+	if (action === "capture-camera") void captureCameraPhoto();
 	if (action === "home") goHome();
 	if (action === "dashboard-root") {
 		if (state.active === "Mind") {
@@ -13284,8 +14050,13 @@ function handleAction(element) {
 	}
 	if (action === "set-dashboard-period")
 		setDashboardPeriod(element.dataset.period);
-	if (action === "set-dashboard-chart")
+	if (action === "set-dashboard-chart") {
+		if (state.suppressNextDashboardChartClick) {
+			state.suppressNextDashboardChartClick = false;
+			return;
+		}
 		setDashboardChartType(element.dataset.chart);
+	}
 	if (action === "set-theme") setTheme(element.dataset.theme);
 	if (action === "save-dashboard-identity") saveDashboardIdentitySettings();
 	if (action === "reset-dashboard-identity-item")
@@ -13489,6 +14260,12 @@ function handleAction(element) {
 			element.dataset.id,
 			element.dataset.kind || "thought",
 		);
+	if (action === "transfer-tracker-kind")
+		transferTrackerKind(
+			element.dataset.area,
+			element.dataset.id,
+			element.dataset.kind || "thought",
+		);
 	if (action === "request-remove-tracker")
 		setState({
 			trackerDeleteKey: trackerEditKey(
@@ -13679,6 +14456,11 @@ function updateBodyTimerDom() {
 		);
 	});
 }
+
+window.addEventListener("pagehide", () => stopCameraStream());
+document.addEventListener("visibilitychange", () => {
+	if (document.hidden && state.cameraOpen) closeCamera();
+});
 
 applyEnvironmentClasses();
 render();

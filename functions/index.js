@@ -50,7 +50,7 @@ const TRASH_ITEM_TYPES = new Set(["artifact", "note", "pyxdia_letter"]);
 exports.pyxdiaApi = onRequest({ cors: ALLOWED_ORIGINS, timeoutSeconds: 120 }, async (req, res) => {
 	try {
 		if (req.method === "OPTIONS") return res.status(204).send("");
-		const auth = await verifyAuth(req);
+		const auth = await verifyAuth(req, SAFE_ERRORS.auth_required);
 		const uid = auth.uid;
 		const path = routePath(req, "pyxdiaApi");
 		if (req.method === "GET" && path === "/state") {
@@ -85,7 +85,7 @@ exports.pyxdiaApi = onRequest({ cors: ALLOWED_ORIGINS, timeoutSeconds: 120 }, as
 exports.aiApi = onRequest({ cors: ALLOWED_ORIGINS, timeoutSeconds: 120 }, async (req, res) => {
 	try {
 		if (req.method === "OPTIONS") return res.status(204).send("");
-		const auth = await verifyAuth(req);
+		const auth = await verifyAuth(req, "Sign in with Cloud to use AI.");
 		const uid = auth.uid;
 		await enforceRateLimit(uid, "ai", 60, 3600);
 		const payload = body(req);
@@ -122,7 +122,7 @@ exports.aiApi = onRequest({ cors: ALLOWED_ORIGINS, timeoutSeconds: 120 }, async 
 exports.trashApi = onRequest({ cors: ALLOWED_ORIGINS, timeoutSeconds: 120 }, async (req, res) => {
 	try {
 		if (req.method === "OPTIONS") return res.status(204).send("");
-		const auth = await verifyAuth(req);
+		const auth = await verifyAuth(req, "Sign in with Cloud to use Trash.");
 		const uid = auth.uid;
 		const path = routePath(req, "trashApi");
 		const payload = body(req);
@@ -204,13 +204,13 @@ exports.cleanupExpiredTrash = onSchedule("every day 03:00", async () => {
 	console.info("trash_cleanup", { deletedCount, failedCount, checkedAt: now });
 });
 
-async function verifyAuth(req) {
+async function verifyAuth(req, authRequiredMessage = SAFE_ERRORS.auth_required) {
 	const header = String(req.headers.authorization || "");
 	if (!header.toLowerCase().startsWith("bearer ")) {
-		throw policyError("auth_required", SAFE_ERRORS.auth_required, 401);
+		throw policyError("auth_required", authRequiredMessage, 401);
 	}
 	const decoded = await admin.auth().verifyIdToken(header.slice(7).trim());
-	if (!decoded.uid) throw policyError("auth_required", SAFE_ERRORS.auth_required, 401);
+	if (!decoded.uid) throw policyError("auth_required", authRequiredMessage, 401);
 	return decoded;
 }
 
