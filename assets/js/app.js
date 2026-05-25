@@ -23,7 +23,7 @@ import {
 	signInWithGoogle,
 	signOutCloud,
 	startCloudSubscription,
-} from "./cloud.js?v=trash-r3-20260525a";
+} from "./cloud.js?v=media-key-sync-20260525a";
 import { CLOUD_STORAGE_LIMIT_BYTES } from "./config.js?v=storage-quota-20260523a";
 import { today } from "./data.js";
 import { bindDonationFlow, donationModalHtml } from "./donations.js";
@@ -31,7 +31,9 @@ import {
 	clearLocalFiles,
 	configureCloudMedia,
 	deleteLocalImages,
+	exportCloudMediaKey,
 	exportLocalFiles,
+	importCloudMediaKey,
 	importLocalFiles,
 	listLocalFiles,
 	listLocalImages,
@@ -41,7 +43,7 @@ import {
 	storeLocalFile,
 	storeLocalImage,
 	storeLocalImageFromDataUrl,
-} from "./localMedia.js?v=gallery-downloads-20260523a";
+} from "./localMedia.js?v=media-key-sync-20260525a";
 import { escapeHtml, renderMarkdown } from "./markdown.js";
 import {
 	DEFAULT_PYXIDA_SETTINGS,
@@ -2253,6 +2255,7 @@ async function exportAppState(options = {}) {
 			state.dashboardChartTabs || DEFAULT_DASHBOARD_CHART_TABS,
 		),
 		theme: normalizeTheme(state.theme),
+		cloudMediaKey: exportCloudMediaKey(),
 		localFiles: await exportLocalFiles({
 			includeData: options.includeLocalFileData !== false,
 		}).catch(() => []),
@@ -2320,6 +2323,7 @@ async function restoreImportedAppState(appState) {
 	saveDashboardIdentity(dashboardIdentity);
 	saveDashboardChartTabs(dashboardChartTabs);
 	saveTheme(theme);
+	if (appState.cloudMediaKey) importCloudMediaKey(appState.cloudMediaKey);
 	if (Array.isArray(appState.localFiles)) {
 		await importLocalFiles(appState.localFiles, localMediaImportOptions());
 		scheduleCloudStorageUsageRefresh({ force: true });
@@ -3044,6 +3048,7 @@ const state = {
 	cameraStatus: "",
 	cameraError: "",
 	cameraBusy: false,
+	cameraSaveToDevice: false,
 	editorDrafts: {},
 	spiritPlan: null,
 	spiritPlanError: "",
@@ -3264,6 +3269,7 @@ function cameraClosedState() {
 		cameraStatus: "",
 		cameraError: "",
 		cameraBusy: false,
+		cameraSaveToDevice: false,
 	};
 }
 
@@ -12638,6 +12644,10 @@ function cameraModalHtml() {
           <video data-camera-video autoplay playsinline muted></video>
           <div class="camera-placeholder" data-camera-placeholder>${iconHtml("tabler:camera")}</div>
         </div>
+        <label class="camera-save-option">
+          <input data-camera-save-to-device type="checkbox"${state.cameraSaveToDevice ? " checked" : ""}>
+          <span>${iconHtml("tabler:download")} Save a high-quality copy to this device</span>
+        </label>
         <p class="camera-status${state.cameraError ? " has-error" : ""}" data-camera-status role="status">${escapeHtml(message)}</p>
         <div class="camera-actions">
           <button class="secondary-button" data-action="close-camera" type="button">${buttonContent("tabler:x", "Cancel")}</button>
@@ -12868,6 +12878,7 @@ function openCamera(target = {}) {
 		cameraStatus: "Opening camera...",
 		cameraError: "",
 		cameraBusy: false,
+		cameraSaveToDevice: false,
 	});
 }
 
@@ -12969,11 +12980,15 @@ function bindCameraControls() {
 			closeCamera();
 		}
 	});
+	const saveInput = modal.querySelector("[data-camera-save-to-device]");
+	saveInput?.addEventListener("change", () => {
+		state.cameraSaveToDevice = Boolean(saveInput.checked);
+	});
 	modal.focus();
 	void startCameraStream(modal.querySelector("[data-camera-video]"));
 }
 
-function cameraBlobFromVideo(video) {
+function cameraBlobFromVideo(video, quality = 0.95) {
 	return new Promise((resolve, reject) => {
 		const width = video?.videoWidth || 0;
 		const height = video?.videoHeight || 0;
@@ -12992,17 +13007,76 @@ function cameraBlobFromVideo(video) {
 				else reject(new Error("Could not capture camera photo."));
 			},
 			"image/jpeg",
-			0.92,
+			quality,
 		);
 	});
 }
 
+async function highQualityCameraBlob(video) {
+	const track = cameraStream?.getVideoTracks?.()[0] || null;
+	if (track && typeof window.ImageCapture === "function") {
+		try {
+			const capture = new window.ImageCapture(track);
+			const blob = await capture.takePhoto();
+			if (blob?.size) return blob;
+		} catch {
+			// Some browsers expose ImageCapture but reject still capture for webcams.
+		}
+	}
+	return await cameraBlobFromVideo(video);
+}
+
+function cameraImageExtension(type) {
+	const normalized = String(type || "").toLowerCase();
+	if (normalized.includes("png")) return "png";
+	if (normalized.includes("webp")) return "webp";
+	if (normalized.includes("heic")) return "heic";
+	if (normalized.includes("heif")) return "heif";
+	return "jpg";
+}
+
 async function cameraFileFromVideo(video) {
-	const blob = await cameraBlobFromVideo(video);
-	const name = `camera-${todayDateKey()}-${Date.now()}.jpg`;
+	const blob = await highQualityCameraBlob(video);
+	const type = blob.type || "image/jpeg";
+	const name = `camera-${todayDateKey()}-${Date.now()}.${cameraImageExtension(type)}`;
 	if (typeof File === "function")
-		return new File([blob], name, { type: blob.type });
-	return Object.assign(blob, { name, type: blob.type || "image/jpeg" });
+		return new File([blob], name, { type });
+	return Object.assign(blob, { name, type });
+}
+
+function downloadCameraFile(file) {
+	const url = URL.createObjectURL(file);
+	const link = document.createElement("a");
+	link.href = url;
+	link.download = file.name || `camera-${Date.now()}.jpg`;
+	document.body.append(link);
+	link.click();
+	link.remove();
+	window.setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+function canShareCameraFile(file) {
+	try {
+		return Boolean(navigator.canShare?.({ files: [file] }) && navigator.share);
+	} catch {
+		return false;
+	}
+}
+
+async function saveCameraFileToDevice(file) {
+	if (canShareCameraFile(file)) {
+		try {
+			await navigator.share({
+				files: [file],
+				title: "Camera Photo",
+			});
+			return "Device save sheet opened.";
+		} catch (error) {
+			if (error?.name === "AbortError") return "Device save canceled.";
+		}
+	}
+	downloadCameraFile(file);
+	return "Download started.";
 }
 
 async function createCameraDashboardNote(file, dashboard) {
@@ -13096,9 +13170,17 @@ async function captureCameraPhoto() {
 		return;
 	}
 	state.cameraBusy = true;
-	updateCameraStatus("Capturing photo...", "");
+	const saveToDevice = state.cameraSaveToDevice;
+	updateCameraStatus("Capturing high-quality photo...", "");
 	try {
 		const file = await cameraFileFromVideo(video);
+		if (saveToDevice) {
+			updateCameraStatus("Preparing device copy...", "");
+			const saveStatus = await saveCameraFileToDevice(file);
+			updateCameraStatus(`${saveStatus} Adding photo to app...`, "");
+		} else {
+			updateCameraStatus("Adding photo to app...", "");
+		}
 		const patch = await applyCameraCapture(file);
 		stopCameraStream();
 		setState({

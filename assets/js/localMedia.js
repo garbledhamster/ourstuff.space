@@ -54,6 +54,38 @@ export function configureCloudMedia(context = {}) {
 	};
 }
 
+export function exportCloudMediaKey() {
+	const uid = String(remoteMediaContext.uid || "").trim();
+	if (!cloudMediaReady(uid)) return null;
+	try {
+		const raw = window.localStorage.getItem(mediaKeyStorageKey(uid)) || "";
+		return raw ? { version: 1, uid, key: raw } : null;
+	} catch {
+		return null;
+	}
+}
+
+export function importCloudMediaKey(value = {}) {
+	const uid = String(remoteMediaContext.uid || "").trim();
+	if (!cloudMediaReady(uid) || value?.uid !== uid) return false;
+	const key = String(value?.key || "");
+	if (!key) return false;
+	let bytes = null;
+	try {
+		bytes = base64ToBytes(key);
+	} catch {
+		return false;
+	}
+	if (bytes.byteLength !== 32) return false;
+	try {
+		window.localStorage.setItem(mediaKeyStorageKey(uid), key);
+	} catch {
+		return false;
+	}
+	mediaKeyCache.delete(uid);
+	return true;
+}
+
 function cloudMediaReady(uid = remoteMediaContext.uid) {
 	return Boolean(remoteMediaContext.enabled && uid);
 }

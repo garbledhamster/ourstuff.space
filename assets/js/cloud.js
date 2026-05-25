@@ -26,6 +26,7 @@ const CLOUD_APP_STATE_KEYS = [
 	"thoughtSettings",
 	"goalSettings",
 	"dashboardIdentity",
+	"cloudMediaKey",
 	"theme",
 ];
 const CLOUD_APP_STATE_TITLES = {
@@ -35,6 +36,7 @@ const CLOUD_APP_STATE_TITLES = {
 	thoughtSettings: "Thought settings",
 	goalSettings: "Goal settings",
 	dashboardIdentity: "Dashboard identity settings",
+	cloudMediaKey: "Cloud media key",
 	theme: "Interface theme",
 };
 
