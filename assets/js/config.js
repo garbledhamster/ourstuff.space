@@ -7,6 +7,8 @@ export const PYXIDA_API_URL =
 	"https://us-central1-ourstuff-firebase.cloudfunctions.net/pyxdiaApi";
 export const PYXIDA_AI_API_URL =
 	"https://us-central1-ourstuff-firebase.cloudfunctions.net/aiApi";
+export const TRASH_API_URL =
+	"https://us-central1-ourstuff-firebase.cloudfunctions.net/trashApi";
 export const MAX_FIRESTORE_APPSTATE_BYTES = 900000;
 export const CLOUD_STORAGE_LIMIT_BYTES = 1000000000;
 export const FIREBASE_SDK_VERSION = "10.12.5";

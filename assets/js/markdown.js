@@ -13,6 +13,9 @@ function imageHtml(alt, src) {
 	if (/^ourstuff-asset:[a-z0-9-]+$/i.test(cleanSrc)) {
 		return `<img data-local-asset="${cleanSrc.replace("ourstuff-asset:", "")}" alt="${cleanAlt}" loading="lazy">`;
 	}
+	if (/^pyxida-image:[a-z0-9._-]+$/i.test(cleanSrc)) {
+		return `<img data-pyxdia-image="${cleanSrc.replace("pyxida-image:", "")}" alt="${cleanAlt}" loading="lazy">`;
+	}
 	if (/^https?:\/\/[^"'<>]+$/i.test(cleanSrc)) {
 		return `<img src="${cleanSrc}" alt="${cleanAlt}" loading="lazy">`;
 	}

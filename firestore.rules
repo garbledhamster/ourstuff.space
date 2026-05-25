@@ -30,6 +30,16 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    match /users/{uid}/settings/{settingId} {
+      allow read: if isSelf(uid);
+      allow create, update, delete: if false;
+    }
+
+    match /users/{uid}/trash/{trashItemId} {
+      allow read: if isSelf(uid);
+      allow create, update, delete: if false;
+    }
+
     match /users/{uid}/apps/{appId} {
       allow read: if canUseCloud(uid);
       allow create, update, delete: if canUseCloud(uid);

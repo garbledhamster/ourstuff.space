@@ -242,6 +242,18 @@ select option:checked {
 	font-family: var(--font-label);
 }
 
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	border: 0;
+	padding: 0;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+}
+
 .mobile-menu-toggle {
 	position: relative;
 	grid-row: 2;
@@ -549,6 +561,10 @@ select option:checked {
 
 .donate-sidebar {
 	min-height: 44px;
+}
+
+.trash-sidebar {
+	min-height: 40px;
 }
 
 .sidebar-donate-row {
@@ -2047,10 +2063,10 @@ select option:checked {
 	display: grid;
 	grid-template-columns: repeat(6, minmax(0, 1fr));
 	gap: 8px;
-	border: 1px solid var(--border-soft);
-	border-radius: 16px;
-	background: rgba(2, 6, 23, 0.62);
-	padding: 8px;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	padding: 0;
 }
 
 .settings-tabs .body-mode-button {
@@ -2149,6 +2165,10 @@ select option:checked {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: 8px;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	padding: 0;
 }
 
 .pyxdia-mode-switcher .body-mode-button {
@@ -2216,12 +2236,13 @@ select option:checked {
 
 .pyxdia-letter-editor {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+	grid-template-columns: minmax(0, 1fr);
 	gap: 14px;
 }
 
 .pyxdia-letter-main,
 .pyxdia-letter-side,
+.pyxdia-context-card,
 .pyxdia-output,
 .pyxdia-thread,
 .pyxdia-memory-card {
@@ -2239,6 +2260,35 @@ select option:checked {
 
 .pyxdia-letter-field textarea {
 	min-height: 280px;
+}
+
+.pyxdia-editor-toggle {
+	display: inline-flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 8px;
+}
+
+.pyxdia-editor-toggle .body-mode-button {
+	min-height: 34px;
+	border-color: var(--border-soft);
+	background: var(--theme-control);
+	color: var(--text);
+	padding: 0 10px;
+}
+
+.pyxdia-editor-toggle .body-mode-button:hover,
+.pyxdia-editor-toggle .body-mode-button.is-active {
+	background: var(--theme-control-hover);
+	color: var(--text);
+}
+
+.pyxdia-letter-preview {
+	min-height: 280px;
+	border: 1px solid var(--border-soft);
+	border-radius: 14px;
+	background: #020617;
+	padding: 16px;
 }
 
 .pyxdia-letter-counter {
@@ -2261,6 +2311,11 @@ select option:checked {
 	align-content: start;
 	gap: 12px;
 	min-width: 0;
+}
+
+.pyxdia-context-card {
+	display: grid;
+	gap: 12px;
 }
 
 .pyxdia-note-ref-list {
@@ -2311,7 +2366,7 @@ select option:checked {
 }
 
 .pyxdia-letter-actions {
-	grid-column: 1 / -1;
+	justify-content: flex-end;
 }
 
 .pyxdia-output,
@@ -2417,6 +2472,71 @@ select option:checked {
 .pyxdia-memory-entry small {
 	color: var(--faint);
 	line-height: 1.35;
+}
+
+.trash-page,
+.trash-list {
+	display: grid;
+	align-content: start;
+	gap: 14px;
+}
+
+.trash-retention-grid {
+	align-items: end;
+	margin-top: 14px;
+}
+
+.trash-item {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 14px;
+	border: 1px solid var(--border-soft);
+	border-radius: 16px;
+	background: rgba(2, 6, 23, 0.5);
+	padding: 16px;
+}
+
+.trash-item h3,
+.trash-item p {
+	margin: 0;
+}
+
+.trash-item h3 {
+	color: #e2e8f0;
+	font-family: var(--font-display);
+}
+
+.trash-item p,
+.trash-item small {
+	color: var(--muted);
+	line-height: 1.45;
+}
+
+.trash-item > div:first-child {
+	display: grid;
+	gap: 7px;
+	min-width: 0;
+}
+
+.trash-item-type {
+	width: fit-content;
+	border: 1px solid var(--border-soft);
+	border-radius: 999px;
+	background: rgba(15, 23, 42, 0.78);
+	color: #dbeafe;
+	padding: 4px 9px;
+	font-family: var(--font-label);
+	font-size: 0.68rem;
+	font-weight: 900;
+	text-transform: uppercase;
+}
+
+.trash-item-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: start;
+	justify-content: flex-end;
+	gap: 8px;
 }
 
 .dashboard-identity-toggles {
@@ -5210,6 +5330,7 @@ select option:checked {
 	padding: 6px;
 }
 
+.page-tool-switcher,
 .body-tool-switcher,
 .life-tool-switcher {
 	border: 0;
@@ -5265,6 +5386,7 @@ select option:checked {
 	font-size: 0.9rem;
 }
 
+.page-tool-switcher .body-mode-button,
 .body-tool-switcher .body-mode-button,
 .life-tool-switcher .body-mode-button {
 	border-color: var(--border-soft);
@@ -8473,10 +8595,13 @@ button.life-event-row:hover {
 	border-color: var(--border);
 }
 
+.page-tool-switcher,
 .body-tool-switcher,
 .life-tool-switcher,
+:root.theme-palette:not(.theme-consolas) .page-tool-switcher,
 :root.theme-palette:not(.theme-consolas) .body-tool-switcher,
 :root.theme-palette:not(.theme-consolas) .life-tool-switcher,
+:root.theme-consolas .page-tool-switcher,
 :root.theme-consolas .body-tool-switcher,
 :root.theme-consolas .life-tool-switcher {
 	border: 0;
@@ -8485,10 +8610,22 @@ button.life-event-row:hover {
 	padding: 0;
 }
 
+.page-tool-switcher.body-mode-switcher,
+:root.theme-palette:not(.theme-consolas) .page-tool-switcher.body-mode-switcher,
+:root.theme-consolas .page-tool-switcher.body-mode-switcher {
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	box-shadow: none;
+}
+
+.page-tool-switcher .body-mode-button,
 .body-tool-switcher .body-mode-button,
 .life-tool-switcher .body-mode-button,
+:root.theme-palette:not(.theme-consolas) .page-tool-switcher .body-mode-button,
 :root.theme-palette:not(.theme-consolas) .body-tool-switcher .body-mode-button,
 :root.theme-palette:not(.theme-consolas) .life-tool-switcher .body-mode-button,
+:root.theme-consolas .page-tool-switcher .body-mode-button,
 :root.theme-consolas .body-tool-switcher .body-mode-button,
 :root.theme-consolas .life-tool-switcher .body-mode-button {
 	border-color: var(--border-soft);
@@ -8622,6 +8759,7 @@ button.life-event-row:hover {
 	color: var(--text);
 }
 
+.page-tool-switcher .body-mode-button,
 .body-tool-switcher .body-mode-button,
 .body-timer-switcher .body-mode-button,
 .body-nutrition-switcher .body-mode-button {
@@ -8629,6 +8767,8 @@ button.life-event-row:hover {
 	color: var(--text);
 }
 
+.page-tool-switcher .body-mode-button:hover,
+.page-tool-switcher .body-mode-button.is-active,
 .body-tool-switcher .body-mode-button:hover,
 .body-tool-switcher .body-mode-button.is-active,
 .body-timer-switcher .body-mode-button:hover,
@@ -8652,6 +8792,7 @@ button.life-event-row:hover {
 	color: var(--text);
 }
 
+:root.theme-palette:not(.theme-consolas) .page-tool-switcher .body-mode-button,
 :root.theme-palette:not(.theme-consolas) .body-tool-switcher .body-mode-button,
 :root.theme-palette:not(.theme-consolas) .body-timer-switcher .body-mode-button,
 :root.theme-palette:not(.theme-consolas)
@@ -8661,6 +8802,7 @@ button.life-event-row:hover {
 	color: var(--text);
 }
 
+:root.theme-consolas .page-tool-switcher .body-mode-button,
 :root.theme-consolas .body-tool-switcher .body-mode-button,
 :root.theme-consolas .body-timer-switcher .body-mode-button,
 :root.theme-consolas .body-nutrition-switcher .body-mode-button {
@@ -9174,6 +9316,18 @@ button.life-event-row:hover {
 
 	.pyxdia-note-ref-list {
 		max-height: 280px;
+	}
+
+	.trash-item {
+		grid-template-columns: 1fr;
+	}
+
+	.trash-item-actions {
+		justify-content: stretch;
+	}
+
+	.trash-item-actions .secondary-button {
+		width: 100%;
 	}
 
 	.thoughts-settings-intro {

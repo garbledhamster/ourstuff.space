@@ -60,8 +60,19 @@ function compendiumSections(compendium) {
 			: [];
 }
 
+export function isDeletedArtifact(artifact) {
+	return artifact?.deleted === true || artifact?.properties?.deleted === true;
+}
+
+export function activeArtifacts(store) {
+	return (Array.isArray(store?.artifacts) ? store.artifacts : []).filter(
+		(artifact) => !isDeletedArtifact(artifact),
+	);
+}
+
 export function artifactStoreToCompendiums(store) {
-	return store.artifacts
+	const artifacts = activeArtifacts(store);
+	return artifacts
 		.filter(
 			(artifact) =>
 				artifact.type === "compendium" && artifact.dashboard === "Mind",
@@ -72,7 +83,7 @@ export function artifactStoreToCompendiums(store) {
 			body: compendium.body,
 			created: compendium.created,
 			edited: compendium.edited,
-			sections: store.artifacts
+			sections: artifacts
 				.filter(
 					(artifact) =>
 						artifact.parentId === compendium.id && artifact.type === "note",
@@ -96,18 +107,20 @@ export function compendiumsToArtifactStore(compendiums, previousStore) {
 	const previousById = new Map(
 		previousStore.artifacts.map((artifact) => [artifact.id, artifact]),
 	);
-	const previousCompendiumIds = new Set(
+	const previousActiveCompendiumIds = new Set(
 		previousStore.artifacts
 			.filter(
 				(artifact) =>
 					artifact.type === "compendium" && artifact.dashboard === "Mind",
 			)
+			.filter((artifact) => !isDeletedArtifact(artifact))
 			.map((artifact) => artifact.id),
 	);
 	const artifacts = previousStore.artifacts.filter(
 		(artifact) =>
-			!(artifact.type === "compendium" && artifact.dashboard === "Mind") &&
-			!previousCompendiumIds.has(artifact.parentId),
+			isDeletedArtifact(artifact) ||
+			(!(artifact.type === "compendium" && artifact.dashboard === "Mind") &&
+				!previousActiveCompendiumIds.has(artifact.parentId)),
 	);
 
 	compendiums.forEach((compendium) => {
@@ -155,7 +168,7 @@ export function compendiumsToArtifactStore(compendiums, previousStore) {
 }
 
 export function rootNotesForDashboard(store, dashboard) {
-	return store.artifacts.filter(
+	return activeArtifacts(store).filter(
 		(artifact) =>
 			artifact.type === "note" &&
 			artifact.dashboard === dashboard &&
@@ -164,7 +177,15 @@ export function rootNotesForDashboard(store, dashboard) {
 }
 
 export function findArtifact(store, id) {
-	return store.artifacts.find((artifact) => artifact.id === id) || null;
+	return activeArtifacts(store).find((artifact) => artifact.id === id) || null;
+}
+
+export function findAnyArtifact(store, id) {
+	return (
+		(Array.isArray(store?.artifacts) ? store.artifacts : []).find(
+			(artifact) => artifact.id === id,
+		) || null
+	);
 }
 
 export function upsertArtifact(store, artifact) {

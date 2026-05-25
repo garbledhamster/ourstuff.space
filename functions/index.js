@@ -18,6 +18,8 @@ const DEFAULT_SETTINGS = {
 	delayEnabled: true,
 	delayMinHours: 24,
 	delayMaxHours: 72,
+	pyxdiaDelayEnabled: true,
+	pyxdiaDelayMs: 24 * 60 * 60 * 1000,
 	memoryEnabled: true,
 	generalInstructions:
 		"Be a reflective growth companion. Be direct, kind, practical, and non-clinical.",
@@ -40,6 +42,10 @@ const SAFE_ERRORS = {
 	provider_failed: "PYXIDA could not finish. Try again.",
 	output_validation_failed: "PYXIDA could not finish safely. Try again.",
 };
+const DEFAULT_TRASH_RETENTION_DAYS = 30;
+const MAX_TRASH_RETENTION_DAYS = 365;
+const TRASH_CLEANUP_BATCH_LIMIT = 100;
+const TRASH_ITEM_TYPES = new Set(["artifact", "note", "pyxdia_letter"]);
 
 exports.pyxdiaApi = onRequest({ cors: ALLOWED_ORIGINS, timeoutSeconds: 120 }, async (req, res) => {
 	try {
@@ -113,6 +119,42 @@ exports.aiApi = onRequest({ cors: ALLOWED_ORIGINS, timeoutSeconds: 120 }, async 
 	}
 });
 
+exports.trashApi = onRequest({ cors: ALLOWED_ORIGINS, timeoutSeconds: 120 }, async (req, res) => {
+	try {
+		if (req.method === "OPTIONS") return res.status(204).send("");
+		const auth = await verifyAuth(req);
+		const uid = auth.uid;
+		const path = routePath(req, "trashApi");
+		const payload = body(req);
+		if (req.method === "GET" && (path === "/state" || path === "/items")) {
+			await enforceRateLimit(uid, "trash-read", 240, 3600);
+			const limit = clampNumber(req.query?.limit || payload.limit, 1, 100, 50);
+			const cursor = String(req.query?.cursor || payload.cursor || "");
+			return res.json(await trashStatePayload(uid, { limit, cursor }));
+		}
+		if (req.method === "PATCH" && path === "/settings") {
+			await enforceRateLimit(uid, "trash-settings", 60, 3600);
+			const settings = await saveTrashSettings(uid, payload.settings || payload);
+			return res.json(await trashStatePayload(uid, { settings }));
+		}
+		if (req.method === "POST" && path === "/delete") {
+			await enforceRateLimit(uid, "trash-delete", 120, 3600);
+			return res.json(await deleteUserItem({ uid, itemType: payload.itemType, itemId: payload.itemId }));
+		}
+		if (req.method === "POST" && path === "/restore") {
+			await enforceRateLimit(uid, "trash-restore", 120, 3600);
+			return res.json(await restoreUserItem({ uid, trashItemId: payload.trashItemId }));
+		}
+		if (req.method === "POST" && path === "/hard-delete") {
+			await enforceRateLimit(uid, "trash-hard-delete", 120, 3600);
+			return res.json(await hardDeleteUserItem({ uid, trashItemId: payload.trashItemId }));
+		}
+		return sendError(res, "not_found", "Trash route not found.", 404);
+	} catch (error) {
+		return sendCaught(res, error);
+	}
+});
+
 exports.processPyxdiaJobs = onSchedule("every 30 minutes", async () => {
 	const db = admin.firestore();
 	const now = nowIso();
@@ -128,6 +170,38 @@ exports.processPyxdiaJobs = onSchedule("every 30 minutes", async () => {
 			await processJob(userDoc.id, job.id);
 		}
 	}
+});
+
+exports.cleanupExpiredTrash = onSchedule("every day 03:00", async () => {
+	const db = admin.firestore();
+	const now = nowIso();
+	const users = await db.collection("users").get();
+	let deletedCount = 0;
+	let failedCount = 0;
+	for (const userDoc of users.docs) {
+		const expired = await userDoc.ref
+			.collection("trash")
+			.where("deleteAfter", "<=", now)
+			.limit(TRASH_CLEANUP_BATCH_LIMIT)
+			.get();
+		for (const trashDoc of expired.docs) {
+			try {
+				await hardDeleteUserItem({
+					uid: userDoc.id,
+					trashItemId: trashDoc.id,
+					cleanup: true,
+				});
+				deletedCount += 1;
+			} catch (error) {
+				failedCount += 1;
+				audit("trash/cleanup", userDoc.id, "failed", {
+					trashItemId: trashDoc.id,
+					errorCode: error.code || "cleanup_failed",
+				});
+			}
+		}
+	}
+	console.info("trash_cleanup", { deletedCount, failedCount, checkedAt: now });
 });
 
 async function verifyAuth(req) {
@@ -149,24 +223,29 @@ async function statePayload(uid) {
 		app.collection("pyxdiaMemories").doc("current").get(),
 		app.collection("pyxdiaLetters").doc("draft").get(),
 	]);
+	const letters = lettersSnap.docs
+		.filter((doc) => doc.id !== "draft")
+		.map((doc) => doc.data())
+		.filter((letter) => !isDeletedRecord(letter));
+	const activeLetterIds = new Set(letters.map((letter) => letter.id).filter(Boolean));
 	return {
 		settings,
-		threads: threadsSnap.docs.map((doc) => doc.data()),
-		letters: lettersSnap.docs
-			.filter((doc) => doc.id !== "draft")
-			.map((doc) => doc.data()),
-		memory: memorySnap.exists ? memorySnap.data() : emptyMemory(uid),
-		draft: draftSnap.exists ? draftSnap.data() : draftDoc(uid),
+		threads: threadsSnap.docs
+			.map((doc) => doc.data())
+			.filter((thread) => !isDeletedRecord(thread))
+			.map((thread) => ({
+				...thread,
+				letterIds: (thread.letterIds || []).filter((id) => activeLetterIds.has(id)),
+			}))
+			.filter((thread) => (thread.letterIds || []).length),
+		letters,
+		memory: memorySnap.exists ? normalizeMemory(memorySnap.data(), uid) : emptyMemory(uid),
+		draft: draftSnap.exists ? normalizeDraftPayload(draftSnap.data(), uid) : draftDoc(uid),
 	};
 }
 
 async function saveDraft(uid, payload) {
-	const draft = { ...draftDoc(uid), ...(payload.draft || payload) };
-	draft.id = "draft";
-	draft.owner = uid;
-	draft.state = "draft";
-	draft.updatedAt = nowIso();
-	draft.schemaVersion = 1;
+	const draft = normalizeDraftPayload({ ...draftDoc(uid), ...(payload.draft || payload) }, uid, { touch: true });
 	await appRef(uid).collection("pyxdiaLetters").doc("draft").set(draft, { merge: true });
 	audit("pyxdia/draft", uid, "saved");
 	return statePayload(uid);
@@ -176,15 +255,19 @@ async function submitLetter(uid, payload, auth) {
 	const settings = normalizeSettings({ ...(await readSettings(uid)), ...(payload.settings || {}) });
 	if (!settings.enabled) throw policyError("feature_disabled", SAFE_ERRORS.feature_disabled);
 	await requirePaidAiAccessIfNeeded(uid, auth);
-	const draft = payload.draft || payload;
+	const draft = normalizeDraftPayload(payload.draft || payload, uid);
+	const userSelectedContext = normalizeUserSelectedContext(draft);
 	const inputText = String(draft.inputText || "");
 	validateLetterSize(inputText, settings);
 	const scrubbed = scrubText(inputText);
-	const context = String(draft.userIncludedContext || "");
+	const context = String(userSelectedContext.manualText || "");
 	if (context) scrubText(context);
 	const now = nowIso();
 	const threadId = String(draft.threadId || `thread-${crypto.randomUUID()}`);
-	const letterId = `letter-${crypto.randomUUID()}`;
+	const requestedLetterId = String(draft.clientLetterId || "").trim();
+	const letterId = /^pyxdia-letter-[a-z0-9._-]+$/i.test(requestedLetterId)
+		? requestedLetterId
+		: `letter-${crypto.randomUUID()}`;
 	const availableAt = availableAtFor(settings);
 	const app = appRef(uid);
 	const threadRef = app.collection("pyxdiaThreads").doc(threadId);
@@ -196,11 +279,15 @@ async function submitLetter(uid, payload, auth) {
 		owner: uid,
 		state: "queued",
 		inputText,
+		imageRefs: draft.imageRefs || [],
 		scrubbedInputText: scrubbed.text,
 		outputText: "",
-		includedNoteRefs: Array.isArray(draft.includedNoteRefs) ? draft.includedNoteRefs : [],
+		includedNoteRefs: userSelectedContext.selectedNoteRefs,
 		userIncludedContext: context,
-		contextSelections: Array.isArray(draft.contextSelections) ? draft.contextSelections : [],
+		userSelectedContext,
+		contextSelections: userSelectedContext.contextSelections,
+		staticMemorySnapshot: emptyStaticMemory(uid),
+		dynamicRetrievalMemory: emptyDynamicRetrievalMemory(),
 		scrubReportSummary: scrubbed.summary,
 		submittedAt: now,
 		queuedAt: now,
@@ -260,7 +347,9 @@ async function retryLetter(uid, letterId) {
 	const letterRef = app.collection("pyxdiaLetters").doc(letterId);
 	const letterSnap = await letterRef.get();
 	const letter = letterSnap.exists ? letterSnap.data() : null;
-	if (!letter || letter.owner !== uid) throw policyError("auth_required", "Letter not found.", 404);
+	if (!letter || letter.owner !== uid || isDeletedRecord(letter)) {
+		throw policyError("auth_required", "Letter not found.", 404);
+	}
 	const now = nowIso();
 	await Promise.all([
 		letterRef.set({ state: "queued", updatedAt: now, errorCode: "", errorMessageSafe: "" }, { merge: true }),
@@ -311,13 +400,34 @@ async function processJob(uid, jobId) {
 		const settings = await readSettings(uid);
 		const memoryRef = app.collection("pyxdiaMemories").doc("current");
 		const memorySnap = await memoryRef.get();
-		const memory = memorySnap.exists ? memorySnap.data() : emptyMemory(uid);
+		const memory = memorySnap.exists ? normalizeMemory(memorySnap.data(), uid) : emptyMemory(uid);
+		const userSelectedContext = normalizeUserSelectedContext(letter.userSelectedContext || {
+			manualText: letter.userIncludedContext || "",
+			selectedNoteRefs: letter.includedNoteRefs || [],
+			contextSelections: letter.contextSelections || [],
+		});
+		const staticMemory = normalizeStaticMemory(memory.staticMemory || {
+			summary: memory.summary || "",
+			entries: memory.entries || [],
+		}, uid);
+		const dynamicRetrievalMemory = await buildDynamicRetrievalMemory(uid, letter, memory);
+		const scrubbedUserSelectedContext = {
+			...userSelectedContext,
+			manualText: userSelectedContext.manualText
+				? scrubText(userSelectedContext.manualText).text
+				: "",
+		};
+		const scrubbedSettings = {
+			...settings,
+			userWantsPyxdiaToKnow: settings.userWantsPyxdiaToKnow
+				? scrubText(settings.userWantsPyxdiaToKnow).text
+				: "",
+		};
 		const prompt = buildPrompt({
-			settings,
-			memory,
-			threadContext: await threadContext(uid, letter.threadId),
-			noteMetadata: JSON.stringify(letter.includedNoteRefs || []).slice(0, 4000),
-			includedContext: scrubText(letter.userIncludedContext || "").text,
+			settings: scrubbedSettings,
+			staticMemory,
+			dynamicRetrievalMemory,
+			userSelectedContext: scrubbedUserSelectedContext,
 			letter: letter.scrubbedInputText || scrubText(letter.inputText || "").text,
 		});
 		const result = await generateLetter(prompt, settings);
@@ -330,6 +440,8 @@ async function processJob(uid, jobId) {
 				{
 					state: "completed",
 					outputText: scannedOutput.text,
+					staticMemorySnapshot: compactStaticMemorySnapshot(staticMemory),
+					dynamicRetrievalMemory,
 					completedAt,
 					updatedAt: completedAt,
 					modelName: result.model || "",
@@ -346,7 +458,7 @@ async function processJob(uid, jobId) {
 			),
 			jobRef.set({ state: "completed", updatedAt: completedAt }, { merge: true }),
 			settings.memoryEnabled
-				? memoryRef.set(updateMemory(uid, memory, letter, scannedOutput.text), { merge: true })
+				? memoryRef.set(updateMemory(uid, memory, { ...letter, dynamicRetrievalMemory }, scannedOutput.text), { merge: true })
 				: Promise.resolve(),
 		]);
 		audit("pyxdia/job", uid, "completed", { jobId, model: result.model || "" });
@@ -363,6 +475,7 @@ async function claimJobTransaction(jobRef, letterRef) {
 		if (!jobSnap.exists || !letterSnap.exists) return null;
 		const job = jobSnap.data();
 		const letter = letterSnap.data();
+		if (isDeletedRecord(letter)) return null;
 		const state = String(job.state || "");
 		const lockedAt = String(job.lockedAt || "");
 		const locked = lockedAt && lockedAt > staleLockBefore;
@@ -457,6 +570,623 @@ async function enforceRateLimit(uid, bucket, maxCount, windowSeconds) {
 	});
 }
 
+async function trashStatePayload(uid, options = {}) {
+	const [settings, trash] = await Promise.all([
+		options.settings ? Promise.resolve(normalizeTrashSettings(options.settings)) : readTrashSettings(uid),
+		listTrashItems({
+			uid,
+			limit: options.limit || 50,
+			cursor: options.cursor || "",
+		}),
+	]);
+	return { settings, ...trash };
+}
+
+async function readTrashSettings(uid) {
+	const snap = await trashSettingsRef(uid).get();
+	return normalizeTrashSettings(snap.exists ? snap.data() : {});
+}
+
+async function saveTrashSettings(uid, payload = {}) {
+	const settings = {
+		...normalizeTrashSettings(payload),
+		owner: uid,
+		updatedAt: nowIso(),
+		schemaVersion: 1,
+	};
+	await trashSettingsRef(uid).set(settings, { merge: true });
+	audit("trash/settings", uid, "saved", {
+		trashRetentionDays: settings.trashRetentionDays,
+	});
+	return settings;
+}
+
+async function listTrashItems({ uid, limit = 50, cursor = "" }) {
+	const cappedLimit = clampNumber(limit, 1, 100, 50);
+	let query = userRef(uid)
+		.collection("trash")
+		.orderBy("deletedAt", "desc")
+		.limit(cappedLimit);
+	if (cursor) {
+		const cursorSnap = await userRef(uid).collection("trash").doc(String(cursor)).get();
+		if (cursorSnap.exists) query = query.startAfter(cursorSnap);
+	}
+	const snap = await query.get();
+	const items = snap.docs.map((doc) => normalizeTrashIndexItem(doc.data()));
+	return {
+		items,
+		nextCursor: snap.docs.length === cappedLimit ? snap.docs[snap.docs.length - 1].id : "",
+	};
+}
+
+async function deleteUserItem({ uid, itemType, itemId }) {
+	const descriptor = trashDescriptor(itemType);
+	const cleanItemId = cleanRequiredId(itemId, "itemId");
+	const itemRef = descriptor.docRef(uid, cleanItemId);
+	const itemSnap = await itemRef.get();
+	if (!itemSnap.exists) throw policyError("not_found", "Item not found.", 404);
+	const data = itemSnap.data() || {};
+	assertUserOwnedItem(uid, data);
+	assertDescriptorMatchesItem(descriptor, data);
+	const settings = await readTrashSettings(uid);
+	if (settings.trashRetentionDays === 0) {
+		await deleteStorageFilesForItem(uid, data);
+		await Promise.all([
+			itemRef.delete(),
+			userRef(uid).collection("trash").doc(trashItemIdFor(descriptor.type, cleanItemId)).delete(),
+			rebuildUserIndexesForItem({
+				uid,
+				itemType: descriptor.type,
+				itemId: cleanItemId,
+				mode: "hard",
+				itemData: data,
+			}),
+		]);
+		audit("trash/delete", uid, "hard", { itemType: descriptor.type });
+		return {
+			deleted: true,
+			mode: "hard",
+			settings,
+			itemId: cleanItemId,
+			itemType: descriptor.type,
+			trashItem: null,
+		};
+	}
+	const now = nowIso();
+	const deleteAfter = new Date(
+		Date.now() + settings.trashRetentionDays * 24 * 60 * 60 * 1000,
+	).toISOString();
+	const trashItem = trashIndexItemFor({
+		uid,
+		descriptor,
+		itemId: cleanItemId,
+		itemRef,
+		data,
+		deletedAt: now,
+		deleteAfter,
+	});
+	await admin.firestore().runTransaction(async (transaction) => {
+		const currentSnap = await transaction.get(itemRef);
+		if (!currentSnap.exists) throw policyError("not_found", "Item not found.", 404);
+		assertUserOwnedItem(uid, currentSnap.data() || {});
+		assertDescriptorMatchesItem(descriptor, currentSnap.data() || {});
+		transaction.set(
+			itemRef,
+			{
+				deleted: true,
+				deletedAt: now,
+				deleteAfter,
+				deletedBy: uid,
+				deleteMode: "soft",
+				originalCollection: descriptor.originalCollection,
+				updatedAt: now,
+			},
+			{ merge: true },
+		);
+		transaction.set(
+			userRef(uid).collection("trash").doc(trashItem.trashItemId),
+			trashItem,
+			{ merge: true },
+		);
+	});
+	await rebuildUserIndexesForItem({
+		uid,
+		itemType: descriptor.type,
+		itemId: cleanItemId,
+		mode: "soft",
+		deletedAt: now,
+		itemData: data,
+	});
+	audit("trash/delete", uid, "soft", { itemType: descriptor.type });
+	return {
+		deleted: true,
+		mode: "soft",
+		settings,
+		itemId: cleanItemId,
+		itemType: descriptor.type,
+		trashItem,
+	};
+}
+
+async function restoreUserItem({ uid, trashItemId }) {
+	const cleanTrashItemId = cleanRequiredId(trashItemId, "trashItemId");
+	const trashRef = userRef(uid).collection("trash").doc(cleanTrashItemId);
+	const trashSnap = await trashRef.get();
+	if (!trashSnap.exists) throw policyError("not_found", "Trash item not found.", 404);
+	const trashItem = normalizeTrashIndexItem(trashSnap.data());
+	assertTrashItemOwner(uid, trashItem);
+	const itemRef = originalItemRefFromTrash(uid, trashItem);
+	const itemSnap = await itemRef.get();
+	if (!itemSnap.exists) {
+		await trashRef.set({ canRestore: false, updatedAt: nowIso() }, { merge: true });
+		throw policyError("not_found", "Original item no longer exists.", 404);
+	}
+	assertUserOwnedItem(uid, itemSnap.data() || {});
+	assertDescriptorMatchesItem(trashDescriptor(trashItem.itemType), itemSnap.data() || {});
+	const now = nowIso();
+	await admin.firestore().runTransaction(async (transaction) => {
+		transaction.set(
+			itemRef,
+			{
+				deleted: false,
+				deletedAt: null,
+				deleteAfter: null,
+				deletedBy: null,
+				deleteMode: admin.firestore.FieldValue.delete(),
+				originalCollection: admin.firestore.FieldValue.delete(),
+				updatedAt: now,
+			},
+			{ merge: true },
+		);
+		transaction.delete(trashRef);
+	});
+	await rebuildUserIndexesForItem({
+		uid,
+		itemType: trashItem.itemType,
+		itemId: trashItem.itemId,
+		mode: "restore",
+		itemData: itemSnap.data() || {},
+	});
+	audit("trash/restore", uid, "restored", { itemType: trashItem.itemType });
+	return {
+		restored: true,
+		trashItemId: cleanTrashItemId,
+		itemId: trashItem.itemId,
+	};
+}
+
+async function hardDeleteUserItem({ uid, trashItemId, cleanup = false }) {
+	const cleanTrashItemId = cleanRequiredId(trashItemId, "trashItemId");
+	const trashRef = userRef(uid).collection("trash").doc(cleanTrashItemId);
+	const trashSnap = await trashRef.get();
+	if (!trashSnap.exists) {
+		if (cleanup) return { deleted: false, missing: true };
+		throw policyError("not_found", "Trash item not found.", 404);
+	}
+	const trashItem = normalizeTrashIndexItem(trashSnap.data());
+	assertTrashItemOwner(uid, trashItem);
+	const itemRef = originalItemRefFromTrash(uid, trashItem);
+	const itemSnap = await itemRef.get();
+	if (itemSnap.exists) {
+		const data = itemSnap.data() || {};
+		assertUserOwnedItem(uid, data);
+		assertDescriptorMatchesItem(trashDescriptor(trashItem.itemType), data);
+		await deleteStorageFilesForItem(uid, data);
+	}
+	await admin.firestore().runTransaction(async (transaction) => {
+		transaction.delete(itemRef);
+		transaction.delete(trashRef);
+	});
+	await rebuildUserIndexesForItem({
+		uid,
+		itemType: trashItem.itemType,
+		itemId: trashItem.itemId,
+		mode: "hard",
+		itemData: itemSnap.exists ? itemSnap.data() || {} : {},
+	});
+	audit("trash/hard-delete", uid, cleanup ? "cleanup_deleted" : "deleted", {
+		itemType: trashItem.itemType,
+	});
+	return {
+		deleted: true,
+		trashItemId: cleanTrashItemId,
+		itemId: trashItem.itemId,
+	};
+}
+
+async function rebuildUserIndexesForItem({
+	uid,
+	itemType,
+	itemId,
+	mode = "restore",
+	deletedAt = "",
+	itemData = {},
+}) {
+	const cleanItemId = cleanRequiredId(itemId, "itemId");
+	const normalizedType = normalizeTrashItemType(itemType);
+	const tasks = [
+		updateIndexCollectionForItem(uid, "noteSearchIndex", normalizedType, cleanItemId, mode, deletedAt),
+		updateIndexCollectionForItem(uid, "quicknoteIndex", normalizedType, cleanItemId, mode, deletedAt),
+		updateIndexCollectionForItem(uid, "pyxdiaDynamicMemoryIndex", normalizedType, cleanItemId, mode, deletedAt),
+	];
+	if (normalizedType === "pyxdia_letter") {
+		tasks.push(refreshPyxdiaThreadIndexes(uid, cleanItemId, itemData));
+		tasks.push(updateStaticMemoryForSourceMutation(uid, cleanItemId, mode));
+		if (mode !== "restore") {
+			tasks.push(
+				appRef(uid)
+					.collection("pyxdiaProcessingJobs")
+					.doc(cleanItemId)
+					.set({ state: "deleted", updatedAt: nowIso() }, { merge: true })
+					.catch(() => null),
+			);
+		}
+	}
+	await Promise.all(tasks);
+	audit("trash/indexes", uid, mode, { itemType: normalizedType });
+}
+
+async function updateIndexCollectionForItem(uid, collectionName, itemType, itemId, mode, deletedAt = "") {
+	const collection = appRef(uid).collection(collectionName);
+	const refs = new Map();
+	const candidateIds = [
+		itemId,
+		`${itemType}-${itemId}`,
+		`${collectionName}-${itemType}-${itemId}`,
+	].map((id) => id.replace(/\//g, "-"));
+	await Promise.all(
+		candidateIds.map(async (docId) => {
+			const ref = collection.doc(docId);
+			const snap = await ref.get();
+			if (snap.exists) refs.set(ref.path, ref);
+		}),
+	);
+	const fieldNames = indexFieldNamesForItemType(itemType);
+	await Promise.all(
+		fieldNames.map(async (fieldName) => {
+			const snap = await collection.where(fieldName, "==", itemId).limit(25).get();
+			snap.docs.forEach((doc) => refs.set(doc.ref.path, doc.ref));
+		}),
+	);
+	await Promise.all(
+		Array.from(refs.values()).map((ref) => updateIndexDocRef(ref, mode, deletedAt)),
+	);
+}
+
+function indexFieldNamesForItemType(itemType) {
+	const fields = ["itemId", "sourceItemId", "sourceId"];
+	if (itemType === "note") fields.push("noteId", "artifactId");
+	else if (itemType === "artifact") fields.push("artifactId");
+	else if (itemType === "pyxdia_letter") fields.push("letterId", "sourceLetterId");
+	return Array.from(new Set(fields));
+}
+
+async function updateIndexDocRef(ref, mode, deletedAt = "") {
+	if (mode === "hard") {
+		await ref.delete();
+		return;
+	}
+	const restored = mode === "restore";
+	await ref.set(
+		{
+			active: restored,
+			deleted: !restored,
+			deletedAt: restored ? null : deletedAt || nowIso(),
+			updatedAt: nowIso(),
+		},
+		{ merge: true },
+	);
+}
+
+async function refreshPyxdiaThreadIndexes(uid, letterId, itemData = {}) {
+	const threadId = String(itemData.threadId || "");
+	if (!threadId) return;
+	const snap = await appRef(uid)
+		.collection("pyxdiaLetters")
+		.where("threadId", "==", threadId)
+		.get();
+	const letters = snap.docs
+		.map((doc) => doc.data())
+		.filter((letter) => !isDeletedRecord(letter))
+		.sort((left, right) =>
+			String(right.updatedAt || right.completedAt || right.createdAt || "").localeCompare(
+				String(left.updatedAt || left.completedAt || left.createdAt || ""),
+			),
+		);
+	const latest = letters[0] || null;
+	await appRef(uid)
+		.collection("pyxdiaThreads")
+		.doc(threadId)
+		.set(
+			{
+				letterIds: letters.map((letter) => letter.id).filter(Boolean),
+				latestLetterId: latest?.id || "",
+				latestState: latest?.state || "empty",
+				status: latest ? "active" : "empty",
+				updatedAt: nowIso(),
+			},
+			{ merge: true },
+		);
+}
+
+async function updateStaticMemoryForSourceMutation(uid, letterId, mode) {
+	const memoryRef = appRef(uid).collection("pyxdiaMemories").doc("current");
+	const snap = await memoryRef.get();
+	if (!snap.exists) return;
+	const now = nowIso();
+	const memory = normalizeMemory(snap.data(), uid);
+	const staticMemory = normalizeStaticMemory(memory.staticMemory, uid);
+	const currentPriorContext = Array.isArray(memory.priorLetterContext)
+		? memory.priorLetterContext
+		: [];
+	const priorLetterContext =
+		mode === "restore"
+			? currentPriorContext
+			: currentPriorContext.filter((item) => item?.letterId !== letterId);
+	let changed = false;
+	if (priorLetterContext.length !== currentPriorContext.length) changed = true;
+	const entries = (staticMemory.entries || []).map((entry) => {
+		const sourceLetterIds = Array.from(new Set(entry.sourceLetterIds || []));
+		const staleSourceLetterIds = Array.from(new Set(entry.staleSourceLetterIds || []));
+		if (mode === "restore") {
+			if (!staleSourceLetterIds.includes(letterId)) return entry;
+			changed = true;
+			return {
+				...entry,
+				status: entry.status === "stale_pending_review" ? "active" : entry.status,
+				sourceLetterIds: Array.from(new Set([...sourceLetterIds, letterId])),
+				staleSourceLetterIds: staleSourceLetterIds.filter((id) => id !== letterId),
+				updatedAt: now,
+			};
+		}
+		if (!sourceLetterIds.includes(letterId)) return entry;
+		changed = true;
+		const nextSources = sourceLetterIds.filter((id) => id !== letterId);
+		return {
+			...entry,
+			status: nextSources.length ? entry.status : "stale_pending_review",
+			sourceLetterIds: nextSources,
+			staleSourceLetterIds: nextSources.length
+				? staleSourceLetterIds
+				: Array.from(new Set([...staleSourceLetterIds, letterId])),
+			updatedAt: now,
+		};
+	});
+	if (!changed) return;
+	const activeSummary = entries
+		.filter((entry) => entry.status === "active")
+		.slice(-5)
+		.map((entry) => entry.text || entry.summary)
+		.join(" ");
+	await memoryRef.set(
+		{
+			...memory,
+			summary: activeSummary,
+			entries: entries.map(memoryEntryToLegacyEntry),
+			priorLetterContext,
+			staticMemory: {
+				...staticMemory,
+				summary: activeSummary,
+				entries,
+				updatedAt: now,
+			},
+			updatedAt: now,
+		},
+		{ merge: true },
+	);
+}
+
+function normalizeTrashSettings(value = {}) {
+	const source = value && typeof value === "object" ? value : {};
+	const retentionValue =
+		source.trashRetentionDays === "" || source.trashRetentionDays == null
+			? DEFAULT_TRASH_RETENTION_DAYS
+			: source.trashRetentionDays;
+	return {
+		trashRetentionDays: clampNumber(
+			retentionValue,
+			0,
+			MAX_TRASH_RETENTION_DAYS,
+			DEFAULT_TRASH_RETENTION_DAYS,
+		),
+		schemaVersion: 1,
+	};
+}
+
+function normalizeTrashIndexItem(value = {}) {
+	return {
+		owner: String(value.owner || ""),
+		trashItemId: String(value.trashItemId || ""),
+		itemId: String(value.itemId || ""),
+		itemType: String(value.itemType || "item"),
+		title: String(value.title || "Untitled item"),
+		snippet: String(value.snippet || ""),
+		originalPath: String(value.originalPath || ""),
+		originalCollection: String(value.originalCollection || ""),
+		deletedAt: String(value.deletedAt || ""),
+		deleteAfter: String(value.deleteAfter || ""),
+		deletedBy: String(value.deletedBy || ""),
+		deleteMode: String(value.deleteMode || "soft"),
+		canRestore: value.canRestore !== false,
+		schemaVersion: 1,
+	};
+}
+
+function trashIndexItemFor({ uid, descriptor, itemId, itemRef, data, deletedAt, deleteAfter }) {
+	const preview = trashPreviewFor(descriptor.type, data);
+	const trashItemId = trashItemIdFor(descriptor.type, itemId);
+	return normalizeTrashIndexItem({
+		owner: uid,
+		trashItemId,
+		itemId,
+		itemType: descriptor.type,
+		title: preview.title,
+		snippet: preview.snippet,
+		originalPath: itemRef.path,
+		originalCollection: descriptor.originalCollection,
+		deletedAt,
+		deleteAfter,
+		deletedBy: uid,
+		deleteMode: "soft",
+		canRestore: true,
+		schemaVersion: 1,
+	});
+}
+
+function trashPreviewFor(itemType, data = {}) {
+	const artifact = data.data?.ourstuff?.artifact || data.extraAttributes?.ourstuff?.artifact || {};
+	const title =
+		cleanPreviewText(data.title || artifact.title || data.name || `${itemType} item`) ||
+		"Untitled item";
+	const text =
+		artifact.body ||
+		data.body ||
+		data.inputText ||
+		data.outputText ||
+		data.summary ||
+		data.description ||
+		"";
+	return {
+		title: title.slice(0, 160),
+		snippet: cleanPreviewText(text).slice(0, 220),
+	};
+}
+
+function cleanPreviewText(value = "") {
+	return String(value || "")
+		.replace(/[#*_`>\[\]()]/g, " ")
+		.replace(/\s+/g, " ")
+		.trim();
+}
+
+function isDeletedRecord(value = {}) {
+	return value?.deleted === true || value?.deleteMode === "soft";
+}
+
+function trashDescriptor(itemType) {
+	const type = normalizeTrashItemType(itemType);
+	if (type === "artifact") {
+		return {
+			type,
+			originalCollection: "artifacts",
+			docRef: (uid, itemId) => appRef(uid).collection("artifacts").doc(itemId),
+		};
+	}
+	if (type === "pyxdia_letter") {
+		return {
+			type,
+			originalCollection: "pyxdiaLetters",
+			docRef: (uid, itemId) => appRef(uid).collection("pyxdiaLetters").doc(itemId),
+		};
+	}
+	return {
+		type,
+		originalCollection: "artifacts",
+		requiredDocType: "note",
+		docRef: (uid, itemId) => appRef(uid).collection("artifacts").doc(itemId),
+	};
+}
+
+function normalizeTrashItemType(value) {
+	const type = String(value || "").trim().toLowerCase().replace(/-/g, "_");
+	if (!TRASH_ITEM_TYPES.has(type)) {
+		throw policyError("unsupported_item_type", "This item type cannot be moved to Trash.", 400);
+	}
+	return type;
+}
+
+function originalItemRefFromTrash(uid, trashItem) {
+	const originalPath = String(trashItem.originalPath || "");
+	if (!originalPath.startsWith(`users/${uid}/`)) {
+		throw policyError("auth_required", "Trash item is outside this account.", 403);
+	}
+	return admin.firestore().doc(originalPath);
+}
+
+function assertUserOwnedItem(uid, data = {}) {
+	if (data.owner && data.owner !== uid) {
+		throw policyError("auth_required", "Item is outside this account.", 403);
+	}
+	const owners = data.acl?.owners;
+	if (Array.isArray(owners) && !owners.includes(uid)) {
+		throw policyError("auth_required", "Item is outside this account.", 403);
+	}
+}
+
+function assertDescriptorMatchesItem(descriptor = {}, data = {}) {
+	if (descriptor.requiredDocType && data.type !== descriptor.requiredDocType) {
+		throw policyError("unsupported_item_type", "This item type cannot be moved to Trash.", 400);
+	}
+}
+
+function assertTrashItemOwner(uid, trashItem = {}) {
+	if (trashItem.owner !== uid || !trashItem.originalPath.startsWith(`users/${uid}/`)) {
+		throw policyError("auth_required", "Trash item is outside this account.", 403);
+	}
+}
+
+async function deleteStorageFilesForItem(uid, data = {}) {
+	const paths = Array.from(collectStoragePaths(data, uid));
+	if (!paths.length) return;
+	const bucket = admin.storage().bucket();
+	await Promise.all(
+		paths.map((path) =>
+			bucket
+				.file(path)
+				.delete({ ignoreNotFound: true })
+				.catch((error) => {
+					console.warn("trash_storage_delete_failed", {
+						uidHash: hashUid(uid),
+						path,
+						message: error?.message || "delete failed",
+					});
+				}),
+		),
+	);
+}
+
+function collectStoragePaths(value, uid, output = new Set(), depth = 0) {
+	if (depth > 8 || value == null) return output;
+	const prefix = `users/${uid}/apps/${APP_ID}/media/`;
+	if (typeof value === "string") {
+		const text = value.trim();
+		if (text.startsWith(prefix)) output.add(text);
+		const direct = text.match(new RegExp(`(${escapeRegex(prefix)}[^?#\\s]+)`));
+		if (direct) output.add(direct[1]);
+		const gs = text.match(new RegExp(`^gs://[^/]+/(${escapeRegex(prefix)}[^?#\\s]+)`));
+		if (gs) output.add(gs[1]);
+		return output;
+	}
+	if (Array.isArray(value)) {
+		value.forEach((item) => collectStoragePaths(item, uid, output, depth + 1));
+		return output;
+	}
+	if (typeof value === "object") {
+		Object.values(value).forEach((item) => collectStoragePaths(item, uid, output, depth + 1));
+	}
+	return output;
+}
+
+function trashItemIdFor(itemType, itemId) {
+	return `trash-${crypto.createHash("sha256").update(`${itemType}:${itemId}`).digest("hex").slice(0, 24)}`;
+}
+
+function trashSettingsRef(uid) {
+	return userRef(uid).collection("settings").doc("trash");
+}
+
+function userRef(uid) {
+	return admin.firestore().collection("users").doc(uid);
+}
+
+function cleanRequiredId(value, fieldName) {
+	const text = String(value || "").trim();
+	if (!text || text.includes("/")) {
+		throw policyError("invalid_request", `${fieldName} is required.`, 400);
+	}
+	return text;
+}
+
 async function readSettings(uid) {
 	const snap = await appRef(uid).collection("pyxdiaSettings").doc("default").get();
 	return { ...normalizeSettings(snap.exists ? snap.data() : {}), owner: uid };
@@ -466,12 +1196,18 @@ function normalizeSettings(value = {}) {
 	const source = value && typeof value === "object" ? value : {};
 	const min = clampNumber(source.delayMinHours, 0, 168, 24);
 	const max = clampNumber(source.delayMaxHours, min, 336, 72);
+	const delayEnabled =
+		source.pyxdiaDelayEnabled !== undefined
+			? source.pyxdiaDelayEnabled !== false
+			: source.delayEnabled !== false;
 	return {
 		...DEFAULT_SETTINGS,
 		enabled: source.enabled !== false,
-		delayEnabled: source.delayEnabled !== false,
+		delayEnabled,
 		delayMinHours: min,
 		delayMaxHours: max,
+		pyxdiaDelayEnabled: delayEnabled,
+		pyxdiaDelayMs: delayEnabled ? min * 60 * 60 * 1000 : 0,
 		memoryEnabled: source.memoryEnabled !== false,
 		generalInstructions: cleanText(source.generalInstructions, DEFAULT_SETTINGS.generalInstructions),
 		userWantsPyxdiaToKnow: cleanText(source.userWantsPyxdiaToKnow, ""),
@@ -570,15 +1306,204 @@ function providerConfigured() {
 	return Boolean(String(process.env.OPENROUTER_API_KEY || "").trim());
 }
 
-function buildPrompt({ settings, memory, threadContext, noteMetadata, includedContext, letter }) {
+function normalizeDraftPayload(value = {}, uid = "", options = {}) {
+	const source = value && typeof value === "object" ? value : {};
+	const userSelectedContext = normalizeUserSelectedContext({
+		...(source.userSelectedContext || {}),
+		manualText: source.userSelectedContext?.manualText ?? source.userIncludedContext ?? "",
+		selectedNoteRefs: source.userSelectedContext?.selectedNoteRefs ?? source.includedNoteRefs ?? [],
+		contextSelections: source.userSelectedContext?.contextSelections ?? source.contextSelections ?? [],
+	});
+	return {
+		...draftDoc(uid),
+		...source,
+		id: "draft",
+		clientLetterId: String(source.clientLetterId || source.letterId || ""),
+		owner: uid,
+		state: "draft",
+		inputText: String(source.inputText || ""),
+		imageRefs: normalizeImageRefs(source.imageRefs),
+		includedNoteRefs: userSelectedContext.selectedNoteRefs,
+		userIncludedContext: userSelectedContext.manualText,
+		userSelectedContext,
+		contextSelections: userSelectedContext.contextSelections,
+		updatedAt: options.touch ? nowIso() : String(source.updatedAt || ""),
+		schemaVersion: 1,
+	};
+}
+
+function normalizeUserSelectedContext(value = {}) {
+	const source = value && typeof value === "object" ? value : {};
+	const selectedNoteRefs = Array.isArray(source.selectedNoteRefs)
+		? source.selectedNoteRefs
+		: Array.isArray(source.includedNoteRefs)
+			? source.includedNoteRefs
+			: [];
+	const contextSelections = Array.isArray(source.contextSelections)
+		? source.contextSelections.map(String).filter(Boolean)
+		: selectedNoteRefs.map((ref) => String(ref?.id || "")).filter(Boolean);
+	const selectedIds = contextSelections.length
+		? contextSelections
+		: selectedNoteRefs.map((ref) => String(ref?.id || "")).filter(Boolean);
+	return {
+		authority: "user_selected",
+		authorityRank: 1,
+		purpose: "User explicitly selected this context for the current letter.",
+		manualText: String(source.manualText ?? source.userIncludedContext ?? ""),
+		selectedNoteRefs: selectedNoteRefs.map(normalizeNoteRef).filter((ref) => ref.id).slice(0, 48),
+		selectedMemoryEntryIds: Array.isArray(source.selectedMemoryEntryIds)
+			? source.selectedMemoryEntryIds.map(String).filter(Boolean).slice(0, 24)
+			: [],
+		selectedProjectEntryIds: Array.isArray(source.selectedProjectEntryIds)
+			? source.selectedProjectEntryIds.map(String).filter(Boolean).slice(0, 24)
+			: [],
+		contextSelections: selectedIds.slice(0, 48),
+		schemaVersion: 1,
+	};
+}
+
+function normalizeNoteRef(value = {}) {
+	const source = value && typeof value === "object" ? value : {};
+	return {
+		id: String(source.id || ""),
+		number: clampNumber(source.number, 0, 999999, 0),
+		title: String(source.title || "Untitled note").slice(0, 160),
+		dashboard: String(source.dashboard || ""),
+		role: String(source.role || "note"),
+		edited: String(source.edited || ""),
+		wordCount: clampNumber(source.wordCount, 0, 100000, 0),
+		userApprovedContentIncluded: source.userApprovedContentIncluded === true,
+	};
+}
+
+function normalizeImageRefs(value = []) {
+	return Array.isArray(value)
+		? value
+				.filter((item) => item?.id && item?.storagePath)
+				.slice(0, 24)
+				.map((item) => ({
+					id: String(item.id || ""),
+					letterId: String(item.letterId || ""),
+					name: String(item.name || "image").slice(0, 160),
+					type: String(item.type || "image/png").slice(0, 80),
+					size: Math.max(0, Number(item.size) || 0),
+					storagePath: String(item.storagePath || "").slice(0, 500),
+					createdAt: String(item.createdAt || ""),
+					schemaVersion: 1,
+				}))
+		: [];
+}
+
+function normalizeMemory(value = {}, uid = "") {
+	const source = value && typeof value === "object" ? value : {};
+	const staticMemory = normalizeStaticMemory({
+		...(source.staticMemory || {}),
+		summary: source.staticMemory?.summary || source.summary || "",
+		entries: source.staticMemory?.entries || source.entries || [],
+		updatedAt: source.staticMemory?.updatedAt || source.updatedAt || "",
+	}, uid);
+	const dynamicRetrievalMemory = normalizeDynamicRetrievalMemory(source.dynamicRetrievalMemory);
+	return {
+		...emptyMemory(uid),
+		...source,
+		owner: uid,
+		title: String(source.title || "PYXIDA memories"),
+		summary: String(source.summary || staticMemory.summary || ""),
+		entries: staticMemory.entries.map(memoryEntryToLegacyEntry),
+		staticMemory,
+		dynamicRetrievalMemory,
+		lastCompactedAt: String(source.lastCompactedAt || ""),
+		updatedAt: String(source.updatedAt || ""),
+		schemaVersion: 1,
+	};
+}
+
+function normalizeStaticMemory(value = {}, uid = "") {
+	const source = value && typeof value === "object" ? value : {};
+	const entries = Array.isArray(source.entries)
+		? source.entries
+				.filter((entry) => entry?.text || entry?.summary)
+				.slice(-50)
+				.map((entry) => normalizeStaticMemoryEntry(entry))
+		: [];
+	return {
+		memoryId: String(source.memoryId || "pyxdia-static-current"),
+		type: String(source.type || "stable_profile"),
+		summary: compactMemoryPatternText(source.summary || "").slice(0, 4000),
+		confidence: clampFloat(source.confidence, 0, 1, entries.length ? 0.65 : 0),
+		status: String(source.status || "active"),
+		piiSafe: source.piiSafe !== false,
+		lastConfirmedAt: String(source.lastConfirmedAt || ""),
+		updatedAt: String(source.updatedAt || ""),
+		owner: uid,
+		entries,
+		schemaVersion: 1,
+	};
+}
+
+function normalizeStaticMemoryEntry(entry = {}) {
+	const text = compactMemoryPatternText(entry.text || entry.summary || "");
+	return {
+		id: String(entry.id || `memory-${crypto.randomUUID()}`),
+		type: String(entry.type || "stable_pattern"),
+		summary: sanitizeMemoryText(entry.summary || text).slice(0, 500),
+		text: String(text).slice(0, 500),
+		confidence: clampFloat(entry.confidence, 0, 1, 0.65),
+		status: String(entry.status || "active"),
+		piiSafe: entry.piiSafe !== false,
+		reasonRemembered: String(entry.reasonRemembered || ""),
+		sourceLetterIds: Array.isArray(entry.sourceLetterIds)
+			? entry.sourceLetterIds.map(String).filter(Boolean)
+			: [],
+		staleSourceLetterIds: Array.isArray(entry.staleSourceLetterIds)
+			? entry.staleSourceLetterIds.map(String).filter(Boolean)
+			: [],
+		sensitivity: String(entry.sensitivity || "private_minimized"),
+		createdAt: String(entry.createdAt || ""),
+		updatedAt: String(entry.updatedAt || ""),
+	};
+}
+
+function normalizeDynamicRetrievalMemory(value = {}) {
+	const source = value && typeof value === "object" ? value : {};
+	const items = Array.isArray(source.items)
+		? source.items
+				.filter((item) => item?.summary)
+				.slice(0, 12)
+				.map((item) => ({
+					id: String(item.id || ""),
+					type: String(item.type || "retrieved_context"),
+					summary: sanitizeMemoryText(item.summary || "").slice(0, 600),
+					reason: String(item.reason || "Retrieved because it may relate to this letter."),
+					sourceLetterId: String(item.sourceLetterId || ""),
+					sourceType: String(item.sourceType || ""),
+					score: clampFloat(item.score, 0, 1, 0.5),
+					authority: "automatic_retrieval",
+					piiSafe: item.piiSafe !== false,
+				}))
+		: [];
+	return {
+		memoryId: String(source.memoryId || "pyxdia-dynamic-current"),
+		type: "dynamic_retrieval",
+		authority: "automatic_retrieval",
+		status: String(source.status || "active"),
+		retrievedAt: String(source.retrievedAt || ""),
+		query: String(source.query || ""),
+		items,
+		piiSafe: source.piiSafe !== false,
+		schemaVersion: 1,
+	};
+}
+
+function buildPrompt({ settings, staticMemory, dynamicRetrievalMemory, userSelectedContext, letter }) {
 	return [
 		"SYSTEM:\nYou are PYXIDA PENPAL, a reflective growth companion and AI trainer.\nYou are not a therapist, doctor, clinician, crisis service, or replacement for professional care.\nDraw lightly from Adlerian growth themes, DBT-informed emotional regulation, and Jungian archetypes as interpretive metaphors.\nDo not diagnose or claim clinical authority.\nReturn plain letter text only in the user-visible letter.\n\nInput may be scrubbed. Do not reconstruct placeholders or personal identifiers.\nFocus on meaning, values, patterns, choices, and user intent.",
+		"CONTEXT AUTHORITY:\n1. User-selected context is intentional and highest authority.\n2. PYXIDA static memory is a compact PII-safe profile of durable patterns.\n3. PYXIDA dynamic retrieval memory is automatically selected supporting context. Use it lightly and ignore it when it conflicts with the current letter or user-selected context.",
 		`USER SETTINGS:\n${settings.generalInstructions || ""}`,
 		`WHAT THE USER WANTS PYXIDA TO KNOW:\n${settings.userWantsPyxdiaToKnow || ""}`,
-		`MEMORY:\n${memory.summary || ""}`,
-		`THREAD CONTEXT:\n${threadContext || ""}`,
-		`NOTE METADATA:\n${noteMetadata || ""}`,
-		`USER-APPROVED CONTEXT:\n${includedContext || ""}`,
+		`USER-SELECTED CONTEXT:\n${formatUserSelectedContext(userSelectedContext)}`,
+		`PYXIDA STATIC MEMORY:\n${formatStaticMemory(staticMemory)}`,
+		`PYXIDA DYNAMIC RETRIEVAL MEMORY:\n${formatDynamicRetrievalMemory(dynamicRetrievalMemory)}`,
 		`CURRENT LETTER:\n${letter || ""}`,
 	].join("\n\n");
 }
@@ -601,6 +1526,161 @@ function fallbackLetter(prompt) {
 	].join("\n");
 }
 
+function formatUserSelectedContext(context = {}) {
+	const selected = normalizeUserSelectedContext(context);
+	return JSON.stringify(
+		{
+			authority: selected.authority,
+			manualText: selected.manualText.slice(0, 3000),
+			selectedNoteRefs: selected.selectedNoteRefs.map((ref) => ({
+				id: ref.id,
+				number: ref.number,
+				title: ref.title,
+				dashboard: ref.dashboard,
+				role: ref.role,
+				edited: ref.edited,
+				wordCount: ref.wordCount,
+				userApprovedContentIncluded: false,
+			})),
+			selectedMemoryEntryIds: selected.selectedMemoryEntryIds,
+			selectedProjectEntryIds: selected.selectedProjectEntryIds,
+		},
+		null,
+		2,
+	);
+}
+
+function formatStaticMemory(memory = {}) {
+	const normalized = normalizeStaticMemory(memory);
+	return JSON.stringify(
+		{
+			type: normalized.type,
+			summary: normalized.summary,
+			confidence: normalized.confidence,
+			piiSafe: normalized.piiSafe,
+			entries: normalized.entries.slice(-12).map((entry) => ({
+				type: entry.type,
+				summary: entry.summary || entry.text,
+				confidence: entry.confidence,
+				reasonRemembered: entry.reasonRemembered,
+				piiSafe: entry.piiSafe,
+			})),
+		},
+		null,
+		2,
+	);
+}
+
+function formatDynamicRetrievalMemory(memory = {}) {
+	const normalized = normalizeDynamicRetrievalMemory(memory);
+	return JSON.stringify(
+		{
+			type: normalized.type,
+			authority: normalized.authority,
+			query: normalized.query,
+			retrievedAt: normalized.retrievedAt,
+			items: normalized.items.map((item) => ({
+				type: item.type,
+				summary: item.summary,
+				reason: item.reason,
+				score: item.score,
+				piiSafe: item.piiSafe,
+			})),
+		},
+		null,
+		2,
+	);
+}
+
+async function buildDynamicRetrievalMemory(uid, letter, memory = {}) {
+	const items = [];
+	if (letter.threadId) {
+		const snap = await appRef(uid)
+			.collection("pyxdiaLetters")
+			.where("threadId", "==", letter.threadId)
+			.get();
+		snap.docs
+			.map((doc) => doc.data())
+			.filter((item) => !isDeletedRecord(item))
+			.filter((item) => item.id !== letter.id && item.state === "completed")
+			.sort((left, right) => String(right.completedAt || right.createdAt || "").localeCompare(String(left.completedAt || left.createdAt || "")))
+			.slice(0, 3)
+			.forEach((item, index) => {
+				const summary = summarizePriorLetterForRetrieval(item);
+				if (!summary) return;
+				items.push({
+					id: `letter-${item.id}`,
+					type: "prior_letter_summary",
+					summary,
+					reason: "Same PYXIDA conversation as the current letter.",
+					sourceLetterId: item.id,
+					sourceType: "pyxdia_letter",
+					score: Math.max(0.2, 0.85 - index * 0.1),
+					authority: "automatic_retrieval",
+					piiSafe: true,
+				});
+			});
+	}
+	const priorContext = Array.isArray(memory.priorLetterContext)
+		? memory.priorLetterContext
+		: [];
+	priorContext
+		.filter((item) => item?.letterId && item.letterId !== letter.id)
+		.slice(-3)
+		.reverse()
+		.forEach((item, index) => {
+			if (items.some((existing) => existing.sourceLetterId === item.letterId)) return;
+			items.push({
+				id: `prior-context-${item.letterId}`,
+				type: "prior_letter_context_marker",
+				summary: "A prior PYXIDA reply was completed in this memory set.",
+				reason: "Recent completed letter marker from PYXIDA memory.",
+				sourceLetterId: item.letterId,
+				sourceType: "pyxdia_memory_marker",
+				score: Math.max(0.15, 0.45 - index * 0.05),
+				authority: "automatic_retrieval",
+				piiSafe: true,
+			});
+		});
+	return normalizeDynamicRetrievalMemory({
+		memoryId: `pyxdia-dynamic-${letter.id || crypto.randomUUID()}`,
+		status: "active",
+		retrievedAt: nowIso(),
+		query: "same_thread_recent_letters",
+		items,
+		piiSafe: true,
+	});
+}
+
+function summarizePriorLetterForRetrieval(letter = {}) {
+	try {
+		const input = String(letter.scrubbedInputText || scrubText(letter.inputText || "").text || "")
+			.replace(/\s+/g, " ")
+			.trim();
+		const output = String(letter.outputText || "").replace(/\s+/g, " ").trim();
+		const pieces = [];
+		if (input) pieces.push(`User wrote: ${sanitizeMemoryText(input).slice(0, 220)}`);
+		if (output) pieces.push(`PYXIDA replied: ${sanitizeMemoryText(output).slice(0, 180)}`);
+		return pieces.join(" / ").slice(0, 500);
+	} catch {
+		return "";
+	}
+}
+
+function compactStaticMemorySnapshot(memory = {}) {
+	const normalized = normalizeStaticMemory(memory);
+	return {
+		memoryId: normalized.memoryId,
+		type: normalized.type,
+		summary: normalized.summary,
+		confidence: normalized.confidence,
+		status: normalized.status,
+		piiSafe: normalized.piiSafe,
+		updatedAt: normalized.updatedAt,
+		schemaVersion: 1,
+	};
+}
+
 async function threadContext(uid, threadId) {
 	if (!threadId) return "";
 	const snap = await appRef(uid)
@@ -609,36 +1689,50 @@ async function threadContext(uid, threadId) {
 		.get();
 	return snap.docs
 		.map((doc) => doc.data())
+		.filter((letter) => !isDeletedRecord(letter))
 		.sort((left, right) => String(right.createdAt || "").localeCompare(String(left.createdAt || "")))
 		.slice(0, 3)
-		.map((letter) => `${letter.state}: ${String(letter.inputText || "").slice(0, 240)}`)
+		.map((letter) => `${letter.state}: ${summarizePriorLetterForRetrieval(letter)}`)
+		.filter((line) => !line.endsWith(": "))
 		.join("\n");
 }
 
 function updateMemory(uid, current, letter, outputText) {
 	const now = nowIso();
-	const memory = { ...emptyMemory(uid), ...(current || {}) };
-	const sentence =
-		String(letter.inputText || "")
-			.replace(/\s+/g, " ")
-			.split(/[.!?]/)
-			.map((item) => item.trim())
-			.find(Boolean) || "User continued a PYXIDA letter thread.";
+	const memory = normalizeMemory(current, uid);
+	const staticMemory = normalizeStaticMemory(memory.staticMemory, uid);
+	const sentence = memoryCandidateFromLetter(letter);
 	const entry = {
 		id: `memory-${crypto.randomUUID()}`,
+		type: "stable_pattern",
 		text: sentence.slice(0, 180),
+		summary: sentence.slice(0, 180),
+		confidence: 0.64,
+		status: "active",
+		piiSafe: true,
 		reasonRemembered: "Captured as a compact theme from a completed letter.",
 		sourceLetterIds: [letter.id],
 		sensitivity: "private_minimized",
 		createdAt: now,
 		updatedAt: now,
 	};
-	const entries = [...(memory.entries || []), entry].slice(-50);
+	const entries = [...(staticMemory.entries || []), entry].slice(-50);
+	const summary = entries.slice(-5).map((item) => item.text || item.summary).join(" ");
 	return {
 		...memory,
 		owner: uid,
-		summary: entries.slice(-5).map((item) => item.text).join(" "),
-		entries,
+		summary,
+		entries: entries.map(memoryEntryToLegacyEntry),
+		staticMemory: {
+			...staticMemory,
+			summary,
+			confidence: entries.length ? 0.68 : 0,
+			piiSafe: true,
+			lastConfirmedAt: staticMemory.lastConfirmedAt || now,
+			updatedAt: now,
+			entries,
+		},
+		dynamicRetrievalMemory: normalizeDynamicRetrievalMemory(letter.dynamicRetrievalMemory || memory.dynamicRetrievalMemory),
 		priorLetterContext: [
 			...(memory.priorLetterContext || []),
 			{
@@ -654,7 +1748,72 @@ function updateMemory(uid, current, letter, outputText) {
 	};
 }
 
+function memoryCandidateFromLetter(letter = {}) {
+	const source =
+		String(letter.scrubbedInputText || "")
+			.replace(/\s+/g, " ")
+			.split(/[.!?]/)
+			.map((item) => item.trim())
+			.find(Boolean) ||
+		String(letter.inputText || "")
+			.replace(/\s+/g, " ")
+			.split(/[.!?]/)
+			.map((item) => item.trim())
+			.find(Boolean) ||
+		"User continued a PYXIDA letter thread.";
+	const clean = compactMemoryPatternText(source);
+	if (isDurableMemoryPattern(clean)) return clean;
+	return "User continued a PYXIDA letter; keep future replies grounded in practical reflection and small next steps.";
+}
+
+function compactMemoryPatternText(text = "") {
+	const clean = sanitizeMemoryText(text)
+		.replace(/^dear\s+pyx(?:ida|dia),?\s*/i, "")
+		.replace(/^i am\b/i, "User is")
+		.replace(/^i'm\b/i, "User is")
+		.replace(/^i\b/i, "User");
+	return clean.trim();
+}
+
+function isDurableMemoryPattern(text = "") {
+	return /\b(often|usually|prefer|goal|value|trying to|working on|routine|pattern|recurring|want to|keep coming back)\b/i.test(
+		text,
+	);
+}
+
+function sanitizeMemoryText(text = "") {
+	return String(text || "")
+		.replace(/<EMAIL_\d+>/g, "a private email")
+		.replace(/<PHONE_\d+>/g, "a private phone number")
+		.replace(/<LOCATION_\d+>/g, "a private location")
+		.replace(/<PERSON_\d+>/g, "a private person")
+		.replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "a private email")
+		.replace(/\b(?:\+?1[ .-]?)?(?:\(?\d{3}\)?[ .-]?)\d{3}[ .-]?\d{4}\b/g, "a private phone number")
+		.replace(/\s+/g, " ")
+		.trim()
+		.slice(0, 500);
+}
+
+function memoryEntryToLegacyEntry(entry = {}) {
+	return {
+		id: String(entry.id || `memory-${crypto.randomUUID()}`),
+		text: String(entry.text || entry.summary || "").slice(0, 500),
+		reasonRemembered: String(entry.reasonRemembered || ""),
+		sourceLetterIds: Array.isArray(entry.sourceLetterIds)
+			? entry.sourceLetterIds.map(String).filter(Boolean)
+			: [],
+		staleSourceLetterIds: Array.isArray(entry.staleSourceLetterIds)
+			? entry.staleSourceLetterIds.map(String).filter(Boolean)
+			: [],
+		sensitivity: String(entry.sensitivity || "private_minimized"),
+		createdAt: String(entry.createdAt || ""),
+		updatedAt: String(entry.updatedAt || ""),
+	};
+}
+
 function emptyMemory(uid = "") {
+	const staticMemory = emptyStaticMemory(uid);
+	const dynamicRetrievalMemory = emptyDynamicRetrievalMemory();
 	return {
 		owner: uid,
 		title: "PYXIDA memories",
@@ -667,8 +1826,40 @@ function emptyMemory(uid = "") {
 		guidancePreferences: [],
 		priorLetterContext: [],
 		entries: [],
+		staticMemory,
+		dynamicRetrievalMemory,
 		lastCompactedAt: "",
 		updatedAt: "",
+		schemaVersion: 1,
+	};
+}
+
+function emptyStaticMemory(uid = "") {
+	return {
+		owner: uid,
+		memoryId: "pyxdia-static-current",
+		type: "stable_profile",
+		summary: "",
+		confidence: 0,
+		status: "active",
+		piiSafe: true,
+		lastConfirmedAt: "",
+		updatedAt: "",
+		entries: [],
+		schemaVersion: 1,
+	};
+}
+
+function emptyDynamicRetrievalMemory() {
+	return {
+		memoryId: "pyxdia-dynamic-current",
+		type: "dynamic_retrieval",
+		authority: "automatic_retrieval",
+		status: "active",
+		retrievedAt: "",
+		query: "",
+		items: [],
+		piiSafe: true,
 		schemaVersion: 1,
 	};
 }
@@ -678,6 +1869,7 @@ function appRef(uid) {
 }
 
 function draftDoc(uid) {
+	const userSelectedContext = normalizeUserSelectedContext();
 	return {
 		id: "draft",
 		threadId: "",
@@ -686,6 +1878,7 @@ function draftDoc(uid) {
 		inputText: "",
 		includedNoteRefs: [],
 		userIncludedContext: "",
+		userSelectedContext,
 		contextSelections: [],
 		updatedAt: "",
 		schemaVersion: 1,
@@ -694,7 +1887,7 @@ function draftDoc(uid) {
 
 function routePath(req, functionName) {
 	const path = `/${String(req.path || "/").replace(/^\/+|\/+$/g, "")}`;
-	for (const prefix of [`/${functionName}`, "/api/pyxdia", "/api/ai"]) {
+	for (const prefix of [`/${functionName}`, "/api/pyxdia", "/api/ai", "/api/trash"]) {
 		if (path === prefix) return "/";
 		if (path.startsWith(`${prefix}/`)) return path.slice(prefix.length);
 	}
@@ -763,6 +1956,16 @@ function clampNumber(value, min, max, fallback) {
 	const number = Number(value);
 	if (!Number.isFinite(number)) return fallback;
 	return Math.min(Math.max(Math.round(number), min), max);
+}
+
+function clampFloat(value, min, max, fallback) {
+	const number = Number(value);
+	if (!Number.isFinite(number)) return fallback;
+	return Math.min(Math.max(number, min), max);
+}
+
+function escapeRegex(value = "") {
+	return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function luhn(digits) {

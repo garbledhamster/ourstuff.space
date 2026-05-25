@@ -858,7 +858,10 @@ function localArtifactToCloudDoc(artifact, uid, context = {}) {
 		createdAt ||
 		context.updatedAt;
 	const title = String(safeArtifact.title || "Untitled");
-	const status = String(safeArtifact.properties?.status || "active");
+	const deleted = safeArtifact.deleted === true;
+	const status = deleted
+		? "deleted"
+		: String(safeArtifact.properties?.status || "active");
 	const id = firestoreDocId(safeArtifact.id, `artifact-${context.order || 0}`);
 
 	return cloudDocBase({
@@ -868,6 +871,12 @@ function localArtifactToCloudDoc(artifact, uid, context = {}) {
 		title,
 		tags: uniqueStrings(["ourstuff", APP_ID, dashboard.toLowerCase(), type]),
 		status,
+		deleted,
+		deletedAt: safeArtifact.deletedAt || null,
+		deleteAfter: safeArtifact.deleteAfter || null,
+		deletedBy: safeArtifact.deletedBy || "",
+		deleteMode: safeArtifact.deleteMode || "",
+		originalCollection: safeArtifact.originalCollection || "",
 		createdAt,
 		updatedAt,
 		refs: {
@@ -1014,6 +1023,12 @@ function cloudDocBase({
 	title,
 	tags,
 	status,
+	deleted = false,
+	deletedAt = null,
+	deleteAfter = null,
+	deletedBy = "",
+	deleteMode = "",
+	originalCollection = "",
 	createdAt,
 	updatedAt,
 	refs,
@@ -1031,6 +1046,12 @@ function cloudDocBase({
 		projectIds: [],
 		tags,
 		status,
+		deleted,
+		deletedAt,
+		deleteAfter,
+		deletedBy,
+		deleteMode,
+		originalCollection,
 		schemaVersion: CLOUD_SCHEMA_VERSION,
 		createdAt,
 		updatedAt,
@@ -1050,7 +1071,7 @@ function cloudArtifactDocsToAppJson(docs, appData = {}) {
 		if (ourstuff.kind === "artifact" && ourstuff.artifact) {
 			artifactRows.push({
 				order: numberOrFallback(ourstuff.order, index),
-				artifact: jsonSafe(ourstuff.artifact),
+				artifact: cloudLifecycleToLocalArtifact(ourstuff.artifact, doc),
 			});
 			return;
 		}
@@ -1111,7 +1132,7 @@ function cloudDocToLocalArtifact(doc) {
 		new Date().toISOString();
 	const edited = normalizeSyncTimestampFromFirestore(doc?.updatedAt) || created;
 	const ourstuff = doc?.data?.ourstuff || {};
-	return {
+	return cloudLifecycleToLocalArtifact({
 		id: String(doc?.id || `artifact-${Date.now()}`),
 		type: String(doc?.type || "note"),
 		dashboard: String(ourstuff.dashboard || "Mind"),
@@ -1125,6 +1146,19 @@ function cloudDocToLocalArtifact(doc) {
 			status: String(doc?.status || "active"),
 		},
 		analysis: ourstuff.analysis || {},
+	}, doc);
+}
+
+function cloudLifecycleToLocalArtifact(artifact, doc = {}) {
+	const safeArtifact = jsonSafe(artifact || {});
+	return {
+		...safeArtifact,
+		deleted: doc.deleted === true,
+		deletedAt: doc.deletedAt || null,
+		deleteAfter: doc.deleteAfter || null,
+		deletedBy: doc.deletedBy || "",
+		deleteMode: doc.deleteMode || "",
+		originalCollection: doc.originalCollection || safeArtifact.originalCollection || "",
 	};
 }
 
