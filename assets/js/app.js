@@ -4458,8 +4458,8 @@ function editorDraftFieldValue(key, fieldId, fallback = "") {
 	return value === undefined || value === null ? fallback : String(value);
 }
 
-function editorDraftHabitValues(key, fallback = []) {
-	const value = state.editorDrafts?.[key]?.fields?.["life-habits"];
+function editorDraftArrayValues(key, fieldId, fallback = []) {
+	const value = state.editorDrafts?.[key]?.fields?.[fieldId];
 	return Array.isArray(value) ? value : fallback;
 }
 
@@ -4508,10 +4508,12 @@ function captureEditorDraft() {
 		fields[field.id] = field.value;
 	});
 
-	if (form.querySelector("[data-life-habit]")) {
-		fields["life-habits"] = Array.from(
-			form.querySelectorAll("[data-life-habit]:checked"),
-		).map((field) => field.value);
+	if (form.querySelector("[data-life-tracker]")) {
+		["thought", "goal"].forEach((kind) => {
+			fields[`life-${kind}-trackers`] = Array.from(
+				form.querySelectorAll(`[data-life-tracker="${kind}"]:checked`),
+			).map((field) => field.value);
+		});
 	}
 
 	const active = document.activeElement;
@@ -5185,10 +5187,51 @@ function spiritMetaItems(note) {
 	];
 }
 
-function lifeMetaItems(note) {
-	const habits = Array.isArray(note.properties?.habits)
-		? note.properties.habits
+function lifeTrackerSettings(kind) {
+	const trackers = trackerSettingsForKind(kind)?.Life || [];
+	return trackerKind(kind) === "goal"
+		? trackers.filter((tracker) => tracker?.enabled)
+		: trackers;
+}
+
+function lifeTrackerIds(note, kind) {
+	const prop =
+		trackerKind(kind) === "goal" ? "goalTrackerIds" : "thoughtTrackerIds";
+	const ids = Array.isArray(note.properties?.[prop])
+		? note.properties[prop]
 		: [];
+	const availableIds = new Set(lifeTrackerSettings(kind).map((item) => item.id));
+	return ids.filter((id) => availableIds.has(id));
+}
+
+function lifeTrackerSelections(note, kind) {
+	const selectedIds = new Set(lifeTrackerIds(note, kind));
+	return lifeTrackerSettings(kind)
+		.filter((tracker) => selectedIds.has(tracker.id))
+		.map((tracker) => ({ ...tracker, trackerKind: trackerKind(kind) }));
+}
+
+function lifeNoteTrackerSelections(note) {
+	return [
+		...lifeTrackerSelections(note, "thought"),
+		...lifeTrackerSelections(note, "goal"),
+	];
+}
+
+function legacyLifeHabits(note) {
+	return Array.isArray(note.properties?.habits) ? note.properties.habits : [];
+}
+
+function lifeTrackerSummaryLabels(note) {
+	const trackerLabels = lifeNoteTrackerSelections(note).map(
+		(tracker) => tracker.label,
+	);
+	return trackerLabels.length ? trackerLabels : legacyLifeHabits(note);
+}
+
+function lifeMetaItems(note) {
+	const trackers = lifeNoteTrackerSelections(note);
+	const habits = legacyLifeHabits(note);
 	const mood = note.properties?.mood || "";
 	const energy = note.properties?.energy || "";
 	const habitEmoji = {
@@ -5209,7 +5252,7 @@ function lifeMetaItems(note) {
 		hard: "!",
 	};
 	return [
-		["Habit", habitEmoji[habits[0]] || "\u2022"],
+		["Track", trackers[0]?.label || habitEmoji[habits[0]] || "\u2022"],
 		["Mood", moodEmoji[mood] || "\u2022"],
 		["Energy", energy ? energy.slice(0, 1).toUpperCase() : "-"],
 		["Words", noteSizeLabel(note)],
@@ -7529,7 +7572,8 @@ function addDashboardNote(dashboard) {
 					dateKey: todayDateKey(),
 					mood: "steady",
 					energy: "medium",
-					habits: [],
+					thoughtTrackerIds: [],
+					goalTrackerIds: [],
 					audit: [
 						{
 							at: now,
@@ -7626,8 +7670,11 @@ function saveLifeJournalNote(id) {
 	const mood = document.getElementById("life-entry-mood")?.value || "steady";
 	const energy =
 		document.getElementById("life-entry-energy")?.value || "medium";
-	const habits = Array.from(
-		document.querySelectorAll("[data-life-habit]:checked"),
+	const thoughtTrackerIds = Array.from(
+		document.querySelectorAll('[data-life-tracker="thought"]:checked'),
+	).map((input) => input.value);
+	const goalTrackerIds = Array.from(
+		document.querySelectorAll('[data-life-tracker="goal"]:checked'),
 	).map((input) => input.value);
 	const properties = {
 		...(current.properties || {}),
@@ -7637,7 +7684,8 @@ function saveLifeJournalNote(id) {
 		dateKey,
 		mood,
 		energy,
-		habits,
+		thoughtTrackerIds,
+		goalTrackerIds,
 	};
 	properties.audit = [
 		...(current.properties?.audit || []).slice(-20),
@@ -10072,7 +10120,7 @@ function settingsGettingStartedHtml() {
         <article>
           <span>${dashboardInlineLabelHtml("Life")}</span>
           <h3>${escapeHtml(dashboardDisplayLabel("Life"))}</h3>
-          <p>Use ${escapeHtml(dashboardDisplayLabel("Life"))} as the calendar and journal layer. Log the day, mark habits, and record what changed. The calendar helps you see when you worked on something and how steady the rhythm has been.</p>
+          <p>Use ${escapeHtml(dashboardDisplayLabel("Life"))} as the calendar and journal layer. Log the day, attach thought and goal orbs, and record what changed. The calendar helps you see when you worked on something and how steady the rhythm has been.</p>
         </article>
       </div>
       <section class="getting-started-rhythm">
@@ -11284,14 +11332,14 @@ function lifeEventRowHtml(event, variant = "") {
 }
 
 function lifeJournalMetaHtml(note) {
-	const habits = Array.isArray(note.properties?.habits)
-		? note.properties.habits
-		: [];
+	const trackers = lifeNoteTrackerSelections(note);
+	const habits = trackers.length ? [] : legacyLifeHabits(note);
 	return `
     <div class="life-journal-meta">
       <span>${iconHtml("tabler:calendar")} ${escapeHtml(formatDateLabel(note.properties?.dateKey || note.edited || note.created, { weekday: true, year: true }))}</span>
       <span>${iconHtml("tabler:mood-smile")} ${escapeHtml(note.properties?.mood || "steady")}</span>
       <span>${iconHtml("tabler:bolt")} ${escapeHtml(note.properties?.energy || "medium")}</span>
+      ${trackers.map((tracker) => `<span>${trackerIconHtml(tracker.icon)} ${escapeHtml(tracker.label)}</span>`).join("")}
       ${habits.map((habit) => `<span>${iconHtml("tabler:circle-check")} ${escapeHtml(habit)}</span>`).join("")}
     </div>
   `;
@@ -11330,7 +11378,7 @@ function lifeHtml() {
 	}
 
 	return panelHtml(`
-    ${headerHtml(dashboardDisplayLabel("Life"), "Calendar-first journal, habits, and app activity.", "", { titleHtml: dashboardHeaderTitleHtml("Life") })}
+    ${headerHtml(dashboardDisplayLabel("Life"), "Calendar-first journal, orb trackers, and app activity.", "", { titleHtml: dashboardHeaderTitleHtml("Life") })}
     <div class="life-dashboard">
       ${dashboardOrbNavHtml("Life")}
       ${lifeToolSwitcherHtml()}
@@ -11839,7 +11887,7 @@ function _lifeNotesHtml() {
       <div class="body-card-heading">
         <div>
           <h3>Journal Notes</h3>
-          <p>Daylio-inspired entries with quick habits, mood, and journal text.</p>
+          <p>Journal entries with mood, energy, orb trackers, and text.</p>
         </div>
         <button class="secondary-button" data-action="new-artifact-note" data-dashboard="Life">${buttonContent("tabler:notes", "New Note")}</button>
       </div>
@@ -11853,7 +11901,7 @@ function _lifeNotesHtml() {
             <button class="section-row" data-action="open-artifact-note" data-id="${noteItem.id}">
               <span>${String(index + 1).padStart(2, "0")}</span>
               <strong>${escapeHtml(noteItem.title)}</strong>
-              <small>${escapeHtml([noteItem.properties?.mood, ...(noteItem.properties?.habits || [])].filter(Boolean).join(" / ") || shortSummary(noteItem.body, "No journal text yet"))}</small>
+              <small>${escapeHtml([noteItem.properties?.mood, ...lifeTrackerSummaryLabels(noteItem)].filter(Boolean).join(" / ") || shortSummary(noteItem.body, "No journal text yet"))}</small>
               <em>${iconHtml("tabler:calendar")} ${escapeHtml(noteItem.properties?.dateKey || noteDateLabel(noteItem))}</em>
             </button>
           `,
@@ -12457,13 +12505,45 @@ function editorSaveStatusHtml(label) {
 		: "";
 }
 
+function lifeTrackerSelectorHtml(kind, label, selectedIds) {
+	const normalizedKind = trackerKind(kind);
+	const trackers = lifeTrackerSettings(normalizedKind);
+	const selected = new Set(selectedIds);
+	return `
+      <fieldset class="life-tracker-fieldset life-tracker-fieldset--${escapeHtml(normalizedKind)}">
+        <legend>${escapeHtml(label)}</legend>
+        <div class="life-tracker-grid">
+          ${
+						trackers.length
+							? trackers
+									.map(
+										(tracker) => `
+            <label class="life-tracker-pill">
+              <input data-life-tracker="${escapeHtml(normalizedKind)}" type="checkbox" value="${escapeHtml(tracker.id)}"${selected.has(tracker.id) ? " checked" : ""}>
+              <span class="life-tracker-icon">${trackerIconHtml(tracker.icon)}</span>
+              <span class="life-tracker-label">${escapeHtml(tracker.label)}</span>
+            </label>
+          `,
+									)
+									.join("")
+							: `<p class="life-tracker-empty">No ${escapeHtml(label.toLowerCase())} yet.</p>`
+					}
+        </div>
+      </fieldset>
+    `;
+}
+
 function lifeJournalEditorHtml(note) {
 	const draftKey = editorDraftKeyFor("save-artifact-note", note.id);
-	const habits = editorDraftHabitValues(
+	const thoughtTrackerIds = editorDraftArrayValues(
 		draftKey,
-		Array.isArray(note.properties?.habits)
-			? note.properties.habits
-			: [],
+		"life-thought-trackers",
+		lifeTrackerIds(note, "thought"),
+	);
+	const goalTrackerIds = editorDraftArrayValues(
+		draftKey,
+		"life-goal-trackers",
+		lifeTrackerIds(note, "goal"),
 	);
 	const dateKey = editorDraftFieldValue(
 		draftKey,
@@ -12482,20 +12562,10 @@ function lifeJournalEditorHtml(note) {
 	);
 	const title = editorDraftFieldValue(draftKey, "editor-title", note.title);
 	const body = editorDraftFieldValue(draftKey, "editor-body", note.body);
-	const habitOptions = [
-		["Move", "tabler:walk"],
-		["Read", "tabler:book-2"],
-		["Create", "tabler:palette"],
-		["Clean", "tabler:sparkles"],
-		["Budget", "tabler:coins"],
-		["Connect", "tabler:message-circle-heart"],
-		["Pray", "tabler:hands-pray"],
-		["Sleep", "tabler:moon"],
-	];
 	return panelHtml(`
       ${headerHtml(
 				"Edit Life Note",
-				"Journal entry with quick habit markers.",
+				"Journal entry with mood, energy, and orb trackers.",
 				`
       <div class="action-row">
         ${pageActionButton("delete-artifact-note", "tabler:trash", "Delete note", { danger: true, data: { id: note.id } })}
@@ -12519,22 +12589,10 @@ function lifeJournalEditorHtml(note) {
           </select>
         </label>
       </div>
-      <fieldset class="life-habit-fieldset">
-        <legend>Habits</legend>
-        <div class="life-habit-grid">
-          ${habitOptions
-						.map(
-							([habit, icon]) => `
-            <label class="life-habit-pill">
-              <input data-life-habit type="checkbox" value="${escapeHtml(habit)}"${habits.includes(habit) ? " checked" : ""}>
-              <span class="life-habit-icon">${iconHtml(icon)}</span>
-              <span class="life-habit-label">${escapeHtml(habit)}</span>
-            </label>
-          `,
-						)
-						.join("")}
-        </div>
-      </fieldset>
+      <div class="life-tracker-fieldsets">
+        ${lifeTrackerSelectorHtml("thought", "Thoughts", thoughtTrackerIds)}
+        ${lifeTrackerSelectorHtml("goal", "Goals", goalTrackerIds)}
+      </div>
       <label class="body-field editor-body-field">Journal
         <span class="editor-body-wrap has-image-button">
           <textarea id="editor-body" aria-label="Body" placeholder="What happened today? What needs attention?">${escapeHtml(body)}</textarea>
@@ -13109,7 +13167,8 @@ async function createCameraDashboardNote(file, dashboard) {
 				? {
 						mood: "steady",
 						energy: "medium",
-						habits: [],
+						thoughtTrackerIds: [],
+						goalTrackerIds: [],
 					}
 				: {}),
 			audit: [

@@ -243,7 +243,7 @@ select option:checked {
 .life-project-nav-section h4,
 .life-assigned-tasks h4,
 .life-event-row em,
-.life-habit-fieldset legend,
+.life-tracker-fieldset legend,
 .spirit-year-button,
 .spirit-reading-order {
 	font-family: var(--font-label);
@@ -7127,7 +7127,13 @@ button.life-event-row:hover {
 	gap: 12px;
 }
 
-.life-habit-fieldset {
+.life-tracker-fieldsets {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 12px;
+}
+
+.life-tracker-fieldset {
 	min-width: 0;
 	margin: 0;
 	border: 1px solid var(--border-soft);
@@ -7135,20 +7141,20 @@ button.life-event-row:hover {
 	padding: 12px;
 }
 
-.life-habit-fieldset legend {
+.life-tracker-fieldset legend {
 	color: var(--muted);
 	font-family: var(--font-label);
 	font-size: 0.78rem;
 	font-weight: 800;
 }
 
-.life-habit-grid {
+.life-tracker-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
 	gap: 8px;
 }
 
-.life-habit-pill {
+.life-tracker-pill {
 	position: relative;
 	display: inline-flex;
 	align-items: center;
@@ -7165,41 +7171,48 @@ button.life-event-row:hover {
 	font-weight: 800;
 }
 
-.life-habit-pill:hover {
+.life-tracker-pill:hover {
 	border-color: var(--border);
 	background: #1e293b;
 }
 
-.life-habit-pill input {
+.life-tracker-pill input {
 	position: absolute;
 	opacity: 0;
 	pointer-events: none;
 }
 
-.life-habit-icon {
+.life-tracker-icon {
 	display: inline-grid;
 	place-items: center;
 	color: var(--faint);
 }
 
-.life-habit-icon .button-icon {
+.life-tracker-icon .button-icon {
 	font-size: 1.15rem;
 }
 
-.life-habit-label {
+.life-tracker-label {
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
 
-.life-habit-pill:has(input:checked) {
+.life-tracker-pill:has(input:checked) {
 	border-color: #38bdf8;
 	background: rgba(12, 74, 110, 0.42);
 	color: #fff;
 }
 
-.life-habit-pill:has(input:checked) .life-habit-icon {
+.life-tracker-pill:has(input:checked) .life-tracker-icon {
 	color: #38bdf8;
+}
+
+.life-tracker-empty {
+	margin: 0;
+	color: var(--muted);
+	font-size: 0.82rem;
+	font-weight: 800;
 }
 
 .life-editor-form #editor-body {
@@ -8181,8 +8194,8 @@ button.life-event-row:hover {
 :root.theme-palette:not(.theme-consolas) .life-date-group h3,
 :root.theme-palette:not(.theme-consolas) .life-event-row,
 :root.theme-palette:not(.theme-consolas) .life-journal-meta span,
-:root.theme-palette:not(.theme-consolas) .life-habit-fieldset,
-:root.theme-palette:not(.theme-consolas) .life-habit-pill,
+:root.theme-palette:not(.theme-consolas) .life-tracker-fieldset,
+:root.theme-palette:not(.theme-consolas) .life-tracker-pill,
 :root.theme-palette:not(.theme-consolas) .spirit-dashboard,
 :root.theme-palette:not(.theme-consolas) .spirit-year-button,
 :root.theme-palette:not(.theme-consolas) .spirit-reading-button,
@@ -8305,8 +8318,8 @@ button.life-event-row:hover {
 :root.theme-palette:not(.theme-consolas) .life-project-nav-button:hover,
 :root.theme-palette:not(.theme-consolas) .life-project-nav-button.is-active,
 :root.theme-palette:not(.theme-consolas) button.life-event-row:hover,
-:root.theme-palette:not(.theme-consolas) .life-habit-pill:hover,
-:root.theme-palette:not(.theme-consolas) .life-habit-pill:has(input:checked),
+:root.theme-palette:not(.theme-consolas) .life-tracker-pill:hover,
+:root.theme-palette:not(.theme-consolas) .life-tracker-pill:has(input:checked),
 :root.theme-palette:not(.theme-consolas) .spirit-year-button:hover,
 :root.theme-palette:not(.theme-consolas) .spirit-year-button.is-active,
 :root.theme-palette:not(.theme-consolas) .spirit-reading-button:hover,
@@ -8483,7 +8496,7 @@ button.life-event-row:hover {
 :root.theme-palette:not(.theme-consolas) .life-event-row small,
 :root.theme-palette:not(.theme-consolas) .life-event-row em,
 :root.theme-palette:not(.theme-consolas) .life-journal-meta span,
-:root.theme-palette:not(.theme-consolas) .life-habit-fieldset legend,
+:root.theme-palette:not(.theme-consolas) .life-tracker-fieldset legend,
 :root.theme-palette:not(.theme-consolas) .life-fc-event-inner span,
 :root.theme-palette:not(.theme-consolas) .spirit-year-button,
 :root.theme-palette:not(.theme-consolas) .spirit-reading-order,
@@ -8631,8 +8644,8 @@ button.life-event-row:hover {
 :root.theme-consolas .life-date-group h3,
 :root.theme-consolas .life-event-row,
 :root.theme-consolas .life-journal-meta span,
-:root.theme-consolas .life-habit-fieldset,
-:root.theme-consolas .life-habit-pill,
+:root.theme-consolas .life-tracker-fieldset,
+:root.theme-consolas .life-tracker-pill,
 :root.theme-consolas .donation-modal,
 :root.theme-consolas .donation-panel,
 :root.theme-consolas .amount-option,
@@ -8707,7 +8720,7 @@ button.life-event-row:hover {
 :root.theme-consolas .life-day-column strong,
 :root.theme-consolas .life-date-group h3,
 :root.theme-consolas .life-event-row strong,
-:root.theme-consolas .life-habit-label,
+:root.theme-consolas .life-tracker-label,
 :root.theme-consolas .life-fc-event-inner strong,
 :root.theme-consolas .reader-heading h2,
 :root.theme-consolas .compendium-picker-header strong,
@@ -8775,8 +8788,8 @@ button.life-event-row:hover {
 :root.theme-consolas .life-event-row small,
 :root.theme-consolas .life-event-row em,
 :root.theme-consolas .life-journal-meta span,
-:root.theme-consolas .life-habit-fieldset legend,
-:root.theme-consolas .life-habit-icon,
+:root.theme-consolas .life-tracker-fieldset legend,
+:root.theme-consolas .life-tracker-icon,
 :root.theme-consolas .reader-heading p,
 :root.theme-consolas .compendium-picker-header p,
 :root.theme-consolas .compendium-picker-tile b,
@@ -8805,7 +8818,7 @@ button.life-event-row:hover {
 :root.theme-consolas .spirit-lookup-link,
 :root.theme-consolas .life-todo-check,
 :root.theme-consolas .life-project-nav-button,
-:root.theme-consolas .life-habit-pill,
+:root.theme-consolas .life-tracker-pill,
 :root.theme-consolas .amount-option,
 :root.theme-consolas .compendium-rotator-edge,
 :root.theme-consolas .reader-slider-edge,
@@ -8883,8 +8896,8 @@ button.life-event-row:hover {
 :root.theme-consolas .life-project-nav-button:hover,
 :root.theme-consolas .life-project-nav-button.is-active,
 :root.theme-consolas button.life-event-row:hover,
-:root.theme-consolas .life-habit-pill:hover,
-:root.theme-consolas .life-habit-pill:has(input:checked),
+:root.theme-consolas .life-tracker-pill:hover,
+:root.theme-consolas .life-tracker-pill:has(input:checked),
 :root.theme-consolas .life-fullcalendar .fc-event:hover {
 	border-color: var(--border);
 	background: #111;
@@ -9213,7 +9226,7 @@ button.life-event-row:hover {
 	text-decoration-color: rgba(239, 238, 231, 0.72);
 }
 
-:root.theme-consolas .life-habit-pill:has(input:checked) .life-habit-icon {
+:root.theme-consolas .life-tracker-pill:has(input:checked) .life-tracker-icon {
 	color: var(--text);
 }
 
@@ -10044,7 +10057,8 @@ button.life-event-row:hover {
 
 	.life-week-grid,
 	.life-editor-grid,
-	.life-habit-grid,
+	.life-tracker-fieldsets,
+	.life-tracker-grid,
 	.life-todo-columns,
 	.life-todo-board,
 	.life-project-form,
