@@ -3057,6 +3057,16 @@ select option:checked {
 
 .cloud-heading-actions {
 	display: flex;
+	align-items: flex-end;
+	justify-content: flex-end;
+	gap: 8px;
+	min-width: 0;
+	flex-direction: column;
+	flex-wrap: nowrap;
+}
+
+.cloud-heading-action-row {
+	display: flex;
 	align-items: center;
 	justify-content: flex-end;
 	gap: 8px;
@@ -9742,8 +9752,14 @@ button.life-event-row:hover {
 	}
 
 	.cloud-heading-actions {
+		align-items: stretch;
+		width: 100%;
+	}
+
+	.cloud-heading-action-row {
 		display: grid;
 		grid-template-columns: repeat(3, minmax(0, 1fr));
+		width: 100%;
 	}
 
 	.cloud-heading-actions .primary-button,

@@ -9443,12 +9443,6 @@ function sidebarHtml(_compendium) {
           <button class="sidebar-text-link" data-action="open-settings" type="button">Settings</button>
           <span aria-hidden="true">/</span>
           <button class="sidebar-text-link" data-action="open-gallery" type="button">Gallery</button>
-          <span aria-hidden="true">/</span>
-          <button class="sidebar-text-link" data-action="import-artifacts" type="button">Import</button>
-          <span aria-hidden="true">/</span>
-          <button class="sidebar-text-link" data-action="export-artifacts" type="button">Export</button>
-          <span aria-hidden="true">/</span>
-          <button class="sidebar-text-link" data-action="reset-tips" type="button">Reset tips</button>
         </div>
       </div>
     </aside>
@@ -10548,17 +10542,24 @@ function settingsCloudHtml() {
           </div>
           <div class="cloud-heading-controls">
             <span class="cloud-status-pill${isCloud ? " is-active" : ""}">${escapeHtml(statusLabel)}</span>
-            ${
-							signedIn && isCloud
-								? `
               <div class="cloud-heading-actions" aria-label="Cloud sync actions">
-                <button class="primary-button" data-action="cloud-sync-now" type="button"${busyAttr}>${buttonContent("tabler:cloud-up", "Sync now")}</button>
-                <button class="secondary-button" data-action="cloud-load" type="button"${busyAttr}>${buttonContent("tabler:cloud-down", "Load cloud")}</button>
-                <button class="secondary-button" data-action="cloud-sign-out" type="button"${busyAttr}>${buttonContent("tabler:logout", "Sign out")}</button>
+                ${
+									signedIn && isCloud
+										? `
+                <div class="cloud-heading-action-row">
+                  <button class="primary-button" data-action="cloud-sync-now" type="button"${busyAttr}>${buttonContent("tabler:cloud-up", "Sync now")}</button>
+                  <button class="secondary-button" data-action="cloud-load" type="button"${busyAttr}>${buttonContent("tabler:cloud-down", "Load cloud")}</button>
+                  <button class="secondary-button" data-action="cloud-sign-out" type="button"${busyAttr}>${buttonContent("tabler:logout", "Sign out")}</button>
+                </div>
+                `
+										: ""
+								}
+                <div class="cloud-heading-action-row">
+                  <button class="secondary-button" data-action="import-artifacts" type="button">${buttonContent("tabler:file-import", "Import")}</button>
+                  <button class="secondary-button" data-action="export-artifacts" type="button">${buttonContent("tabler:file-export", "Export")}</button>
+                  <button class="secondary-button" data-action="reset-tips" type="button">${buttonContent("tabler:bulb", "Reset tips")}</button>
+                </div>
               </div>
-            `
-								: ""
-						}
           </div>
         </div>
         ${
