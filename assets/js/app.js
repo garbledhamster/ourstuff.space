@@ -3138,6 +3138,7 @@ const state = {
 	trackerEditKey: "",
 	trackerDeleteKey: "",
 	suppressNextTrackerEditClick: false,
+	suppressNextTrackerClick: false,
 	suppressNextDashboardChartClick: false,
 	iconPicker: null,
 	iconSearchCache: loadIconifySearchCache(),
@@ -14844,6 +14845,140 @@ function bindDashboardOrbScroll() {
 			},
 			{ passive: false },
 		);
+		const dragPoint = (event) => {
+			const touch = event.touches?.[0] || event.changedTouches?.[0];
+			if (touch) {
+				return { x: touch.clientX, y: touch.clientY };
+			}
+			if (Number.isFinite(event.clientX) && Number.isFinite(event.clientY)) {
+				return { x: event.clientX, y: event.clientY };
+			}
+			return null;
+		};
+		const suppressTrackerClick = () => {
+			state.suppressNextTrackerClick = true;
+			window.setTimeout(() => {
+				state.suppressNextTrackerClick = false;
+			}, 500);
+		};
+		const beginDragScroll = (startEvent, options) => {
+			if (element.scrollWidth <= element.clientWidth) {
+				return;
+			}
+			const startPoint = dragPoint(startEvent);
+			if (!startPoint) {
+				return;
+			}
+
+			const startScrollLeft = element.scrollLeft;
+			let isDragging = false;
+
+			const onMove = (moveEvent) => {
+				const point = dragPoint(moveEvent);
+				if (!point) {
+					return;
+				}
+				const deltaX = point.x - startPoint.x;
+				const deltaY = point.y - startPoint.y;
+				if (!isDragging && Math.hypot(deltaX, deltaY) < 6) {
+					return;
+				}
+				if (!isDragging && Math.abs(deltaY) > Math.abs(deltaX)) {
+					return;
+				}
+				moveEvent.preventDefault();
+				if (!isDragging) {
+					isDragging = true;
+					element.classList.add("is-dragging");
+					if (
+						options.pointerId !== undefined &&
+						element.setPointerCapture &&
+						!element.hasPointerCapture?.(options.pointerId)
+					) {
+						try {
+							element.setPointerCapture(options.pointerId);
+						} catch {
+							// The window listeners still carry the drag if capture is unavailable.
+						}
+					}
+				}
+				element.scrollLeft = startScrollLeft - deltaX;
+				refresh();
+			};
+
+			const finishDrag = (finishEvent) => {
+				options.remove(onMove, finishDrag);
+				element.classList.remove("is-dragging");
+				if (
+					options.pointerId !== undefined &&
+					element.releasePointerCapture &&
+					element.hasPointerCapture?.(options.pointerId)
+				) {
+					try {
+						element.releasePointerCapture(options.pointerId);
+					} catch {
+						// Capture may have already been released by the browser.
+					}
+				}
+				if (!isDragging) {
+					return;
+				}
+				finishEvent.preventDefault();
+				suppressTrackerClick();
+			};
+
+			options.add(onMove, finishDrag);
+		};
+		if (typeof window.PointerEvent === "function") {
+			element.addEventListener("pointerdown", (event) => {
+				if (event.button !== undefined && event.button !== 0) {
+					return;
+				}
+				beginDragScroll(event, {
+					pointerId: event.pointerId,
+					add: (onMove, finishDrag) => {
+						window.addEventListener("pointermove", onMove, { passive: false });
+						window.addEventListener("pointerup", finishDrag);
+						window.addEventListener("pointercancel", finishDrag);
+					},
+					remove: (onMove, finishDrag) => {
+						window.removeEventListener("pointermove", onMove);
+						window.removeEventListener("pointerup", finishDrag);
+						window.removeEventListener("pointercancel", finishDrag);
+					},
+				});
+			});
+		} else {
+			element.addEventListener("mousedown", (event) => {
+				if (event.button !== 0) {
+					return;
+				}
+				beginDragScroll(event, {
+					add: (onMove, finishDrag) => {
+						window.addEventListener("mousemove", onMove, { passive: false });
+						window.addEventListener("mouseup", finishDrag);
+					},
+					remove: (onMove, finishDrag) => {
+						window.removeEventListener("mousemove", onMove);
+						window.removeEventListener("mouseup", finishDrag);
+					},
+				});
+			});
+			element.addEventListener("touchstart", (event) => {
+				beginDragScroll(event, {
+					add: (onMove, finishDrag) => {
+						window.addEventListener("touchmove", onMove, { passive: false });
+						window.addEventListener("touchend", finishDrag);
+						window.addEventListener("touchcancel", finishDrag);
+					},
+					remove: (onMove, finishDrag) => {
+						window.removeEventListener("touchmove", onMove);
+						window.removeEventListener("touchend", finishDrag);
+						window.removeEventListener("touchcancel", finishDrag);
+					},
+				});
+			});
+		}
 		if (typeof ResizeObserver !== "undefined") {
 			const observer = new ResizeObserver(refresh);
 			observer.observe(element);
@@ -15488,7 +15623,8 @@ function handleAction(element) {
 		setState({ trackerAddArea: "" });
 	}
 	if (action === "start-edit-tracker") {
-		if (state.suppressNextTrackerEditClick) {
+		if (state.suppressNextTrackerClick || state.suppressNextTrackerEditClick) {
+			state.suppressNextTrackerClick = false;
 			state.suppressNextTrackerEditClick = false;
 			return;
 		}
@@ -15544,9 +15680,17 @@ function handleAction(element) {
 		);
 	}
 	if (action === "quick-thought") {
+		if (state.suppressNextTrackerClick) {
+			state.suppressNextTrackerClick = false;
+			return;
+		}
 		quickThought(element.dataset.area, element.dataset.id);
 	}
 	if (action === "quick-goal") {
+		if (state.suppressNextTrackerClick) {
+			state.suppressNextTrackerClick = false;
+			return;
+		}
 		quickGoal(element.dataset.area, element.dataset.id, element);
 	}
 	if (action === "open-thought-toast-note") {
