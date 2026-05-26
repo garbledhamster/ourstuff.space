@@ -79,7 +79,9 @@ export const THEME_STYLE_PROPERTIES = DEFAULT_STYLE_PROPERTIES;
 export const DEFAULT_THEME_STORAGE_KEY = "app.theme.v1";
 
 function safeStorage(storage) {
-	if (storage) {return storage;}
+	if (storage) {
+		return storage;
+	}
 	try {
 		return window.localStorage;
 	} catch {
@@ -144,7 +146,9 @@ export function themeById(
 }
 
 export function missingThemeColorFields(theme) {
-	if (!theme?.colors) {return DEFAULT_COLOR_FIELDS;}
+	if (!theme?.colors) {
+		return DEFAULT_COLOR_FIELDS;
+	}
 	return DEFAULT_COLOR_FIELDS.filter((field) => !theme.colors[field]);
 }
 
@@ -167,7 +171,9 @@ export function hexToRgb(value) {
 					.join("")
 			: hex.padEnd(6, "0").slice(0, 6);
 	const number = Number.parseInt(normalized, 16);
-	if (Number.isNaN(number)) {return { r: 0, g: 0, b: 0 };}
+	if (Number.isNaN(number)) {
+		return { r: 0, g: 0, b: 0 };
+	}
 	return {
 		r: (number >> 16) & 255,
 		g: (number >> 8) & 255,
@@ -203,7 +209,9 @@ export function readableTextFor(background, preferred = "#ffffff") {
 	const preferredRatio = contrastRatio(background, preferred);
 	const lightRatio = contrastRatio(background, lightText);
 	const darkRatio = contrastRatio(background, darkText);
-	if (preferredRatio >= 4.5) {return preferred;}
+	if (preferredRatio >= 4.5) {
+		return preferred;
+	}
 	return lightRatio >= darkRatio ? lightText : darkText;
 }
 
@@ -330,7 +338,9 @@ export function applyThemeVariables(
 ) {
 	const theme = themeById(themeId, { themes, fallbackId });
 	const selectedRoot = root || document.documentElement;
-	if (!theme || !selectedRoot) {return null;}
+	if (!theme || !selectedRoot) {
+		return null;
+	}
 
 	themeClassNames(themes, classPrefix).forEach((className) => {
 		selectedRoot.classList.remove(className);
@@ -350,7 +360,9 @@ export function applyThemeVariables(
 		});
 	}
 
-	if (setDataset && target) {target.dataset.theme = theme.id;}
+	if (setDataset && target) {
+		target.dataset.theme = theme.id;
+	}
 	return theme;
 }
 

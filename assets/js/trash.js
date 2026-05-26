@@ -78,7 +78,9 @@ async function trashRequest(path, options = {}) {
 			? {}
 			: { "content-type": "application/json" }),
 	};
-	if (token) {headers.authorization = `Bearer ${token}`;}
+	if (token) {
+		headers.authorization = `Bearer ${token}`;
+	}
 	const response = await fetch(`${TRASH_API_URL}${path}`, {
 		method: options.method || "GET",
 		headers,
@@ -95,6 +97,8 @@ async function trashRequest(path, options = {}) {
 
 function clampNumber(value, min, max, fallback) {
 	const number = Number(value);
-	if (!Number.isFinite(number)) {return fallback;}
+	if (!Number.isFinite(number)) {
+		return fallback;
+	}
 	return Math.min(Math.max(Math.round(number), min), max);
 }

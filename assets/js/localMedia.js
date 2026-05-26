@@ -18,7 +18,9 @@ let firebaseStorageModules = null;
 let firebaseStorage = null;
 
 function openDb() {
-	if (dbPromise) {return dbPromise;}
+	if (dbPromise) {
+		return dbPromise;
+	}
 	dbPromise = new Promise((resolve, reject) => {
 		const request = window.indexedDB.open(DB_NAME, DB_VERSION);
 		request.onupgradeneeded = () => {
@@ -56,14 +58,18 @@ export function configureCloudMedia(context = {}) {
 
 export async function exportCloudMediaKey() {
 	const uid = String(remoteMediaContext.uid || "").trim();
-	if (!cloudMediaReady(uid)) {return null;}
+	if (!cloudMediaReady(uid)) {
+		return null;
+	}
 	let raw = "";
 	try {
 		raw = window.localStorage.getItem(mediaKeyStorageKey(uid)) || "";
 	} catch {
 		return null;
 	}
-	if (!raw) {return null;}
+	if (!raw) {
+		return null;
+	}
 
 	let bytes = null;
 	try {
@@ -71,7 +77,9 @@ export async function exportCloudMediaKey() {
 	} catch {
 		return null;
 	}
-	if (bytes.byteLength !== 32) {return null;}
+	if (bytes.byteLength !== 32) {
+		return null;
+	}
 
 	const keyId = (await sha256Hex(bytes)).slice(0, 24);
 	const store = await transaction("readonly");
@@ -91,16 +99,22 @@ export async function exportCloudMediaKey() {
 
 export function importCloudMediaKey(value = {}) {
 	const uid = String(remoteMediaContext.uid || "").trim();
-	if (!cloudMediaReady(uid) || value?.uid !== uid) {return false;}
+	if (!cloudMediaReady(uid) || value?.uid !== uid) {
+		return false;
+	}
 	const key = String(value?.key || "");
-	if (!key) {return false;}
+	if (!key) {
+		return false;
+	}
 	let bytes = null;
 	try {
 		bytes = base64ToBytes(key);
 	} catch {
 		return false;
 	}
-	if (bytes.byteLength !== 32) {return false;}
+	if (bytes.byteLength !== 32) {
+		return false;
+	}
 	try {
 		window.localStorage.setItem(mediaKeyStorageKey(uid), key);
 	} catch {
@@ -147,8 +161,12 @@ function mediaKeyStorageKey(uid) {
 }
 
 async function mediaCryptoKey(uid, options = {}) {
-	if (!uid) {throw new Error("Sign in before syncing private media.");}
-	if (mediaKeyCache.has(uid)) {return mediaKeyCache.get(uid);}
+	if (!uid) {
+		throw new Error("Sign in before syncing private media.");
+	}
+	if (mediaKeyCache.has(uid)) {
+		return mediaKeyCache.get(uid);
+	}
 	const createIfMissing = options.createIfMissing !== false;
 
 	let encoded = "";
@@ -233,7 +251,9 @@ async function decryptBlob(blob, record, uid) {
 }
 
 async function ensureFirebaseStorage() {
-	if (firebaseStorageModules && firebaseStorage) {return firebaseStorageModules;}
+	if (firebaseStorageModules && firebaseStorage) {
+		return firebaseStorageModules;
+	}
 	if (!firebaseStoragePromise) {
 		firebaseStoragePromise = Promise.all([
 			import(
@@ -305,8 +325,11 @@ function canvasToBlob(canvas, type, quality) {
 	return new Promise((resolve, reject) => {
 		canvas.toBlob(
 			(blob) => {
-				if (blob) {resolve(blob);}
-				else {reject(new Error("Could not resize image."));}
+				if (blob) {
+					resolve(blob);
+				} else {
+					reject(new Error("Could not resize image."));
+				}
 			},
 			type,
 			quality,
@@ -342,10 +365,18 @@ function safeStorageName(name) {
 
 function storageExtensionForType(type, fallback = "jpg") {
 	const normalized = String(type || "").toLowerCase();
-	if (normalized === "image/jpeg" || normalized === "image/jpg") {return "jpg";}
-	if (normalized === "image/png") {return "png";}
-	if (normalized === "image/webp") {return "webp";}
-	if (normalized === "image/gif") {return "gif";}
+	if (normalized === "image/jpeg" || normalized === "image/jpg") {
+		return "jpg";
+	}
+	if (normalized === "image/png") {
+		return "png";
+	}
+	if (normalized === "image/webp") {
+		return "webp";
+	}
+	if (normalized === "image/gif") {
+		return "gif";
+	}
 	return fallback;
 }
 
@@ -356,7 +387,9 @@ function filenameWithExtension(name, type, fallbackName = "file") {
 	const currentExtension = (
 		safeName.match(/\.([a-z0-9]+)$/i)?.[1] || ""
 	).toLowerCase();
-	if (extension === "bin" && currentExtension) {return safeName;}
+	if (extension === "bin" && currentExtension) {
+		return safeName;
+	}
 	if (
 		currentExtension === extension ||
 		(extension === "jpg" && currentExtension === "jpeg")
@@ -383,7 +416,9 @@ function metadataFromRecord(record) {
 }
 
 async function runBeforeStore(record, options = {}) {
-	if (typeof options.beforeStore !== "function") {return;}
+	if (typeof options.beforeStore !== "function") {
+		return;
+	}
 	await options.beforeStore(metadataFromRecord(record));
 }
 
@@ -412,18 +447,23 @@ function cloudMetadata(record, encryption) {
 
 async function uploadRecordToCloud(record, options = {}) {
 	const uid = String(options.uid || remoteMediaContext.uid || "").trim();
-	if (!cloudMediaReady(uid)) {return record;}
+	if (!cloudMediaReady(uid)) {
+		return record;
+	}
 	if (
 		!options.forceUpload &&
 		record.cloudStoragePath &&
 		record.storage === REMOTE_STORAGE_NAME &&
 		record.encryption
-	)
-		{return record;}
+	) {
+		return record;
+	}
 	const blob =
 		record.blob ||
 		(record.dataUrl ? await dataUrlToBlob(record.dataUrl) : null);
-	if (!blob) {return record;}
+	if (!blob) {
+		return record;
+	}
 
 	const { modules } = await remoteUserContext(uid);
 	const path = encryptedStoragePath(uid, record);
@@ -448,7 +488,9 @@ async function uploadRecordToCloud(record, options = {}) {
 }
 
 async function remoteRecordExists(record, modules) {
-	if (!record?.cloudStoragePath) {return false;}
+	if (!record?.cloudStoragePath) {
+		return false;
+	}
 	await modules.getMetadata(
 		modules.ref(firebaseStorage, record.cloudStoragePath),
 	);
@@ -456,20 +498,28 @@ async function remoteRecordExists(record, modules) {
 }
 
 async function downloadRemoteRecord(record) {
-	if (!record?.cloudStoragePath || !record?.encryption) {return null;}
+	if (!record?.cloudStoragePath || !record?.encryption) {
+		return null;
+	}
 	const uid = remoteMediaContext.uid;
-	if (!cloudMediaReady(uid)) {return null;}
+	if (!cloudMediaReady(uid)) {
+		return null;
+	}
 	const { modules } = await remoteUserContext(uid);
 	const encryptedUrl = await modules.getDownloadURL(
 		modules.ref(firebaseStorage, record.cloudStoragePath),
 	);
 	const response = await fetch(encryptedUrl);
-	if (!response.ok) {throw new Error("Could not download private media.");}
+	if (!response.ok) {
+		throw new Error("Could not download private media.");
+	}
 	return await decryptBlob(await response.blob(), record, uid);
 }
 
 async function deleteRemoteRecord(record) {
-	if (!record?.cloudStoragePath || !cloudMediaReady()) {return;}
+	if (!record?.cloudStoragePath || !cloudMediaReady()) {
+		return;
+	}
 	const { modules } = await remoteUserContext(remoteMediaContext.uid);
 	await modules.deleteObject(
 		modules.ref(firebaseStorage, record.cloudStoragePath),
@@ -486,8 +536,9 @@ export function localAssetIdFromUrl(url) {
 }
 
 export async function storeLocalImage(file, options = {}) {
-	if (!file?.type?.startsWith("image/"))
-		{throw new Error("Only image files can be added.");}
+	if (!file?.type?.startsWith("image/")) {
+		throw new Error("Only image files can be added.");
+	}
 	const image = await blobToImage(file);
 	const originalWidth = image.naturalWidth || image.width;
 	const originalHeight = image.naturalHeight || image.height;
@@ -531,7 +582,9 @@ export async function storeLocalImage(file, options = {}) {
 	const uploadedRecord = cloudMediaReady()
 		? await uploadRecordToCloud(record, options)
 		: record;
-	if (!cloudMediaReady()) {await runBeforeStore(uploadedRecord, options);}
+	if (!cloudMediaReady()) {
+		await runBeforeStore(uploadedRecord, options);
+	}
 	const store = await transaction("readwrite");
 	await requestToPromise(store.put(uploadedRecord));
 	return {
@@ -561,7 +614,9 @@ export async function storeLocalFile(
 	folder = "life-attachments",
 	options = {},
 ) {
-	if (!file) {throw new Error("No file selected.");}
+	if (!file) {
+		throw new Error("No file selected.");
+	}
 	const id = `file-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 	const record = {
 		id,
@@ -580,7 +635,9 @@ export async function storeLocalFile(
 	const uploadedRecord = cloudMediaReady()
 		? await uploadRecordToCloud(record, options)
 		: record;
-	if (!cloudMediaReady()) {await runBeforeStore(uploadedRecord, options);}
+	if (!cloudMediaReady()) {
+		await runBeforeStore(uploadedRecord, options);
+	}
 	const store = await transaction("readwrite");
 	await requestToPromise(store.put(uploadedRecord));
 	const { blob, dataUrl, ...metadata } = uploadedRecord;
@@ -608,7 +665,9 @@ export async function listLocalImages() {
 
 export async function deleteLocalImages(ids) {
 	const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
-	if (!uniqueIds.length) {return;}
+	if (!uniqueIds.length) {
+		return;
+	}
 	const readStore = await transaction("readonly");
 	const records = await Promise.all(
 		uniqueIds.map((id) => requestToPromise(readStore.get(id))),
@@ -622,7 +681,9 @@ export async function deleteLocalImages(ids) {
 	await Promise.all(uniqueIds.map((id) => requestToPromise(store.delete(id))));
 	uniqueIds.forEach((id) => {
 		const url = objectUrlCache.get(id);
-		if (url) {URL.revokeObjectURL(url);}
+		if (url) {
+			URL.revokeObjectURL(url);
+		}
 		objectUrlCache.delete(id);
 	});
 }
@@ -653,14 +714,18 @@ export async function exportLocalFiles(options = {}) {
 		records.map(async (record) => {
 			const { blob, ...metadata } = record;
 			const exported = { ...metadata };
-			if (includeData) {exported.dataUrl = blob ? await blobToDataUrl(blob) : "";}
+			if (includeData) {
+				exported.dataUrl = blob ? await blobToDataUrl(blob) : "";
+			}
 			return exported;
 		}),
 	);
 }
 
 export async function importLocalFiles(records, options = {}) {
-	if (!Array.isArray(records)) {return;}
+	if (!Array.isArray(records)) {
+		return;
+	}
 	const existingStore = await transaction("readonly");
 	const existingRecords = await requestToPromise(existingStore.getAll()).catch(
 		() => [],
@@ -676,12 +741,15 @@ export async function importLocalFiles(records, options = {}) {
 			.map(async (record) => {
 				const { dataUrl, ...metadata } = record;
 				const restored = { ...metadata };
-				if (dataUrl) {restored.blob = await dataUrlToBlob(dataUrl);}
-				else {
+				if (dataUrl) {
+					restored.blob = await dataUrlToBlob(dataUrl);
+				} else {
 					const existing = existingById.get(restored.id);
-					if (existing?.blob) {restored.blob = existing.blob;}
-					else if (existing?.dataUrl)
-						{restored.blob = await dataUrlToBlob(existing.dataUrl);}
+					if (existing?.blob) {
+						restored.blob = existing.blob;
+					} else if (existing?.dataUrl) {
+						restored.blob = await dataUrlToBlob(existing.dataUrl);
+					}
 				}
 				return restored;
 			}),
@@ -698,7 +766,9 @@ export async function importLocalFiles(records, options = {}) {
 
 export async function migrateLocalMediaToCloud(options = {}) {
 	const uid = String(options.uid || remoteMediaContext.uid || "").trim();
-	if (!cloudMediaReady(uid)) {return { migrated: 0, skipped: 0 };}
+	if (!cloudMediaReady(uid)) {
+		return { migrated: 0, skipped: 0 };
+	}
 
 	const store = await transaction("readonly");
 	const records = await requestToPromise(store.getAll());
@@ -754,10 +824,14 @@ export async function resolveLocalImageUrl(id) {
 }
 
 export async function resolveLocalFile(id) {
-	if (!id) {return { url: "", name: "", type: "" };}
+	if (!id) {
+		return { url: "", name: "", type: "" };
+	}
 	const store = await transaction("readonly");
 	const record = await requestToPromise(store.get(id));
-	if (!record) {return { url: "", name: "", type: "" };}
+	if (!record) {
+		return { url: "", name: "", type: "" };
+	}
 	if (objectUrlCache.has(id)) {
 		return {
 			...metadataFromRecord(record),
@@ -772,7 +846,9 @@ export async function resolveLocalFile(id) {
 			await requestToPromise(writeStore.put({ ...record, blob }));
 		}
 	}
-	if (!blob) {return { ...metadataFromRecord(record), url: "" };}
+	if (!blob) {
+		return { ...metadataFromRecord(record), url: "" };
+	}
 	const url = URL.createObjectURL(blob);
 	objectUrlCache.set(id, url);
 	return {

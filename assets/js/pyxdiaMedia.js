@@ -31,8 +31,9 @@ export async function uploadPyxdiaLetterImage(file, options = {}) {
 		throw new Error("Paste an image file into the letter editor.");
 	}
 	const uid = String(options.uid || "").trim();
-	if (!uid)
-		{throw new Error("Sign in before pasting images into PYXIDA letters.");}
+	if (!uid) {
+		throw new Error("Sign in before pasting images into PYXIDA letters.");
+	}
 	const letterId = safePathSegment(options.letterId || "draft");
 	const imageId = safePathSegment(
 		options.imageId ||
@@ -73,10 +74,16 @@ export async function uploadPyxdiaLetterImage(file, options = {}) {
 
 export async function resolvePyxdiaImageUrl(imageRef) {
 	const id = String(imageRef?.id || "");
-	if (!id) {return "";}
-	if (imageUrlCache.has(id)) {return imageUrlCache.get(id);}
+	if (!id) {
+		return "";
+	}
+	if (imageUrlCache.has(id)) {
+		return imageUrlCache.get(id);
+	}
 	const storagePath = String(imageRef?.storagePath || "");
-	if (!storagePath) {return "";}
+	if (!storagePath) {
+		return "";
+	}
 	const modules = await ensureFirebaseStorage();
 	const blob = await modules.getBlob(modules.ref(firebaseStorage, storagePath));
 	const objectUrl = URL.createObjectURL(blob);
@@ -85,7 +92,9 @@ export async function resolvePyxdiaImageUrl(imageRef) {
 }
 
 async function ensureFirebaseStorage() {
-	if (firebaseStorageModules && firebaseStorage) {return firebaseStorageModules;}
+	if (firebaseStorageModules && firebaseStorage) {
+		return firebaseStorageModules;
+	}
 	if (!firebaseStoragePromise) {
 		firebaseStoragePromise = Promise.all([
 			import(
@@ -127,10 +136,18 @@ function safePathSegment(value) {
 
 function storageExtensionForType(type, fallback = "png") {
 	const normalized = String(type || "").toLowerCase();
-	if (normalized === "image/jpeg" || normalized === "image/jpg") {return "jpg";}
-	if (normalized === "image/png") {return "png";}
-	if (normalized === "image/webp") {return "webp";}
-	if (normalized === "image/gif") {return "gif";}
+	if (normalized === "image/jpeg" || normalized === "image/jpg") {
+		return "jpg";
+	}
+	if (normalized === "image/png") {
+		return "png";
+	}
+	if (normalized === "image/webp") {
+		return "webp";
+	}
+	if (normalized === "image/gif") {
+		return "gif";
+	}
 	return fallback;
 }
 

@@ -13,7 +13,9 @@ export function createEmptyStore() {
 export async function loadSeedStore() {
 	try {
 		const response = await fetch(SEED_DATA_URL, { cache: "no-store" });
-		if (!response.ok) {return createEmptyStore();}
+		if (!response.ok) {
+			return createEmptyStore();
+		}
 
 		const parsed = await response.json();
 		if (
@@ -32,7 +34,9 @@ export async function loadSeedStore() {
 export async function loadArtifactStore() {
 	try {
 		const raw = window.localStorage.getItem(STORAGE_KEY);
-		if (!raw) {return await loadSeedStore();}
+		if (!raw) {
+			return await loadSeedStore();
+		}
 
 		const parsed = JSON.parse(raw);
 		if (

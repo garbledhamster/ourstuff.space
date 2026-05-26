@@ -52,7 +52,9 @@ exports.pyxdiaApi = onRequest(
 	{ cors: ALLOWED_ORIGINS, timeoutSeconds: 120 },
 	async (req, res) => {
 		try {
-			if (req.method === "OPTIONS") {return res.status(204).send("");}
+			if (req.method === "OPTIONS") {
+				return res.status(204).send("");
+			}
 			const auth = await verifyAuth(req, SAFE_ERRORS.auth_required);
 			const uid = auth.uid;
 			const path = routePath(req, "pyxdiaApi");
@@ -94,7 +96,9 @@ exports.aiApi = onRequest(
 	{ cors: ALLOWED_ORIGINS, timeoutSeconds: 120 },
 	async (req, res) => {
 		try {
-			if (req.method === "OPTIONS") {return res.status(204).send("");}
+			if (req.method === "OPTIONS") {
+				return res.status(204).send("");
+			}
 			const auth = await verifyAuth(req, "Sign in with Cloud to use AI.");
 			const uid = auth.uid;
 			await enforceRateLimit(uid, "ai", 60, 3600);
@@ -102,7 +106,9 @@ exports.aiApi = onRequest(
 			const mode =
 				routePath(req, "aiApi").replace(/^\/+/, "") || payload.mode || "scrub";
 			const text = String(payload.text || "");
-			if (mode === "scrub") {return res.json(scrubText(text));}
+			if (mode === "scrub") {
+				return res.json(scrubText(text));
+			}
 			if (mode === "scrub-llm" || mode === "scrub_llm") {
 				await requirePaidAiAccessIfNeeded(uid, auth);
 				const scrubbed = scrubText(text);
@@ -135,7 +141,9 @@ exports.trashApi = onRequest(
 	{ cors: ALLOWED_ORIGINS, timeoutSeconds: 120 },
 	async (req, res) => {
 		try {
-			if (req.method === "OPTIONS") {return res.status(204).send("");}
+			if (req.method === "OPTIONS") {
+				return res.status(204).send("");
+			}
 			const auth = await verifyAuth(req, "Sign in with Cloud to use Trash.");
 			const uid = auth.uid;
 			const path = routePath(req, "trashApi");
@@ -199,7 +207,9 @@ exports.processPyxdiaJobs = onSchedule("every 30 minutes", async () => {
 			.limit(10)
 			.get();
 		for (const job of jobs.docs) {
-			if (String(job.data().availableAt || "") > now) {continue;}
+			if (String(job.data().availableAt || "") > now) {
+				continue;
+			}
 			await processJob(userDoc.id, job.id);
 		}
 	}
@@ -246,8 +256,9 @@ async function verifyAuth(
 		throw policyError("auth_required", authRequiredMessage, 401);
 	}
 	const decoded = await admin.auth().verifyIdToken(header.slice(7).trim());
-	if (!decoded.uid)
-		{throw policyError("auth_required", authRequiredMessage, 401);}
+	if (!decoded.uid) {
+		throw policyError("auth_required", authRequiredMessage, 401);
+	}
 	return decoded;
 }
 
@@ -308,8 +319,9 @@ async function submitLetter(uid, payload, auth) {
 		...(await readSettings(uid)),
 		...(payload.settings || {}),
 	});
-	if (!settings.enabled)
-		{throw policyError("feature_disabled", SAFE_ERRORS.feature_disabled);}
+	if (!settings.enabled) {
+		throw policyError("feature_disabled", SAFE_ERRORS.feature_disabled);
+	}
 	await requirePaidAiAccessIfNeeded(uid, auth);
 	const draft = normalizeDraftPayload(payload.draft || payload, uid);
 	const userSelectedContext = normalizeUserSelectedContext(draft);
@@ -317,7 +329,9 @@ async function submitLetter(uid, payload, auth) {
 	validateLetterSize(inputText, settings);
 	const scrubbed = scrubText(inputText);
 	const context = String(userSelectedContext.manualText || "");
-	if (context) {scrubText(context);}
+	if (context) {
+		scrubText(context);
+	}
 	const now = nowIso();
 	const threadId = String(draft.threadId || `thread-${crypto.randomUUID()}`);
 	const requestedLetterId = String(draft.clientLetterId || "").trim();
@@ -397,7 +411,9 @@ async function submitLetter(uid, payload, auth) {
 		}),
 	]);
 	audit("pyxdia/letters", uid, "queued", { jobId: letterId });
-	if (!settings.delayEnabled) {await processJob(uid, letterId);}
+	if (!settings.delayEnabled) {
+		await processJob(uid, letterId);
+	}
 	return statePayload(uid);
 }
 
@@ -458,7 +474,9 @@ async function processJob(uid, jobId) {
 	const jobRef = app.collection("pyxdiaProcessingJobs").doc(jobId);
 	const letterRef = app.collection("pyxdiaLetters").doc(jobId);
 	const claimed = await claimJobTransaction(jobRef, letterRef);
-	if (!claimed) {return;}
+	if (!claimed) {
+		return;
+	}
 	const { job, letter } = claimed;
 	try {
 		await requirePaidAiAccessIfNeeded(uid);
@@ -570,10 +588,14 @@ async function claimJobTransaction(jobRef, letterRef) {
 			transaction.get(jobRef),
 			transaction.get(letterRef),
 		]);
-		if (!jobSnap.exists || !letterSnap.exists) {return null;}
+		if (!jobSnap.exists || !letterSnap.exists) {
+			return null;
+		}
 		const job = jobSnap.data();
 		const letter = letterSnap.data();
-		if (isDeletedRecord(letter)) {return null;}
+		if (isDeletedRecord(letter)) {
+			return null;
+		}
 		const state = String(job.state || "");
 		const lockedAt = String(job.lockedAt || "");
 		const locked = lockedAt && lockedAt > staleLockBefore;
@@ -581,8 +603,9 @@ async function claimJobTransaction(jobRef, letterRef) {
 			!["queued", "retry"].includes(state) ||
 			locked ||
 			String(job.availableAt || "") > now
-		)
-			{return null;}
+		) {
+			return null;
+		}
 		const attempts = Number(job.attempts || 0) + 1;
 		const patch = {
 			state: "processing",
@@ -636,13 +659,18 @@ async function failJob(uid, jobRef, letterRef, job, code, message) {
 }
 
 async function requirePaidAiAccessIfNeeded(uid, auth = null) {
-	if (!providerConfigured()) {return;}
+	if (!providerConfigured()) {
+		return;
+	}
 	if (
 		String(process.env.PYXIDA_ALLOW_ALL_SIGNED_IN || "").toLowerCase() ===
 		"true"
-	)
-		{return;}
-	if (await hasPaidAiAccess(uid, auth)) {return;}
+	) {
+		return;
+	}
+	if (await hasPaidAiAccess(uid, auth)) {
+		return;
+	}
 	throw policyError(
 		"entitlement_required",
 		SAFE_ERRORS.entitlement_required,
@@ -655,8 +683,12 @@ async function hasPaidAiAccess(uid, auth = null) {
 		.split(",")
 		.map((item) => item.trim())
 		.filter(Boolean);
-	if (ownerUids.includes(uid)) {return true;}
-	if (auth?.admin === true || auth?.cloud === true) {return true;}
+	if (ownerUids.includes(uid)) {
+		return true;
+	}
+	if (auth?.admin === true || auth?.cloud === true) {
+		return true;
+	}
 	const snap = await admin.firestore().collection("users").doc(uid).get();
 	const profile = snap.exists ? snap.data() : {};
 	return profile?.admin === true || profile?.cloud === true;
@@ -671,8 +703,9 @@ async function enforceRateLimit(uid, bucket, maxCount, windowSeconds) {
 	await admin.firestore().runTransaction(async (transaction) => {
 		const snap = await transaction.get(ref);
 		const count = snap.exists ? Number(snap.data().count || 0) : 0;
-		if (count >= maxCount)
-			{throw policyError("rate_limited", SAFE_ERRORS.rate_limited, 429);}
+		if (count >= maxCount) {
+			throw policyError("rate_limited", SAFE_ERRORS.rate_limited, 429);
+		}
 		transaction.set(
 			ref,
 			{
@@ -734,7 +767,9 @@ async function listTrashItems({ uid, limit = 50, cursor = "" }) {
 			.collection("trash")
 			.doc(String(cursor))
 			.get();
-		if (cursorSnap.exists) {query = query.startAfter(cursorSnap);}
+		if (cursorSnap.exists) {
+			query = query.startAfter(cursorSnap);
+		}
 	}
 	const snap = await query.get();
 	const items = snap.docs.map((doc) => normalizeTrashIndexItem(doc.data()));
@@ -752,7 +787,9 @@ async function deleteUserItem({ uid, itemType, itemId }) {
 	const cleanItemId = cleanRequiredId(itemId, "itemId");
 	const itemRef = descriptor.docRef(uid, cleanItemId);
 	const itemSnap = await itemRef.get();
-	if (!itemSnap.exists) {throw policyError("not_found", "Item not found.", 404);}
+	if (!itemSnap.exists) {
+		throw policyError("not_found", "Item not found.", 404);
+	}
 	const data = itemSnap.data() || {};
 	assertUserOwnedItem(uid, data);
 	assertDescriptorMatchesItem(descriptor, data);
@@ -798,8 +835,9 @@ async function deleteUserItem({ uid, itemType, itemId }) {
 	});
 	await admin.firestore().runTransaction(async (transaction) => {
 		const currentSnap = await transaction.get(itemRef);
-		if (!currentSnap.exists)
-			{throw policyError("not_found", "Item not found.", 404);}
+		if (!currentSnap.exists) {
+			throw policyError("not_found", "Item not found.", 404);
+		}
 		assertUserOwnedItem(uid, currentSnap.data() || {});
 		assertDescriptorMatchesItem(descriptor, currentSnap.data() || {});
 		transaction.set(
@@ -844,8 +882,9 @@ async function restoreUserItem({ uid, trashItemId }) {
 	const cleanTrashItemId = cleanRequiredId(trashItemId, "trashItemId");
 	const trashRef = userRef(uid).collection("trash").doc(cleanTrashItemId);
 	const trashSnap = await trashRef.get();
-	if (!trashSnap.exists)
-		{throw policyError("not_found", "Trash item not found.", 404);}
+	if (!trashSnap.exists) {
+		throw policyError("not_found", "Trash item not found.", 404);
+	}
 	const trashItem = normalizeTrashIndexItem(trashSnap.data());
 	assertTrashItemOwner(uid, trashItem);
 	const itemRef = originalItemRefFromTrash(uid, trashItem);
@@ -899,7 +938,9 @@ async function hardDeleteUserItem({ uid, trashItemId, cleanup = false }) {
 	const trashRef = userRef(uid).collection("trash").doc(cleanTrashItemId);
 	const trashSnap = await trashRef.get();
 	if (!trashSnap.exists) {
-		if (cleanup) {return { deleted: false, missing: true };}
+		if (cleanup) {
+			return { deleted: false, missing: true };
+		}
 		throw policyError("not_found", "Trash item not found.", 404);
 	}
 	const trashItem = normalizeTrashIndexItem(trashSnap.data());
@@ -1005,7 +1046,9 @@ async function updateIndexCollectionForItem(
 		candidateIds.map(async (docId) => {
 			const ref = collection.doc(docId);
 			const snap = await ref.get();
-			if (snap.exists) {refs.set(ref.path, ref);}
+			if (snap.exists) {
+				refs.set(ref.path, ref);
+			}
 		}),
 	);
 	const fieldNames = indexFieldNamesForItemType(itemType);
@@ -1027,10 +1070,13 @@ async function updateIndexCollectionForItem(
 
 function indexFieldNamesForItemType(itemType) {
 	const fields = ["itemId", "sourceItemId", "sourceId"];
-	if (itemType === "note") {fields.push("noteId", "artifactId");}
-	else if (itemType === "artifact") {fields.push("artifactId");}
-	else if (itemType === "pyxdia_letter")
-		{fields.push("letterId", "sourceLetterId");}
+	if (itemType === "note") {
+		fields.push("noteId", "artifactId");
+	} else if (itemType === "artifact") {
+		fields.push("artifactId");
+	} else if (itemType === "pyxdia_letter") {
+		fields.push("letterId", "sourceLetterId");
+	}
 	return Array.from(new Set(fields));
 }
 
@@ -1053,7 +1099,9 @@ async function updateIndexDocRef(ref, mode, deletedAt = "") {
 
 async function refreshPyxdiaThreadIndexes(uid, letterId, itemData = {}) {
 	const threadId = String(itemData.threadId || "");
-	if (!threadId) {return;}
+	if (!threadId) {
+		return;
+	}
 	const snap = await appRef(uid)
 		.collection("pyxdiaLetters")
 		.where("threadId", "==", threadId)
@@ -1087,7 +1135,9 @@ async function refreshPyxdiaThreadIndexes(uid, letterId, itemData = {}) {
 async function updateStaticMemoryForSourceMutation(uid, letterId, mode) {
 	const memoryRef = appRef(uid).collection("pyxdiaMemories").doc("current");
 	const snap = await memoryRef.get();
-	if (!snap.exists) {return;}
+	if (!snap.exists) {
+		return;
+	}
 	const now = nowIso();
 	const memory = normalizeMemory(snap.data(), uid);
 	const staticMemory = normalizeStaticMemory(memory.staticMemory, uid);
@@ -1099,14 +1149,18 @@ async function updateStaticMemoryForSourceMutation(uid, letterId, mode) {
 			? currentPriorContext
 			: currentPriorContext.filter((item) => item?.letterId !== letterId);
 	let changed = false;
-	if (priorLetterContext.length !== currentPriorContext.length) {changed = true;}
+	if (priorLetterContext.length !== currentPriorContext.length) {
+		changed = true;
+	}
 	const entries = (staticMemory.entries || []).map((entry) => {
 		const sourceLetterIds = Array.from(new Set(entry.sourceLetterIds || []));
 		const staleSourceLetterIds = Array.from(
 			new Set(entry.staleSourceLetterIds || []),
 		);
 		if (mode === "restore") {
-			if (!staleSourceLetterIds.includes(letterId)) {return entry;}
+			if (!staleSourceLetterIds.includes(letterId)) {
+				return entry;
+			}
 			changed = true;
 			return {
 				...entry,
@@ -1119,7 +1173,9 @@ async function updateStaticMemoryForSourceMutation(uid, letterId, mode) {
 				updatedAt: now,
 			};
 		}
-		if (!sourceLetterIds.includes(letterId)) {return entry;}
+		if (!sourceLetterIds.includes(letterId)) {
+			return entry;
+		}
 		changed = true;
 		const nextSources = sourceLetterIds.filter((id) => id !== letterId);
 		return {
@@ -1132,7 +1188,9 @@ async function updateStaticMemoryForSourceMutation(uid, letterId, mode) {
 			updatedAt: now,
 		};
 	});
-	if (!changed) {return;}
+	if (!changed) {
+		return;
+	}
 	const activeSummary = entries
 		.filter((entry) => entry.status === "active")
 		.slice(-5)
@@ -1342,7 +1400,9 @@ function assertTrashItemOwner(uid, trashItem = {}) {
 
 async function deleteStorageFilesForItem(uid, data = {}) {
 	const paths = Array.from(collectStoragePaths(data, uid));
-	if (!paths.length) {return;}
+	if (!paths.length) {
+		return;
+	}
 	const bucket = admin.storage().bucket();
 	await Promise.all(
 		paths.map((path) =>
@@ -1361,17 +1421,25 @@ async function deleteStorageFilesForItem(uid, data = {}) {
 }
 
 function collectStoragePaths(value, uid, output = new Set(), depth = 0) {
-	if (depth > 8 || value == null) {return output;}
+	if (depth > 8 || value == null) {
+		return output;
+	}
 	const prefix = `users/${uid}/apps/${APP_ID}/media/`;
 	if (typeof value === "string") {
 		const text = value.trim();
-		if (text.startsWith(prefix)) {output.add(text);}
+		if (text.startsWith(prefix)) {
+			output.add(text);
+		}
 		const direct = text.match(new RegExp(`(${escapeRegex(prefix)}[^?#\\s]+)`));
-		if (direct) {output.add(direct[1]);}
+		if (direct) {
+			output.add(direct[1]);
+		}
 		const gs = text.match(
 			new RegExp(`^gs://[^/]+/(${escapeRegex(prefix)}[^?#\\s]+)`),
 		);
-		if (gs) {output.add(gs[1]);}
+		if (gs) {
+			output.add(gs[1]);
+		}
 		return output;
 	}
 	if (Array.isArray(value)) {
@@ -1460,14 +1528,17 @@ function validateLetterSize(text, settings) {
 	if (words > settings.letterMaxWords || chars > settings.letterMaxChars) {
 		throw policyError("letter_too_large", SAFE_ERRORS.letter_too_large);
 	}
-	if (!clean)
-		{throw policyError("letter_too_large", "Write a letter before sending.");}
+	if (!clean) {
+		throw policyError("letter_too_large", "Write a letter before sending.");
+	}
 }
 
 function scrubText(text) {
 	const value = String(text || "");
 	const blocked = blockedReason(value);
-	if (blocked) {throw policyError(blocked, SAFE_ERRORS[blocked]);}
+	if (blocked) {
+		throw policyError(blocked, SAFE_ERRORS[blocked]);
+	}
 	let redactions = 0;
 	let scrubbed = value.replace(
 		/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
@@ -1501,8 +1572,9 @@ function blockedReason(text) {
 		/-----BEGIN [A-Z ]*PRIVATE KEY-----/,
 		/\b(?:api[_-]?key|access[_-]?token|auth[_-]?token)\s*[:=]\s*\S+/i,
 	];
-	if (secretPatterns.some((pattern) => pattern.test(value)))
-		{return "blocked_secret_detected";}
+	if (secretPatterns.some((pattern) => pattern.test(value))) {
+		return "blocked_secret_detected";
+	}
 	const cardMatches = value.match(/\b(?:\d[ -]*?){13,19}\b/g) || [];
 	if (cardMatches.some((match) => luhn(match.replace(/\D/g, "")))) {
 		return "blocked_cardholder_data_detected";
@@ -1527,8 +1599,9 @@ function validatePlainOutput(text) {
 
 async function generateLetter(prompt, settings) {
 	const apiKey = String(process.env.OPENROUTER_API_KEY || "").trim();
-	if (!apiKey)
-		{return { letter_text: fallbackLetter(prompt), model: "local-template" };}
+	if (!apiKey) {
+		return { letter_text: fallbackLetter(prompt), model: "local-template" };
+	}
 	const response = await fetch(
 		"https://openrouter.ai/api/v1/chat/completions",
 		{
@@ -1549,8 +1622,9 @@ async function generateLetter(prompt, settings) {
 			}),
 		},
 	);
-	if (!response.ok)
-		{throw policyError("provider_failed", SAFE_ERRORS.provider_failed, 502);}
+	if (!response.ok) {
+		throw policyError("provider_failed", SAFE_ERRORS.provider_failed, 502);
+	}
 	const payload = await response.json();
 	return {
 		letter_text: String(payload.choices?.[0]?.message?.content || "").trim(),
@@ -1896,7 +1970,9 @@ async function buildDynamicRetrievalMemory(uid, letter, memory = {}) {
 			.slice(0, 3)
 			.forEach((item, index) => {
 				const summary = summarizePriorLetterForRetrieval(item);
-				if (!summary) {return;}
+				if (!summary) {
+					return;
+				}
 				items.push({
 					id: `letter-${item.id}`,
 					type: "prior_letter_summary",
@@ -1918,8 +1994,9 @@ async function buildDynamicRetrievalMemory(uid, letter, memory = {}) {
 		.slice(-3)
 		.reverse()
 		.forEach((item, index) => {
-			if (items.some((existing) => existing.sourceLetterId === item.letterId))
-				{return;}
+			if (items.some((existing) => existing.sourceLetterId === item.letterId)) {
+				return;
+			}
 			items.push({
 				id: `prior-context-${item.letterId}`,
 				type: "prior_letter_context_marker",
@@ -1953,12 +2030,14 @@ function summarizePriorLetterForRetrieval(letter = {}) {
 			.replace(/\s+/g, " ")
 			.trim();
 		const pieces = [];
-		if (input)
-			{pieces.push(`User wrote: ${sanitizeMemoryText(input).slice(0, 220)}`);}
-		if (output)
-			{pieces.push(
+		if (input) {
+			pieces.push(`User wrote: ${sanitizeMemoryText(input).slice(0, 220)}`);
+		}
+		if (output) {
+			pieces.push(
 				`PYXIDA replied: ${sanitizeMemoryText(output).slice(0, 180)}`,
-			);}
+			);
+		}
 		return pieces.join(" / ").slice(0, 500);
 	} catch {
 		return "";
@@ -1980,7 +2059,9 @@ function compactStaticMemorySnapshot(memory = {}) {
 }
 
 async function threadContext(uid, threadId) {
-	if (!threadId) {return "";}
+	if (!threadId) {
+		return "";
+	}
 	const snap = await appRef(uid)
 		.collection("pyxdiaLetters")
 		.where("threadId", "==", threadId)
@@ -2070,7 +2151,9 @@ function memoryCandidateFromLetter(letter = {}) {
 			.find(Boolean) ||
 		"User continued a PYXIDA letter thread.";
 	const clean = compactMemoryPatternText(source);
-	if (isDurableMemoryPattern(clean)) {return clean;}
+	if (isDurableMemoryPattern(clean)) {
+		return clean;
+	}
 	return "User continued a PYXIDA letter; keep future replies grounded in practical reflection and small next steps.";
 }
 
@@ -2209,8 +2292,12 @@ function routePath(req, functionName) {
 		"/api/ai",
 		"/api/trash",
 	]) {
-		if (path === prefix) {return "/";}
-		if (path.startsWith(`${prefix}/`)) {return path.slice(prefix.length);}
+		if (path === prefix) {
+			return "/";
+		}
+		if (path.startsWith(`${prefix}/`)) {
+			return path.slice(prefix.length);
+		}
 	}
 	return path;
 }
@@ -2251,8 +2338,9 @@ function audit(route, uid, status, metadata = {}) {
 
 function hashUid(uid) {
 	let hash = 0;
-	for (const char of String(uid || ""))
-		{hash = (hash * 31 + char.charCodeAt(0)) | 0;}
+	for (const char of String(uid || "")) {
+		hash = (hash * 31 + char.charCodeAt(0)) | 0;
+	}
 	return Math.abs(hash).toString(16);
 }
 
@@ -2266,7 +2354,9 @@ function threadTitle(text) {
 }
 
 function availableAtFor(settings) {
-	if (!settings.delayEnabled) {return nowIso();}
+	if (!settings.delayEnabled) {
+		return nowIso();
+	}
 	const min = Number(settings.delayMinHours || 24);
 	const max = Math.max(min, Number(settings.delayMaxHours || min));
 	const hours = min + Math.random() * (max - min);
@@ -2280,13 +2370,17 @@ function cleanText(value, fallback) {
 
 function clampNumber(value, min, max, fallback) {
 	const number = Number(value);
-	if (!Number.isFinite(number)) {return fallback;}
+	if (!Number.isFinite(number)) {
+		return fallback;
+	}
 	return Math.min(Math.max(Math.round(number), min), max);
 }
 
 function clampFloat(value, min, max, fallback) {
 	const number = Number(value);
-	if (!Number.isFinite(number)) {return fallback;}
+	if (!Number.isFinite(number)) {
+		return fallback;
+	}
 	return Math.min(Math.max(number, min), max);
 }
 
@@ -2295,13 +2389,17 @@ function escapeRegex(value = "") {
 }
 
 function luhn(digits) {
-	if (digits.length < 13) {return false;}
+	if (digits.length < 13) {
+		return false;
+	}
 	let total = 0;
 	for (let index = 0; index < digits.length; index += 1) {
 		let number = Number(digits[digits.length - 1 - index]);
 		if (index % 2 === 1) {
 			number *= 2;
-			if (number > 9) {number -= 9;}
+			if (number > 9) {
+				number -= 9;
+			}
 		}
 		total += number;
 	}

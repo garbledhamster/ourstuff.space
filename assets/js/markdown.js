@@ -46,14 +46,18 @@ export function renderMarkdown(raw) {
 	let codeBuffer = [];
 
 	function closeList() {
-		if (!inList) {return;}
+		if (!inList) {
+			return;
+		}
 		html += `</${listType}>`;
 		inList = false;
 		listType = null;
 	}
 
 	function closeCode() {
-		if (!inCode) {return;}
+		if (!inCode) {
+			return;
+		}
 		html += `<pre><code>${escapeHtml(codeBuffer.join("\n"))}</code></pre>`;
 		codeBuffer = [];
 		inCode = false;
@@ -63,8 +67,9 @@ export function renderMarkdown(raw) {
 		const trimmed = line.trim();
 
 		if (trimmed.startsWith("```")) {
-			if (inCode) {closeCode();}
-			else {
+			if (inCode) {
+				closeCode();
+			} else {
 				closeList();
 				inCode = true;
 				codeBuffer = [];

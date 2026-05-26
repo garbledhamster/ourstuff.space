@@ -253,7 +253,9 @@ async function pyxdiaRequest(path, options = {}) {
 			? {}
 			: { "content-type": "application/json" }),
 	};
-	if (token) {headers.authorization = `Bearer ${token}`;}
+	if (token) {
+		headers.authorization = `Bearer ${token}`;
+	}
 	const response = await fetch(`${PYXIDA_API_URL}${path}`, {
 		method: options.method || "GET",
 		headers,
@@ -313,12 +315,16 @@ function compactPyxdiaMemoryPatternText(value = "") {
 
 function clampNumber(value, min, max, fallback) {
 	const number = Number(value);
-	if (!Number.isFinite(number)) {return fallback;}
+	if (!Number.isFinite(number)) {
+		return fallback;
+	}
 	return Math.min(Math.max(Math.round(number), min), max);
 }
 
 function clampFloat(value, min, max, fallback) {
 	const number = Number(value);
-	if (!Number.isFinite(number)) {return fallback;}
+	if (!Number.isFinite(number)) {
+		return fallback;
+	}
 	return Math.min(Math.max(number, min), max);
 }

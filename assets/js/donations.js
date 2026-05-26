@@ -48,7 +48,9 @@ export function bindDonationFlow(root = document, options = {}) {
 	const amountOptions = Array.from(root.querySelectorAll(".amount-option"));
 	let selectedAmount = 10;
 
-	if (!modal || !submitButton || !customAmountInput) {return;}
+	if (!modal || !submitButton || !customAmountInput) {
+		return;
+	}
 
 	function openModal() {
 		options.onOpen?.();
@@ -94,7 +96,9 @@ export function bindDonationFlow(root = document, options = {}) {
 	});
 	closeButton?.addEventListener("click", closeModal);
 	modal.addEventListener("click", (event) => {
-		if (event.target === modal) {closeModal();}
+		if (event.target === modal) {
+			closeModal();
+		}
 	});
 	if (!escapeListenerBound) {
 		document.addEventListener("keydown", (event) => {
