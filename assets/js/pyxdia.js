@@ -3,6 +3,8 @@ import { PYXIDA_API_URL } from "./config.js?v=pyxdia-20260525a";
 export const PYXIDA_LETTER_MAX_WORDS = 650;
 export const PYXIDA_LETTER_MAX_CHARS = 3500;
 export const PYXIDA_CONTEXT_SCHEMA_VERSION = 1;
+export const PYXIDA_NOTE_METADATA_MAX_REFS = 300;
+export const PYXIDA_NOTE_METADATA_MAX_CHARS = 40000;
 
 export const DEFAULT_PYXIDA_SETTINGS = {
 	enabled: true,
@@ -68,6 +70,25 @@ export function estimatePyxdiaLetterSize(text = "") {
 	};
 }
 
+export function estimatePyxdiaNoteMetadataSize(refs = []) {
+	const normalized = Array.isArray(refs)
+		? refs.map((ref) => normalizePyxdiaNoteRef(ref)).filter((ref) => ref.id)
+		: [];
+	return {
+		refs: normalized.length,
+		chars: JSON.stringify(
+			normalized.map((ref) => ({
+				number: ref.number,
+				title: ref.title,
+				dashboard: ref.dashboard,
+				role: ref.role,
+				edited: ref.edited,
+				wordCount: ref.wordCount,
+			})),
+		).length,
+	};
+}
+
 export function pyxdiaNoteRefsFromArtifacts(store) {
 	const artifacts = Array.isArray(store?.artifacts) ? store.artifacts : [];
 	return artifacts
@@ -112,15 +133,14 @@ export function normalizePyxdiaUserSelectedContext(value = {}) {
 		manualText: String(source.manualText ?? source.userIncludedContext ?? ""),
 		selectedNoteRefs: selectedNoteRefs
 			.map((ref) => normalizePyxdiaNoteRef(ref))
-			.filter((ref) => ref.id)
-			.slice(0, 48),
+			.filter((ref) => ref.id),
 		selectedMemoryEntryIds: Array.isArray(source.selectedMemoryEntryIds)
 			? source.selectedMemoryEntryIds.map(String).filter(Boolean).slice(0, 24)
 			: [],
 		selectedProjectEntryIds: Array.isArray(source.selectedProjectEntryIds)
 			? source.selectedProjectEntryIds.map(String).filter(Boolean).slice(0, 24)
 			: [],
-		contextSelections: selectedIds.slice(0, 48),
+		contextSelections: selectedIds,
 		schemaVersion: PYXIDA_CONTEXT_SCHEMA_VERSION,
 	};
 }

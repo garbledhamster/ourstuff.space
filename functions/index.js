@@ -11,8 +11,13 @@ const ALLOWED_ORIGINS = [
 	/^http:\/\/localhost:\d+$/i,
 	/^http:\/\/127\.0\.0\.1:\d+$/i,
 ];
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const PYXDIA_DEFAULT_MODEL = "~openai/gpt-latest";
+const PYXDIA_REASONING = Object.freeze({ effort: "low", exclude: true });
 const LETTER_MAX_WORDS = 650;
 const LETTER_MAX_CHARS = 3500;
+const NOTE_METADATA_MAX_REFS = 300;
+const NOTE_METADATA_MAX_CHARS = 40000;
 const DEFAULT_SETTINGS = {
 	enabled: true,
 	delayEnabled: true,
@@ -41,7 +46,11 @@ const SAFE_ERRORS = {
 		"PYXIDA AI replies require an active Cloud subscription.",
 	rate_limited: "Too many PYXIDA requests. Wait a little and try again.",
 	provider_failed: "PYXIDA could not finish. Try again.",
+	provider_not_configured:
+		"PYXIDA AI replies are not configured yet. Try again after the provider is connected.",
 	output_validation_failed: "PYXIDA could not finish safely. Try again.",
+	context_too_large:
+		"Too much note metadata is selected. Filter or clear notes and try again.",
 };
 const DEFAULT_TRASH_RETENTION_DAYS = 30;
 const MAX_TRASH_RETENTION_DAYS = 365;
@@ -306,6 +315,7 @@ async function saveDraft(uid, payload) {
 		uid,
 		{ touch: true },
 	);
+	validateUserSelectedContextBudget(draft.userSelectedContext);
 	await appRef(uid)
 		.collection("pyxdiaLetters")
 		.doc("draft")
@@ -327,6 +337,7 @@ async function submitLetter(uid, payload, auth) {
 	const userSelectedContext = normalizeUserSelectedContext(draft);
 	const inputText = String(draft.inputText || "");
 	validateLetterSize(inputText, settings);
+	validateUserSelectedContextBudget(userSelectedContext);
 	const scrubbed = scrubText(inputText);
 	const context = String(userSelectedContext.manualText || "");
 	if (context) {
@@ -493,6 +504,7 @@ async function processJob(uid, jobId) {
 				contextSelections: letter.contextSelections || [],
 			},
 		);
+		validateUserSelectedContextBudget(userSelectedContext);
 		const staticMemory = normalizeStaticMemory(
 			memory.staticMemory || {
 				summary: memory.summary || "",
@@ -1600,10 +1612,18 @@ function validatePlainOutput(text) {
 async function generateLetter(prompt, settings) {
 	const apiKey = String(process.env.OPENROUTER_API_KEY || "").trim();
 	if (!apiKey) {
-		return { letter_text: fallbackLetter(prompt), model: "local-template" };
+		if (allowLocalProviderFallback()) {
+			return { letter_text: fallbackLetter(prompt), model: "local-template" };
+		}
+		throw policyError(
+			"provider_not_configured",
+			SAFE_ERRORS.provider_not_configured,
+			503,
+		);
 	}
+	const model = pyxdiaModelName();
 	const response = await fetch(
-		"https://openrouter.ai/api/v1/chat/completions",
+		OPENROUTER_URL,
 		{
 			method: "POST",
 			headers: {
@@ -1613,12 +1633,18 @@ async function generateLetter(prompt, settings) {
 				"x-title": "Ourstuff PYXIDA",
 			},
 			body: JSON.stringify({
-				model: process.env.PYXIDA_MODEL || "openai/gpt-4o-mini",
+				model,
 				messages: [
-					{ role: "system", content: "Return plain letter text only." },
+					{
+						role: "system",
+						content:
+							"You are PYXIDA PENPAL. Return one warm plain-text letter only. Do not use markdown.",
+					},
 					{ role: "user", content: prompt },
 				],
-				temperature: 0.7,
+				temperature: 0.62,
+				max_tokens: 1400,
+				reasoning: PYXDIA_REASONING,
 			}),
 		},
 	);
@@ -1628,8 +1654,27 @@ async function generateLetter(prompt, settings) {
 	const payload = await response.json();
 	return {
 		letter_text: String(payload.choices?.[0]?.message?.content || "").trim(),
-		model: process.env.PYXIDA_MODEL || "openai/gpt-4o-mini",
+		model,
 	};
+}
+
+function pyxdiaModelName() {
+	return (
+		String(
+			process.env.PYXDIA_MODEL ||
+				process.env.PYXIDA_MODEL ||
+				PYXDIA_DEFAULT_MODEL,
+		).trim() || PYXDIA_DEFAULT_MODEL
+	);
+}
+
+function allowLocalProviderFallback() {
+	return (
+		String(process.env.FUNCTIONS_EMULATOR || "").toLowerCase() === "true" ||
+		String(process.env.NODE_ENV || "").toLowerCase() === "test" ||
+		String(process.env.PYXDIA_ALLOW_LOCAL_FALLBACK || "").toLowerCase() ===
+			"true"
+	);
 }
 
 function providerConfigured() {
@@ -1666,6 +1711,7 @@ function normalizeDraftPayload(value = {}, uid = "", options = {}) {
 		userIncludedContext: userSelectedContext.manualText,
 		userSelectedContext,
 		contextSelections: userSelectedContext.contextSelections,
+		noteSelectionMode: source.noteSelectionMode === "custom" ? "custom" : "all",
 		updatedAt: options.touch ? nowIso() : String(source.updatedAt || ""),
 		schemaVersion: 1,
 	};
@@ -1691,15 +1737,14 @@ function normalizeUserSelectedContext(value = {}) {
 		manualText: String(source.manualText ?? source.userIncludedContext ?? ""),
 		selectedNoteRefs: selectedNoteRefs
 			.map(normalizeNoteRef)
-			.filter((ref) => ref.id)
-			.slice(0, 48),
+			.filter((ref) => ref.id),
 		selectedMemoryEntryIds: Array.isArray(source.selectedMemoryEntryIds)
 			? source.selectedMemoryEntryIds.map(String).filter(Boolean).slice(0, 24)
 			: [],
 		selectedProjectEntryIds: Array.isArray(source.selectedProjectEntryIds)
 			? source.selectedProjectEntryIds.map(String).filter(Boolean).slice(0, 24)
 			: [],
-		contextSelections: selectedIds.slice(0, 48),
+		contextSelections: selectedIds,
 		schemaVersion: 1,
 	};
 }
@@ -1716,6 +1761,18 @@ function normalizeNoteRef(value = {}) {
 		wordCount: clampNumber(source.wordCount, 0, 100000, 0),
 		userApprovedContentIncluded: source.userApprovedContentIncluded === true,
 	};
+}
+
+function validateUserSelectedContextBudget(context = {}) {
+	const selected = normalizeUserSelectedContext(context);
+	const safeRefs = selected.selectedNoteRefs.map(safeNoteMetadataForPrompt);
+	const chars = JSON.stringify(safeRefs).length;
+	if (
+		selected.selectedNoteRefs.length > NOTE_METADATA_MAX_REFS ||
+		chars > NOTE_METADATA_MAX_CHARS
+	) {
+		throw policyError("context_too_large", SAFE_ERRORS.context_too_large);
+	}
 }
 
 function normalizeImageRefs(value = []) {
@@ -1852,8 +1909,9 @@ function buildPrompt({
 	letter,
 }) {
 	return [
-		"SYSTEM:\nYou are PYXIDA PENPAL, a reflective growth companion and AI trainer.\nYou are not a therapist, doctor, clinician, crisis service, or replacement for professional care.\nDraw lightly from Adlerian growth themes, DBT-informed emotional regulation, and Jungian archetypes as interpretive metaphors.\nDo not diagnose or claim clinical authority.\nReturn plain letter text only in the user-visible letter.\n\nInput may be scrubbed. Do not reconstruct placeholders or personal identifiers.\nFocus on meaning, values, patterns, choices, and user intent.",
-		"CONTEXT AUTHORITY:\n1. User-selected context is intentional and highest authority.\n2. PYXIDA static memory is a compact PII-safe profile of durable patterns.\n3. PYXIDA dynamic retrieval memory is automatically selected supporting context. Use it lightly and ignore it when it conflicts with the current letter or user-selected context.",
+		"SYSTEM:\nYou are PYXIDA PENPAL, a reflective growth companion and AI trainer inside Ourstuff.\nWrite an actual personal letter back to the user. The letter should feel warm, attentive, grounded, and useful.\nYour purpose is to help the user restore balance, notice early drift before it becomes a problem, name the value conflict underneath the letter, and choose one concrete repair action.\nYou are not a therapist, doctor, clinician, crisis service, or replacement for professional care. Do not diagnose or claim clinical authority.\nUse Adlerian belonging/usefulness, DBT observe/name/choose skills, and Jungian role/archetype language silently as thinking tools. Do not lecture about those frameworks unless the user asked for them.\nReturn plain text only. No markdown, headings, bullets, tables, code fences, or clinical labels.\nInput may be scrubbed. Do not reconstruct placeholders, identities, contact details, or hidden personal data.",
+		"LETTER CONTRACT:\nOpen with a simple salutation.\nReflect the user's actual concern without parroting it back awkwardly.\nName the balance signal you see and why it matters.\nUse selected note metadata only as pattern context, never as private note content.\nOffer one small next action that can happen within the next day.\nClose with a short steady sign-off from PYXIDA.\nKeep the reply to roughly 350 to 700 words unless the user's settings ask otherwise.",
+		"CONTEXT AUTHORITY:\n1. Current letter and user-selected context are intentional and highest authority.\n2. PYXIDA static memory is a compact PII-safe profile of durable patterns.\n3. PYXIDA dynamic retrieval memory is automatic supporting context. Use it lightly and ignore it when it conflicts with the current letter or user-selected context.",
 		`USER SETTINGS:\n${settings.generalInstructions || ""}`,
 		`WHAT THE USER WANTS PYXIDA TO KNOW:\n${settings.userWantsPyxdiaToKnow || ""}`,
 		`USER-SELECTED CONTEXT:\n${formatUserSelectedContext(userSelectedContext)}`,
@@ -1872,14 +1930,25 @@ function fallbackLetter(prompt) {
 			.split(/\n/)[0]
 			.slice(0, 180);
 	}
+	const clean = snippet.replace(/\s+/g, " ").trim() || "your letter";
+	const familySignal = /\bfamily|wife|husband|kids?|children|home\b/i.test(clean);
+	const workSignal = /\bcode|coding|work|app|project|build|computer\b/i.test(
+		clean,
+	);
+	const balanceLine =
+		familySignal && workSignal
+			? "The signal I would not ignore is that the work may be getting the freshest part of your attention while your family is getting what is left over."
+			: "The signal I would not ignore is that one part of your life is asking for attention before it has to become a louder problem.";
 	return [
 		"Dear friend,",
 		"",
-		`I read the center of what you sent: ${snippet}`,
+		`I read this as a real check-in, not as something to label: ${clean}`,
 		"",
-		"I will keep this grounded and non-clinical. The useful pattern to notice is where responsibility, desire, and hesitation are meeting. In Adlerian language, that points toward belonging and usefulness. In DBT terms, name what is observable, allow the feeling to be present, and choose the smallest next action that respects your values. If archetype language helps, treat it as metaphor for the role you are practicing, not as a fixed identity.",
+		`${balanceLine} That does not make the work bad. It just means the rhythm needs a small correction while the correction is still easy.`,
 		"",
-		"Write one small promise you can keep in the next day. Make it concrete enough that future you can tell whether it happened.",
+		"For the next day, make one promise small enough that you can keep it even if the coding part of your mind is still excited. Choose a specific family moment, protect it first, and let the apps fit around it. Afterward, notice what resisted the boundary. That resistance is information, not failure.",
+		"",
+		"Balance usually comes back through one honest repair at a time. Start there.",
 		"",
 		"PYXIDA",
 	].join("\n");
@@ -1887,26 +1956,51 @@ function fallbackLetter(prompt) {
 
 function formatUserSelectedContext(context = {}) {
 	const selected = normalizeUserSelectedContext(context);
+	const safeRefs = selected.selectedNoteRefs.map(safeNoteMetadataForPrompt);
 	return JSON.stringify(
 		{
 			authority: selected.authority,
-			manualText: selected.manualText.slice(0, 3000),
-			selectedNoteRefs: selected.selectedNoteRefs.map((ref) => ({
-				id: ref.id,
-				number: ref.number,
-				title: ref.title,
-				dashboard: ref.dashboard,
-				role: ref.role,
-				edited: ref.edited,
-				wordCount: ref.wordCount,
-				userApprovedContentIncluded: false,
-			})),
+			manualText: safePromptText(selected.manualText, 3000),
+			selectedNoteMetadata: safeRefs,
+			noteMetadataPolicy:
+				"Metadata only: title, dashboard, role, edited date, and word count. Raw note bodies and note IDs are intentionally omitted.",
 			selectedMemoryEntryIds: selected.selectedMemoryEntryIds,
 			selectedProjectEntryIds: selected.selectedProjectEntryIds,
 		},
 		null,
 		2,
 	);
+}
+
+function safeNoteMetadataForPrompt(ref = {}) {
+	return {
+		number: clampNumber(ref.number, 0, 999999, 0),
+		title: safeMetadataField(ref.title, "Untitled note", 160),
+		dashboard: safeMetadataField(ref.dashboard || "Note", "Note", 80),
+		role: safeMetadataField(ref.role || "note", "note", 80),
+		edited: safeMetadataField(ref.edited || "", "", 80),
+		wordCount: clampNumber(ref.wordCount, 0, 100000, 0),
+	};
+}
+
+function safePromptText(value = "", limit = 3000) {
+	try {
+		return scrubText(String(value || "")).text.slice(0, limit);
+	} catch {
+		return "[redacted unsafe context]";
+	}
+}
+
+function safeMetadataField(value = "", fallback = "", limit = 160) {
+	const text = String(value || fallback || "").trim();
+	if (!text) {
+		return fallback;
+	}
+	try {
+		return scrubText(text).text.replace(/\s+/g, " ").trim().slice(0, limit);
+	} catch {
+		return "[redacted metadata]";
+	}
 }
 
 function formatStaticMemory(memory = {}) {

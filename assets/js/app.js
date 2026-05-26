@@ -48,18 +48,21 @@ import { escapeHtml, renderMarkdown } from "./markdown.js";
 import {
 	DEFAULT_PYXIDA_SETTINGS,
 	estimatePyxdiaLetterSize,
+	estimatePyxdiaNoteMetadataSize,
 	fetchPyxdiaState,
 	normalizePyxdiaDynamicRetrievalMemory,
 	normalizePyxdiaSettings,
 	normalizePyxdiaStaticMemory,
 	normalizePyxdiaUserSelectedContext,
+	PYXIDA_NOTE_METADATA_MAX_CHARS,
+	PYXIDA_NOTE_METADATA_MAX_REFS,
 	pyxdiaNoteRefsFromArtifacts,
 	resetPyxdiaMemory,
 	retryPyxdiaLetter,
 	savePyxdiaDraft,
 	savePyxdiaSettings,
 	sendPyxdiaLetter,
-} from "./pyxdia.js?v=trash-r3-20260525a";
+} from "./pyxdia.js?v=pyxdia-fix-20260526a";
 import {
 	pyxdiaImageMarkdown,
 	resolvePyxdiaImageUrl,
@@ -113,6 +116,7 @@ const SIDEBAR_WIDTH_KEY = "ourstuff.sidebarWidth.v1";
 const THEME_KEY = "ourstuff.theme.v1";
 const PYXIDA_SETTINGS_KEY = "ourstuff.pyxdiaSettings.v1";
 const PYXIDA_LOCAL_STATE_KEY = "ourstuff.pyxdiaPenpal.v1";
+const PYXIDA_RECENT_NOTE_DAYS = 30;
 const DISMISSED_TIPS_KEY = "ourstuff.dismissedTips.v1";
 const ICONIFY_SEARCH_CACHE_KEY = "ourstuff.iconifySearchCache.v1";
 const LOCAL_APP_UPDATED_AT_KEY = "ourstuff.localAppUpdatedAt.v1";
@@ -1317,6 +1321,7 @@ function createEmptyPyxdiaDraft() {
 		userIncludedContext: "",
 		userSelectedContext,
 		contextSelections: [],
+		noteSelectionMode: "all",
 		updatedAt: "",
 		schemaVersion: 1,
 	};
@@ -1353,18 +1358,22 @@ function createEmptyPyxdiaLocalState() {
 function normalizePyxdiaDraft(value = {}) {
 	const fallback = createEmptyPyxdiaDraft();
 	const draft = value && typeof value === "object" ? value : {};
+	const rawContextSelections =
+		draft.userSelectedContext?.contextSelections ?? draft.contextSelections ?? [];
+	const rawSelectedNoteRefs =
+		draft.userSelectedContext?.selectedNoteRefs ?? draft.includedNoteRefs ?? [];
+	const hasCustomSelection =
+		String(draft.noteSelectionMode || "") === "custom" ||
+		(!draft.noteSelectionMode &&
+			((Array.isArray(rawContextSelections) && rawContextSelections.length > 0) ||
+				(Array.isArray(rawSelectedNoteRefs) && rawSelectedNoteRefs.length > 0)));
+	const noteSelectionMode = hasCustomSelection ? "custom" : "all";
 	const userSelectedContext = normalizePyxdiaUserSelectedContext({
 		...(draft.userSelectedContext || {}),
 		manualText:
 			draft.userSelectedContext?.manualText ?? draft.userIncludedContext ?? "",
-		selectedNoteRefs:
-			draft.userSelectedContext?.selectedNoteRefs ??
-			draft.includedNoteRefs ??
-			[],
-		contextSelections:
-			draft.userSelectedContext?.contextSelections ??
-			draft.contextSelections ??
-			[],
+		selectedNoteRefs: rawSelectedNoteRefs,
+		contextSelections: rawContextSelections,
 	});
 	return {
 		...fallback,
@@ -1381,6 +1390,7 @@ function normalizePyxdiaDraft(value = {}) {
 		userIncludedContext: userSelectedContext.manualText,
 		userSelectedContext,
 		contextSelections: userSelectedContext.contextSelections,
+		noteSelectionMode,
 		updatedAt: normalizeIsoTimestamp(draft.updatedAt) || "",
 		schemaVersion: 1,
 	};
@@ -3132,6 +3142,7 @@ const state = {
 	pyxdiaError: "",
 	pyxdiaBusy: false,
 	pyxdiaLastRefreshAt: "",
+	pyxdiaNoteFilters: createDefaultPyxdiaNoteFilters(),
 	dismissedTips: loadDismissedTips(),
 	dashboardIdentity: loadDashboardIdentity(),
 	trackerAddArea: "",
@@ -6102,22 +6113,108 @@ function selectedPyxdiaThreadLetters() {
 		.reverse();
 }
 
-function pyxdiaSelectedNoteRefs() {
-	const selectedIds = new Set(state.pyxdiaDraft?.contextSelections || []);
-	return pyxdiaNoteRefsFromArtifacts(state.artifactStore)
+function createDefaultPyxdiaNoteFilters() {
+	return {
+		search: "",
+		dashboard: "",
+		role: "",
+		selectedOnly: false,
+		recentOnly: false,
+	};
+}
+
+function normalizePyxdiaNoteFilters(value = {}) {
+	const source = value && typeof value === "object" ? value : {};
+	return {
+		...createDefaultPyxdiaNoteFilters(),
+		search: String(source.search || "").trim(),
+		dashboard: String(source.dashboard || ""),
+		role: String(source.role || ""),
+		selectedOnly: source.selectedOnly === true,
+		recentOnly: source.recentOnly === true,
+	};
+}
+
+function pyxdiaAllNoteRefs() {
+	return pyxdiaNoteRefsFromArtifacts(state.artifactStore);
+}
+
+function pyxdiaEffectiveSelectedNoteIds(
+	draft = state.pyxdiaDraft,
+	refs = pyxdiaAllNoteRefs(),
+) {
+	const normalized = normalizePyxdiaDraft(draft);
+	if (normalized.noteSelectionMode !== "custom") {
+		return new Set(refs.map((ref) => ref.id).filter(Boolean));
+	}
+	return new Set(normalized.contextSelections || []);
+}
+
+function pyxdiaSelectedNoteRefs(
+	draft = state.pyxdiaDraft,
+	refs = pyxdiaAllNoteRefs(),
+) {
+	const selectedIds = pyxdiaEffectiveSelectedNoteIds(draft, refs);
+	return refs
 		.filter((ref) => selectedIds.has(ref.id))
 		.map((ref) => ({ ...ref, userApprovedContentIncluded: false }));
 }
 
-function pyxdiaDraftFromDom() {
+function pyxdiaNoteMetadataBudget(
+	draft = state.pyxdiaDraft,
+	refs = pyxdiaAllNoteRefs(),
+) {
+	const selectedRefs = pyxdiaSelectedNoteRefs(draft, refs);
+	const size = estimatePyxdiaNoteMetadataSize(selectedRefs);
+	return {
+		...size,
+		overRefs: size.refs > PYXIDA_NOTE_METADATA_MAX_REFS,
+		overChars: size.chars > PYXIDA_NOTE_METADATA_MAX_CHARS,
+		selectedRefs,
+	};
+}
+
+function pyxdiaNoteMetadataBudgetError(budget) {
+	if (!budget?.overRefs && !budget?.overChars) {
+		return "";
+	}
+	const parts = [];
+	if (budget.overRefs) {
+		parts.push(
+			`${budget.refs} note metadata refs selected; limit is ${PYXIDA_NOTE_METADATA_MAX_REFS}`,
+		);
+	}
+	if (budget.overChars) {
+		parts.push(
+			`${budget.chars} metadata characters selected; limit is ${PYXIDA_NOTE_METADATA_MAX_CHARS}`,
+		);
+	}
+	return `${parts.join(". ")}. Use filters or clear visible notes before sending.`;
+}
+
+function pyxdiaRecentCutoffMs() {
+	return Date.now() - PYXIDA_RECENT_NOTE_DAYS * 24 * 60 * 60 * 1000;
+}
+
+function isPyxdiaRecentNoteRef(ref) {
+	const edited = Date.parse(ref?.edited || "");
+	return Number.isFinite(edited) && edited >= pyxdiaRecentCutoffMs();
+}
+
+function pyxdiaDraftFromDom(options = {}) {
 	const input = document.getElementById("pyxdia-letter-input");
 	const context = document.getElementById("pyxdia-context-input");
 	const selections = Array.from(
 		document.querySelectorAll("[data-pyxdia-note-ref]:checked"),
 	).map((item) => item.value);
-	const selectedNoteRefs = pyxdiaNoteRefsFromArtifacts(
-		state.artifactStore,
-	).filter((ref) => selections.includes(ref.id));
+	const refs = pyxdiaAllNoteRefs();
+	const selectedNoteRefs = refs.filter((ref) => selections.includes(ref.id));
+	const currentSelectionMode =
+		normalizePyxdiaDraft(state.pyxdiaDraft).noteSelectionMode;
+	const noteSelectionMode =
+		options.noteSelectionMode === "all" || options.noteSelectionMode === "custom"
+			? options.noteSelectionMode
+			: currentSelectionMode || "all";
 	const userSelectedContext = normalizePyxdiaUserSelectedContext({
 		manualText: context
 			? context.value
@@ -6134,6 +6231,7 @@ function pyxdiaDraftFromDom() {
 		userSelectedContext,
 		contextSelections: selections,
 		includedNoteRefs: selectedNoteRefs,
+		noteSelectionMode,
 		updatedAt: now,
 	});
 }
@@ -6177,6 +6275,12 @@ function validatePyxdiaDraft(draft, settings = state.pyxdiaSettings) {
 	}
 	if (size.chars > settings.letterMaxChars) {
 		return `Letter is ${size.chars} characters. Limit is ${settings.letterMaxChars}.`;
+	}
+	const budgetError = pyxdiaNoteMetadataBudgetError(
+		pyxdiaNoteMetadataBudget(draft),
+	);
+	if (budgetError) {
+		return budgetError;
 	}
 	return "";
 }
@@ -6962,22 +7066,38 @@ async function completeLocalPyxdiaLetter(letterId) {
 }
 
 function buildLocalPyxdiaReply(letter, settings) {
+	const cleanLetter = String(letter.inputText || "").replace(/\s+/g, " ").trim();
 	const firstLine =
 		String(letter.inputText || "")
 			.split(/\n+/)
 			.map((line) => line.trim())
 			.find(Boolean) || "your letter";
-	const directness = settings.generalInstructions.includes("direct")
-		? "I will stay direct and practical here."
-		: "I will keep this grounded and practical.";
+	const noteCount = Array.isArray(letter.includedNoteRefs)
+		? letter.includedNoteRefs.length
+		: 0;
+	const familySignal = /\bfamily|wife|husband|kids?|children|home\b/i.test(
+		cleanLetter,
+	);
+	const workSignal = /\bcode|coding|work|app|project|build|computer\b/i.test(
+		cleanLetter,
+	);
+	const balanceLine =
+		familySignal && workSignal
+			? "The early signal is not that your work is wrong; it is that your attention may be leaning so hard toward building that the people closest to you are getting the leftovers."
+			: "The early signal is a small imbalance in attention: something valuable is asking to be noticed before it becomes a louder problem.";
+	const contextLine = noteCount
+		? `I also see ${noteCount} note metadata reference${noteCount === 1 ? "" : "s"} attached, so I am treating this as part of a wider pattern rather than a one-off mood.`
+		: "I am only using the letter itself here, so I will keep the guidance close to what you actually wrote.";
 	return [
 		"Dear friend,",
 		"",
-		`I read the shape of what you sent: ${firstLine.slice(0, 180)}${firstLine.length > 180 ? "..." : ""}`,
+		`I read this as a real check-in, not as a problem to label: ${firstLine.slice(0, 180)}${firstLine.length > 180 ? "..." : ""}`,
 		"",
-		`${directness} The pattern worth noticing is where responsibility, desire, and hesitation are meeting. In Adlerian language, that points toward the kind of belonging and usefulness you are trying to build. In DBT terms, start with what is observable, name the feeling without arguing with it, and choose one small next action. If an archetype helps, treat this as the part of you that wants a clearer role in the story, not as a fixed identity.`,
+		`${balanceLine} ${contextLine}`,
 		"",
-		"One useful next step is to write the smallest honest promise you can keep in the next day. Make it concrete enough that future you can see whether it happened.",
+		"Here is the smallest repair I would choose for the next day: name one protected family moment, keep it small enough to actually happen, and put the coding work around it instead of asking family time to survive around the coding work.",
+		"",
+		"Afterward, notice what resisted it. That resistance is useful information. It may point to pressure, excitement, avoidance, or simply a rhythm that needs a better boundary.",
 		"",
 		"PYXIDA",
 	].join("\n");
@@ -10483,6 +10603,9 @@ function pyxdiaInputHtml() {
 	const overLimit =
 		size.words > settings.letterMaxWords ||
 		size.chars > settings.letterMaxChars;
+	const metadataBudget = pyxdiaNoteMetadataBudget(draft);
+	const metadataError = pyxdiaNoteMetadataBudgetError(metadataBudget);
+	const sendDisabled = state.pyxdiaBusy || Boolean(metadataError);
 	return `
     <section class="pyxdia-letter-editor">
       <div class="pyxdia-letter-main">
@@ -10513,7 +10636,7 @@ function pyxdiaInputHtml() {
         <div class="body-card-heading">
           <div>
             <h3>Note Metadata Selector</h3>
-            <p>Metadata only. Bodies stay local unless pasted into Optional Context.</p>
+            <p>Metadata only. No note bodies are included automatically.</p>
           </div>
         </div>
         ${pyxdiaNoteSelectionHtml(draft)}
@@ -10532,7 +10655,7 @@ function pyxdiaInputHtml() {
       </section>
       <div class="editor-footer-actions pyxdia-letter-actions">
         <button class="secondary-button" data-action="pyxdia-save-draft" type="button"${state.pyxdiaBusy ? " disabled" : ""}>${buttonContent("tabler:device-floppy", "Save Draft")}</button>
-        <button class="primary-button" data-action="pyxdia-send-letter" type="button"${state.pyxdiaBusy ? " disabled" : ""}>${buttonContent("tabler:send-2", "Send Letter")}</button>
+        <button class="primary-button" data-action="pyxdia-send-letter" type="button"${sendDisabled ? " disabled" : ""}>${buttonContent("tabler:send-2", "Send Letter")}</button>
       </div>
     </section>
     ${pyxdiaLastLetterHtml({ embedded: true })}
@@ -10545,29 +10668,161 @@ function renderPyxdiaLetterMarkdown(text, imageRefs = []) {
 }
 
 function pyxdiaNoteSelectionHtml(draft) {
-	const refs = pyxdiaNoteRefsFromArtifacts(state.artifactStore);
-	const selected = new Set(draft.contextSelections || []);
+	const refs = pyxdiaAllNoteRefs();
+	const selected = pyxdiaEffectiveSelectedNoteIds(draft, refs);
+	const budget = pyxdiaNoteMetadataBudget(draft, refs);
+	const budgetError = pyxdiaNoteMetadataBudgetError(budget);
+	const filters = normalizePyxdiaNoteFilters(state.pyxdiaNoteFilters);
+	const dashboards = Array.from(
+		new Set(refs.map((ref) => ref.dashboard || "Note").filter(Boolean)),
+	).sort((a, b) => a.localeCompare(b));
+	const roles = Array.from(
+		new Set(refs.map((ref) => ref.role || "note").filter(Boolean)),
+	).sort((a, b) => a.localeCompare(b));
 	if (!refs.length) {
 		return emptyStateHtml("No note metadata", "Create notes first.");
 	}
+	const optionHtml = (value, label, current) =>
+		`<option value="${escapeHtml(value)}"${current === value ? " selected" : ""}>${escapeHtml(label)}</option>`;
 	return `
-    <div class="pyxdia-note-ref-list">
-      ${refs
-				.slice(0, 24)
-				.map(
-					(ref) => `
-        <label class="pyxdia-note-ref">
-          <input data-pyxdia-note-ref type="checkbox" value="${escapeHtml(ref.id)}"${selected.has(ref.id) ? " checked" : ""}>
+    <div class="pyxdia-note-selector">
+      <div class="pyxdia-note-filter-grid">
+        <label class="body-field">Search<input id="pyxdia-note-filter-search" data-pyxdia-note-filter="search" type="search" value="${escapeHtml(filters.search)}" placeholder="Title, area, role"></label>
+        <label class="body-field">Area<select id="pyxdia-note-filter-dashboard" data-pyxdia-note-filter="dashboard">
+          ${optionHtml("", "All areas", filters.dashboard)}
+          ${dashboards.map((dashboard) => optionHtml(dashboard, dashboard, filters.dashboard)).join("")}
+        </select></label>
+        <label class="body-field">Role<select id="pyxdia-note-filter-role" data-pyxdia-note-filter="role">
+          ${optionHtml("", "All roles", filters.role)}
+          ${roles.map((role) => optionHtml(role, role, filters.role)).join("")}
+        </select></label>
+      </div>
+      <div class="pyxdia-note-filter-toggles">
+        <label class="dashboard-identity-toggle">
+          <input id="pyxdia-note-filter-selected" data-pyxdia-note-filter="selectedOnly" type="checkbox"${filters.selectedOnly ? " checked" : ""}>
+          <span>Selected</span>
+        </label>
+        <label class="dashboard-identity-toggle">
+          <input id="pyxdia-note-filter-recent" data-pyxdia-note-filter="recentOnly" type="checkbox"${filters.recentOnly ? " checked" : ""}>
+          <span>Recent ${PYXIDA_RECENT_NOTE_DAYS}d</span>
+        </label>
+      </div>
+      <div class="action-row pyxdia-note-bulk-actions">
+        <button class="secondary-button" data-action="pyxdia-note-select-visible" type="button">${buttonContent("tabler:checks", "Select Visible")}</button>
+        <button class="secondary-button" data-action="pyxdia-note-clear-visible" type="button">${buttonContent("tabler:square", "Clear Visible")}</button>
+        <button class="secondary-button" data-action="pyxdia-note-reset-all" type="button">${buttonContent("tabler:refresh", "Reset All")}</button>
+      </div>
+      <p class="pyxdia-note-summary${budgetError ? " is-over-limit" : ""}" data-pyxdia-note-summary>
+        ${escapeHtml(`${budget.refs} of ${refs.length} metadata refs selected / ${budget.chars} chars. No note bodies are included.`)}
+      </p>
+      ${budgetError ? `<p class="pyxdia-context-warning">${escapeHtml(budgetError)}</p>` : ""}
+      <div class="pyxdia-note-ref-list">
+        ${refs
+					.map((ref) => {
+						const checked = selected.has(ref.id);
+						const meta = `${ref.dashboard || "Note"} / ${ref.role} / ${ref.wordCount} words / ${ref.edited ? formatActivityTimestamp(ref.edited) : "No date"}`;
+						const searchText = [
+							ref.title,
+							ref.dashboard || "Note",
+							ref.role || "note",
+						]
+							.join(" ")
+							.toLowerCase();
+						return `
+        <label class="pyxdia-note-ref" data-pyxdia-note-ref-row data-dashboard="${escapeHtml(ref.dashboard || "Note")}" data-role="${escapeHtml(ref.role || "note")}" data-search="${escapeHtml(searchText)}" data-recent="${isPyxdiaRecentNoteRef(ref) ? "true" : "false"}" data-selected="${checked ? "true" : "false"}">
+          <input data-pyxdia-note-ref type="checkbox" value="${escapeHtml(ref.id)}"${checked ? " checked" : ""}>
           <span>
             <strong>${escapeHtml(ref.title)}</strong>
-            <small>${escapeHtml(ref.dashboard || "Note")} / ${escapeHtml(ref.role)} / ${escapeHtml(`${ref.wordCount} words`)}</small>
+            <small>${escapeHtml(meta)}</small>
           </span>
         </label>
-      `,
-				)
-				.join("")}
+      `;
+					})
+					.join("")}
+      </div>
+      <div class="pyxdia-note-filter-empty" data-pyxdia-note-empty hidden>No matching note metadata.</div>
     </div>
   `;
+}
+
+function pyxdiaNoteFiltersFromDom() {
+	return normalizePyxdiaNoteFilters({
+		search: app.querySelector("[data-pyxdia-note-filter='search']")?.value || "",
+		dashboard:
+			app.querySelector("[data-pyxdia-note-filter='dashboard']")?.value || "",
+		role: app.querySelector("[data-pyxdia-note-filter='role']")?.value || "",
+		selectedOnly:
+			app.querySelector("[data-pyxdia-note-filter='selectedOnly']")?.checked ===
+			true,
+		recentOnly:
+			app.querySelector("[data-pyxdia-note-filter='recentOnly']")?.checked ===
+			true,
+	});
+}
+
+function pyxdiaVisibleNoteCheckboxes() {
+	return Array.from(app.querySelectorAll("[data-pyxdia-note-ref-row]"))
+		.filter((row) => row.hidden !== true)
+		.map((row) => row.querySelector("[data-pyxdia-note-ref]"))
+		.filter(Boolean);
+}
+
+function updatePyxdiaNoteSummaryDom() {
+	const refs = pyxdiaAllNoteRefs();
+	const draft = pyxdiaDraftFromDom({ noteSelectionMode: "custom" });
+	const budget = pyxdiaNoteMetadataBudget(draft, refs);
+	const budgetError = pyxdiaNoteMetadataBudgetError(budget);
+	const summary = app.querySelector("[data-pyxdia-note-summary]");
+	if (summary) {
+		summary.classList.toggle("is-over-limit", Boolean(budgetError));
+		summary.textContent = `${budget.refs} of ${refs.length} metadata refs selected / ${budget.chars} chars. No note bodies are included.`;
+	}
+	const sendButton = app.querySelector("[data-action='pyxdia-send-letter']");
+	if (sendButton) {
+		sendButton.disabled = state.pyxdiaBusy || Boolean(budgetError);
+	}
+}
+
+function applyPyxdiaNoteFiltersDom() {
+	const filters = normalizePyxdiaNoteFilters(state.pyxdiaNoteFilters);
+	const rows = Array.from(app.querySelectorAll("[data-pyxdia-note-ref-row]"));
+	const search = filters.search.toLowerCase();
+	let visible = 0;
+	rows.forEach((row) => {
+		const checkbox = row.querySelector("[data-pyxdia-note-ref]");
+		const checked = checkbox?.checked === true;
+		row.dataset.selected = checked ? "true" : "false";
+		const matchesSearch =
+			!search || String(row.dataset.search || "").includes(search);
+		const matchesDashboard =
+			!filters.dashboard || row.dataset.dashboard === filters.dashboard;
+		const matchesRole = !filters.role || row.dataset.role === filters.role;
+		const matchesSelected = !filters.selectedOnly || checked;
+		const matchesRecent = !filters.recentOnly || row.dataset.recent === "true";
+		const matches =
+			matchesSearch &&
+			matchesDashboard &&
+			matchesRole &&
+			matchesSelected &&
+			matchesRecent;
+		row.hidden = !matches;
+		if (matches) {
+			visible += 1;
+		}
+	});
+	const empty = app.querySelector("[data-pyxdia-note-empty]");
+	if (empty) {
+		empty.hidden = visible > 0;
+	}
+	updatePyxdiaNoteSummaryDom();
+}
+
+function savePyxdiaNoteSelectionFromDom(noteSelectionMode = "custom") {
+	const draft = savePyxdiaDraftLocal(
+		pyxdiaDraftFromDom({ noteSelectionMode }),
+		{ render: false },
+	);
+	setState({ pyxdiaDraft: draft, pyxdiaError: "" });
 }
 
 function pyxdiaOutputHtml() {
@@ -14196,10 +14451,24 @@ function bindPyxdiaControls() {
 		context.addEventListener("change", update);
 	}
 	app.querySelectorAll("[data-pyxdia-note-ref]").forEach((checkbox) => {
-		checkbox.addEventListener("change", () =>
-			savePyxdiaDraftLocal(pyxdiaDraftFromDom(), { render: false }),
-		);
+		checkbox.addEventListener("change", () => {
+			savePyxdiaDraftLocal(pyxdiaDraftFromDom({ noteSelectionMode: "custom" }), {
+				render: false,
+			});
+			applyPyxdiaNoteFiltersDom();
+		});
 	});
+	app.querySelectorAll("[data-pyxdia-note-filter]").forEach((control) => {
+		const updateFilters = () => {
+			state.pyxdiaNoteFilters = pyxdiaNoteFiltersFromDom();
+			applyPyxdiaNoteFiltersDom();
+		};
+		control.addEventListener("input", updateFilters);
+		control.addEventListener("change", updateFilters);
+	});
+	if (app.querySelector("[data-pyxdia-note-ref-row]")) {
+		applyPyxdiaNoteFiltersDom();
+	}
 	const settingsPanel = app.querySelector(".pyxdia-settings");
 	if (settingsPanel) {
 		const updateSettings = (event) => {
@@ -15529,6 +15798,24 @@ function handleAction(element) {
 			pyxdiaEditorMode:
 				element.dataset.mode === "preview" ? "preview" : "markdown",
 		});
+	}
+	if (action === "pyxdia-note-select-visible") {
+		pyxdiaVisibleNoteCheckboxes().forEach((checkbox) => {
+			checkbox.checked = true;
+		});
+		savePyxdiaNoteSelectionFromDom("custom");
+	}
+	if (action === "pyxdia-note-clear-visible") {
+		pyxdiaVisibleNoteCheckboxes().forEach((checkbox) => {
+			checkbox.checked = false;
+		});
+		savePyxdiaNoteSelectionFromDom("custom");
+	}
+	if (action === "pyxdia-note-reset-all") {
+		app.querySelectorAll("[data-pyxdia-note-ref]").forEach((checkbox) => {
+			checkbox.checked = true;
+		});
+		savePyxdiaNoteSelectionFromDom("all");
 	}
 	if (action === "pyxdia-save-draft") {
 		void runPyxdiaAction("Saving draft...", savePyxdiaDraftAction);
