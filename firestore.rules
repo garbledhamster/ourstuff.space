@@ -18,11 +18,58 @@ service cloud.firestore {
       return isAdmin() || isSelf(uid);
     }
 
+    function ownsExistingOwnerUid() {
+      return signedIn() && resource.data.ownerUid == request.auth.uid;
+    }
+
     function ownsIncomingArtifact(uid) {
       return request.resource.data.owner == uid
         && request.resource.data.acl is map
         && request.resource.data.acl.owners is list
         && request.auth.uid in request.resource.data.acl.owners;
+    }
+
+    function isProtectedAppCollection(collectionId) {
+      return collectionId in [
+        "artifacts",
+        "pyxdiaSettings",
+        "pyxdiaThreads",
+        "pyxdiaLetters",
+        "pyxdiaMemories",
+        "pyxdiaProcessingJobs",
+        "pyxdiaRateLimits"
+      ];
+    }
+
+    match /brain_memories/{memoryId} {
+      allow read: if ownsExistingOwnerUid();
+      allow create, update, delete: if false;
+    }
+
+    match /brain_artifacts/{artifactId} {
+      allow read: if ownsExistingOwnerUid()
+        && resource.data.sensitivity != "restricted";
+      allow create, update, delete: if false;
+    }
+
+    match /context_bundles/{bundleId} {
+      allow read: if ownsExistingOwnerUid();
+      allow create, update, delete: if false;
+    }
+
+    match /projects/{projectId} {
+      allow read: if ownsExistingOwnerUid();
+      allow create, update, delete: if false;
+    }
+
+    match /audit_events/{eventId} {
+      allow read: if ownsExistingOwnerUid();
+      allow create, update, delete: if false;
+    }
+
+    match /tenants/{tenantId} {
+      allow read: if signedIn();
+      allow create, update, delete: if false;
     }
 
     match /users/{uid} {
@@ -43,6 +90,11 @@ service cloud.firestore {
     match /users/{uid}/apps/{appId} {
       allow read: if canUseCloud(uid);
       allow create, update, delete: if canUseCloud(uid);
+    }
+
+    match /users/{uid}/apps/{appId}/{collectionId}/{document=**} {
+      allow read, create, update, delete: if canUseCloud(uid)
+        && !isProtectedAppCollection(collectionId);
     }
 
     match /users/{uid}/apps/{appId}/artifacts/{artifactId} {
@@ -87,6 +139,10 @@ service cloud.firestore {
 
     match /users/{uid}/apps/{appId}/pyxdiaRateLimits/{bucketId} {
       allow read, create, update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

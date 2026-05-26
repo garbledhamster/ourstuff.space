@@ -1551,9 +1551,9 @@ select option:checked {
 .dashboard-chart-switcher {
 	display: grid;
 	grid-template-columns: repeat(
-		var(--dashboard-chart-tab-count, 3),
-		minmax(0, 1fr)
-	);
+			var(--dashboard-chart-tab-count, 3),
+			minmax(0, 1fr)
+		);
 	gap: 0;
 	width: 100%;
 	min-height: 0;
@@ -4413,10 +4413,7 @@ select option:checked {
 
 .thought-toast {
 	--thought-toast-accent: var(--accent-2, var(--accent));
-	--thought-toast-on-accent: var(
-		--on-accent-2,
-		var(--on-accent, var(--text))
-	);
+	--thought-toast-on-accent: var(--on-accent-2, var(--on-accent, var(--text)));
 	--thought-toast-bg: color-mix(
 		in srgb,
 		var(--surface) 70%,
@@ -4482,8 +4479,8 @@ select option:checked {
 	padding: 12px 14px;
 	box-shadow:
 		0 18px 42px var(--theme-shadow, rgba(0, 0, 0, 0.36)),
-		0 0 0 1px
-		color-mix(in srgb, var(--thought-toast-accent) 32%, transparent) inset;
+		0 0 0 1px color-mix(in srgb, var(--thought-toast-accent) 32%, transparent)
+		inset;
 	opacity: 1;
 	transform: translateX(-50%) translateY(0);
 	transition:

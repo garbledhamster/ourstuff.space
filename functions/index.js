@@ -37,7 +37,8 @@ const SAFE_ERRORS = {
 		"This letter contains content that cannot be sent to the AI. Edit and try again.",
 	blocked_cardholder_data_detected:
 		"This letter contains content that cannot be sent to the AI. Edit and try again.",
-	entitlement_required: "PYXIDA AI replies require an active Cloud subscription.",
+	entitlement_required:
+		"PYXIDA AI replies require an active Cloud subscription.",
 	rate_limited: "Too many PYXIDA requests. Wait a little and try again.",
 	provider_failed: "PYXIDA could not finish. Try again.",
 	output_validation_failed: "PYXIDA could not finish safely. Try again.",
@@ -47,113 +48,145 @@ const MAX_TRASH_RETENTION_DAYS = 365;
 const TRASH_CLEANUP_BATCH_LIMIT = 100;
 const TRASH_ITEM_TYPES = new Set(["artifact", "note", "pyxdia_letter"]);
 
-exports.pyxdiaApi = onRequest({ cors: ALLOWED_ORIGINS, timeoutSeconds: 120 }, async (req, res) => {
-	try {
-		if (req.method === "OPTIONS") return res.status(204).send("");
-		const auth = await verifyAuth(req, SAFE_ERRORS.auth_required);
-		const uid = auth.uid;
-		const path = routePath(req, "pyxdiaApi");
-		if (req.method === "GET" && path === "/state") {
-			return res.json(await statePayload(uid));
+exports.pyxdiaApi = onRequest(
+	{ cors: ALLOWED_ORIGINS, timeoutSeconds: 120 },
+	async (req, res) => {
+		try {
+			if (req.method === "OPTIONS") {return res.status(204).send("");}
+			const auth = await verifyAuth(req, SAFE_ERRORS.auth_required);
+			const uid = auth.uid;
+			const path = routePath(req, "pyxdiaApi");
+			if (req.method === "GET" && path === "/state") {
+				return res.json(await statePayload(uid));
+			}
+			if (req.method === "POST" && path === "/draft") {
+				await enforceRateLimit(uid, "draft", 120, 3600);
+				return res.json(await saveDraft(uid, body(req)));
+			}
+			if (req.method === "POST" && path === "/letters") {
+				await enforceRateLimit(uid, "letters", 20, 3600);
+				return res.json(await submitLetter(uid, body(req), auth));
+			}
+			if (
+				req.method === "POST" &&
+				path.startsWith("/letters/") &&
+				path.endsWith("/retry")
+			) {
+				await enforceRateLimit(uid, "retry", 20, 3600);
+				return res.json(await retryLetter(uid, path.split("/")[2]));
+			}
+			if (req.method === "PATCH" && path === "/settings") {
+				await enforceRateLimit(uid, "settings", 60, 3600);
+				return res.json(await saveSettings(uid, body(req)));
+			}
+			if (req.method === "POST" && path === "/memory/reset") {
+				await enforceRateLimit(uid, "memory", 20, 3600);
+				return res.json(await resetMemory(uid));
+			}
+			return sendError(res, "not_found", "PYXIDA route not found.", 404);
+		} catch (error) {
+			return sendCaught(res, error);
 		}
-		if (req.method === "POST" && path === "/draft") {
-			await enforceRateLimit(uid, "draft", 120, 3600);
-			return res.json(await saveDraft(uid, body(req)));
-		}
-		if (req.method === "POST" && path === "/letters") {
-			await enforceRateLimit(uid, "letters", 20, 3600);
-			return res.json(await submitLetter(uid, body(req), auth));
-		}
-		if (req.method === "POST" && path.startsWith("/letters/") && path.endsWith("/retry")) {
-			await enforceRateLimit(uid, "retry", 20, 3600);
-			return res.json(await retryLetter(uid, path.split("/")[2]));
-		}
-		if (req.method === "PATCH" && path === "/settings") {
-			await enforceRateLimit(uid, "settings", 60, 3600);
-			return res.json(await saveSettings(uid, body(req)));
-		}
-		if (req.method === "POST" && path === "/memory/reset") {
-			await enforceRateLimit(uid, "memory", 20, 3600);
-			return res.json(await resetMemory(uid));
-		}
-		return sendError(res, "not_found", "PYXIDA route not found.", 404);
-	} catch (error) {
-		return sendCaught(res, error);
-	}
-});
+	},
+);
 
-exports.aiApi = onRequest({ cors: ALLOWED_ORIGINS, timeoutSeconds: 120 }, async (req, res) => {
-	try {
-		if (req.method === "OPTIONS") return res.status(204).send("");
-		const auth = await verifyAuth(req, "Sign in with Cloud to use AI.");
-		const uid = auth.uid;
-		await enforceRateLimit(uid, "ai", 60, 3600);
-		const payload = body(req);
-		const mode = routePath(req, "aiApi").replace(/^\/+/, "") || payload.mode || "scrub";
-		const text = String(payload.text || "");
-		if (mode === "scrub") return res.json(scrubText(text));
-		if (mode === "scrub-llm" || mode === "scrub_llm") {
-			await requirePaidAiAccessIfNeeded(uid, auth);
-			const scrubbed = scrubText(text);
-			const result = await generateLetter(scrubbed.text, {});
-			validatePlainOutput(result.letter_text);
-			return res.json({
-				outputText: result.letter_text,
-				scrubReportSummary: scrubbed.summary,
-			});
+exports.aiApi = onRequest(
+	{ cors: ALLOWED_ORIGINS, timeoutSeconds: 120 },
+	async (req, res) => {
+		try {
+			if (req.method === "OPTIONS") {return res.status(204).send("");}
+			const auth = await verifyAuth(req, "Sign in with Cloud to use AI.");
+			const uid = auth.uid;
+			await enforceRateLimit(uid, "ai", 60, 3600);
+			const payload = body(req);
+			const mode =
+				routePath(req, "aiApi").replace(/^\/+/, "") || payload.mode || "scrub";
+			const text = String(payload.text || "");
+			if (mode === "scrub") {return res.json(scrubText(text));}
+			if (mode === "scrub-llm" || mode === "scrub_llm") {
+				await requirePaidAiAccessIfNeeded(uid, auth);
+				const scrubbed = scrubText(text);
+				const result = await generateLetter(scrubbed.text, {});
+				validatePlainOutput(result.letter_text);
+				return res.json({
+					outputText: result.letter_text,
+					scrubReportSummary: scrubbed.summary,
+				});
+			}
+			if (mode === "llm" || mode === "llm-scrub" || mode === "llm_scrub") {
+				await requirePaidAiAccessIfNeeded(uid, auth);
+				scrubText(text);
+				const result = await generateLetter(text, {});
+				validatePlainOutput(result.letter_text);
+				const scanned = scrubText(result.letter_text);
+				return res.json({
+					outputText: scanned.text,
+					scrubReportSummary: scanned.summary,
+				});
+			}
+			return sendError(res, "not_found", "AI route not found.", 404);
+		} catch (error) {
+			return sendCaught(res, error);
 		}
-		if (mode === "llm" || mode === "llm-scrub" || mode === "llm_scrub") {
-			await requirePaidAiAccessIfNeeded(uid, auth);
-			scrubText(text);
-			const result = await generateLetter(text, {});
-			validatePlainOutput(result.letter_text);
-			const scanned = scrubText(result.letter_text);
-			return res.json({
-				outputText: scanned.text,
-				scrubReportSummary: scanned.summary,
-			});
-		}
-		return sendError(res, "not_found", "AI route not found.", 404);
-	} catch (error) {
-		return sendCaught(res, error);
-	}
-});
+	},
+);
 
-exports.trashApi = onRequest({ cors: ALLOWED_ORIGINS, timeoutSeconds: 120 }, async (req, res) => {
-	try {
-		if (req.method === "OPTIONS") return res.status(204).send("");
-		const auth = await verifyAuth(req, "Sign in with Cloud to use Trash.");
-		const uid = auth.uid;
-		const path = routePath(req, "trashApi");
-		const payload = body(req);
-		if (req.method === "GET" && (path === "/state" || path === "/items")) {
-			await enforceRateLimit(uid, "trash-read", 240, 3600);
-			const limit = clampNumber(req.query?.limit || payload.limit, 1, 100, 50);
-			const cursor = String(req.query?.cursor || payload.cursor || "");
-			return res.json(await trashStatePayload(uid, { limit, cursor }));
+exports.trashApi = onRequest(
+	{ cors: ALLOWED_ORIGINS, timeoutSeconds: 120 },
+	async (req, res) => {
+		try {
+			if (req.method === "OPTIONS") {return res.status(204).send("");}
+			const auth = await verifyAuth(req, "Sign in with Cloud to use Trash.");
+			const uid = auth.uid;
+			const path = routePath(req, "trashApi");
+			const payload = body(req);
+			if (req.method === "GET" && (path === "/state" || path === "/items")) {
+				await enforceRateLimit(uid, "trash-read", 240, 3600);
+				const limit = clampNumber(
+					req.query?.limit || payload.limit,
+					1,
+					100,
+					50,
+				);
+				const cursor = String(req.query?.cursor || payload.cursor || "");
+				return res.json(await trashStatePayload(uid, { limit, cursor }));
+			}
+			if (req.method === "PATCH" && path === "/settings") {
+				await enforceRateLimit(uid, "trash-settings", 60, 3600);
+				const settings = await saveTrashSettings(
+					uid,
+					payload.settings || payload,
+				);
+				return res.json(await trashStatePayload(uid, { settings }));
+			}
+			if (req.method === "POST" && path === "/delete") {
+				await enforceRateLimit(uid, "trash-delete", 120, 3600);
+				return res.json(
+					await deleteUserItem({
+						uid,
+						itemType: payload.itemType,
+						itemId: payload.itemId,
+					}),
+				);
+			}
+			if (req.method === "POST" && path === "/restore") {
+				await enforceRateLimit(uid, "trash-restore", 120, 3600);
+				return res.json(
+					await restoreUserItem({ uid, trashItemId: payload.trashItemId }),
+				);
+			}
+			if (req.method === "POST" && path === "/hard-delete") {
+				await enforceRateLimit(uid, "trash-hard-delete", 120, 3600);
+				return res.json(
+					await hardDeleteUserItem({ uid, trashItemId: payload.trashItemId }),
+				);
+			}
+			return sendError(res, "not_found", "Trash route not found.", 404);
+		} catch (error) {
+			return sendCaught(res, error);
 		}
-		if (req.method === "PATCH" && path === "/settings") {
-			await enforceRateLimit(uid, "trash-settings", 60, 3600);
-			const settings = await saveTrashSettings(uid, payload.settings || payload);
-			return res.json(await trashStatePayload(uid, { settings }));
-		}
-		if (req.method === "POST" && path === "/delete") {
-			await enforceRateLimit(uid, "trash-delete", 120, 3600);
-			return res.json(await deleteUserItem({ uid, itemType: payload.itemType, itemId: payload.itemId }));
-		}
-		if (req.method === "POST" && path === "/restore") {
-			await enforceRateLimit(uid, "trash-restore", 120, 3600);
-			return res.json(await restoreUserItem({ uid, trashItemId: payload.trashItemId }));
-		}
-		if (req.method === "POST" && path === "/hard-delete") {
-			await enforceRateLimit(uid, "trash-hard-delete", 120, 3600);
-			return res.json(await hardDeleteUserItem({ uid, trashItemId: payload.trashItemId }));
-		}
-		return sendError(res, "not_found", "Trash route not found.", 404);
-	} catch (error) {
-		return sendCaught(res, error);
-	}
-});
+	},
+);
 
 exports.processPyxdiaJobs = onSchedule("every 30 minutes", async () => {
 	const db = admin.firestore();
@@ -166,7 +199,7 @@ exports.processPyxdiaJobs = onSchedule("every 30 minutes", async () => {
 			.limit(10)
 			.get();
 		for (const job of jobs.docs) {
-			if (String(job.data().availableAt || "") > now) continue;
+			if (String(job.data().availableAt || "") > now) {continue;}
 			await processJob(userDoc.id, job.id);
 		}
 	}
@@ -204,13 +237,17 @@ exports.cleanupExpiredTrash = onSchedule("every day 03:00", async () => {
 	console.info("trash_cleanup", { deletedCount, failedCount, checkedAt: now });
 });
 
-async function verifyAuth(req, authRequiredMessage = SAFE_ERRORS.auth_required) {
+async function verifyAuth(
+	req,
+	authRequiredMessage = SAFE_ERRORS.auth_required,
+) {
 	const header = String(req.headers.authorization || "");
 	if (!header.toLowerCase().startsWith("bearer ")) {
 		throw policyError("auth_required", authRequiredMessage, 401);
 	}
 	const decoded = await admin.auth().verifyIdToken(header.slice(7).trim());
-	if (!decoded.uid) throw policyError("auth_required", authRequiredMessage, 401);
+	if (!decoded.uid)
+		{throw policyError("auth_required", authRequiredMessage, 401);}
 	return decoded;
 }
 
@@ -227,7 +264,9 @@ async function statePayload(uid) {
 		.filter((doc) => doc.id !== "draft")
 		.map((doc) => doc.data())
 		.filter((letter) => !isDeletedRecord(letter));
-	const activeLetterIds = new Set(letters.map((letter) => letter.id).filter(Boolean));
+	const activeLetterIds = new Set(
+		letters.map((letter) => letter.id).filter(Boolean),
+	);
 	return {
 		settings,
 		threads: threadsSnap.docs
@@ -235,25 +274,42 @@ async function statePayload(uid) {
 			.filter((thread) => !isDeletedRecord(thread))
 			.map((thread) => ({
 				...thread,
-				letterIds: (thread.letterIds || []).filter((id) => activeLetterIds.has(id)),
+				letterIds: (thread.letterIds || []).filter((id) =>
+					activeLetterIds.has(id),
+				),
 			}))
 			.filter((thread) => (thread.letterIds || []).length),
 		letters,
-		memory: memorySnap.exists ? normalizeMemory(memorySnap.data(), uid) : emptyMemory(uid),
-		draft: draftSnap.exists ? normalizeDraftPayload(draftSnap.data(), uid) : draftDoc(uid),
+		memory: memorySnap.exists
+			? normalizeMemory(memorySnap.data(), uid)
+			: emptyMemory(uid),
+		draft: draftSnap.exists
+			? normalizeDraftPayload(draftSnap.data(), uid)
+			: draftDoc(uid),
 	};
 }
 
 async function saveDraft(uid, payload) {
-	const draft = normalizeDraftPayload({ ...draftDoc(uid), ...(payload.draft || payload) }, uid, { touch: true });
-	await appRef(uid).collection("pyxdiaLetters").doc("draft").set(draft, { merge: true });
+	const draft = normalizeDraftPayload(
+		{ ...draftDoc(uid), ...(payload.draft || payload) },
+		uid,
+		{ touch: true },
+	);
+	await appRef(uid)
+		.collection("pyxdiaLetters")
+		.doc("draft")
+		.set(draft, { merge: true });
 	audit("pyxdia/draft", uid, "saved");
 	return statePayload(uid);
 }
 
 async function submitLetter(uid, payload, auth) {
-	const settings = normalizeSettings({ ...(await readSettings(uid)), ...(payload.settings || {}) });
-	if (!settings.enabled) throw policyError("feature_disabled", SAFE_ERRORS.feature_disabled);
+	const settings = normalizeSettings({
+		...(await readSettings(uid)),
+		...(payload.settings || {}),
+	});
+	if (!settings.enabled)
+		{throw policyError("feature_disabled", SAFE_ERRORS.feature_disabled);}
 	await requirePaidAiAccessIfNeeded(uid, auth);
 	const draft = normalizeDraftPayload(payload.draft || payload, uid);
 	const userSelectedContext = normalizeUserSelectedContext(draft);
@@ -261,7 +317,7 @@ async function submitLetter(uid, payload, auth) {
 	validateLetterSize(inputText, settings);
 	const scrubbed = scrubText(inputText);
 	const context = String(userSelectedContext.manualText || "");
-	if (context) scrubText(context);
+	if (context) {scrubText(context);}
 	const now = nowIso();
 	const threadId = String(draft.threadId || `thread-${crypto.randomUUID()}`);
 	const requestedLetterId = String(draft.clientLetterId || "").trim();
@@ -318,7 +374,10 @@ async function submitLetter(uid, payload, auth) {
 			{ merge: true },
 		),
 		app.collection("pyxdiaLetters").doc(letterId).set(letter),
-		app.collection("pyxdiaLetters").doc("draft").set(draftDoc(uid), { merge: true }),
+		app
+			.collection("pyxdiaLetters")
+			.doc("draft")
+			.set(draftDoc(uid), { merge: true }),
 		app.collection("pyxdiaProcessingJobs").doc(letterId).set({
 			id: letterId,
 			owner: uid,
@@ -338,7 +397,7 @@ async function submitLetter(uid, payload, auth) {
 		}),
 	]);
 	audit("pyxdia/letters", uid, "queued", { jobId: letterId });
-	if (!settings.delayEnabled) await processJob(uid, letterId);
+	if (!settings.delayEnabled) {await processJob(uid, letterId);}
 	return statePayload(uid);
 }
 
@@ -352,7 +411,10 @@ async function retryLetter(uid, letterId) {
 	}
 	const now = nowIso();
 	await Promise.all([
-		letterRef.set({ state: "queued", updatedAt: now, errorCode: "", errorMessageSafe: "" }, { merge: true }),
+		letterRef.set(
+			{ state: "queued", updatedAt: now, errorCode: "", errorMessageSafe: "" },
+			{ merge: true },
+		),
 		app.collection("pyxdiaProcessingJobs").doc(letterId).set(
 			{
 				id: letterId,
@@ -376,7 +438,10 @@ async function saveSettings(uid, payload) {
 	const settings = normalizeSettings(payload.settings || payload);
 	settings.owner = uid;
 	settings.updatedAt = nowIso();
-	await appRef(uid).collection("pyxdiaSettings").doc("default").set(settings, { merge: true });
+	await appRef(uid)
+		.collection("pyxdiaSettings")
+		.doc("default")
+		.set(settings, { merge: true });
 	audit("pyxdia/settings", uid, "saved");
 	return statePayload(uid);
 }
@@ -393,24 +458,35 @@ async function processJob(uid, jobId) {
 	const jobRef = app.collection("pyxdiaProcessingJobs").doc(jobId);
 	const letterRef = app.collection("pyxdiaLetters").doc(jobId);
 	const claimed = await claimJobTransaction(jobRef, letterRef);
-	if (!claimed) return;
+	if (!claimed) {return;}
 	const { job, letter } = claimed;
 	try {
 		await requirePaidAiAccessIfNeeded(uid);
 		const settings = await readSettings(uid);
 		const memoryRef = app.collection("pyxdiaMemories").doc("current");
 		const memorySnap = await memoryRef.get();
-		const memory = memorySnap.exists ? normalizeMemory(memorySnap.data(), uid) : emptyMemory(uid);
-		const userSelectedContext = normalizeUserSelectedContext(letter.userSelectedContext || {
-			manualText: letter.userIncludedContext || "",
-			selectedNoteRefs: letter.includedNoteRefs || [],
-			contextSelections: letter.contextSelections || [],
-		});
-		const staticMemory = normalizeStaticMemory(memory.staticMemory || {
-			summary: memory.summary || "",
-			entries: memory.entries || [],
-		}, uid);
-		const dynamicRetrievalMemory = await buildDynamicRetrievalMemory(uid, letter, memory);
+		const memory = memorySnap.exists
+			? normalizeMemory(memorySnap.data(), uid)
+			: emptyMemory(uid);
+		const userSelectedContext = normalizeUserSelectedContext(
+			letter.userSelectedContext || {
+				manualText: letter.userIncludedContext || "",
+				selectedNoteRefs: letter.includedNoteRefs || [],
+				contextSelections: letter.contextSelections || [],
+			},
+		);
+		const staticMemory = normalizeStaticMemory(
+			memory.staticMemory || {
+				summary: memory.summary || "",
+				entries: memory.entries || [],
+			},
+			uid,
+		);
+		const dynamicRetrievalMemory = await buildDynamicRetrievalMemory(
+			uid,
+			letter,
+			memory,
+		);
 		const scrubbedUserSelectedContext = {
 			...userSelectedContext,
 			manualText: userSelectedContext.manualText
@@ -428,7 +504,8 @@ async function processJob(uid, jobId) {
 			staticMemory,
 			dynamicRetrievalMemory,
 			userSelectedContext: scrubbedUserSelectedContext,
-			letter: letter.scrubbedInputText || scrubText(letter.inputText || "").text,
+			letter:
+				letter.scrubbedInputText || scrubText(letter.inputText || "").text,
 		});
 		const result = await generateLetter(prompt, settings);
 		const output = String(result.letter_text || "").trim();
@@ -456,14 +533,32 @@ async function processJob(uid, jobId) {
 				},
 				{ merge: true },
 			),
-			jobRef.set({ state: "completed", updatedAt: completedAt }, { merge: true }),
+			jobRef.set(
+				{ state: "completed", updatedAt: completedAt },
+				{ merge: true },
+			),
 			settings.memoryEnabled
-				? memoryRef.set(updateMemory(uid, memory, { ...letter, dynamicRetrievalMemory }, scannedOutput.text), { merge: true })
+				? memoryRef.set(
+						updateMemory(
+							uid,
+							memory,
+							{ ...letter, dynamicRetrievalMemory },
+							scannedOutput.text,
+						),
+						{ merge: true },
+					)
 				: Promise.resolve(),
 		]);
 		audit("pyxdia/job", uid, "completed", { jobId, model: result.model || "" });
 	} catch (error) {
-		await failJob(uid, jobRef, letterRef, job, error.code || "provider_failed", error.message || SAFE_ERRORS.provider_failed);
+		await failJob(
+			uid,
+			jobRef,
+			letterRef,
+			job,
+			error.code || "provider_failed",
+			error.message || SAFE_ERRORS.provider_failed,
+		);
 	}
 }
 
@@ -471,15 +566,23 @@ async function claimJobTransaction(jobRef, letterRef) {
 	const now = nowIso();
 	const staleLockBefore = new Date(Date.now() - 10 * 60000).toISOString();
 	return admin.firestore().runTransaction(async (transaction) => {
-		const [jobSnap, letterSnap] = await Promise.all([transaction.get(jobRef), transaction.get(letterRef)]);
-		if (!jobSnap.exists || !letterSnap.exists) return null;
+		const [jobSnap, letterSnap] = await Promise.all([
+			transaction.get(jobRef),
+			transaction.get(letterRef),
+		]);
+		if (!jobSnap.exists || !letterSnap.exists) {return null;}
 		const job = jobSnap.data();
 		const letter = letterSnap.data();
-		if (isDeletedRecord(letter)) return null;
+		if (isDeletedRecord(letter)) {return null;}
 		const state = String(job.state || "");
 		const lockedAt = String(job.lockedAt || "");
 		const locked = lockedAt && lockedAt > staleLockBefore;
-		if (!["queued", "retry"].includes(state) || locked || String(job.availableAt || "") > now) return null;
+		if (
+			!["queued", "retry"].includes(state) ||
+			locked ||
+			String(job.availableAt || "") > now
+		)
+			{return null;}
 		const attempts = Number(job.attempts || 0) + 1;
 		const patch = {
 			state: "processing",
@@ -489,7 +592,11 @@ async function claimJobTransaction(jobRef, letterRef) {
 			updatedAt: now,
 		};
 		transaction.set(jobRef, patch, { merge: true });
-		transaction.set(letterRef, { state: "processing", processingAt: now, updatedAt: now }, { merge: true });
+		transaction.set(
+			letterRef,
+			{ state: "processing", processingAt: now, updatedAt: now },
+			{ merge: true },
+		);
 		return { job: { ...job, ...patch }, letter };
 	});
 }
@@ -497,7 +604,8 @@ async function claimJobTransaction(jobRef, letterRef) {
 async function failJob(uid, jobRef, letterRef, job, code, message) {
 	const now = nowIso();
 	const attempts = Number(job.attempts || 0);
-	const retryable = code === "provider_failed" && attempts < Number(job.maxAttempts || 3);
+	const retryable =
+		code === "provider_failed" && attempts < Number(job.maxAttempts || 3);
 	const state = retryable ? "queued" : "failed";
 	const nextRetryAt = retryable
 		? new Date(Date.now() + 5 * Math.max(1, attempts) * 60000).toISOString()
@@ -528,10 +636,18 @@ async function failJob(uid, jobRef, letterRef, job, code, message) {
 }
 
 async function requirePaidAiAccessIfNeeded(uid, auth = null) {
-	if (!providerConfigured()) return;
-	if (String(process.env.PYXIDA_ALLOW_ALL_SIGNED_IN || "").toLowerCase() === "true") return;
-	if (await hasPaidAiAccess(uid, auth)) return;
-	throw policyError("entitlement_required", SAFE_ERRORS.entitlement_required, 403);
+	if (!providerConfigured()) {return;}
+	if (
+		String(process.env.PYXIDA_ALLOW_ALL_SIGNED_IN || "").toLowerCase() ===
+		"true"
+	)
+		{return;}
+	if (await hasPaidAiAccess(uid, auth)) {return;}
+	throw policyError(
+		"entitlement_required",
+		SAFE_ERRORS.entitlement_required,
+		403,
+	);
 }
 
 async function hasPaidAiAccess(uid, auth = null) {
@@ -539,20 +655,24 @@ async function hasPaidAiAccess(uid, auth = null) {
 		.split(",")
 		.map((item) => item.trim())
 		.filter(Boolean);
-	if (ownerUids.includes(uid)) return true;
-	if (auth?.admin === true || auth?.cloud === true) return true;
+	if (ownerUids.includes(uid)) {return true;}
+	if (auth?.admin === true || auth?.cloud === true) {return true;}
 	const snap = await admin.firestore().collection("users").doc(uid).get();
 	const profile = snap.exists ? snap.data() : {};
 	return profile?.admin === true || profile?.cloud === true;
 }
 
 async function enforceRateLimit(uid, bucket, maxCount, windowSeconds) {
-	const windowStart = Math.floor(Date.now() / (windowSeconds * 1000)) * windowSeconds * 1000;
-	const ref = appRef(uid).collection("pyxdiaRateLimits").doc(`${bucket}-${windowStart}`);
+	const windowStart =
+		Math.floor(Date.now() / (windowSeconds * 1000)) * windowSeconds * 1000;
+	const ref = appRef(uid)
+		.collection("pyxdiaRateLimits")
+		.doc(`${bucket}-${windowStart}`);
 	await admin.firestore().runTransaction(async (transaction) => {
 		const snap = await transaction.get(ref);
 		const count = snap.exists ? Number(snap.data().count || 0) : 0;
-		if (count >= maxCount) throw policyError("rate_limited", SAFE_ERRORS.rate_limited, 429);
+		if (count >= maxCount)
+			{throw policyError("rate_limited", SAFE_ERRORS.rate_limited, 429);}
 		transaction.set(
 			ref,
 			{
@@ -572,7 +692,9 @@ async function enforceRateLimit(uid, bucket, maxCount, windowSeconds) {
 
 async function trashStatePayload(uid, options = {}) {
 	const [settings, trash] = await Promise.all([
-		options.settings ? Promise.resolve(normalizeTrashSettings(options.settings)) : readTrashSettings(uid),
+		options.settings
+			? Promise.resolve(normalizeTrashSettings(options.settings))
+			: readTrashSettings(uid),
 		listTrashItems({
 			uid,
 			limit: options.limit || 50,
@@ -608,14 +730,20 @@ async function listTrashItems({ uid, limit = 50, cursor = "" }) {
 		.orderBy("deletedAt", "desc")
 		.limit(cappedLimit);
 	if (cursor) {
-		const cursorSnap = await userRef(uid).collection("trash").doc(String(cursor)).get();
-		if (cursorSnap.exists) query = query.startAfter(cursorSnap);
+		const cursorSnap = await userRef(uid)
+			.collection("trash")
+			.doc(String(cursor))
+			.get();
+		if (cursorSnap.exists) {query = query.startAfter(cursorSnap);}
 	}
 	const snap = await query.get();
 	const items = snap.docs.map((doc) => normalizeTrashIndexItem(doc.data()));
 	return {
 		items,
-		nextCursor: snap.docs.length === cappedLimit ? snap.docs[snap.docs.length - 1].id : "",
+		nextCursor:
+			snap.docs.length === cappedLimit
+				? snap.docs[snap.docs.length - 1].id
+				: "",
 	};
 }
 
@@ -624,7 +752,7 @@ async function deleteUserItem({ uid, itemType, itemId }) {
 	const cleanItemId = cleanRequiredId(itemId, "itemId");
 	const itemRef = descriptor.docRef(uid, cleanItemId);
 	const itemSnap = await itemRef.get();
-	if (!itemSnap.exists) throw policyError("not_found", "Item not found.", 404);
+	if (!itemSnap.exists) {throw policyError("not_found", "Item not found.", 404);}
 	const data = itemSnap.data() || {};
 	assertUserOwnedItem(uid, data);
 	assertDescriptorMatchesItem(descriptor, data);
@@ -633,7 +761,10 @@ async function deleteUserItem({ uid, itemType, itemId }) {
 		await deleteStorageFilesForItem(uid, data);
 		await Promise.all([
 			itemRef.delete(),
-			userRef(uid).collection("trash").doc(trashItemIdFor(descriptor.type, cleanItemId)).delete(),
+			userRef(uid)
+				.collection("trash")
+				.doc(trashItemIdFor(descriptor.type, cleanItemId))
+				.delete(),
 			rebuildUserIndexesForItem({
 				uid,
 				itemType: descriptor.type,
@@ -667,7 +798,8 @@ async function deleteUserItem({ uid, itemType, itemId }) {
 	});
 	await admin.firestore().runTransaction(async (transaction) => {
 		const currentSnap = await transaction.get(itemRef);
-		if (!currentSnap.exists) throw policyError("not_found", "Item not found.", 404);
+		if (!currentSnap.exists)
+			{throw policyError("not_found", "Item not found.", 404);}
 		assertUserOwnedItem(uid, currentSnap.data() || {});
 		assertDescriptorMatchesItem(descriptor, currentSnap.data() || {});
 		transaction.set(
@@ -712,17 +844,24 @@ async function restoreUserItem({ uid, trashItemId }) {
 	const cleanTrashItemId = cleanRequiredId(trashItemId, "trashItemId");
 	const trashRef = userRef(uid).collection("trash").doc(cleanTrashItemId);
 	const trashSnap = await trashRef.get();
-	if (!trashSnap.exists) throw policyError("not_found", "Trash item not found.", 404);
+	if (!trashSnap.exists)
+		{throw policyError("not_found", "Trash item not found.", 404);}
 	const trashItem = normalizeTrashIndexItem(trashSnap.data());
 	assertTrashItemOwner(uid, trashItem);
 	const itemRef = originalItemRefFromTrash(uid, trashItem);
 	const itemSnap = await itemRef.get();
 	if (!itemSnap.exists) {
-		await trashRef.set({ canRestore: false, updatedAt: nowIso() }, { merge: true });
+		await trashRef.set(
+			{ canRestore: false, updatedAt: nowIso() },
+			{ merge: true },
+		);
 		throw policyError("not_found", "Original item no longer exists.", 404);
 	}
 	assertUserOwnedItem(uid, itemSnap.data() || {});
-	assertDescriptorMatchesItem(trashDescriptor(trashItem.itemType), itemSnap.data() || {});
+	assertDescriptorMatchesItem(
+		trashDescriptor(trashItem.itemType),
+		itemSnap.data() || {},
+	);
 	const now = nowIso();
 	await admin.firestore().runTransaction(async (transaction) => {
 		transaction.set(
@@ -760,7 +899,7 @@ async function hardDeleteUserItem({ uid, trashItemId, cleanup = false }) {
 	const trashRef = userRef(uid).collection("trash").doc(cleanTrashItemId);
 	const trashSnap = await trashRef.get();
 	if (!trashSnap.exists) {
-		if (cleanup) return { deleted: false, missing: true };
+		if (cleanup) {return { deleted: false, missing: true };}
 		throw policyError("not_found", "Trash item not found.", 404);
 	}
 	const trashItem = normalizeTrashIndexItem(trashSnap.data());
@@ -805,9 +944,30 @@ async function rebuildUserIndexesForItem({
 	const cleanItemId = cleanRequiredId(itemId, "itemId");
 	const normalizedType = normalizeTrashItemType(itemType);
 	const tasks = [
-		updateIndexCollectionForItem(uid, "noteSearchIndex", normalizedType, cleanItemId, mode, deletedAt),
-		updateIndexCollectionForItem(uid, "quicknoteIndex", normalizedType, cleanItemId, mode, deletedAt),
-		updateIndexCollectionForItem(uid, "pyxdiaDynamicMemoryIndex", normalizedType, cleanItemId, mode, deletedAt),
+		updateIndexCollectionForItem(
+			uid,
+			"noteSearchIndex",
+			normalizedType,
+			cleanItemId,
+			mode,
+			deletedAt,
+		),
+		updateIndexCollectionForItem(
+			uid,
+			"quicknoteIndex",
+			normalizedType,
+			cleanItemId,
+			mode,
+			deletedAt,
+		),
+		updateIndexCollectionForItem(
+			uid,
+			"pyxdiaDynamicMemoryIndex",
+			normalizedType,
+			cleanItemId,
+			mode,
+			deletedAt,
+		),
 	];
 	if (normalizedType === "pyxdia_letter") {
 		tasks.push(refreshPyxdiaThreadIndexes(uid, cleanItemId, itemData));
@@ -826,7 +986,14 @@ async function rebuildUserIndexesForItem({
 	audit("trash/indexes", uid, mode, { itemType: normalizedType });
 }
 
-async function updateIndexCollectionForItem(uid, collectionName, itemType, itemId, mode, deletedAt = "") {
+async function updateIndexCollectionForItem(
+	uid,
+	collectionName,
+	itemType,
+	itemId,
+	mode,
+	deletedAt = "",
+) {
 	const collection = appRef(uid).collection(collectionName);
 	const refs = new Map();
 	const candidateIds = [
@@ -838,26 +1005,32 @@ async function updateIndexCollectionForItem(uid, collectionName, itemType, itemI
 		candidateIds.map(async (docId) => {
 			const ref = collection.doc(docId);
 			const snap = await ref.get();
-			if (snap.exists) refs.set(ref.path, ref);
+			if (snap.exists) {refs.set(ref.path, ref);}
 		}),
 	);
 	const fieldNames = indexFieldNamesForItemType(itemType);
 	await Promise.all(
 		fieldNames.map(async (fieldName) => {
-			const snap = await collection.where(fieldName, "==", itemId).limit(25).get();
+			const snap = await collection
+				.where(fieldName, "==", itemId)
+				.limit(25)
+				.get();
 			snap.docs.forEach((doc) => refs.set(doc.ref.path, doc.ref));
 		}),
 	);
 	await Promise.all(
-		Array.from(refs.values()).map((ref) => updateIndexDocRef(ref, mode, deletedAt)),
+		Array.from(refs.values()).map((ref) =>
+			updateIndexDocRef(ref, mode, deletedAt),
+		),
 	);
 }
 
 function indexFieldNamesForItemType(itemType) {
 	const fields = ["itemId", "sourceItemId", "sourceId"];
-	if (itemType === "note") fields.push("noteId", "artifactId");
-	else if (itemType === "artifact") fields.push("artifactId");
-	else if (itemType === "pyxdia_letter") fields.push("letterId", "sourceLetterId");
+	if (itemType === "note") {fields.push("noteId", "artifactId");}
+	else if (itemType === "artifact") {fields.push("artifactId");}
+	else if (itemType === "pyxdia_letter")
+		{fields.push("letterId", "sourceLetterId");}
 	return Array.from(new Set(fields));
 }
 
@@ -880,7 +1053,7 @@ async function updateIndexDocRef(ref, mode, deletedAt = "") {
 
 async function refreshPyxdiaThreadIndexes(uid, letterId, itemData = {}) {
 	const threadId = String(itemData.threadId || "");
-	if (!threadId) return;
+	if (!threadId) {return;}
 	const snap = await appRef(uid)
 		.collection("pyxdiaLetters")
 		.where("threadId", "==", threadId)
@@ -889,7 +1062,9 @@ async function refreshPyxdiaThreadIndexes(uid, letterId, itemData = {}) {
 		.map((doc) => doc.data())
 		.filter((letter) => !isDeletedRecord(letter))
 		.sort((left, right) =>
-			String(right.updatedAt || right.completedAt || right.createdAt || "").localeCompare(
+			String(
+				right.updatedAt || right.completedAt || right.createdAt || "",
+			).localeCompare(
 				String(left.updatedAt || left.completedAt || left.createdAt || ""),
 			),
 		);
@@ -912,7 +1087,7 @@ async function refreshPyxdiaThreadIndexes(uid, letterId, itemData = {}) {
 async function updateStaticMemoryForSourceMutation(uid, letterId, mode) {
 	const memoryRef = appRef(uid).collection("pyxdiaMemories").doc("current");
 	const snap = await memoryRef.get();
-	if (!snap.exists) return;
+	if (!snap.exists) {return;}
 	const now = nowIso();
 	const memory = normalizeMemory(snap.data(), uid);
 	const staticMemory = normalizeStaticMemory(memory.staticMemory, uid);
@@ -924,22 +1099,27 @@ async function updateStaticMemoryForSourceMutation(uid, letterId, mode) {
 			? currentPriorContext
 			: currentPriorContext.filter((item) => item?.letterId !== letterId);
 	let changed = false;
-	if (priorLetterContext.length !== currentPriorContext.length) changed = true;
+	if (priorLetterContext.length !== currentPriorContext.length) {changed = true;}
 	const entries = (staticMemory.entries || []).map((entry) => {
 		const sourceLetterIds = Array.from(new Set(entry.sourceLetterIds || []));
-		const staleSourceLetterIds = Array.from(new Set(entry.staleSourceLetterIds || []));
+		const staleSourceLetterIds = Array.from(
+			new Set(entry.staleSourceLetterIds || []),
+		);
 		if (mode === "restore") {
-			if (!staleSourceLetterIds.includes(letterId)) return entry;
+			if (!staleSourceLetterIds.includes(letterId)) {return entry;}
 			changed = true;
 			return {
 				...entry,
-				status: entry.status === "stale_pending_review" ? "active" : entry.status,
+				status:
+					entry.status === "stale_pending_review" ? "active" : entry.status,
 				sourceLetterIds: Array.from(new Set([...sourceLetterIds, letterId])),
-				staleSourceLetterIds: staleSourceLetterIds.filter((id) => id !== letterId),
+				staleSourceLetterIds: staleSourceLetterIds.filter(
+					(id) => id !== letterId,
+				),
 				updatedAt: now,
 			};
 		}
-		if (!sourceLetterIds.includes(letterId)) return entry;
+		if (!sourceLetterIds.includes(letterId)) {return entry;}
 		changed = true;
 		const nextSources = sourceLetterIds.filter((id) => id !== letterId);
 		return {
@@ -952,7 +1132,7 @@ async function updateStaticMemoryForSourceMutation(uid, letterId, mode) {
 			updatedAt: now,
 		};
 	});
-	if (!changed) return;
+	if (!changed) {return;}
 	const activeSummary = entries
 		.filter((entry) => entry.status === "active")
 		.slice(-5)
@@ -1012,7 +1192,15 @@ function normalizeTrashIndexItem(value = {}) {
 	};
 }
 
-function trashIndexItemFor({ uid, descriptor, itemId, itemRef, data, deletedAt, deleteAfter }) {
+function trashIndexItemFor({
+	uid,
+	descriptor,
+	itemId,
+	itemRef,
+	data,
+	deletedAt,
+	deleteAfter,
+}) {
 	const preview = trashPreviewFor(descriptor.type, data);
 	const trashItemId = trashItemIdFor(descriptor.type, itemId);
 	return normalizeTrashIndexItem({
@@ -1034,10 +1222,14 @@ function trashIndexItemFor({ uid, descriptor, itemId, itemRef, data, deletedAt, 
 }
 
 function trashPreviewFor(itemType, data = {}) {
-	const artifact = data.data?.ourstuff?.artifact || data.extraAttributes?.ourstuff?.artifact || {};
+	const artifact =
+		data.data?.ourstuff?.artifact ||
+		data.extraAttributes?.ourstuff?.artifact ||
+		{};
 	const title =
-		cleanPreviewText(data.title || artifact.title || data.name || `${itemType} item`) ||
-		"Untitled item";
+		cleanPreviewText(
+			data.title || artifact.title || data.name || `${itemType} item`,
+		) || "Untitled item";
 	const text =
 		artifact.body ||
 		data.body ||
@@ -1054,7 +1246,7 @@ function trashPreviewFor(itemType, data = {}) {
 
 function cleanPreviewText(value = "") {
 	return String(value || "")
-		.replace(/[#*_`>\[\]()]/g, " ")
+		.replace(/[#*_`>[\]()]/g, " ")
 		.replace(/\s+/g, " ")
 		.trim();
 }
@@ -1076,7 +1268,8 @@ function trashDescriptor(itemType) {
 		return {
 			type,
 			originalCollection: "pyxdiaLetters",
-			docRef: (uid, itemId) => appRef(uid).collection("pyxdiaLetters").doc(itemId),
+			docRef: (uid, itemId) =>
+				appRef(uid).collection("pyxdiaLetters").doc(itemId),
 		};
 	}
 	return {
@@ -1088,9 +1281,16 @@ function trashDescriptor(itemType) {
 }
 
 function normalizeTrashItemType(value) {
-	const type = String(value || "").trim().toLowerCase().replace(/-/g, "_");
+	const type = String(value || "")
+		.trim()
+		.toLowerCase()
+		.replace(/-/g, "_");
 	if (!TRASH_ITEM_TYPES.has(type)) {
-		throw policyError("unsupported_item_type", "This item type cannot be moved to Trash.", 400);
+		throw policyError(
+			"unsupported_item_type",
+			"This item type cannot be moved to Trash.",
+			400,
+		);
 	}
 	return type;
 }
@@ -1098,7 +1298,11 @@ function normalizeTrashItemType(value) {
 function originalItemRefFromTrash(uid, trashItem) {
 	const originalPath = String(trashItem.originalPath || "");
 	if (!originalPath.startsWith(`users/${uid}/`)) {
-		throw policyError("auth_required", "Trash item is outside this account.", 403);
+		throw policyError(
+			"auth_required",
+			"Trash item is outside this account.",
+			403,
+		);
 	}
 	return admin.firestore().doc(originalPath);
 }
@@ -1115,19 +1319,30 @@ function assertUserOwnedItem(uid, data = {}) {
 
 function assertDescriptorMatchesItem(descriptor = {}, data = {}) {
 	if (descriptor.requiredDocType && data.type !== descriptor.requiredDocType) {
-		throw policyError("unsupported_item_type", "This item type cannot be moved to Trash.", 400);
+		throw policyError(
+			"unsupported_item_type",
+			"This item type cannot be moved to Trash.",
+			400,
+		);
 	}
 }
 
 function assertTrashItemOwner(uid, trashItem = {}) {
-	if (trashItem.owner !== uid || !trashItem.originalPath.startsWith(`users/${uid}/`)) {
-		throw policyError("auth_required", "Trash item is outside this account.", 403);
+	if (
+		trashItem.owner !== uid ||
+		!trashItem.originalPath.startsWith(`users/${uid}/`)
+	) {
+		throw policyError(
+			"auth_required",
+			"Trash item is outside this account.",
+			403,
+		);
 	}
 }
 
 async function deleteStorageFilesForItem(uid, data = {}) {
 	const paths = Array.from(collectStoragePaths(data, uid));
-	if (!paths.length) return;
+	if (!paths.length) {return;}
 	const bucket = admin.storage().bucket();
 	await Promise.all(
 		paths.map((path) =>
@@ -1146,15 +1361,17 @@ async function deleteStorageFilesForItem(uid, data = {}) {
 }
 
 function collectStoragePaths(value, uid, output = new Set(), depth = 0) {
-	if (depth > 8 || value == null) return output;
+	if (depth > 8 || value == null) {return output;}
 	const prefix = `users/${uid}/apps/${APP_ID}/media/`;
 	if (typeof value === "string") {
 		const text = value.trim();
-		if (text.startsWith(prefix)) output.add(text);
+		if (text.startsWith(prefix)) {output.add(text);}
 		const direct = text.match(new RegExp(`(${escapeRegex(prefix)}[^?#\\s]+)`));
-		if (direct) output.add(direct[1]);
-		const gs = text.match(new RegExp(`^gs://[^/]+/(${escapeRegex(prefix)}[^?#\\s]+)`));
-		if (gs) output.add(gs[1]);
+		if (direct) {output.add(direct[1]);}
+		const gs = text.match(
+			new RegExp(`^gs://[^/]+/(${escapeRegex(prefix)}[^?#\\s]+)`),
+		);
+		if (gs) {output.add(gs[1]);}
 		return output;
 	}
 	if (Array.isArray(value)) {
@@ -1162,7 +1379,9 @@ function collectStoragePaths(value, uid, output = new Set(), depth = 0) {
 		return output;
 	}
 	if (typeof value === "object") {
-		Object.values(value).forEach((item) => collectStoragePaths(item, uid, output, depth + 1));
+		Object.values(value).forEach((item) =>
+			collectStoragePaths(item, uid, output, depth + 1),
+		);
 	}
 	return output;
 }
@@ -1188,7 +1407,10 @@ function cleanRequiredId(value, fieldName) {
 }
 
 async function readSettings(uid) {
-	const snap = await appRef(uid).collection("pyxdiaSettings").doc("default").get();
+	const snap = await appRef(uid)
+		.collection("pyxdiaSettings")
+		.doc("default")
+		.get();
 	return { ...normalizeSettings(snap.exists ? snap.data() : {}), owner: uid };
 }
 
@@ -1209,11 +1431,24 @@ function normalizeSettings(value = {}) {
 		pyxdiaDelayEnabled: delayEnabled,
 		pyxdiaDelayMs: delayEnabled ? min * 60 * 60 * 1000 : 0,
 		memoryEnabled: source.memoryEnabled !== false,
-		generalInstructions: cleanText(source.generalInstructions, DEFAULT_SETTINGS.generalInstructions),
+		generalInstructions: cleanText(
+			source.generalInstructions,
+			DEFAULT_SETTINGS.generalInstructions,
+		),
 		userWantsPyxdiaToKnow: cleanText(source.userWantsPyxdiaToKnow, ""),
 		plainTextOnly: true,
-		letterMaxWords: clampNumber(source.letterMaxWords, 1, 2000, LETTER_MAX_WORDS),
-		letterMaxChars: clampNumber(source.letterMaxChars, 100, 12000, LETTER_MAX_CHARS),
+		letterMaxWords: clampNumber(
+			source.letterMaxWords,
+			1,
+			2000,
+			LETTER_MAX_WORDS,
+		),
+		letterMaxChars: clampNumber(
+			source.letterMaxChars,
+			100,
+			12000,
+			LETTER_MAX_CHARS,
+		),
 		schemaVersion: 1,
 	};
 }
@@ -1225,22 +1460,29 @@ function validateLetterSize(text, settings) {
 	if (words > settings.letterMaxWords || chars > settings.letterMaxChars) {
 		throw policyError("letter_too_large", SAFE_ERRORS.letter_too_large);
 	}
-	if (!clean) throw policyError("letter_too_large", "Write a letter before sending.");
+	if (!clean)
+		{throw policyError("letter_too_large", "Write a letter before sending.");}
 }
 
 function scrubText(text) {
 	const value = String(text || "");
 	const blocked = blockedReason(value);
-	if (blocked) throw policyError(blocked, SAFE_ERRORS[blocked]);
+	if (blocked) {throw policyError(blocked, SAFE_ERRORS[blocked]);}
 	let redactions = 0;
-	let scrubbed = value.replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, () => {
-		redactions += 1;
-		return "<EMAIL_1>";
-	});
-	scrubbed = scrubbed.replace(/\b(?:\+?1[ .-]?)?(?:\(?\d{3}\)?[ .-]?)\d{3}[ .-]?\d{4}\b/g, () => {
-		redactions += 1;
-		return "<PHONE_1>";
-	});
+	let scrubbed = value.replace(
+		/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
+		() => {
+			redactions += 1;
+			return "<EMAIL_1>";
+		},
+	);
+	scrubbed = scrubbed.replace(
+		/\b(?:\+?1[ .-]?)?(?:\(?\d{3}\)?[ .-]?)\d{3}[ .-]?\d{4}\b/g,
+		() => {
+			redactions += 1;
+			return "<PHONE_1>";
+		},
+	);
 	return {
 		text: scrubbed,
 		summary: {
@@ -1259,7 +1501,8 @@ function blockedReason(text) {
 		/-----BEGIN [A-Z ]*PRIVATE KEY-----/,
 		/\b(?:api[_-]?key|access[_-]?token|auth[_-]?token)\s*[:=]\s*\S+/i,
 	];
-	if (secretPatterns.some((pattern) => pattern.test(value))) return "blocked_secret_detected";
+	if (secretPatterns.some((pattern) => pattern.test(value)))
+		{return "blocked_secret_detected";}
 	const cardMatches = value.match(/\b(?:\d[ -]*?){13,19}\b/g) || [];
 	if (cardMatches.some((match) => luhn(match.replace(/\D/g, "")))) {
 		return "blocked_cardholder_data_detected";
@@ -1269,32 +1512,45 @@ function blockedReason(text) {
 
 function validatePlainOutput(text) {
 	const value = String(text || "").trim();
-	if (!value || ["# ", "## ", "- ", "* ", "```", "| ---"].some((token) => value.includes(token))) {
-		throw policyError("output_validation_failed", SAFE_ERRORS.output_validation_failed);
+	if (
+		!value ||
+		["# ", "## ", "- ", "* ", "```", "| ---"].some((token) =>
+			value.includes(token),
+		)
+	) {
+		throw policyError(
+			"output_validation_failed",
+			SAFE_ERRORS.output_validation_failed,
+		);
 	}
 }
 
 async function generateLetter(prompt, settings) {
 	const apiKey = String(process.env.OPENROUTER_API_KEY || "").trim();
-	if (!apiKey) return { letter_text: fallbackLetter(prompt), model: "local-template" };
-	const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-		method: "POST",
-		headers: {
-			authorization: `Bearer ${apiKey}`,
-			"content-type": "application/json",
-			"http-referer": "https://ourstuff.space",
-			"x-title": "Ourstuff PYXIDA",
+	if (!apiKey)
+		{return { letter_text: fallbackLetter(prompt), model: "local-template" };}
+	const response = await fetch(
+		"https://openrouter.ai/api/v1/chat/completions",
+		{
+			method: "POST",
+			headers: {
+				authorization: `Bearer ${apiKey}`,
+				"content-type": "application/json",
+				"http-referer": "https://ourstuff.space",
+				"x-title": "Ourstuff PYXIDA",
+			},
+			body: JSON.stringify({
+				model: process.env.PYXIDA_MODEL || "openai/gpt-4o-mini",
+				messages: [
+					{ role: "system", content: "Return plain letter text only." },
+					{ role: "user", content: prompt },
+				],
+				temperature: 0.7,
+			}),
 		},
-		body: JSON.stringify({
-			model: process.env.PYXIDA_MODEL || "openai/gpt-4o-mini",
-			messages: [
-				{ role: "system", content: "Return plain letter text only." },
-				{ role: "user", content: prompt },
-			],
-			temperature: 0.7,
-		}),
-	});
-	if (!response.ok) throw policyError("provider_failed", SAFE_ERRORS.provider_failed, 502);
+	);
+	if (!response.ok)
+		{throw policyError("provider_failed", SAFE_ERRORS.provider_failed, 502);}
 	const payload = await response.json();
 	return {
 		letter_text: String(payload.choices?.[0]?.message?.content || "").trim(),
@@ -1310,9 +1566,18 @@ function normalizeDraftPayload(value = {}, uid = "", options = {}) {
 	const source = value && typeof value === "object" ? value : {};
 	const userSelectedContext = normalizeUserSelectedContext({
 		...(source.userSelectedContext || {}),
-		manualText: source.userSelectedContext?.manualText ?? source.userIncludedContext ?? "",
-		selectedNoteRefs: source.userSelectedContext?.selectedNoteRefs ?? source.includedNoteRefs ?? [],
-		contextSelections: source.userSelectedContext?.contextSelections ?? source.contextSelections ?? [],
+		manualText:
+			source.userSelectedContext?.manualText ??
+			source.userIncludedContext ??
+			"",
+		selectedNoteRefs:
+			source.userSelectedContext?.selectedNoteRefs ??
+			source.includedNoteRefs ??
+			[],
+		contextSelections:
+			source.userSelectedContext?.contextSelections ??
+			source.contextSelections ??
+			[],
 	});
 	return {
 		...draftDoc(uid),
@@ -1350,7 +1615,10 @@ function normalizeUserSelectedContext(value = {}) {
 		authorityRank: 1,
 		purpose: "User explicitly selected this context for the current letter.",
 		manualText: String(source.manualText ?? source.userIncludedContext ?? ""),
-		selectedNoteRefs: selectedNoteRefs.map(normalizeNoteRef).filter((ref) => ref.id).slice(0, 48),
+		selectedNoteRefs: selectedNoteRefs
+			.map(normalizeNoteRef)
+			.filter((ref) => ref.id)
+			.slice(0, 48),
 		selectedMemoryEntryIds: Array.isArray(source.selectedMemoryEntryIds)
 			? source.selectedMemoryEntryIds.map(String).filter(Boolean).slice(0, 24)
 			: [],
@@ -1396,13 +1664,18 @@ function normalizeImageRefs(value = []) {
 
 function normalizeMemory(value = {}, uid = "") {
 	const source = value && typeof value === "object" ? value : {};
-	const staticMemory = normalizeStaticMemory({
-		...(source.staticMemory || {}),
-		summary: source.staticMemory?.summary || source.summary || "",
-		entries: source.staticMemory?.entries || source.entries || [],
-		updatedAt: source.staticMemory?.updatedAt || source.updatedAt || "",
-	}, uid);
-	const dynamicRetrievalMemory = normalizeDynamicRetrievalMemory(source.dynamicRetrievalMemory);
+	const staticMemory = normalizeStaticMemory(
+		{
+			...(source.staticMemory || {}),
+			summary: source.staticMemory?.summary || source.summary || "",
+			entries: source.staticMemory?.entries || source.entries || [],
+			updatedAt: source.staticMemory?.updatedAt || source.updatedAt || "",
+		},
+		uid,
+	);
+	const dynamicRetrievalMemory = normalizeDynamicRetrievalMemory(
+		source.dynamicRetrievalMemory,
+	);
 	return {
 		...emptyMemory(uid),
 		...source,
@@ -1474,7 +1747,9 @@ function normalizeDynamicRetrievalMemory(value = {}) {
 					id: String(item.id || ""),
 					type: String(item.type || "retrieved_context"),
 					summary: sanitizeMemoryText(item.summary || "").slice(0, 600),
-					reason: String(item.reason || "Retrieved because it may relate to this letter."),
+					reason: String(
+						item.reason || "Retrieved because it may relate to this letter.",
+					),
 					sourceLetterId: String(item.sourceLetterId || ""),
 					sourceType: String(item.sourceType || ""),
 					score: clampFloat(item.score, 0, 1, 0.5),
@@ -1495,7 +1770,13 @@ function normalizeDynamicRetrievalMemory(value = {}) {
 	};
 }
 
-function buildPrompt({ settings, staticMemory, dynamicRetrievalMemory, userSelectedContext, letter }) {
+function buildPrompt({
+	settings,
+	staticMemory,
+	dynamicRetrievalMemory,
+	userSelectedContext,
+	letter,
+}) {
 	return [
 		"SYSTEM:\nYou are PYXIDA PENPAL, a reflective growth companion and AI trainer.\nYou are not a therapist, doctor, clinician, crisis service, or replacement for professional care.\nDraw lightly from Adlerian growth themes, DBT-informed emotional regulation, and Jungian archetypes as interpretive metaphors.\nDo not diagnose or claim clinical authority.\nReturn plain letter text only in the user-visible letter.\n\nInput may be scrubbed. Do not reconstruct placeholders or personal identifiers.\nFocus on meaning, values, patterns, choices, and user intent.",
 		"CONTEXT AUTHORITY:\n1. User-selected context is intentional and highest authority.\n2. PYXIDA static memory is a compact PII-safe profile of durable patterns.\n3. PYXIDA dynamic retrieval memory is automatically selected supporting context. Use it lightly and ignore it when it conflicts with the current letter or user-selected context.",
@@ -1511,7 +1792,11 @@ function buildPrompt({ settings, staticMemory, dynamicRetrievalMemory, userSelec
 function fallbackLetter(prompt) {
 	let snippet = "your letter";
 	if (prompt.includes("CURRENT LETTER:")) {
-		snippet = prompt.split("CURRENT LETTER:", 2)[1].trim().split(/\n/)[0].slice(0, 180);
+		snippet = prompt
+			.split("CURRENT LETTER:", 2)[1]
+			.trim()
+			.split(/\n/)[0]
+			.slice(0, 180);
 	}
 	return [
 		"Dear friend,",
@@ -1603,11 +1888,15 @@ async function buildDynamicRetrievalMemory(uid, letter, memory = {}) {
 			.map((doc) => doc.data())
 			.filter((item) => !isDeletedRecord(item))
 			.filter((item) => item.id !== letter.id && item.state === "completed")
-			.sort((left, right) => String(right.completedAt || right.createdAt || "").localeCompare(String(left.completedAt || left.createdAt || "")))
+			.sort((left, right) =>
+				String(right.completedAt || right.createdAt || "").localeCompare(
+					String(left.completedAt || left.createdAt || ""),
+				),
+			)
 			.slice(0, 3)
 			.forEach((item, index) => {
 				const summary = summarizePriorLetterForRetrieval(item);
-				if (!summary) return;
+				if (!summary) {return;}
 				items.push({
 					id: `letter-${item.id}`,
 					type: "prior_letter_summary",
@@ -1629,7 +1918,8 @@ async function buildDynamicRetrievalMemory(uid, letter, memory = {}) {
 		.slice(-3)
 		.reverse()
 		.forEach((item, index) => {
-			if (items.some((existing) => existing.sourceLetterId === item.letterId)) return;
+			if (items.some((existing) => existing.sourceLetterId === item.letterId))
+				{return;}
 			items.push({
 				id: `prior-context-${item.letterId}`,
 				type: "prior_letter_context_marker",
@@ -1654,13 +1944,21 @@ async function buildDynamicRetrievalMemory(uid, letter, memory = {}) {
 
 function summarizePriorLetterForRetrieval(letter = {}) {
 	try {
-		const input = String(letter.scrubbedInputText || scrubText(letter.inputText || "").text || "")
+		const input = String(
+			letter.scrubbedInputText || scrubText(letter.inputText || "").text || "",
+		)
 			.replace(/\s+/g, " ")
 			.trim();
-		const output = String(letter.outputText || "").replace(/\s+/g, " ").trim();
+		const output = String(letter.outputText || "")
+			.replace(/\s+/g, " ")
+			.trim();
 		const pieces = [];
-		if (input) pieces.push(`User wrote: ${sanitizeMemoryText(input).slice(0, 220)}`);
-		if (output) pieces.push(`PYXIDA replied: ${sanitizeMemoryText(output).slice(0, 180)}`);
+		if (input)
+			{pieces.push(`User wrote: ${sanitizeMemoryText(input).slice(0, 220)}`);}
+		if (output)
+			{pieces.push(
+				`PYXIDA replied: ${sanitizeMemoryText(output).slice(0, 180)}`,
+			);}
 		return pieces.join(" / ").slice(0, 500);
 	} catch {
 		return "";
@@ -1682,7 +1980,7 @@ function compactStaticMemorySnapshot(memory = {}) {
 }
 
 async function threadContext(uid, threadId) {
-	if (!threadId) return "";
+	if (!threadId) {return "";}
 	const snap = await appRef(uid)
 		.collection("pyxdiaLetters")
 		.where("threadId", "==", threadId)
@@ -1690,9 +1988,14 @@ async function threadContext(uid, threadId) {
 	return snap.docs
 		.map((doc) => doc.data())
 		.filter((letter) => !isDeletedRecord(letter))
-		.sort((left, right) => String(right.createdAt || "").localeCompare(String(left.createdAt || "")))
+		.sort((left, right) =>
+			String(right.createdAt || "").localeCompare(String(left.createdAt || "")),
+		)
 		.slice(0, 3)
-		.map((letter) => `${letter.state}: ${summarizePriorLetterForRetrieval(letter)}`)
+		.map(
+			(letter) =>
+				`${letter.state}: ${summarizePriorLetterForRetrieval(letter)}`,
+		)
 		.filter((line) => !line.endsWith(": "))
 		.join("\n");
 }
@@ -1717,7 +2020,10 @@ function updateMemory(uid, current, letter, outputText) {
 		updatedAt: now,
 	};
 	const entries = [...(staticMemory.entries || []), entry].slice(-50);
-	const summary = entries.slice(-5).map((item) => item.text || item.summary).join(" ");
+	const summary = entries
+		.slice(-5)
+		.map((item) => item.text || item.summary)
+		.join(" ");
 	return {
 		...memory,
 		owner: uid,
@@ -1732,7 +2038,9 @@ function updateMemory(uid, current, letter, outputText) {
 			updatedAt: now,
 			entries,
 		},
-		dynamicRetrievalMemory: normalizeDynamicRetrievalMemory(letter.dynamicRetrievalMemory || memory.dynamicRetrievalMemory),
+		dynamicRetrievalMemory: normalizeDynamicRetrievalMemory(
+			letter.dynamicRetrievalMemory || memory.dynamicRetrievalMemory,
+		),
 		priorLetterContext: [
 			...(memory.priorLetterContext || []),
 			{
@@ -1762,7 +2070,7 @@ function memoryCandidateFromLetter(letter = {}) {
 			.find(Boolean) ||
 		"User continued a PYXIDA letter thread.";
 	const clean = compactMemoryPatternText(source);
-	if (isDurableMemoryPattern(clean)) return clean;
+	if (isDurableMemoryPattern(clean)) {return clean;}
 	return "User continued a PYXIDA letter; keep future replies grounded in practical reflection and small next steps.";
 }
 
@@ -1788,7 +2096,10 @@ function sanitizeMemoryText(text = "") {
 		.replace(/<LOCATION_\d+>/g, "a private location")
 		.replace(/<PERSON_\d+>/g, "a private person")
 		.replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "a private email")
-		.replace(/\b(?:\+?1[ .-]?)?(?:\(?\d{3}\)?[ .-]?)\d{3}[ .-]?\d{4}\b/g, "a private phone number")
+		.replace(
+			/\b(?:\+?1[ .-]?)?(?:\(?\d{3}\)?[ .-]?)\d{3}[ .-]?\d{4}\b/g,
+			"a private phone number",
+		)
 		.replace(/\s+/g, " ")
 		.trim()
 		.slice(0, 500);
@@ -1865,7 +2176,12 @@ function emptyDynamicRetrievalMemory() {
 }
 
 function appRef(uid) {
-	return admin.firestore().collection("users").doc(uid).collection("apps").doc(APP_ID);
+	return admin
+		.firestore()
+		.collection("users")
+		.doc(uid)
+		.collection("apps")
+		.doc(APP_ID);
 }
 
 function draftDoc(uid) {
@@ -1887,9 +2203,14 @@ function draftDoc(uid) {
 
 function routePath(req, functionName) {
 	const path = `/${String(req.path || "/").replace(/^\/+|\/+$/g, "")}`;
-	for (const prefix of [`/${functionName}`, "/api/pyxdia", "/api/ai", "/api/trash"]) {
-		if (path === prefix) return "/";
-		if (path.startsWith(`${prefix}/`)) return path.slice(prefix.length);
+	for (const prefix of [
+		`/${functionName}`,
+		"/api/pyxdia",
+		"/api/ai",
+		"/api/trash",
+	]) {
+		if (path === prefix) {return "/";}
+		if (path.startsWith(`${prefix}/`)) {return path.slice(prefix.length);}
 	}
 	return path;
 }
@@ -1930,17 +2251,22 @@ function audit(route, uid, status, metadata = {}) {
 
 function hashUid(uid) {
 	let hash = 0;
-	for (const char of String(uid || "")) hash = (hash * 31 + char.charCodeAt(0)) | 0;
+	for (const char of String(uid || ""))
+		{hash = (hash * 31 + char.charCodeAt(0)) | 0;}
 	return Math.abs(hash).toString(16);
 }
 
 function threadTitle(text) {
-	const clean = String(text || "").replace(/\s+/g, " ").trim();
-	return clean.length > 44 ? `${clean.slice(0, 41)}...` : clean || "PYXIDA letter thread";
+	const clean = String(text || "")
+		.replace(/\s+/g, " ")
+		.trim();
+	return clean.length > 44
+		? `${clean.slice(0, 41)}...`
+		: clean || "PYXIDA letter thread";
 }
 
 function availableAtFor(settings) {
-	if (!settings.delayEnabled) return nowIso();
+	if (!settings.delayEnabled) {return nowIso();}
 	const min = Number(settings.delayMinHours || 24);
 	const max = Math.max(min, Number(settings.delayMaxHours || min));
 	const hours = min + Math.random() * (max - min);
@@ -1954,13 +2280,13 @@ function cleanText(value, fallback) {
 
 function clampNumber(value, min, max, fallback) {
 	const number = Number(value);
-	if (!Number.isFinite(number)) return fallback;
+	if (!Number.isFinite(number)) {return fallback;}
 	return Math.min(Math.max(Math.round(number), min), max);
 }
 
 function clampFloat(value, min, max, fallback) {
 	const number = Number(value);
-	if (!Number.isFinite(number)) return fallback;
+	if (!Number.isFinite(number)) {return fallback;}
 	return Math.min(Math.max(number, min), max);
 }
 
@@ -1969,13 +2295,13 @@ function escapeRegex(value = "") {
 }
 
 function luhn(digits) {
-	if (digits.length < 13) return false;
+	if (digits.length < 13) {return false;}
 	let total = 0;
 	for (let index = 0; index < digits.length; index += 1) {
 		let number = Number(digits[digits.length - 1 - index]);
 		if (index % 2 === 1) {
 			number *= 2;
-			if (number > 9) number -= 9;
+			if (number > 9) {number -= 9;}
 		}
 		total += number;
 	}

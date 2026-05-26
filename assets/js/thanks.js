@@ -10,7 +10,7 @@ function setError(message) {
 }
 
 function addDetail(label, value) {
-	if (!value) return;
+	if (!value) {return;}
 
 	const row = document.createElement("div");
 	const labelEl = document.createElement("span");

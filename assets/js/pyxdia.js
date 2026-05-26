@@ -136,14 +136,10 @@ export function normalizePyxdiaStaticMemory(value = {}) {
 					type: String(entry.type || "stable_pattern"),
 					summary: compactPyxdiaMemoryPatternText(
 						entry.summary || entry.text,
-					).slice(
-						0,
-						500,
-					),
-					text: compactPyxdiaMemoryPatternText(entry.text || entry.summary).slice(
-						0,
-						500,
-					),
+					).slice(0, 500),
+					text: compactPyxdiaMemoryPatternText(
+						entry.text || entry.summary,
+					).slice(0, 500),
 					confidence: clampFloat(entry.confidence, 0, 1, 0.65),
 					status: String(entry.status || "active"),
 					piiSafe: entry.piiSafe !== false,
@@ -180,7 +176,9 @@ export function normalizePyxdiaDynamicRetrievalMemory(value = {}) {
 					id: String(item.id || ""),
 					type: String(item.type || "retrieved_context"),
 					summary: sanitizePyxdiaMemoryText(item.summary).slice(0, 600),
-					reason: String(item.reason || "Retrieved because it may relate to this letter."),
+					reason: String(
+						item.reason || "Retrieved because it may relate to this letter.",
+					),
 					sourceLetterId: String(item.sourceLetterId || ""),
 					sourceType: String(item.sourceType || ""),
 					score: clampFloat(item.score, 0, 1, 0.5),
@@ -251,9 +249,11 @@ async function pyxdiaRequest(path, options = {}) {
 			: "";
 	const headers = {
 		accept: "application/json",
-		...(options.body === undefined ? {} : { "content-type": "application/json" }),
+		...(options.body === undefined
+			? {}
+			: { "content-type": "application/json" }),
 	};
-	if (token) headers.authorization = `Bearer ${token}`;
+	if (token) {headers.authorization = `Bearer ${token}`;}
 	const response = await fetch(`${PYXIDA_API_URL}${path}`, {
 		method: options.method || "GET",
 		headers,
@@ -294,7 +294,10 @@ function sanitizePyxdiaMemoryText(value = "") {
 		.replace(/<LOCATION_\d+>/g, "a private location")
 		.replace(/<PERSON_\d+>/g, "a private person")
 		.replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "a private email")
-		.replace(/\b(?:\+?1[ .-]?)?(?:\(?\d{3}\)?[ .-]?)\d{3}[ .-]?\d{4}\b/g, "a private phone number")
+		.replace(
+			/\b(?:\+?1[ .-]?)?(?:\(?\d{3}\)?[ .-]?)\d{3}[ .-]?\d{4}\b/g,
+			"a private phone number",
+		)
 		.replace(/\s+/g, " ")
 		.trim();
 }
@@ -310,12 +313,12 @@ function compactPyxdiaMemoryPatternText(value = "") {
 
 function clampNumber(value, min, max, fallback) {
 	const number = Number(value);
-	if (!Number.isFinite(number)) return fallback;
+	if (!Number.isFinite(number)) {return fallback;}
 	return Math.min(Math.max(Math.round(number), min), max);
 }
 
 function clampFloat(value, min, max, fallback) {
 	const number = Number(value);
-	if (!Number.isFinite(number)) return fallback;
+	if (!Number.isFinite(number)) {return fallback;}
 	return Math.min(Math.max(number, min), max);
 }

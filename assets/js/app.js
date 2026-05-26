@@ -23,7 +23,7 @@ import {
 	signInWithGoogle,
 	signOutCloud,
 	startCloudSubscription,
-} from "./cloud.js?v=media-key-repair-20260525a";
+} from "./cloud.js?v=auth-sync-20260525a";
 import { CLOUD_STORAGE_LIMIT_BYTES } from "./config.js?v=storage-quota-20260523a";
 import { today } from "./data.js";
 import { bindDonationFlow, donationModalHtml } from "./donations.js";
@@ -66,15 +66,6 @@ import {
 	uploadPyxdiaLetterImage,
 } from "./pyxdiaMedia.js?v=pyxdia-20260525a";
 import {
-	deleteUserItem,
-	fetchTrashState,
-	hardDeleteTrashItem,
-	normalizeTrashItem,
-	normalizeTrashSettings,
-	restoreTrashItem,
-	saveTrashSettings,
-} from "./trash.js?v=trash-20260525a";
-import {
 	artifactStoreToCompendiums,
 	compendiumsToArtifactStore,
 	createEmptyStore,
@@ -100,6 +91,15 @@ import {
 	themePreviewStyle,
 	themeFontLabel as themeSystemFontLabel,
 } from "./themeSystem.js";
+import {
+	deleteUserItem,
+	fetchTrashState,
+	hardDeleteTrashItem,
+	normalizeTrashItem,
+	normalizeTrashSettings,
+	restoreTrashItem,
+	saveTrashSettings,
+} from "./trash.js?v=trash-20260525a";
 
 const app = document.getElementById("app");
 const BODY_TRACKER_KEY = "ourstuff.bodyTracker.v1";
@@ -337,8 +337,18 @@ const DASHBOARD_PERIOD_OPTIONS = [
 const DEFAULT_DASHBOARD_CHART_TABS = ["orbs", "pie", "bar"];
 const DASHBOARD_CHART_TAB_DEFS = {
 	orbs: { id: "orbs", icon: "ph:sphere", label: "Orbs", title: "Orbs" },
-	pie: { id: "pie", icon: "tabler:chart-pie", label: "Pie", title: "Pie chart" },
-	bar: { id: "bar", icon: "tabler:chart-bar", label: "Bar", title: "Bar chart" },
+	pie: {
+		id: "pie",
+		icon: "tabler:chart-pie",
+		label: "Pie",
+		title: "Pie chart",
+	},
+	bar: {
+		id: "bar",
+		icon: "tabler:chart-bar",
+		label: "Bar",
+		title: "Bar chart",
+	},
 };
 const BODY_TIMER_MODES = [
 	{
@@ -942,7 +952,7 @@ function normalizeHexColor(value, fallback = "") {
 				.map((char) => `${char}${char}`)
 				.join("")}`,
 	);
-	if (/^#[0-9a-f]{6}$/i.test(expanded)) return expanded.toLowerCase();
+	if (/^#[0-9a-f]{6}$/i.test(expanded)) {return expanded.toLowerCase();}
 	return fallback;
 }
 
@@ -1006,7 +1016,7 @@ function normalizeDashboardChartTabs(value) {
 	const source = Array.isArray(value) ? value : DEFAULT_DASHBOARD_CHART_TABS;
 	const tabs = source.filter((tab) => allowed.has(tab));
 	DEFAULT_DASHBOARD_CHART_TABS.forEach((tab) => {
-		if (!tabs.includes(tab)) tabs.push(tab);
+		if (!tabs.includes(tab)) {tabs.push(tab);}
 	});
 	return tabs;
 }
@@ -1055,8 +1065,9 @@ function normalizeTracker(tracker, dashboard, index, fallbackType = "Thought") {
 		label,
 		icon,
 	};
-	if (typeof tracker?.enabled === "boolean") normalized.enabled = tracker.enabled;
-	if (typeof tracker?.isGoal === "boolean") normalized.isGoal = tracker.isGoal;
+	if (typeof tracker?.enabled === "boolean")
+		{normalized.enabled = tracker.enabled;}
+	if (typeof tracker?.isGoal === "boolean") {normalized.isGoal = tracker.isGoal;}
 	if (tracker?.frequency || tracker?.customDays) {
 		Object.assign(normalized, normalizeGoalFrequency(tracker));
 	}
@@ -1340,9 +1351,13 @@ function normalizePyxdiaDraft(value = {}) {
 		manualText:
 			draft.userSelectedContext?.manualText ?? draft.userIncludedContext ?? "",
 		selectedNoteRefs:
-			draft.userSelectedContext?.selectedNoteRefs ?? draft.includedNoteRefs ?? [],
+			draft.userSelectedContext?.selectedNoteRefs ??
+			draft.includedNoteRefs ??
+			[],
 		contextSelections:
-			draft.userSelectedContext?.contextSelections ?? draft.contextSelections ?? [],
+			draft.userSelectedContext?.contextSelections ??
+			draft.contextSelections ??
+			[],
 	});
 	return {
 		...fallback,
@@ -1387,9 +1402,13 @@ function normalizePyxdiaLetter(value = {}) {
 		manualText:
 			value.userSelectedContext?.manualText ?? value.userIncludedContext ?? "",
 		selectedNoteRefs:
-			value.userSelectedContext?.selectedNoteRefs ?? value.includedNoteRefs ?? [],
+			value.userSelectedContext?.selectedNoteRefs ??
+			value.includedNoteRefs ??
+			[],
 		contextSelections:
-			value.userSelectedContext?.contextSelections ?? value.contextSelections ?? [],
+			value.userSelectedContext?.contextSelections ??
+			value.contextSelections ??
+			[],
 	});
 	return {
 		id: String(value.id || ""),
@@ -1404,7 +1423,9 @@ function normalizePyxdiaLetter(value = {}) {
 		userIncludedContext: userSelectedContext.manualText,
 		userSelectedContext,
 		contextSelections: userSelectedContext.contextSelections,
-		staticMemorySnapshot: normalizePyxdiaStaticMemory(value.staticMemorySnapshot),
+		staticMemorySnapshot: normalizePyxdiaStaticMemory(
+			value.staticMemorySnapshot,
+		),
 		dynamicRetrievalMemory: normalizePyxdiaDynamicRetrievalMemory(
 			value.dynamicRetrievalMemory,
 		),
@@ -1551,13 +1572,13 @@ function simpleTooltipText(value, maxWords = SIMPLE_TOOLTIP_WORD_LIMIT) {
 	const text = String(value || "")
 		.trim()
 		.replace(/\s+/g, " ");
-	if (!text) return "";
+	if (!text) {return "";}
 	const words = text.split(" ");
 	return words.slice(0, maxWords).join(" ");
 }
 
 function rememberDismissedTip(tip) {
-	if (!tip) return;
+	if (!tip) {return;}
 	const dismissedTips = Array.from(
 		new Set([...(state.dismissedTips || []), tip]),
 	);
@@ -1566,15 +1587,15 @@ function rememberDismissedTip(tip) {
 }
 
 function setCoreTooltip(element, label, options = {}) {
-	if (!element) return;
-	if (!options.override && element.dataset.thoughtTooltip) return;
+	if (!element) {return;}
+	if (!options.override && element.dataset.thoughtTooltip) {return;}
 	const text = simpleTooltipText(label);
-	if (!text) return;
+	if (!text) {return;}
 	element.dataset.thoughtTooltip = text;
 	if (!element.getAttribute("aria-label") && !element.textContent.trim()) {
 		element.setAttribute("aria-label", text);
 	}
-	if (!element.getAttribute("title")) element.setAttribute("title", text);
+	if (!element.getAttribute("title")) {element.setAttribute("title", text);}
 }
 
 function applyCoreTooltips() {
@@ -1771,7 +1792,7 @@ function normalizeBodyTracker(value) {
 function loadBodyTracker() {
 	try {
 		const parsed = JSON.parse(window.localStorage.getItem(BODY_TRACKER_KEY));
-		if (!parsed?.fast || !parsed?.nutrition) return createDefaultBodyTracker();
+		if (!parsed?.fast || !parsed?.nutrition) {return createDefaultBodyTracker();}
 		const normalized = normalizeBodyTracker(parsed);
 		if (JSON.stringify(parsed) !== JSON.stringify(normalized)) {
 			window.localStorage.setItem(BODY_TRACKER_KEY, JSON.stringify(normalized));
@@ -1825,11 +1846,11 @@ function _compareIsoTimestamps(left, right) {
 	const rightTime = Date.parse(right || "");
 	const hasLeft = !Number.isNaN(leftTime);
 	const hasRight = !Number.isNaN(rightTime);
-	if (!hasLeft && !hasRight) return 0;
-	if (hasLeft && !hasRight) return 1;
-	if (!hasLeft && hasRight) return -1;
+	if (!hasLeft && !hasRight) {return 0;}
+	if (hasLeft && !hasRight) {return 1;}
+	if (!hasLeft && hasRight) {return -1;}
 	const diff = leftTime - rightTime;
-	if (Math.abs(diff) <= CLOUD_SYNC_CLOCK_SKEW_MS) return 0;
+	if (Math.abs(diff) <= CLOUD_SYNC_CLOCK_SKEW_MS) {return 0;}
 	return diff > 0 ? 1 : -1;
 }
 
@@ -1844,11 +1865,11 @@ function latestIsoTimestamp(values) {
 
 function collectIsoTimestamp(value, bucket) {
 	const normalized = normalizeIsoTimestamp(value);
-	if (normalized) bucket.push(normalized);
+	if (normalized) {bucket.push(normalized);}
 }
 
 function collectLifeEntityTimestamps(entity, bucket) {
-	if (!entity) return;
+	if (!entity) {return;}
 	collectIsoTimestamp(entity.edited, bucket);
 	collectIsoTimestamp(entity.created, bucket);
 	(entity.attachments || []).forEach((attachment) => {
@@ -1911,7 +1932,7 @@ function saveLocalAppUpdatedAt(value = nowIso()) {
 }
 
 function markLocalAppChanged(value = nowIso()) {
-	if (localChangeTrackingSuppressed > 0) return "";
+	if (localChangeTrackingSuppressed > 0) {return "";}
 	const updatedAt = saveLocalAppUpdatedAt(value);
 	queueCloudSyncAfterLocalChange();
 	return updatedAt;
@@ -1930,21 +1951,23 @@ function localAppUpdatedAt(options = {}) {
 	const stored = normalizeIsoTimestamp(
 		state.localAppUpdatedAt || loadLocalAppUpdatedAt(),
 	);
-	if (stored) return stored;
+	if (stored) {return stored;}
 	const derived = deriveLocalAppUpdatedAt();
 	if (derived && options.persistDerived !== false)
-		saveLocalAppUpdatedAt(derived);
+		{saveLocalAppUpdatedAt(derived);}
 	return derived;
 }
 
 function localCloudOwnerId(cloud = state.cloud) {
-	if (cloud?.mode !== "signed-in" || !cloud.user?.uid) return "";
+	if (cloud?.mode !== "signed-in" || !cloud.user?.uid) {return "";}
 	return `${cloud.isLocalDemo ? "local-demo" : "firebase"}:${cloud.user.uid}`;
 }
 
 function loadLocalAppOwner() {
 	try {
-		return String(window.localStorage.getItem(LOCAL_APP_OWNER_KEY) || "").trim();
+		return String(
+			window.localStorage.getItem(LOCAL_APP_OWNER_KEY) || "",
+		).trim();
 	} catch {
 		return "";
 	}
@@ -1953,8 +1976,9 @@ function loadLocalAppOwner() {
 function saveLocalAppOwner(ownerId = localCloudOwnerId()) {
 	const normalized = String(ownerId || "").trim();
 	try {
-		if (normalized) window.localStorage.setItem(LOCAL_APP_OWNER_KEY, normalized);
-		else window.localStorage.removeItem(LOCAL_APP_OWNER_KEY);
+		if (normalized)
+			{window.localStorage.setItem(LOCAL_APP_OWNER_KEY, normalized);}
+		else {window.localStorage.removeItem(LOCAL_APP_OWNER_KEY);}
 	} catch {
 		// Owner tracking prevents cross-account writes, but sync can still fall back to timestamps.
 	}
@@ -2023,13 +2047,13 @@ async function resetLocalAppForAccountSwitch(ownerId) {
 
 async function ensureLocalAccountBoundary(cloud = state.cloud) {
 	const ownerId = localCloudOwnerId(cloud);
-	if (!ownerId) return false;
+	if (!ownerId) {return false;}
 	const previousOwner = loadLocalAppOwner();
 	if (previousOwner && previousOwner !== ownerId && hasStoredLocalData()) {
 		await resetLocalAppForAccountSwitch(ownerId);
 		return true;
 	}
-	if (!previousOwner && !hasStoredLocalData()) saveLocalAppOwner(ownerId);
+	if (!previousOwner && !hasStoredLocalData()) {saveLocalAppOwner(ownerId);}
 	return false;
 }
 
@@ -2040,9 +2064,9 @@ function saveArtifactStore(store) {
 
 function queueCloudSyncAfterLocalChange() {
 	try {
-		if (!cloudHasSyncAccess()) return;
+		if (!cloudHasSyncAccess()) {return;}
 		if (cloudAutoSyncDebounceTimer)
-			window.clearTimeout(cloudAutoSyncDebounceTimer);
+			{window.clearTimeout(cloudAutoSyncDebounceTimer);}
 		cloudAutoSyncDebounceTimer = window.setTimeout(() => {
 			cloudAutoSyncDebounceTimer = null;
 			void triggerCloudAutoSync("local-change", { force: true });
@@ -2082,7 +2106,7 @@ function applyEnvironmentClasses() {
 }
 
 function bindEnvironmentMedia(media) {
-	if (!media) return;
+	if (!media) {return;}
 	const update = () => {
 		applyEnvironmentClasses();
 		render();
@@ -2121,7 +2145,7 @@ function normalizeLifeAttachments(attachments) {
 
 function normalizeLifeAssignment(dateKey, status) {
 	const value = dateKey ? dateKeyFromValue(dateKey) : "";
-	if (!value || status === "complete") return value;
+	if (!value || status === "complete") {return value;}
 	return value < todayDateKey() ? "" : value;
 }
 
@@ -2228,7 +2252,7 @@ function loadLifePlanner() {
 		const parsed = raw ? JSON.parse(raw) : createDefaultLifePlanner();
 		const normalized = normalizeLifePlanner(parsed);
 		if (raw && JSON.stringify(parsed) !== JSON.stringify(normalized))
-			saveLifePlannerStore(normalized);
+			{saveLifePlannerStore(normalized);}
 		return normalized;
 	} catch {
 		return createDefaultLifePlanner();
@@ -2279,7 +2303,7 @@ async function exportAppStateJson(options = {}) {
 }
 
 async function restoreImportedAppState(appState) {
-	if (!appState) return;
+	if (!appState) {return;}
 	const bodyTracker = appState?.bodyTracker
 		? normalizeBodyTracker(appState.bodyTracker)
 		: createDefaultBodyTracker();
@@ -2313,7 +2337,8 @@ async function restoreImportedAppState(appState) {
 	state.goalSettings = goalSettings;
 	state.dashboardIdentity = dashboardIdentity;
 	state.dashboardChartTabs = dashboardChartTabs;
-	state.dashboardChartType = dashboardChartTabs[0] || DEFAULT_DASHBOARD_CHART_TABS[0];
+	state.dashboardChartType =
+		dashboardChartTabs[0] || DEFAULT_DASHBOARD_CHART_TABS[0];
 	state.theme = theme;
 	saveBodyTracker();
 	saveSpiritProgress();
@@ -2323,7 +2348,7 @@ async function restoreImportedAppState(appState) {
 	saveDashboardIdentity(dashboardIdentity);
 	saveDashboardChartTabs(dashboardChartTabs);
 	saveTheme(theme);
-	if (appState.cloudMediaKey) importCloudMediaKey(appState.cloudMediaKey);
+	if (appState.cloudMediaKey) {importCloudMediaKey(appState.cloudMediaKey);}
 	if (Array.isArray(appState.localFiles)) {
 		await importLocalFiles(appState.localFiles, localMediaImportOptions());
 		scheduleCloudStorageUsageRefresh({ force: true });
@@ -2378,19 +2403,13 @@ function cloudReturnUrl() {
 
 function cloudHasSyncAccess(cloud = state.cloud) {
 	return Boolean(
-		state.artifactStore &&
-			cloud?.mode === "signed-in" &&
-			cloud.user &&
-			(cloud.entitlement?.cloud === true || cloud.entitlement?.admin === true),
+		state.artifactStore && cloud?.mode === "signed-in" && cloud.user,
 	);
 }
 
 function cloudMediaSyncAccess(cloud = state.cloud) {
 	return Boolean(
-		cloud?.mode === "signed-in" &&
-			cloud.user?.uid &&
-			!cloud.isLocalDemo &&
-			(cloud.entitlement?.cloud === true || cloud.entitlement?.admin === true),
+		cloud?.mode === "signed-in" && cloud.user?.uid && !cloud.isLocalDemo,
 	);
 }
 
@@ -2417,7 +2436,7 @@ function inlineBase64ImageMatches(body) {
 
 async function migrateInlineBase64ImagesInArtifacts() {
 	if (!state.artifactStore?.artifacts?.length || !cloudMediaSyncAccess())
-		return { migrated: 0 };
+		{return { migrated: 0 };}
 
 	let migrated = 0;
 	const now = nowIso();
@@ -2460,7 +2479,7 @@ async function migrateInlineBase64ImagesInArtifacts() {
 		);
 		writeArtifactStore(nextStore);
 		saveLocalAppUpdatedAt(now);
-		if (state.active === "Gallery") await refreshGalleryImages();
+		if (state.active === "Gallery") {await refreshGalleryImages();}
 	}
 
 	return { migrated };
@@ -2477,7 +2496,7 @@ function assertNoCloudBase64Images(json) {
 
 async function migrateLocalImagesToCloudBeforeSync() {
 	configureMediaCloudContext();
-	if (!cloudMediaSyncAccess()) return { migrated: 0 };
+	if (!cloudMediaSyncAccess()) {return { migrated: 0 };}
 	const inline = await migrateInlineBase64ImagesInArtifacts();
 	const local = await migrateLocalMediaToCloud({
 		uid: state.cloud.user.uid,
@@ -2485,7 +2504,7 @@ async function migrateLocalImagesToCloudBeforeSync() {
 		...localMediaStoreOptions(),
 	});
 	const migrated = (inline.migrated || 0) + (local.migrated || 0);
-	if (migrated > 0 && state.active === "Gallery") await refreshGalleryImages();
+	if (migrated > 0 && state.active === "Gallery") {await refreshGalleryImages();}
 	return { migrated };
 }
 
@@ -2575,7 +2594,7 @@ async function calculateCloudStorageUsage(options = {}) {
 
 	if (cloudHasSyncAccess()) {
 		const info = await getCloudStateInfo().catch((error) => {
-			if (options.requireCloudInfo) throw error;
+			if (options.requireCloudInfo) {throw error;}
 			return null;
 		});
 		const storedUsage = info?.storageUsage || {};
@@ -2604,7 +2623,7 @@ function cloudStorageUsageMessage(usage) {
 }
 
 function assertCloudStorageUsageAllowed(usage) {
-	if ((Number(usage?.totalBytes) || 0) <= CLOUD_STORAGE_LIMIT_BYTES) return;
+	if ((Number(usage?.totalBytes) || 0) <= CLOUD_STORAGE_LIMIT_BYTES) {return;}
 	throw new Error(cloudStorageUsageMessage(usage));
 }
 
@@ -2666,9 +2685,9 @@ function cloudStorageUsageFingerprint(usage) {
 }
 
 function scheduleCloudStorageUsageRefresh(options = {}) {
-	if (!isReady()) return;
+	if (!isReady()) {return;}
 	if (cloudStorageUsageRefreshTimer)
-		window.clearTimeout(cloudStorageUsageRefreshTimer);
+		{window.clearTimeout(cloudStorageUsageRefreshTimer);}
 	cloudStorageUsageRefreshTimer = window.setTimeout(() => {
 		cloudStorageUsageRefreshTimer = null;
 		void refreshCloudStorageUsage(options);
@@ -2676,7 +2695,7 @@ function scheduleCloudStorageUsageRefresh(options = {}) {
 }
 
 async function refreshCloudStorageUsage(options = {}) {
-	if (cloudStorageUsageRefreshInFlight) return;
+	if (cloudStorageUsageRefreshInFlight) {return;}
 	cloudStorageUsageRefreshInFlight = true;
 	try {
 		const usage = await calculateCloudStorageUsage();
@@ -2742,15 +2761,15 @@ async function clearLocalFromCloudDelete(info) {
 function cloudSyncMessage(action, source = "manual") {
 	const prefix = source === "manual" ? "Sync" : "Auto sync";
 	if (action === "uploaded")
-		return `${prefix} saved this device to Firebase artifacts and encrypted media.`;
+		{return `${prefix} saved this device to Firebase artifacts and encrypted media.`;}
 	if (action === "downloaded")
-		return `${prefix} loaded Firebase artifacts into this device.`;
-	if (action === "cleared") return `${prefix} applied the Firebase deletion.`;
+		{return `${prefix} loaded Firebase artifacts into this device.`;}
+	if (action === "cleared") {return `${prefix} applied the Firebase deletion.`;}
 	return `${prefix} checked. Already current.`;
 }
 
 function finishCloudSyncResult(result, source = "manual") {
-	if (!result || result.action === "skipped") return result;
+	if (!result || result.action === "skipped") {return result;}
 	const message = cloudSyncMessage(result.action, source);
 	recordCloudSyncAt(nowIso(), message);
 	return { ...result, message };
@@ -2759,11 +2778,11 @@ function finishCloudSyncResult(result, source = "manual") {
 async function syncCloudWithNewestWins(options = {}) {
 	const source = options.source || "manual";
 	if (!cloudHasSyncAccess())
-		return { action: "skipped", message: "Cloud sync is not active." };
+		{return { action: "skipped", message: "Cloud sync is not active." };}
 	if (source !== "manual" && isUserEditingInterface()) {
 		return { action: "skipped", message: "Auto sync paused while editing." };
 	}
-	if (cloudSyncInFlight) return cloudSyncInFlight;
+	if (cloudSyncInFlight) {return cloudSyncInFlight;}
 
 	cloudSyncInFlight = (async () => {
 		const hadLocalOwner = Boolean(loadLocalAppOwner());
@@ -2789,11 +2808,7 @@ async function syncCloudWithNewestWins(options = {}) {
 			return finishCloudSyncResult({ action: "downloaded", ...result }, source);
 		}
 
-		if (
-			source === "interval" &&
-			info?.exists &&
-			!localHasStoredData
-		) {
+		if (source === "interval" && info?.exists && !localHasStoredData) {
 			const result = await importCloudInfoIntoLocal(info);
 			return finishCloudSyncResult({ action: "downloaded", ...result }, source);
 		}
@@ -2854,7 +2869,7 @@ async function syncCloudWithNewestWins(options = {}) {
 }
 
 async function triggerCloudAutoSync(source = "interval", options = {}) {
-	if (!cloudHasSyncAccess()) return { action: "skipped" };
+	if (!cloudHasSyncAccess()) {return { action: "skipped" };}
 	if (source !== "manual" && isUserEditingInterface()) {
 		return { action: "skipped", message: "Auto sync paused while editing." };
 	}
@@ -2881,16 +2896,16 @@ async function triggerCloudAutoSync(source = "interval", options = {}) {
 
 function configureCloudAutoSync() {
 	if (!cloudHasSyncAccess()) {
-		if (cloudAutoSyncTimer) window.clearInterval(cloudAutoSyncTimer);
+		if (cloudAutoSyncTimer) {window.clearInterval(cloudAutoSyncTimer);}
 		if (cloudAutoSyncDebounceTimer)
-			window.clearTimeout(cloudAutoSyncDebounceTimer);
+			{window.clearTimeout(cloudAutoSyncDebounceTimer);}
 		cloudAutoSyncTimer = null;
 		cloudAutoSyncDebounceTimer = null;
 		lastCloudAutoSyncAttemptAt = 0;
 		cloudAutoSyncPrimedFor = "";
 		return;
 	}
-	if (cloudAutoSyncTimer) return;
+	if (cloudAutoSyncTimer) {return;}
 	cloudAutoSyncTimer = window.setInterval(() => {
 		void triggerCloudAutoSync("interval");
 	}, CLOUD_SYNC_INTERVAL_MS);
@@ -2904,7 +2919,7 @@ async function loadCloudIntoLocalApp() {
 	const confirmed = window.confirm(
 		"Load the saved Firebase artifacts into this browser? This replaces the current local app state. Export first if you need a backup.",
 	);
-	if (!confirmed) return;
+	if (!confirmed) {return;}
 	const info = await getCloudStateInfo().catch(() => null);
 	if (info?.json) {
 		await importCloudInfoIntoLocal(info);
@@ -2925,7 +2940,7 @@ async function deleteCloudData() {
 	const confirmed = window.confirm(
 		"Delete the Firebase artifact collection for this app and reset this browser too? Export first if you need a backup.",
 	);
-	if (!confirmed) return;
+	if (!confirmed) {return;}
 	const result = await deleteCloudStateJson();
 	await withLocalChangeTrackingSuppressed(() => clearAppData({ silent: true }));
 	saveLocalAppUpdatedAt(cloudInfoUpdatedAt(result) || nowIso());
@@ -2936,7 +2951,7 @@ async function deleteCloudAccountData() {
 	const confirmed = window.confirm(
 		"Fully delete your cloud account and reset this browser? This removes Firebase app artifacts, requests cloud account deletion, and clears local app data. Export first if you need a backup.",
 	);
-	if (!confirmed) return;
+	if (!confirmed) {return;}
 	await deleteCloudAccount();
 	await withLocalChangeTrackingSuppressed(() => clearAppData({ silent: true }));
 	saveLocalAppUpdatedAt(nowIso());
@@ -2944,10 +2959,10 @@ async function deleteCloudAccountData() {
 }
 
 async function maybePromptCloudImport(cloud) {
-	if (!cloudHasSyncAccess(cloud)) return;
+	if (!cloudHasSyncAccess(cloud)) {return;}
 	const userKey = `${cloud.user?.uid || cloud.user?.email || "cloud-user"}:${cloud.deviceId || ""}`;
-	if (cloudAutoSyncPrimedFor === userKey) return;
-	if (isUserEditingInterface()) return;
+	if (cloudAutoSyncPrimedFor === userKey) {return;}
+	if (isUserEditingInterface()) {return;}
 	cloudAutoSyncPrimedFor = userKey;
 	await triggerCloudAutoSync("sign-in", { force: true });
 }
@@ -3031,7 +3046,8 @@ const state = {
 	dashboardPeriod: "day",
 	dashboardPeriodGlowUntil: 0,
 	dashboardChartTabs: initialDashboardChartTabs,
-	dashboardChartType: initialDashboardChartTabs[0] || DEFAULT_DASHBOARD_CHART_TABS[0],
+	dashboardChartType:
+		initialDashboardChartTabs[0] || DEFAULT_DASHBOARD_CHART_TABS[0],
 	bodyTracker: loadBodyTracker(),
 	trackerSettings: loadTrackerSettings(),
 	goalSettings: loadGoalSettings(),
@@ -3087,11 +3103,11 @@ function todayDateKey() {
 }
 
 function dateKeyFromValue(value) {
-	if (!value) return todayDateKey();
+	if (!value) {return todayDateKey();}
 	const text = String(value);
-	if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+	if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {return text;}
 	const date = new Date(text);
-	if (Number.isNaN(date.getTime())) return todayDateKey();
+	if (Number.isNaN(date.getTime())) {return todayDateKey();}
 	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
@@ -3125,9 +3141,9 @@ function formatDateLabel(dateKey, options = {}) {
 }
 
 function formatEventTime(value) {
-	if (!value) return "";
+	if (!value) {return "";}
 	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) return "";
+	if (Number.isNaN(date.getTime())) {return "";}
 	return new Intl.DateTimeFormat(undefined, {
 		hour: "numeric",
 		minute: "2-digit",
@@ -3207,7 +3223,7 @@ function pageActionButton(action, icon, label, options = {}) {
 }
 
 function activeCameraTarget() {
-	if (state.active === "PYXIDA") return { kind: "pyxdia" };
+	if (state.active === "PYXIDA") {return { kind: "pyxdia" };}
 	if (DASHBOARD_LABELS.includes(state.active)) {
 		return { kind: "dashboard", dashboard: state.active };
 	}
@@ -3234,22 +3250,24 @@ function normalizeCameraTarget(target = {}) {
 
 function cameraTargetFromElement(element) {
 	const explicitKind = element?.dataset?.cameraTarget || "";
-	if (explicitKind === "pyxdia") return { kind: "pyxdia" };
-	if (explicitKind === "editor") return { kind: "editor" };
+	if (explicitKind === "pyxdia") {return { kind: "pyxdia" };}
+	if (explicitKind === "editor") {return { kind: "editor" };}
 	const dashboard = element?.dataset?.dashboard || state.active;
 	return normalizeCameraTarget({ kind: "dashboard", dashboard });
 }
 
 function cameraTargetLabel(target = state.cameraTarget) {
-	const normalized = normalizeCameraTarget(target || activeCameraTarget() || {});
-	if (normalized.kind === "pyxdia") return "PYXIDA letter";
-	if (normalized.kind === "editor") return "Current note";
+	const normalized = normalizeCameraTarget(
+		target || activeCameraTarget() || {},
+	);
+	if (normalized.kind === "pyxdia") {return "PYXIDA letter";}
+	if (normalized.kind === "editor") {return "Current note";}
 	return `${dashboardDisplayLabel(normalized.dashboard)} note`;
 }
 
 function pathCameraButtonHtml() {
 	const target = activeCameraTarget();
-	if (!target) return "";
+	if (!target) {return "";}
 	const attrs =
 		target.kind === "pyxdia"
 			? 'data-camera-target="pyxdia"'
@@ -3341,9 +3359,9 @@ function dashboardTitleHtml(dashboard) {
 function dashboardInlineLabelHtml(dashboard) {
 	const parts = [];
 	if (state.dashboardIdentity?.showNumbers)
-		parts.push(`<span>${escapeHtml(dashboardDisplayNumber(dashboard))}</span>`);
+		{parts.push(`<span>${escapeHtml(dashboardDisplayNumber(dashboard))}</span>`);}
 	if (state.dashboardIdentity?.showIcons)
-		parts.push(iconHtml(dashboardDisplayIcon(dashboard)));
+		{parts.push(iconHtml(dashboardDisplayIcon(dashboard)));}
 	parts.push(`<span>${escapeHtml(dashboardDisplayLabel(dashboard))}</span>`);
 	return parts.join("");
 }
@@ -3360,14 +3378,14 @@ function isImageIconSource(value) {
 
 function sanitizeSvgText(value) {
 	const source = String(value || "").trim();
-	if (!/^<svg[\s>]/i.test(source) || source.length > 16000) return "";
+	if (!/^<svg[\s>]/i.test(source) || source.length > 16000) {return "";}
 	try {
 		const doc = new DOMParser().parseFromString(source, "image/svg+xml");
 		if (
 			doc.querySelector("parsererror") ||
 			doc.documentElement?.tagName?.toLowerCase() !== "svg"
 		)
-			return "";
+			{return "";}
 		doc
 			.querySelectorAll("script, foreignObject, iframe, object, embed")
 			.forEach((element) => {
@@ -3400,7 +3418,7 @@ function trackerIconHtml(source) {
 	if (/^<svg[\s>]/i.test(value)) {
 		const dataUrl = svgIconDataUrl(value);
 		if (dataUrl)
-			return `<img class="tracker-orb-image" src="${escapeHtml(dataUrl)}" alt="">`;
+			{return `<img class="tracker-orb-image" src="${escapeHtml(dataUrl)}" alt="">`;}
 	}
 	if (isImageIconSource(value)) {
 		return `<img class="tracker-orb-image" src="${escapeHtml(value)}" alt="">`;
@@ -3410,8 +3428,8 @@ function trackerIconHtml(source) {
 
 function iconDisplayName(icon) {
 	const value = normalizeIconSource(icon);
-	if (!value) return "Pick icon";
-	if (/^<svg[\s>]/i.test(value) || isImageIconSource(value)) return "Custom";
+	if (!value) {return "Pick icon";}
+	if (/^<svg[\s>]/i.test(value) || isImageIconSource(value)) {return "Custom";}
 	return iconifyIconLabel(value) || value;
 }
 
@@ -3480,7 +3498,7 @@ function iconifyIconLabel(icon) {
 
 function iconSuggestionsForLabel(label, limit = 7) {
 	const query = String(label || "").trim();
-	if (query.length < 3) return [];
+	if (query.length < 3) {return [];}
 	return (state.iconSearchCache?.[iconifySearchKey(query, limit)] || [])
 		.slice(0, limit)
 		.map((icon) => ({ icon: normalizeIconifyIcon(icon) }));
@@ -3492,12 +3510,12 @@ function firstIconSuggestion(label, fallback = "tabler:circle") {
 
 async function searchIconifyIcons(label, limit = 7) {
 	const query = String(label || "").trim();
-	if (query.length < 3) return [];
+	if (query.length < 3) {return [];}
 	const cacheKey = iconifySearchKey(query, limit);
 	if (Array.isArray(state.iconSearchCache?.[cacheKey]))
-		return state.iconSearchCache[cacheKey];
+		{return state.iconSearchCache[cacheKey];}
 	if (state.iconSearchInFlight[cacheKey])
-		return state.iconSearchInFlight[cacheKey];
+		{return state.iconSearchInFlight[cacheKey];}
 
 	const params = new URLSearchParams({
 		query,
@@ -3509,7 +3527,7 @@ async function searchIconifyIcons(label, limit = 7) {
 	)
 		.then((response) => {
 			if (!response.ok)
-				throw new Error(`Iconify search failed (${response.status}).`);
+				{throw new Error(`Iconify search failed (${response.status}).`);}
 			return response.json();
 		})
 		.then((payload) => {
@@ -3552,7 +3570,7 @@ function iconPickerSearchResults(query, limit) {
 		}
 		return unique.slice(0, limit);
 	};
-	if (!normalizedQuery) return withSelected(ICON_PICKER_DEFAULT_ICONS);
+	if (!normalizedQuery) {return withSelected(ICON_PICKER_DEFAULT_ICONS);}
 	if (normalizedQuery.length < 3) {
 		return withSelected(
 			ICON_PICKER_DEFAULT_ICONS.filter((icon) =>
@@ -3567,7 +3585,7 @@ function iconPickerSearchResults(query, limit) {
 
 function iconPickerGridHtml() {
 	const picker = state.iconPicker;
-	if (!picker) return "";
+	if (!picker) {return "";}
 	const selected = normalizeIconSource(picker.selected || "tabler:circle");
 	const query = String(picker.query || "").trim();
 	const limit = Math.max(
@@ -3610,7 +3628,7 @@ function iconPickerGridHtml() {
 
 function iconPickerColorHtml() {
 	const picker = state.iconPicker;
-	if (!picker?.colorFieldId) return "";
+	if (!picker?.colorFieldId) {return "";}
 	const selectedColor = normalizeHexColor(
 		picker.selectedColor,
 		normalizeHexColor(picker.color, DASHBOARD_COLORS.Mind),
@@ -3642,7 +3660,7 @@ function iconPickerColorHtml() {
 
 function iconPickerOverlayHtml() {
 	const picker = state.iconPicker;
-	if (!picker) return "";
+	if (!picker) {return "";}
 	const selected = normalizeIconSource(picker.selected || "tabler:circle");
 	const title = picker.title || "Choose icon";
 	const color = picker.color || "var(--accent)";
@@ -3723,8 +3741,8 @@ function trackerSettingsForKind(kind) {
 }
 
 function saveTrackerSettingsForKind(kind) {
-	if (trackerKind(kind) === "goal") saveGoalSettings();
-	else saveTrackerSettings();
+	if (trackerKind(kind) === "goal") {saveGoalSettings();}
+	else {saveTrackerSettings();}
 }
 
 function _normalizeTrackerSettingsForKind(kind, settings) {
@@ -3821,7 +3839,7 @@ function trackerStripHtml(dashboard, options = {}) {
 				page * TRACKER_ORBS_PER_PAGE,
 				(page + 1) * TRACKER_ORBS_PER_PAGE,
 			);
-	if (!editable && !visibleEntries.length) return "";
+	if (!editable && !visibleEntries.length) {return "";}
 	return `
     <section class="tracker-strip${compact ? " tracker-strip--compact" : ""}${editable ? " is-editable" : ""}" aria-label="${escapeHtml(dashboard)} ${escapeHtml(config.plural)}" style="--thought-color: ${dashboardColor(dashboard)};">
       ${stripLabel ? `<div class="tracker-strip-heading">${stripIcon ? `${iconHtml(stripIcon)} ` : ""}<span>${escapeHtml(stripLabel)}</span></div>` : ""}
@@ -3862,7 +3880,7 @@ function trackerStripHtml(dashboard, options = {}) {
 }
 
 function trackerTooltipLabel(dashboard, tracker, kind = "thought") {
-	if (trackerKind(kind) !== "goal") return tracker.label;
+	if (trackerKind(kind) !== "goal") {return tracker.label;}
 	const count = goalProgressCount(dashboard, tracker.id);
 	return count
 		? `${tracker.label} / ${count} check${count === 1 ? "" : "s"}`
@@ -3898,7 +3916,9 @@ function trackerOrbHtml(
 			? "Enable in settings first"
 			: trackerTooltipLabel(dashboard, tracker, normalizedKind);
 	const isDraggable = editable || allowReorder;
-	const wrapClass = options.wrapClass ? ` ${escapeHtml(options.wrapClass)}` : "";
+	const wrapClass = options.wrapClass
+		? ` ${escapeHtml(options.wrapClass)}`
+		: "";
 	const wrapStyle = options.inlineColor
 		? ` style="--thought-color: ${escapeHtml(dashboardColor(dashboard))};"`
 		: "";
@@ -3921,7 +3941,7 @@ function hasDashboardOrbs(dashboard) {
 }
 
 function dashboardOrbNavHtml(dashboard) {
-	if (!hasDashboardOrbs(dashboard)) return "";
+	if (!hasDashboardOrbs(dashboard)) {return "";}
 	return `
     <div class="dashboard-orb-nav" aria-label="${escapeHtml(dashboardDisplayLabel(dashboard))} orbs">
       ${trackerStripHtml(dashboard, { combined: true, label: "", icon: "tabler:planet" })}
@@ -3954,17 +3974,10 @@ function dashboardQuickOrbGroupHtml(kind, label) {
 						entries.length
 							? entries
 									.map(({ dashboard, tracker }) =>
-										trackerOrbHtml(
-											dashboard,
-											tracker,
-											false,
-											kind,
-											false,
-											{
-												inlineColor: true,
-												wrapClass: "dashboard-orb-quick-item",
-											},
-										),
+										trackerOrbHtml(dashboard, tracker, false, kind, false, {
+											inlineColor: true,
+											wrapClass: "dashboard-orb-quick-item",
+										}),
 									)
 									.join("")
 							: `<span class="dashboard-orb-empty">${escapeHtml(emptyText)}</span>`
@@ -3989,7 +4002,7 @@ function trackerFieldId(area, field) {
 }
 
 function addTracker(area, kind = "thought") {
-	if (!DASHBOARD_LABELS.includes(area)) return;
+	if (!DASHBOARD_LABELS.includes(area)) {return;}
 	const normalizedKind = trackerKind(kind);
 	const config = trackerKindConfig(normalizedKind);
 	const label = document
@@ -4020,8 +4033,8 @@ function addTracker(area, kind = "thought") {
 		],
 	};
 	if (normalizedKind === "goal")
-		state.goalSettings = normalizeGoalSettings(next);
-	else state.trackerSettings = normalizeTrackerSettings(next);
+		{state.goalSettings = normalizeGoalSettings(next);}
+	else {state.trackerSettings = normalizeTrackerSettings(next);}
 	saveTrackerSettingsForKind(normalizedKind);
 	setState({ trackerAddArea: "", trackerEditKey: "", trackerDeleteKey: "" });
 }
@@ -4064,7 +4077,7 @@ function trackerDraftFromEditForm(area, id, kind = "thought", current = {}) {
 }
 
 function updateTracker(area, id, kind = "thought", options = {}) {
-	if (!DASHBOARD_LABELS.includes(area) || !id) return;
+	if (!DASHBOARD_LABELS.includes(area) || !id) {return;}
 	const closeEditor = options.close !== false;
 	const silent = Boolean(options.silent);
 	const normalizedKind = trackerKind(kind);
@@ -4074,10 +4087,12 @@ function updateTracker(area, id, kind = "thought", options = {}) {
 	const current = (currentSettings?.[area] || []).find(
 		(tracker) => tracker.id === id,
 	);
-	const draft = current ? trackerDraftFromEditForm(area, id, normalizedKind, current) : null;
+	const draft = current
+		? trackerDraftFromEditForm(area, id, normalizedKind, current)
+		: null;
 	const label = draft?.label;
 	if (!current || !label) {
-		if (!silent) window.alert(config.emptyNameAlert);
+		if (!silent) {window.alert(config.emptyNameAlert);}
 		return;
 	}
 	const next = {
@@ -4094,21 +4109,21 @@ function updateTracker(area, id, kind = "thought", options = {}) {
 		),
 	};
 	if (normalizedKind === "goal")
-		state.goalSettings = normalizeGoalSettings(next);
-	else state.trackerSettings = normalizeTrackerSettings(next);
+		{state.goalSettings = normalizeGoalSettings(next);}
+	else {state.trackerSettings = normalizeTrackerSettings(next);}
 	saveTrackerSettingsForKind(normalizedKind);
-	if (closeEditor) setState({ trackerEditKey: "", trackerDeleteKey: "" });
+	if (closeEditor) {setState({ trackerEditKey: "", trackerDeleteKey: "" });}
 }
 
 function transferTrackerKind(area, id, kind = "thought") {
-	if (!DASHBOARD_LABELS.includes(area) || !id) return;
+	if (!DASHBOARD_LABELS.includes(area) || !id) {return;}
 	const sourceKind = trackerKind(kind);
 	const targetKind = sourceKind === "goal" ? "thought" : "goal";
 	const sourceSettings = trackerSettingsForKind(sourceKind);
 	const targetSettings = trackerSettingsForKind(targetKind);
 	const sourceTrackers = sourceSettings?.[area] || [];
 	const current = sourceTrackers.find((tracker) => tracker.id === id);
-	if (!current) return;
+	if (!current) {return;}
 	const sourceConfig = trackerKindConfig(sourceKind);
 	const targetConfig = trackerKindConfig(targetKind);
 	const draft = trackerDraftFromEditForm(area, id, sourceKind, current);
@@ -4167,12 +4182,12 @@ function transferTrackerKind(area, id, kind = "thought") {
 }
 
 function reorderTracker(area, trackerId, targetIndex, kind = "thought") {
-	if (!DASHBOARD_LABELS.includes(area)) return false;
+	if (!DASHBOARD_LABELS.includes(area)) {return false;}
 	const normalizedKind = trackerKind(kind);
 	const currentSettings = trackerSettingsForKind(normalizedKind);
 	const trackers = currentSettings?.[area] || [];
 	const fromIndex = trackers.findIndex((tracker) => tracker.id === trackerId);
-	if (fromIndex < 0) return false;
+	if (fromIndex < 0) {return false;}
 
 	const nextTrackers = [...trackers];
 	const [movedTracker] = nextTrackers.splice(fromIndex, 1);
@@ -4182,22 +4197,22 @@ function reorderTracker(area, trackerId, targetIndex, kind = "thought") {
 		nextTrackers.map((tracker) => tracker.id).join("|") ===
 		trackers.map((tracker) => tracker.id).join("|")
 	)
-		return false;
+		{return false;}
 
 	const next = {
 		...currentSettings,
 		[area]: nextTrackers,
 	};
 	if (normalizedKind === "goal")
-		state.goalSettings = normalizeGoalSettings(next);
-	else state.trackerSettings = normalizeTrackerSettings(next);
+		{state.goalSettings = normalizeGoalSettings(next);}
+	else {state.trackerSettings = normalizeTrackerSettings(next);}
 	saveTrackerSettingsForKind(normalizedKind);
 	setState({ trackerEditKey: "", trackerDeleteKey: "", trackerAddArea: "" });
 	return true;
 }
 
 function removeTracker(area, id, kind = "thought") {
-	if (!DASHBOARD_LABELS.includes(area) || !id) return;
+	if (!DASHBOARD_LABELS.includes(area) || !id) {return;}
 	const normalizedKind = trackerKind(kind);
 	const currentSettings = trackerSettingsForKind(normalizedKind);
 	const next = {
@@ -4207,8 +4222,8 @@ function removeTracker(area, id, kind = "thought") {
 		),
 	};
 	if (normalizedKind === "goal")
-		state.goalSettings = normalizeGoalSettings(next);
-	else state.trackerSettings = normalizeTrackerSettings(next);
+		{state.goalSettings = normalizeGoalSettings(next);}
+	else {state.trackerSettings = normalizeTrackerSettings(next);}
 	saveTrackerSettingsForKind(normalizedKind);
 	setState({
 		trackerAddArea:
@@ -4247,7 +4262,7 @@ function thoughtCooldownPieStyle(remaining) {
 
 function thoughtTimestampLabel(value) {
 	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) return currentTimestampLabel();
+	if (Number.isNaN(date.getTime())) {return currentTimestampLabel();}
 	return new Intl.DateTimeFormat(undefined, {
 		month: "short",
 		day: "numeric",
@@ -4258,7 +4273,7 @@ function thoughtTimestampLabel(value) {
 
 function thoughtDateInputValue(value) {
 	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) return todayDateKey();
+	if (Number.isNaN(date.getTime())) {return todayDateKey();}
 	return dateKeyFromDate(date);
 }
 
@@ -4290,7 +4305,7 @@ function trackerKindForNote(note) {
 
 function thoughtNoteWithTimestamp(note, timestamp) {
 	const date = new Date(timestamp);
-	if (!note || Number.isNaN(date.getTime())) return note;
+	if (!note || Number.isNaN(date.getTime())) {return note;}
 	if (note.properties?.role === "body-log") {
 		const dateKey = dateKeyFromDate(date);
 		const audit = Array.isArray(note.properties?.audit)
@@ -4351,7 +4366,7 @@ function thoughtNoteWithTimestamp(note, timestamp) {
 function scheduleThoughtToastFade(toast = state.thoughtToast, delay = 3500) {
 	window.clearTimeout(thoughtToastFadeTimer);
 	window.clearTimeout(thoughtToastHideTimer);
-	if (!toast) return;
+	if (!toast) {return;}
 	thoughtToastFadeTimer = window.setTimeout(() => {
 		if (isThoughtToastHeldOpen()) {
 			pauseThoughtToastFade();
@@ -4410,7 +4425,7 @@ function captureThoughtToastFocus() {
 		!(active instanceof HTMLInputElement) ||
 		!active.id.startsWith("thought-toast-")
 	)
-		return null;
+		{return null;}
 	return {
 		id: active.id,
 		start: active.type === "text" ? active.selectionStart : null,
@@ -4419,9 +4434,9 @@ function captureThoughtToastFocus() {
 }
 
 function restoreThoughtToastFocus(focusState) {
-	if (!focusState) return;
+	if (!focusState) {return;}
 	const input = document.getElementById(focusState.id);
-	if (!(input instanceof HTMLInputElement)) return;
+	if (!(input instanceof HTMLInputElement)) {return;}
 	input.focus({ preventScroll: true });
 	if (
 		input.type === "text" &&
@@ -4434,10 +4449,10 @@ function restoreThoughtToastFocus(focusState) {
 }
 
 function editorDraftKeyFor(saveAction, id) {
-	if (!id) return "";
-	if (saveAction === "save-compendium") return `compendium:${id}`;
-	if (saveAction === "save-section") return `section:${id}`;
-	if (saveAction === "save-artifact-note") return `artifact:${id}`;
+	if (!id) {return "";}
+	if (saveAction === "save-compendium") {return `compendium:${id}`;}
+	if (saveAction === "save-section") {return `section:${id}`;}
+	if (saveAction === "save-artifact-note") {return `artifact:${id}`;}
 	return "";
 }
 
@@ -4465,7 +4480,7 @@ function editorDraftArrayValues(key, fieldId, fallback = []) {
 }
 
 function clearEditorDraft(key) {
-	if (!key || !state.editorDrafts?.[key]) return;
+	if (!key || !state.editorDrafts?.[key]) {return;}
 	const nextDrafts = { ...state.editorDrafts };
 	delete nextDrafts[key];
 	state.editorDrafts = nextDrafts;
@@ -4497,11 +4512,11 @@ function captureFieldSelection(field) {
 function captureEditorDraft() {
 	const form = app.querySelector("[data-editor-draft-key]");
 	const key = form?.dataset.editorDraftKey || "";
-	if (!key) return null;
+	if (!key) {return null;}
 
 	const fields = {};
 	form.querySelectorAll("input, textarea, select").forEach((field) => {
-		if (!field.id) return;
+		if (!field.id) {return;}
 		if (field instanceof HTMLInputElement && field.type === "checkbox") {
 			fields[field.id] = field.checked;
 			return;
@@ -4545,9 +4560,9 @@ function captureEditorDraft() {
 }
 
 function restoreEditorDraftFocus(draft) {
-	if (!draft?.focus?.id) return;
+	if (!draft?.focus?.id) {return;}
 	const form = app.querySelector("[data-editor-draft-key]");
-	if (form?.dataset.editorDraftKey !== draft.key) return;
+	if (form?.dataset.editorDraftKey !== draft.key) {return;}
 	const field = document.getElementById(draft.focus.id);
 	if (
 		!(
@@ -4556,7 +4571,7 @@ function restoreEditorDraftFocus(draft) {
 			field instanceof HTMLSelectElement
 		)
 	)
-		return;
+		{return;}
 	field.focus({ preventScroll: true });
 	if (
 		typeof draft.focus.start === "number" &&
@@ -4583,7 +4598,7 @@ function isEditableAppElement(element) {
 }
 
 function isUserEditingInterface() {
-	if (isEditableAppElement(document.activeElement)) return true;
+	if (isEditableAppElement(document.activeElement)) {return true;}
 	return Boolean(app.querySelector("[data-editor-draft-key]"));
 }
 
@@ -4596,9 +4611,9 @@ function clearThoughtToast() {
 
 function submitThoughtToastNote(noteId, text) {
 	const body = String(text || "").trim();
-	if (!body || !noteId || !state.artifactStore) return;
+	if (!body || !noteId || !state.artifactStore) {return;}
 	const current = findArtifact(state.artifactStore, noteId);
-	if (!current) return;
+	if (!current) {return;}
 	const now = nowIso();
 	const timestamp = thoughtTimestampFromToastControls();
 	const adjusted = thoughtNoteWithTimestamp(current, timestamp);
@@ -4633,9 +4648,9 @@ function submitThoughtToastNote(noteId, text) {
 }
 
 function applyThoughtToastTimestamp(noteId) {
-	if (!noteId || !state.artifactStore) return;
+	if (!noteId || !state.artifactStore) {return;}
 	const current = findArtifact(state.artifactStore, noteId);
-	if (!current) return;
+	if (!current) {return;}
 	persistArtifactStore(
 		upsertArtifact(state.artifactStore, {
 			...thoughtNoteWithTimestamp(current, thoughtTimestampFromToastControls()),
@@ -4645,7 +4660,7 @@ function applyThoughtToastTimestamp(noteId) {
 }
 
 async function deleteThoughtToastNote(noteId) {
-	if (!noteId || !state.artifactStore) return;
+	if (!noteId || !state.artifactStore) {return;}
 	const note = findArtifact(state.artifactStore, noteId);
 	if (!note) {
 		clearThoughtToast();
@@ -4654,7 +4669,7 @@ async function deleteThoughtToastNote(noteId) {
 	const moved = await moveArtifactToTrash(note, {
 		confirmText: `Move "${note.title}" to Trash?`,
 	});
-	if (!moved) return;
+	if (!moved) {return;}
 	window.clearTimeout(thoughtToastFadeTimer);
 	window.clearTimeout(thoughtToastHideTimer);
 	setState({
@@ -4669,15 +4684,15 @@ async function deleteThoughtToastNote(noteId) {
 }
 
 function launchGoalBurst(triggerElement, color = DASHBOARD_COLORS.Mind) {
-	if (!(triggerElement instanceof HTMLElement)) return;
+	if (!(triggerElement instanceof HTMLElement)) {return;}
 	const reducedMotion = Boolean(
 		window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches,
 	);
 	const rect = triggerElement.getBoundingClientRect();
-	if (!rect.width || !rect.height) return;
+	if (!rect.width || !rect.height) {return;}
 	const burst = document.createElement("span");
 	burst.className = "goal-confetti-burst";
-	if (reducedMotion) burst.classList.add("is-reduced-motion");
+	if (reducedMotion) {burst.classList.add("is-reduced-motion");}
 	burst.style.left = `${rect.left + rect.width / 2}px`;
 	burst.style.top = `${rect.top + rect.height / 2}px`;
 	burst.style.setProperty("--goal-color", color || DASHBOARD_COLORS.Mind);
@@ -4698,7 +4713,7 @@ function launchGoalBurst(triggerElement, color = DASHBOARD_COLORS.Mind) {
 }
 
 function goalProgressArtifacts(area, goalId = "") {
-	if (!state.artifactStore) return [];
+	if (!state.artifactStore) {return [];}
 	return rootNotesForDashboard(state.artifactStore, area)
 		.filter((note) => note.properties?.role === "goal-progress")
 		.filter((note) => !goalId || note.properties?.goalId === goalId);
@@ -4709,21 +4724,21 @@ function goalProgressCount(area, goalId = "") {
 }
 
 function quickTrackerEntry(area, id, kind = "thought", triggerElement = null) {
-	if (!state.artifactStore || !DASHBOARD_LABELS.includes(area)) return;
+	if (!state.artifactStore || !DASHBOARD_LABELS.includes(area)) {return;}
 	const normalizedKind = trackerKind(kind);
 	const config = trackerKindConfig(normalizedKind);
 	const cooldownKey = thoughtCooldownKey(area, id, normalizedKind);
 	const tracker = (trackerSettingsForKind(normalizedKind)?.[area] || []).find(
 		(item) => item.id === id,
 	);
-	if (!tracker || (normalizedKind === "goal" && !tracker.enabled)) return;
+	if (!tracker || (normalizedKind === "goal" && !tracker.enabled)) {return;}
 	if (
 		thoughtCooldownRemaining(area, id, normalizedKind) > 0 ||
 		state.thoughtCreateLocks[cooldownKey]
 	)
-		return;
+		{return;}
 	if (normalizedKind === "goal")
-		launchGoalBurst(triggerElement, dashboardColor(area));
+		{launchGoalBurst(triggerElement, dashboardColor(area));}
 	state.thoughtCreateLocks = {
 		...state.thoughtCreateLocks,
 		[cooldownKey]: true,
@@ -4911,7 +4926,7 @@ function cleanSummaryText(value) {
 
 function shortSummary(value, fallback = "Nothing yet") {
 	const text = cleanSummaryText(value);
-	if (!text) return fallback;
+	if (!text) {return fallback;}
 	return text.length > 46 ? `${text.slice(0, 43)}...` : text;
 }
 
@@ -4935,7 +4950,7 @@ function activityTimestamp(item) {
 
 function activityTime(item) {
 	const timestamp = activityTimestamp(item);
-	if (!timestamp) return 0;
+	if (!timestamp) {return 0;}
 	if (/^\d{4}-\d{2}-\d{2}$/.test(String(timestamp))) {
 		return new Date(`${timestamp}T12:00:00`).getTime() || 0;
 	}
@@ -4944,7 +4959,7 @@ function activityTime(item) {
 
 function createdTime(item) {
 	const timestamp = item?.created || item?.properties?.createdAt || "";
-	if (!timestamp) return 0;
+	if (!timestamp) {return 0;}
 	if (/^\d{4}-\d{2}-\d{2}$/.test(String(timestamp))) {
 		return new Date(`${timestamp}T12:00:00`).getTime() || 0;
 	}
@@ -4954,7 +4969,7 @@ function createdTime(item) {
 function _newestCreatedFirst(items) {
 	return [...items].sort((a, b) => {
 		const timeDiff = createdTime(b) - createdTime(a);
-		if (timeDiff) return timeDiff;
+		if (timeDiff) {return timeDiff;}
 		return String(b.id || "").localeCompare(String(a.id || ""));
 	});
 }
@@ -4962,7 +4977,7 @@ function _newestCreatedFirst(items) {
 function newestActivityFirst(items) {
 	return [...items].sort((a, b) => {
 		const timeDiff = activityTime(b) - activityTime(a);
-		if (timeDiff) return timeDiff;
+		if (timeDiff) {return timeDiff;}
 		return String(b.id || "").localeCompare(String(a.id || ""));
 	});
 }
@@ -4976,12 +4991,12 @@ function latestByActivity(items) {
 }
 
 function formatActivityTimestamp(value) {
-	if (!value) return "Not started";
+	if (!value) {return "Not started";}
 	const text = String(value);
 	if (/^\d{4}-\d{2}-\d{2}$/.test(text))
-		return formatDateLabel(text, { year: true });
+		{return formatDateLabel(text, { year: true });}
 	const date = new Date(text);
-	if (Number.isNaN(date.getTime())) return text;
+	if (Number.isNaN(date.getTime())) {return text;}
 	return new Intl.DateTimeFormat(undefined, {
 		month: "short",
 		day: "numeric",
@@ -5201,7 +5216,9 @@ function lifeTrackerIds(note, kind) {
 	const ids = Array.isArray(note.properties?.[prop])
 		? note.properties[prop]
 		: [];
-	const availableIds = new Set(lifeTrackerSettings(kind).map((item) => item.id));
+	const availableIds = new Set(
+		lifeTrackerSettings(kind).map((item) => item.id),
+	);
 	return ids.filter((id) => availableIds.has(id));
 }
 
@@ -5269,9 +5286,9 @@ function noteMetaItems(note) {
 			["Commas", String(noteCommaCount(note.body))],
 		];
 	}
-	if (note.dashboard === "Body") return bodyMetaItems(note);
-	if (note.dashboard === "Spirit") return spiritMetaItems(note);
-	if (note.dashboard === "Life") return lifeMetaItems(note);
+	if (note.dashboard === "Body") {return bodyMetaItems(note);}
+	if (note.dashboard === "Spirit") {return spiritMetaItems(note);}
+	if (note.dashboard === "Life") {return lifeMetaItems(note);}
 	return [
 		["Words", noteSizeLabel(note)],
 		["Sent", String(noteSentences(note.body).length)],
@@ -5417,7 +5434,7 @@ function setBodyTimerState(key, timer) {
 function getBodyTimerElapsedMs(key = state.bodyTimerMode) {
 	const timer = bodyTimerState(key);
 	const start = timer.startTimestamp;
-	if (!timer.active || !start) return 0;
+	if (!timer.active || !start) {return 0;}
 	return Math.max(0, Date.now() - start);
 }
 
@@ -5454,7 +5471,7 @@ function selectedCompendium() {
 }
 
 function normalizeCompendiumSections(compendium) {
-	if (!compendium) return compendium;
+	if (!compendium) {return compendium;}
 	const sections = Array.isArray(compendium.sections)
 		? compendium.sections
 		: Array.isArray(compendium.blocks)
@@ -5545,9 +5562,9 @@ function spiritArtifactForKey(key) {
 
 function isSpiritComplete(key) {
 	if (Object.hasOwn(state.spiritProgress, key))
-		return Boolean(state.spiritProgress[key]);
+		{return Boolean(state.spiritProgress[key]);}
 	const artifact = spiritArtifactForKey(key);
-	if (artifact) return Boolean(artifact.properties?.completed);
+	if (artifact) {return Boolean(artifact.properties?.completed);}
 	return Boolean(state.spiritProgress[key]);
 }
 
@@ -5712,12 +5729,12 @@ function isPyxdiaSignedIn() {
 
 function pyxdiaStatusText(letter) {
 	const stateLabel = String(letter?.state || "").toLowerCase();
-	if (stateLabel === "completed") return "Reply ready.";
-	if (stateLabel === "processing") return "PYXIDA is writing back.";
+	if (stateLabel === "completed") {return "Reply ready.";}
+	if (stateLabel === "processing") {return "PYXIDA is writing back.";}
 	if (stateLabel === "queued" || stateLabel === "submitted")
-		return "Reply pending.";
+		{return "Reply pending.";}
 	if (stateLabel === "failed")
-		return letter?.errorMessageSafe || "PYXIDA could not finish. Try again.";
+		{return letter?.errorMessageSafe || "PYXIDA could not finish. Try again.";}
 	return "Draft saved.";
 }
 
@@ -5725,7 +5742,7 @@ function pyxdiaThreadTitleFromText(text = "") {
 	const clean = String(text || "")
 		.replace(/\s+/g, " ")
 		.trim();
-	if (!clean) return "PYXIDA letter thread";
+	if (!clean) {return "PYXIDA letter thread";}
 	return clean.length > 44 ? `${clean.slice(0, 41)}...` : clean;
 }
 
@@ -5733,7 +5750,7 @@ function pyxdiaLettersByNewest() {
 	return activePyxdiaLetters().sort((a, b) => {
 		const bTime = Date.parse(b.updatedAt || b.createdAt || "") || 0;
 		const aTime = Date.parse(a.updatedAt || a.createdAt || "") || 0;
-		if (bTime !== aTime) return bTime - aTime;
+		if (bTime !== aTime) {return bTime - aTime;}
 		return String(b.id || "").localeCompare(String(a.id || ""));
 	});
 }
@@ -5749,7 +5766,9 @@ function latestCompletedPyxdiaLetter() {
 function selectedPyxdiaThread() {
 	const threadId =
 		state.pyxdiaActiveThreadId || latestPyxdiaLetter()?.threadId || "";
-	const activeThreadIds = new Set(activePyxdiaLetters().map((letter) => letter.threadId));
+	const activeThreadIds = new Set(
+		activePyxdiaLetters().map((letter) => letter.threadId),
+	);
 	return (
 		state.pyxdiaThreads.find(
 			(thread) => thread.id === threadId && activeThreadIds.has(thread.id),
@@ -5759,7 +5778,7 @@ function selectedPyxdiaThread() {
 
 function selectedPyxdiaThreadLetters() {
 	const thread = selectedPyxdiaThread();
-	if (!thread) return [];
+	if (!thread) {return [];}
 	const ids = new Set(thread.letterIds || []);
 	return pyxdiaLettersByNewest()
 		.filter((letter) => letter.threadId === thread.id || ids.has(letter.id))
@@ -5779,9 +5798,9 @@ function pyxdiaDraftFromDom() {
 	const selections = Array.from(
 		document.querySelectorAll("[data-pyxdia-note-ref]:checked"),
 	).map((item) => item.value);
-	const selectedNoteRefs = pyxdiaNoteRefsFromArtifacts(state.artifactStore).filter(
-		(ref) => selections.includes(ref.id),
-	);
+	const selectedNoteRefs = pyxdiaNoteRefsFromArtifacts(
+		state.artifactStore,
+	).filter((ref) => selections.includes(ref.id));
 	const userSelectedContext = normalizePyxdiaUserSelectedContext({
 		manualText: context
 			? context.value
@@ -5804,7 +5823,7 @@ function pyxdiaDraftFromDom() {
 
 function pyxdiaCurrentClientLetterId() {
 	const current = normalizePyxdiaDraft(state.pyxdiaDraft);
-	if (current.clientLetterId) return current.clientLetterId;
+	if (current.clientLetterId) {return current.clientLetterId;}
 	const next = makeId("pyxdia-letter");
 	state.pyxdiaDraft = normalizePyxdiaDraft({
 		...current,
@@ -5831,11 +5850,11 @@ function savePyxdiaDraftLocal(draft, options = {}) {
 function validatePyxdiaDraft(draft, settings = state.pyxdiaSettings) {
 	const text = String(draft?.inputText || "").trim();
 	const size = estimatePyxdiaLetterSize(text);
-	if (!text) return "Write a letter before sending.";
+	if (!text) {return "Write a letter before sending.";}
 	if (size.words > settings.letterMaxWords)
-		return `Letter is ${size.words} words. Limit is ${settings.letterMaxWords}.`;
+		{return `Letter is ${size.words} words. Limit is ${settings.letterMaxWords}.`;}
 	if (size.chars > settings.letterMaxChars)
-		return `Letter is ${size.chars} characters. Limit is ${settings.letterMaxChars}.`;
+		{return `Letter is ${size.chars} characters. Limit is ${settings.letterMaxChars}.`;}
 	return "";
 }
 
@@ -5998,7 +6017,7 @@ async function sendPyxdiaLetterAction() {
 }
 
 async function retryPyxdiaLetterAction(letterId) {
-	if (!letterId) return;
+	if (!letterId) {return;}
 	if (isPyxdiaSignedIn() && !state.cloud?.isLocalDemo) {
 		const payload = await retryPyxdiaLetter(letterId, {
 			getIdToken: getCloudIdToken,
@@ -6012,7 +6031,7 @@ async function retryPyxdiaLetterAction(letterId) {
 		return;
 	}
 	const letter = state.pyxdiaLetters.find((item) => item.id === letterId);
-	if (!letter) return;
+	if (!letter) {return;}
 	state.pyxdiaDraft = normalizePyxdiaDraft({
 		...state.pyxdiaDraft,
 		threadId: letter.threadId,
@@ -6030,13 +6049,15 @@ async function retryPyxdiaLetterAction(letterId) {
 }
 
 async function savePyxdiaSettingsAction(nextSettings = null) {
-	const settings = normalizePyxdiaSettings(nextSettings || pyxdiaSettingsFromForm());
+	const settings = normalizePyxdiaSettings(
+		nextSettings || pyxdiaSettingsFromForm(),
+	);
 	state.pyxdiaSettings = settings;
 	savePyxdiaSettingsLocal(settings);
 	if (isPyxdiaSignedIn() && !state.cloud?.isLocalDemo) {
 		await savePyxdiaSettings(settings, { getIdToken: getCloudIdToken });
 	}
-	if (!settings.delayEnabled) processDueLocalPyxdiaJobs({ force: true });
+	if (!settings.delayEnabled) {processDueLocalPyxdiaJobs({ force: true });}
 	savePyxdiaLocalState();
 	setState({
 		pyxdiaSettings: settings,
@@ -6080,11 +6101,15 @@ function isDeletedPyxdiaLetter(letter) {
 }
 
 function activePyxdiaLetters() {
-	return (state.pyxdiaLetters || []).filter((letter) => !isDeletedPyxdiaLetter(letter));
+	return (state.pyxdiaLetters || []).filter(
+		(letter) => !isDeletedPyxdiaLetter(letter),
+	);
 }
 
 function applyTrashStatePayload(payload = {}) {
-	const settings = normalizeTrashSettings(payload.settings || state.trashSettings);
+	const settings = normalizeTrashSettings(
+		payload.settings || state.trashSettings,
+	);
 	const items = Array.isArray(payload.items)
 		? payload.items.map(normalizeTrashItem).filter((item) => item.trashItemId)
 		: state.trashItems;
@@ -6107,7 +6132,8 @@ function openTrash() {
 		trackerEditKey: "",
 		trackerDeleteKey: "",
 	});
-	if (isTrashSignedIn()) void runTrashAction("Loading Trash...", refreshTrashState);
+	if (isTrashSignedIn())
+		{void runTrashAction("Loading Trash...", refreshTrashState);}
 }
 
 async function runTrashAction(message, action) {
@@ -6117,7 +6143,8 @@ async function runTrashAction(message, action) {
 	} catch (error) {
 		setState({
 			trashBusy: false,
-			trashError: error instanceof Error ? error.message : "Trash action failed.",
+			trashError:
+				error instanceof Error ? error.message : "Trash action failed.",
 		});
 	}
 }
@@ -6145,12 +6172,17 @@ async function refreshTrashState() {
 
 async function saveTrashSettingsAction() {
 	if (!isTrashSignedIn()) {
-		setState({ trashBusy: false, trashError: "Sign in to save Trash settings." });
+		setState({
+			trashBusy: false,
+			trashError: "Sign in to save Trash settings.",
+		});
 		return;
 	}
 	const retention = document.getElementById("trash-retention-days")?.value;
 	const settings = normalizeTrashSettings({ trashRetentionDays: retention });
-	const payload = await saveTrashSettings(settings, { getIdToken: getCloudIdToken });
+	const payload = await saveTrashSettings(settings, {
+		getIdToken: getCloudIdToken,
+	});
 	applyTrashStatePayload(payload);
 	setState({
 		trashSettings: state.trashSettings,
@@ -6165,22 +6197,28 @@ async function saveTrashSettingsAction() {
 }
 
 async function restoreTrashItemAction(trashItemId) {
-	if (!trashItemId) return;
-	const item = state.trashItems.find((entry) => entry.trashItemId === trashItemId);
+	if (!trashItemId) {return;}
+	const item = state.trashItems.find(
+		(entry) => entry.trashItemId === trashItemId,
+	);
 	const confirmed = window.confirm(`Restore "${item?.title || "this item"}"?`);
 	if (!confirmed) {
 		setState({ trashBusy: false, trashStatus: "", trashError: "" });
 		return;
 	}
-	const result = await restoreTrashItem(trashItemId, { getIdToken: getCloudIdToken });
+	const result = await restoreTrashItem(trashItemId, {
+		getIdToken: getCloudIdToken,
+	});
 	restoreLocalTrashItem(item || result);
 	await refreshTrashState();
 	setState({ trashStatus: "Item restored." });
 }
 
 async function hardDeleteTrashItemAction(trashItemId) {
-	if (!trashItemId) return;
-	const item = state.trashItems.find((entry) => entry.trashItemId === trashItemId);
+	if (!trashItemId) {return;}
+	const item = state.trashItems.find(
+		(entry) => entry.trashItemId === trashItemId,
+	);
 	const confirmed = window.confirm(
 		`This permanently deletes "${item?.title || "this item"}" and cannot be undone.`,
 	);
@@ -6188,7 +6226,9 @@ async function hardDeleteTrashItemAction(trashItemId) {
 		setState({ trashBusy: false, trashStatus: "", trashError: "" });
 		return;
 	}
-	const result = await hardDeleteTrashItem(trashItemId, { getIdToken: getCloudIdToken });
+	const result = await hardDeleteTrashItem(trashItemId, {
+		getIdToken: getCloudIdToken,
+	});
 	removeLocalTrashItem(item || result);
 	await refreshTrashState();
 	setState({ trashStatus: "Item permanently deleted." });
@@ -6222,11 +6262,11 @@ function localRestoreLifecyclePatch() {
 }
 
 function upsertLocalArtifactLifecycle(itemId, patch) {
-	if (!itemId || !state.artifactStore) return false;
+	if (!itemId || !state.artifactStore) {return false;}
 	let changed = false;
 	const now = nowIso();
 	const artifacts = state.artifactStore.artifacts.map((artifact) => {
-		if (artifact.id !== itemId) return artifact;
+		if (artifact.id !== itemId) {return artifact;}
 		changed = true;
 		return {
 			...artifact,
@@ -6234,30 +6274,32 @@ function upsertLocalArtifactLifecycle(itemId, patch) {
 			edited: patch.deleted ? artifact.edited : now,
 			properties: {
 				...(artifact.properties || {}),
-				deleted: patch.deleted === true ? true : false,
+				deleted: patch.deleted === true,
 			},
 		};
 	});
-	if (changed) persistArtifactStore({ ...state.artifactStore, artifacts });
+	if (changed) {persistArtifactStore({ ...state.artifactStore, artifacts });}
 	return changed;
 }
 
 function removeLocalArtifact(itemId) {
-	if (!itemId || !state.artifactStore) return false;
+	if (!itemId || !state.artifactStore) {return false;}
 	const current = findAnyArtifact(state.artifactStore, itemId);
-	if (!current) return false;
+	if (!current) {return false;}
 	persistArtifactStore({
 		...state.artifactStore,
-		artifacts: (state.artifactStore.artifacts || []).filter((artifact) => artifact.id !== itemId),
+		artifacts: (state.artifactStore.artifacts || []).filter(
+			(artifact) => artifact.id !== itemId,
+		),
 	});
 	return true;
 }
 
 function upsertLocalPyxdiaLetterLifecycle(itemId, patch) {
-	if (!itemId) return false;
+	if (!itemId) {return false;}
 	let changed = false;
 	state.pyxdiaLetters = (state.pyxdiaLetters || []).map((letter) => {
-		if (letter.id !== itemId) return letter;
+		if (letter.id !== itemId) {return letter;}
 		changed = true;
 		return {
 			...letter,
@@ -6265,16 +6307,18 @@ function upsertLocalPyxdiaLetterLifecycle(itemId, patch) {
 			updatedAt: nowIso(),
 		};
 	});
-	if (changed) savePyxdiaLocalState();
+	if (changed) {savePyxdiaLocalState();}
 	return changed;
 }
 
 function removeLocalPyxdiaLetter(itemId) {
-	if (!itemId) return false;
+	if (!itemId) {return false;}
 	const before = state.pyxdiaLetters?.length || 0;
-	state.pyxdiaLetters = (state.pyxdiaLetters || []).filter((letter) => letter.id !== itemId);
+	state.pyxdiaLetters = (state.pyxdiaLetters || []).filter(
+		(letter) => letter.id !== itemId,
+	);
 	const changed = state.pyxdiaLetters.length !== before;
-	if (changed) savePyxdiaLocalState();
+	if (changed) {savePyxdiaLocalState();}
 	return changed;
 }
 
@@ -6303,8 +6347,8 @@ function removeLocalTrashItem(item = {}) {
 }
 
 function artifactIdsForTrash(artifact) {
-	if (!artifact) return [];
-	if (artifact.type !== "compendium") return [artifact.id];
+	if (!artifact) {return [];}
+	if (artifact.type !== "compendium") {return [artifact.id];}
 	const childIds = (state.artifactStore?.artifacts || [])
 		.filter((item) => item.parentId === artifact.id && !isDeletedArtifact(item))
 		.map((item) => item.id);
@@ -6313,30 +6357,42 @@ function artifactIdsForTrash(artifact) {
 
 async function moveArtifactIdsToTrash(ids, options = {}) {
 	const cleanIds = Array.from(new Set((ids || []).filter(Boolean)));
-	if (!cleanIds.length || !state.artifactStore) return false;
+	if (!cleanIds.length || !state.artifactStore) {return false;}
 	if (!isTrashSignedIn()) {
 		window.alert(trashAuthRequiredMessage());
 		return false;
 	}
-	if (!window.confirm(options.confirmText || "Move this item to Trash?")) return false;
+	if (!window.confirm(options.confirmText || "Move this item to Trash?"))
+		{return false;}
 	try {
-		if (cloudHasSyncAccess()) await uploadLocalStateToCloud();
+		if (cloudHasSyncAccess()) {await uploadLocalStateToCloud();}
 		const results = [];
 		for (const itemId of cleanIds) {
 			const artifact = findAnyArtifact(state.artifactStore, itemId);
 			const itemType = artifactTrashItemType(artifact);
-			results.push(await deleteUserItem({ itemType, itemId }, { getIdToken: getCloudIdToken }));
+			results.push(
+				await deleteUserItem(
+					{ itemType, itemId },
+					{ getIdToken: getCloudIdToken },
+				),
+			);
 		}
 		results.forEach((result) => {
 			const itemId = result.itemId || result.trashItem?.itemId;
-			if (!itemId) return;
-			if (result.mode === "hard") removeLocalArtifact(itemId);
-			else upsertLocalArtifactLifecycle(itemId, localLifecycleFromTrashResult(result));
+			if (!itemId) {return;}
+			if (result.mode === "hard") {removeLocalArtifact(itemId);}
+			else
+				{upsertLocalArtifactLifecycle(
+					itemId,
+					localLifecycleFromTrashResult(result),
+				);}
 		});
-		if (state.active === "Trash") await refreshTrashState().catch(() => {});
+		if (state.active === "Trash") {await refreshTrashState().catch(() => {});}
 		return true;
 	} catch (error) {
-		window.alert(error instanceof Error ? error.message : "Could not move item to Trash.");
+		window.alert(
+			error instanceof Error ? error.message : "Could not move item to Trash.",
+		);
 		return false;
 	}
 }
@@ -6347,28 +6403,39 @@ async function moveArtifactToTrash(artifact, options = {}) {
 }
 
 async function deletePyxdiaLetterAction(letterId) {
-	const letter = (state.pyxdiaLetters || []).find((item) => item.id === letterId);
-	if (!letter || isDeletedPyxdiaLetter(letter)) return;
+	const letter = (state.pyxdiaLetters || []).find(
+		(item) => item.id === letterId,
+	);
+	if (!letter || isDeletedPyxdiaLetter(letter)) {return;}
 	if (!isTrashSignedIn()) {
 		window.alert(trashAuthRequiredMessage());
 		return;
 	}
-	if (!window.confirm("Move this PYXIDA letter to Trash?")) return;
+	if (!window.confirm("Move this PYXIDA letter to Trash?")) {return;}
 	try {
 		const result = await deleteUserItem(
 			{ itemType: "pyxdia_letter", itemId: letterId },
 			{ getIdToken: getCloudIdToken },
 		);
-		if (result.mode === "hard") removeLocalPyxdiaLetter(letterId);
-		else upsertLocalPyxdiaLetterLifecycle(letterId, localLifecycleFromTrashResult(result));
-		if (state.active === "Trash") await refreshTrashState().catch(() => {});
+		if (result.mode === "hard") {removeLocalPyxdiaLetter(letterId);}
+		else
+			{upsertLocalPyxdiaLetterLifecycle(
+				letterId,
+				localLifecycleFromTrashResult(result),
+			);}
+		if (state.active === "Trash") {await refreshTrashState().catch(() => {});}
 		setState({
 			pyxdiaLetters: state.pyxdiaLetters,
-			pyxdiaActiveThreadId:
-				selectedPyxdiaThreadLetters().length ? state.pyxdiaActiveThreadId : "",
+			pyxdiaActiveThreadId: selectedPyxdiaThreadLetters().length
+				? state.pyxdiaActiveThreadId
+				: "",
 		});
 	} catch (error) {
-		window.alert(error instanceof Error ? error.message : "Could not move letter to Trash.");
+		window.alert(
+			error instanceof Error
+				? error.message
+				: "Could not move letter to Trash.",
+		);
 	}
 }
 
@@ -6380,7 +6447,9 @@ async function submitLocalPyxdiaLetter(draft, settings) {
 		? Math.max(0, Number(settings.delayMinHours) || 0)
 		: 0;
 	const availableAt = new Date(
-		Date.now() + (state.cloud?.isLocalDemo ? Math.min(delayHours, 0.01) : delayHours) * 3600000,
+		Date.now() +
+			(state.cloud?.isLocalDemo ? Math.min(delayHours, 0.01) : delayHours) *
+				3600000,
 	).toISOString();
 	const letter = normalizePyxdiaLetter({
 		id: letterId,
@@ -6400,7 +6469,9 @@ async function submitLocalPyxdiaLetter(draft, settings) {
 		createdAt: now,
 		updatedAt: now,
 	});
-	const existingThread = state.pyxdiaThreads.find((item) => item.id === threadId);
+	const existingThread = state.pyxdiaThreads.find(
+		(item) => item.id === threadId,
+	);
 	const thread = normalizePyxdiaThread({
 		...(existingThread || {}),
 		id: threadId,
@@ -6441,11 +6512,11 @@ async function submitLocalPyxdiaLetter(draft, settings) {
 }
 
 function processDueLocalPyxdiaJobs(options = {}) {
-	if (!state.pyxdiaLetters?.length) return;
+	if (!state.pyxdiaLetters?.length) {return;}
 	const now = Date.now();
 	const due = state.pyxdiaLetters.find((letter) => {
-		if (!["queued", "submitted"].includes(letter.state)) return false;
-		if (options.force === true) return true;
+		if (!["queued", "submitted"].includes(letter.state)) {return false;}
+		if (options.force === true) {return true;}
 		const availableAt = Date.parse(letter.availableAt || "");
 		return Number.isFinite(availableAt) && availableAt <= now;
 	});
@@ -6456,7 +6527,7 @@ function processDueLocalPyxdiaJobs(options = {}) {
 
 async function completeLocalPyxdiaLetter(letterId) {
 	const letter = state.pyxdiaLetters.find((item) => item.id === letterId);
-	if (!letter) return;
+	if (!letter) {return;}
 	const processingAt = nowIso();
 	state.pyxdiaLetters = state.pyxdiaLetters.map((item) =>
 		item.id === letterId
@@ -6529,12 +6600,16 @@ function buildLocalPyxdiaReply(letter, settings) {
 
 function createLocalPyxdiaDynamicRetrievalMemory(threadId) {
 	const items = pyxdiaLettersByNewest()
-		.filter((letter) => letter.threadId === threadId && letter.state === "completed")
+		.filter(
+			(letter) => letter.threadId === threadId && letter.state === "completed",
+		)
 		.slice(0, 3)
 		.map((letter, index) => ({
 			id: `local-letter-${letter.id}`,
 			type: "prior_letter_summary",
-			summary: String(letter.inputText || letter.outputText || "Prior PYXIDA letter")
+			summary: String(
+				letter.inputText || letter.outputText || "Prior PYXIDA letter",
+			)
 				.replace(/\s+/g, " ")
 				.slice(0, 220),
 			reason: "Same local PYXIDA conversation as the current letter.",
@@ -6560,9 +6635,14 @@ function updateLocalPyxdiaMemory(letter, outputText) {
 	const entry = {
 		id: makeId("pyxdia-memory"),
 		type: "stable_pattern",
-		text: firstSentence.length > 180 ? `${firstSentence.slice(0, 177)}...` : firstSentence,
+		text:
+			firstSentence.length > 180
+				? `${firstSentence.slice(0, 177)}...`
+				: firstSentence,
 		summary:
-			firstSentence.length > 180 ? `${firstSentence.slice(0, 177)}...` : firstSentence,
+			firstSentence.length > 180
+				? `${firstSentence.slice(0, 177)}...`
+				: firstSentence,
 		confidence: 0.62,
 		status: "active",
 		piiSafe: true,
@@ -6617,14 +6697,18 @@ function localPyxdiaMemoryCandidate(letter = {}) {
 	const clean = source
 		.replace(/^dear\s+pyx(?:ida|dia),?\s*/i, "")
 		.replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "a private email")
-		.replace(/\b(?:\+?1[ .-]?)?(?:\(?\d{3}\)?[ .-]?)\d{3}[ .-]?\d{4}\b/g, "a private phone number")
+		.replace(
+			/\b(?:\+?1[ .-]?)?(?:\(?\d{3}\)?[ .-]?)\d{3}[ .-]?\d{4}\b/g,
+			"a private phone number",
+		)
 		.replace(/^i am\b/i, "User is")
 		.replace(/^i'm\b/i, "User is")
 		.replace(/^i\b/i, "User")
 		.trim();
-	const looksDurable = /\b(often|usually|prefer|goal|value|trying to|working on|routine|pattern|recurring|want to|keep coming back)\b/i.test(
-		clean,
-	);
+	const looksDurable =
+		/\b(often|usually|prefer|goal|value|trying to|working on|routine|pattern|recurring|want to|keep coming back)\b/i.test(
+			clean,
+		);
 	return looksDurable
 		? clean
 		: "User continued a PYXIDA letter; keep future replies grounded in practical reflection and small next steps.";
@@ -6666,7 +6750,7 @@ function setTrackerPage(
 }
 
 function reorderCombinedTrackers(area, trackerId, targetIndex) {
-	if (!DASHBOARD_LABELS.includes(area) || !trackerId) return;
+	if (!DASHBOARD_LABELS.includes(area) || !trackerId) {return;}
 	const thoughtTrackers = [...(state.trackerSettings?.[area] || [])];
 	const goalTrackers = [...(state.goalSettings?.[area] || [])];
 	const enabledGoals = goalTrackers.filter((goal) => goal?.enabled);
@@ -6681,7 +6765,7 @@ function reorderCombinedTrackers(area, trackerId, targetIndex) {
 	const sourceIndex = combinedTrackers.findIndex(
 		(tracker) => tracker.id === trackerId,
 	);
-	if (sourceIndex < 0) return;
+	if (sourceIndex < 0) {return;}
 	const resolvedTarget = Number.isFinite(Number(targetIndex))
 		? Number(targetIndex)
 		: 0;
@@ -6689,7 +6773,7 @@ function reorderCombinedTrackers(area, trackerId, targetIndex) {
 		Math.max(resolvedTarget, 0),
 		combinedTrackers.length,
 	);
-	if (sourceIndex === clampedTarget) return;
+	if (sourceIndex === clampedTarget) {return;}
 	const reordered = [...combinedTrackers];
 	const [moved] = reordered.splice(sourceIndex, 1);
 	reordered.splice(clampedTarget, 0, moved);
@@ -6745,12 +6829,12 @@ function _setSidebarWidth(width, options = {}) {
 	saveSidebarWidth(nextWidth);
 	const workspace = app.querySelector(".workspace");
 	if (workspace)
-		workspace.style.setProperty("--sidebar-width", `${nextWidth}px`);
+		{workspace.style.setProperty("--sidebar-width", `${nextWidth}px`);}
 	const toggle = app.querySelector(".mobile-menu-toggle");
-	if (toggle) toggle.style.transform = "";
+	if (toggle) {toggle.style.transform = "";}
 	if (options.open) {
 		state.mobileMenuOpen = true;
-		if (workspace) workspace.classList.add("has-mobile-menu");
+		if (workspace) {workspace.classList.add("has-mobile-menu");}
 		if (toggle) {
 			toggle.setAttribute("aria-expanded", "true");
 			toggle.textContent = menuToggleLabel(true);
@@ -6763,7 +6847,7 @@ function toggleMobileMenu() {
 }
 
 function closeMobileMenu() {
-	if (!state.mobileMenuOpen) return false;
+	if (!state.mobileMenuOpen) {return false;}
 	state.mobileMenuOpen = false;
 	const workspace = app.querySelector(".workspace");
 	const toggle = app.querySelector(".mobile-menu-toggle");
@@ -6780,7 +6864,7 @@ function menuToggleLabel(isOpen = state.mobileMenuOpen) {
 }
 
 function persistCompendiums() {
-	if (!state.artifactStore) return;
+	if (!state.artifactStore) {return;}
 	state.compendiums = normalizeCompendiums(state.compendiums);
 	state.artifactStore = compendiumsToArtifactStore(
 		state.compendiums,
@@ -6875,7 +6959,7 @@ function setLifeTool(tool) {
 }
 
 async function exportArtifacts() {
-	if (!state.artifactStore) return;
+	if (!state.artifactStore) {return;}
 	const dateKey = todayDateKey();
 	const payload = JSON.stringify(
 		{
@@ -6902,7 +6986,7 @@ function importArtifacts() {
 	input.accept = "application/json,.json";
 	input.addEventListener("change", async () => {
 		const file = input.files?.[0];
-		if (!file) return;
+		if (!file) {return;}
 		try {
 			const parsed = JSON.parse(await file.text());
 			if (
@@ -6917,7 +7001,7 @@ function importArtifacts() {
 					? "Import this JSON and rebuild your Firebase artifact collection from it? This wipes the current cloud artifacts for this app first."
 					: "Import this JSON and replace the current local app data?",
 			);
-			if (!confirmed) return;
+			if (!confirmed) {return;}
 			await importAppStateJson(parsed, { replaceCloud });
 		} catch (error) {
 			window.alert(
@@ -6934,7 +7018,7 @@ async function clearAppData(options = {}) {
 		const confirmed = window.confirm(
 			"Clear everything from this browser, including the mock app data and dismissed tips? This cannot be undone unless you have an export.",
 		);
-		if (!confirmed) return;
+		if (!confirmed) {return;}
 	}
 	const emptyStore = createEmptyStore();
 	window.localStorage.removeItem(BODY_TRACKER_KEY);
@@ -7011,7 +7095,7 @@ async function restoreFactoryDefaults() {
 	const confirmed = window.confirm(
 		"Restore the Self Help Defaults with the original starter data, tips, orbs, goals, and app structure? This replaces local app data unless you have an export.",
 	);
-	if (!confirmed) return;
+	if (!confirmed) {return;}
 	const seedStore = await loadSeedStore();
 	window.localStorage.removeItem(STORAGE_KEY);
 	window.localStorage.removeItem(BODY_TRACKER_KEY);
@@ -7078,7 +7162,7 @@ async function restoreFactoryDefaults() {
 	state.galleryImages = null;
 	state.gallerySelectedIds = [];
 	state.cloudStorageUsage = null;
-	if (seedStore.appState) await restoreImportedAppState(seedStore.appState);
+	if (seedStore.appState) {await restoreImportedAppState(seedStore.appState);}
 	saveArtifactStore(seedStore);
 	saveDashboardIdentity(state.dashboardIdentity);
 	saveDashboardChartTabs(state.dashboardChartTabs);
@@ -7178,7 +7262,7 @@ function exitSpiritBook() {
 
 function toggleSpiritComplete(key) {
 	const work = spiritWorks().find((entry) => entry.key === key);
-	if (!work) return;
+	if (!work) {return;}
 	const completed = !isSpiritComplete(key);
 
 	state.spiritProgress = { ...state.spiritProgress, [key]: completed };
@@ -7188,7 +7272,7 @@ function toggleSpiritComplete(key) {
 
 function addSpiritBookNote(key) {
 	const work = spiritWorks().find((entry) => entry.key === key);
-	if (!work || !state.artifactStore) return;
+	if (!work || !state.artifactStore) {return;}
 	const noteId = makeId("spirit-note");
 	const focus = Array.isArray(work.blackBox?.outputs)
 		? work.blackBox.outputs
@@ -7257,10 +7341,10 @@ async function loadSpiritPlan(planId = state.spiritPlanId) {
 	try {
 		const response = await fetch(plan.url, { cache: "no-store" });
 		if (!response.ok)
-			throw new Error(`Could not load selected plan (${response.status}).`);
+			{throw new Error(`Could not load selected plan (${response.status}).`);}
 		const parsed = await response.json();
 		if (!parsed || !Array.isArray(parsed.years))
-			throw new Error("Selected plan must include a years array.");
+			{throw new Error("Selected plan must include a years array.");}
 		state.spiritPlan = parsed;
 		const years = spiritYears();
 		state.spiritYear = years.includes(state.spiritYear)
@@ -7275,7 +7359,7 @@ async function loadSpiritPlan(planId = state.spiritPlanId) {
 
 function selectSpiritPlan(planId) {
 	const plan = SPIRIT_PLANS.find((entry) => entry.id === planId);
-	if (!plan || plan.id === state.spiritPlanId) return;
+	if (!plan || plan.id === state.spiritPlanId) {return;}
 	state.selectedSpiritBookKey = null;
 	state.spiritYear = 1;
 	loadSpiritPlan(plan.id);
@@ -7309,8 +7393,8 @@ function setCompendiumReaderPage(compendiumId, direction, maxPage) {
 }
 
 function mindCompendiumColumns() {
-	if (window.matchMedia?.(COMPENDIUM_ONE_QUERY).matches) return 1;
-	if (window.matchMedia?.(COMPENDIUM_TWO_QUERY).matches) return 2;
+	if (window.matchMedia?.(COMPENDIUM_ONE_QUERY).matches) {return 1;}
+	if (window.matchMedia?.(COMPENDIUM_TWO_QUERY).matches) {return 2;}
 	return 3;
 }
 
@@ -7353,7 +7437,7 @@ function toggleMindCompendiumPicker() {
 }
 
 function _closeMindCompendiumPicker() {
-	if (!state.mindCompendiumPickerOpen) return;
+	if (!state.mindCompendiumPickerOpen) {return;}
 	setState({ mindCompendiumPickerOpen: false });
 }
 
@@ -7366,10 +7450,10 @@ function selectMindCompendiumFromPicker(compendiumId, index, perPage) {
 }
 
 function openMindSection(parentId, sectionId) {
-	if (!parentId || !sectionId) return;
+	if (!parentId || !sectionId) {return;}
 	const compendium = state.compendiums.find((item) => item.id === parentId);
 	if (!compendium?.sections?.some((section) => section.id === sectionId))
-		return;
+		{return;}
 	setState({
 		active: "Mind",
 		selectedCompendiumId: parentId,
@@ -7381,7 +7465,7 @@ function openMindSection(parentId, sectionId) {
 
 function openActivityArtifact(id) {
 	const artifact = findArtifact(state.artifactStore, id);
-	if (!artifact) return;
+	if (!artifact) {return;}
 	if (artifact.dashboard === "Mind" && artifact.type === "compendium") {
 		openCompendium(id);
 		return;
@@ -7401,7 +7485,7 @@ function openActivityArtifact(id) {
 
 function openArtifactNote(id, returnActive = "") {
 	const artifact = findArtifact(state.artifactStore, id);
-	if (!artifact) return;
+	if (!artifact) {return;}
 	setState({
 		active: returnActive || artifact.dashboard,
 		selectedArtifactId: id,
@@ -7453,12 +7537,12 @@ function saveCompendium(id, title, body) {
 
 async function deleteCompendium(id) {
 	const compendium = state.compendiums.find((item) => item.id === id);
-	if (!compendium) return;
+	if (!compendium) {return;}
 	const artifact = findArtifact(state.artifactStore, id);
 	const moved = await moveArtifactToTrash(artifact, {
 		confirmText: `Move "${compendium.title}" and all of its sections to Trash?`,
 	});
-	if (!moved) return;
+	if (!moved) {return;}
 	setState({
 		selectedCompendiumId: null,
 		selectedSectionId: null,
@@ -7468,7 +7552,7 @@ async function deleteCompendium(id) {
 
 function addSection() {
 	const compendium = selectedCompendium();
-	if (!compendium) return;
+	if (!compendium) {return;}
 	const now = nowIso();
 	const nextSection = {
 		id: makeId("section"),
@@ -7488,7 +7572,7 @@ function addSection() {
 
 function saveSection(id, title, body) {
 	const compendium = selectedCompendium();
-	if (!compendium) return;
+	if (!compendium) {return;}
 	const now = nowIso();
 	state.compendiums = state.compendiums.map((item) =>
 		item.id === compendium.id
@@ -7510,12 +7594,12 @@ function saveSection(id, title, body) {
 async function deleteSection(id) {
 	const compendium = selectedCompendium();
 	const section = selectedSection();
-	if (!compendium || !section) return;
+	if (!compendium || !section) {return;}
 	const artifact = findArtifact(state.artifactStore, id);
 	const moved = await moveArtifactToTrash(artifact, {
 		confirmText: `Move "${section.title}" to Trash?`,
 	});
-	if (!moved) return;
+	if (!moved) {return;}
 	setState({
 		selectedSectionId: null,
 		mindMode: "manager",
@@ -7525,16 +7609,16 @@ async function deleteSection(id) {
 function reorderCompendiumSection(compendiumId, sectionId, targetIndex) {
 	let changed = false;
 	state.compendiums = state.compendiums.map((compendium) => {
-		if (compendium.id !== compendiumId) return compendium;
+		if (compendium.id !== compendiumId) {return compendium;}
 		const fromIndex = compendium.sections.findIndex(
 			(section) => section.id === sectionId,
 		);
-		if (fromIndex < 0) return compendium;
+		if (fromIndex < 0) {return compendium;}
 
 		const sections = [...compendium.sections];
 		const [movedSection] = sections.splice(fromIndex, 1);
 		const nextIndex = Math.min(Math.max(targetIndex, 0), sections.length);
-		if (nextIndex === fromIndex) return compendium;
+		if (nextIndex === fromIndex) {return compendium;}
 
 		sections.splice(nextIndex, 0, movedSection);
 		changed = true;
@@ -7602,8 +7686,8 @@ function addDashboardNote(dashboard) {
 
 function auditEntryForSave(current, title, body, properties = {}) {
 	const changed = [];
-	if (current.title !== title) changed.push("title");
-	if (current.body !== body) changed.push("body");
+	if (current.title !== title) {changed.push("title");}
+	if (current.body !== body) {changed.push("body");}
 	if (
 		JSON.stringify(current.properties || {}) !==
 		JSON.stringify({ ...(current.properties || {}), ...properties })
@@ -7621,7 +7705,7 @@ function auditEntryForSave(current, title, body, properties = {}) {
 
 function saveDashboardNote(id, title, body) {
 	const current = findArtifact(state.artifactStore, id);
-	if (!current) return;
+	if (!current) {return;}
 	if (current.dashboard === "Life") {
 		saveLifeJournalNote(id);
 		return;
@@ -7662,7 +7746,7 @@ function closeArtifactEditor() {
 
 function saveLifeJournalNote(id) {
 	const current = findArtifact(state.artifactStore, id);
-	if (!current) return;
+	if (!current) {return;}
 	const title = editorTitle();
 	const body = editorBody();
 	const dateKey = dateKeyFromValue(
@@ -7706,11 +7790,11 @@ function saveLifeJournalNote(id) {
 
 async function deleteDashboardNote(id) {
 	const note = findArtifact(state.artifactStore, id);
-	if (!note) return;
+	if (!note) {return;}
 	const moved = await moveArtifactToTrash(note, {
 		confirmText: `Move "${note.title}" to Trash?`,
 	});
-	if (!moved) return;
+	if (!moved) {return;}
 	setState({
 		selectedArtifactId: null,
 		artifactMode: "grid",
@@ -7719,7 +7803,7 @@ async function deleteDashboardNote(id) {
 }
 
 function appendBodyLogNote(title, body, properties = {}) {
-	if (!state.artifactStore) return;
+	if (!state.artifactStore) {return;}
 	const now = nowIso();
 	const note = {
 		id: makeId("artifact"),
@@ -7808,7 +7892,7 @@ function migrateBodyWorkoutsToNotes(store) {
 	const workouts = Array.isArray(state.bodyTracker?.workouts)
 		? state.bodyTracker.workouts
 		: [];
-	if (!workouts.length) return store;
+	if (!workouts.length) {return store;}
 	const existingWorkoutIds = new Set(
 		(store.artifacts || [])
 			.map((artifact) => artifact.properties?.sourceWorkoutId)
@@ -8078,7 +8162,7 @@ function setLifeMode(mode) {
 
 function addLifeTodo() {
 	const title = document.getElementById("life-todo-title")?.value.trim();
-	if (!title) return;
+	if (!title) {return;}
 	const now = nowIso();
 	const todo = {
 		id: makeId("todo"),
@@ -8179,7 +8263,7 @@ function toggleLifeTaskItem(source, id, projectId = "", phaseId = "") {
 						item.phaseId === phaseId &&
 						item.taskId === id,
 				);
-	if (!task) return;
+	if (!task) {return;}
 	updateLifeTaskItem(task, (item) => ({
 		...item,
 		status: item.status === "complete" ? "todo" : "complete",
@@ -8188,8 +8272,8 @@ function toggleLifeTaskItem(source, id, projectId = "", phaseId = "") {
 
 function deleteLifeTodo(id) {
 	const todo = lifeTodos().find((item) => item.id === id);
-	if (!todo) return;
-	if (!window.confirm(`Delete todo "${todo.title}"?`)) return;
+	if (!todo) {return;}
+	if (!window.confirm(`Delete todo "${todo.title}"?`)) {return;}
 	persistLifePlanner(
 		{
 			...state.lifePlanner,
@@ -8209,9 +8293,9 @@ function editLifeTaskNotes(source, id, projectId = "", phaseId = "") {
 						item.phaseId === phaseId &&
 						item.taskId === id,
 				);
-	if (!task) return;
+	if (!task) {return;}
 	const notes = window.prompt(`Notes for "${task.title}"`, task.notes || "");
-	if (notes === null) return;
+	if (notes === null) {return;}
 	updateLifeTaskItem(task, (item) => ({ ...item, notes }));
 }
 
@@ -8234,7 +8318,7 @@ function openLifeTaskItem(source, id, projectId = "", phaseId = "") {
 
 function addLifeProject() {
 	const title = document.getElementById("life-project-title")?.value.trim();
-	if (!title) return;
+	if (!title) {return;}
 	const now = nowIso();
 	const project = {
 		id: makeId("project"),
@@ -8288,7 +8372,7 @@ function selectLifeTask(id) {
 
 function addLifePhase(projectId) {
 	const title = document.getElementById("life-phase-title")?.value.trim();
-	if (!title) return;
+	if (!title) {return;}
 	const now = nowIso();
 	const phase = {
 		id: makeId("phase"),
@@ -8326,7 +8410,7 @@ function addLifePhase(projectId) {
 
 function addLifeProjectTask(projectId, phaseId) {
 	const title = document.getElementById("life-task-title")?.value.trim();
-	if (!title) return;
+	if (!title) {return;}
 	const now = nowIso();
 	const task = {
 		id: makeId("task"),
@@ -8378,14 +8462,14 @@ function updateLifeProjectEntity(level, updater, nextState = {}) {
 		{
 			...state.lifePlanner,
 			projects: lifeProjects().map((project) => {
-				if (project.id !== projectId) return project;
-				if (level === "project") return { ...updater(project), edited: now };
+				if (project.id !== projectId) {return project;}
+				if (level === "project") {return { ...updater(project), edited: now };}
 				return {
 					...project,
 					edited: now,
 					phases: (project.phases || []).map((phase) => {
-						if (phase.id !== phaseId) return phase;
-						if (level === "phase") return { ...updater(phase), edited: now };
+						if (phase.id !== phaseId) {return phase;}
+						if (level === "phase") {return { ...updater(phase), edited: now };}
 						return {
 							...phase,
 							edited: now,
@@ -8427,7 +8511,7 @@ async function uploadLifeAttachment(level) {
 	input.multiple = true;
 	input.addEventListener("change", async () => {
 		const files = Array.from(input.files || []);
-		if (!files.length) return;
+		if (!files.length) {return;}
 		try {
 			const attachments = [];
 			for (const file of files) {
@@ -8471,7 +8555,7 @@ function setDashboardPeriod(period) {
 	window.clearTimeout(dashboardPeriodGlowTimer);
 	dashboardPeriodGlowTimer = window.setTimeout(() => {
 		if (state.dashboardPeriodGlowUntil <= Date.now())
-			setState({ dashboardPeriodGlowUntil: 0 });
+			{setState({ dashboardPeriodGlowUntil: 0 });}
 	}, 7200);
 	setState({
 		dashboardPeriod: nextPeriod,
@@ -8526,12 +8610,12 @@ function setDashboardChartType(chartType) {
 function reorderDashboardChartTabs(tabId, targetIndex) {
 	const tabs = dashboardChartTabs();
 	const sourceIndex = tabs.indexOf(tabId);
-	if (sourceIndex < 0) return;
+	if (sourceIndex < 0) {return;}
 	const resolvedTarget = Number.isFinite(Number(targetIndex))
 		? Number(targetIndex)
 		: 0;
 	const clampedTarget = Math.min(Math.max(resolvedTarget, 0), tabs.length);
-	if (sourceIndex === clampedTarget) return;
+	if (sourceIndex === clampedTarget) {return;}
 	const reordered = [...tabs];
 	const [moved] = reordered.splice(sourceIndex, 1);
 	reordered.splice(clampedTarget, 0, moved);
@@ -8596,12 +8680,12 @@ function saveDashboardIdentitySettings() {
 }
 
 function resetDashboardIdentityItem(dashboard) {
-	if (!DASHBOARD_LABELS.includes(dashboard)) return;
+	if (!DASHBOARD_LABELS.includes(dashboard)) {return;}
 	const fallback = DEFAULT_DASHBOARD_IDENTITY.items[dashboard];
 	const labelInput = document.getElementById(
 		`dashboard-identity-${dashboard}-label`,
 	);
-	if (labelInput) labelInput.value = fallback.label;
+	if (labelInput) {labelInput.value = fallback.label;}
 	updateIconPickerField(`dashboard-identity-${dashboard}-icon`, fallback.icon);
 	updateIconPickerColorField(
 		`dashboard-identity-${dashboard}-color`,
@@ -8611,7 +8695,7 @@ function resetDashboardIdentityItem(dashboard) {
 }
 
 function dismissTip(tip, element) {
-	if (!tip) return;
+	if (!tip) {return;}
 	element?.classList.add("is-dismissed");
 	rememberDismissedTip(tip);
 	window.setTimeout(() => render(), 280);
@@ -8624,7 +8708,7 @@ function resetTips() {
 
 function render() {
 	applyEnvironmentClasses();
-	if (cameraStream) stopCameraStream();
+	if (cameraStream) {stopCameraStream();}
 
 	if (!isReady()) {
 		app.innerHTML = `
@@ -8676,9 +8760,9 @@ function render() {
     ${cameraModalHtml()}
   `;
 	const sidebarScroll = app.querySelector(".sidebar-list-scroll");
-	if (sidebarScroll) sidebarScroll.scrollTop = sidebarScrollTop;
+	if (sidebarScroll) {sidebarScroll.scrollTop = sidebarScrollTop;}
 	const settingsScroll = app.querySelector(".settings-tab-panel");
-	if (settingsScroll) settingsScroll.scrollTop = settingsScrollTop;
+	if (settingsScroll) {settingsScroll.scrollTop = settingsScrollTop;}
 	bindActions();
 	bindCameraControls();
 	bindDashboardIdentityAutoSave();
@@ -8716,7 +8800,7 @@ function render() {
 
 function thoughtToastHtml() {
 	const toast = state.thoughtToast;
-	if (!toast) return "";
+	if (!toast) {return "";}
 	const kind = trackerKind(toast.kind);
 	const config = trackerKindConfig(kind);
 	const quickNote = toast.quickNote || "";
@@ -8768,14 +8852,14 @@ function bindThoughtToastControls() {
 	const timeInput = app.querySelector("#thought-toast-time");
 	const summaryTime = app.querySelector("#thought-toast-summary-time");
 	const actionButton = app.querySelector(".thought-toast-action");
-	if (!toast || !input || !noteInput || !actionButton) return;
+	if (!toast || !input || !noteInput || !actionButton) {return;}
 
 	const updateActionButton = () => {
 		const value = noteInput.value.trim();
 		const kind = trackerKind(state.thoughtToast?.kind);
 		const submitLabel =
 			kind === "goal" ? "Submit progress note" : "Submit quick note";
-		if (state.thoughtToast) state.thoughtToast.quickNote = noteInput.value;
+		if (state.thoughtToast) {state.thoughtToast.quickNote = noteInput.value;}
 		actionButton.dataset.action = value
 			? "submit-thought-toast-note"
 			: "open-thought-toast-note";
@@ -8788,12 +8872,12 @@ function bindThoughtToastControls() {
 	};
 	const updateTimestamp = () => {
 		const timestamp = thoughtTimestampFromToastControls();
-		if (state.thoughtToast) state.thoughtToast.timestamp = timestamp;
-		if (summaryTime) summaryTime.textContent = thoughtTimestampLabel(timestamp);
+		if (state.thoughtToast) {state.thoughtToast.timestamp = timestamp;}
+		if (summaryTime) {summaryTime.textContent = thoughtTimestampLabel(timestamp);}
 		pauseThoughtToastFade();
 	};
 	const keepNoteInputFocused = () => {
-		if (document.activeElement !== noteInput) return false;
+		if (document.activeElement !== noteInput) {return false;}
 		noteInput.focus({ preventScroll: true });
 		pauseThoughtToastFade();
 		return true;
@@ -8801,14 +8885,14 @@ function bindThoughtToastControls() {
 
 	toast.addEventListener("pointerenter", pauseThoughtToastFade);
 	toast.addEventListener("pointerleave", () => {
-		if (keepNoteInputFocused()) return;
+		if (keepNoteInputFocused()) {return;}
 		resumeThoughtToastFade(0);
 	});
 	toast.addEventListener("focusin", pauseThoughtToastFade);
 	toast.addEventListener("focusout", () => {
 		window.setTimeout(() => {
 			if (!toast.contains(document.activeElement) && !toast.matches(":hover"))
-				resumeThoughtToastFade(0);
+				{resumeThoughtToastFade(0);}
 		}, 0);
 	});
 	noteInput.addEventListener("input", updateActionButton);
@@ -8819,7 +8903,7 @@ function bindThoughtToastControls() {
 function openIconPicker(element) {
 	const fieldId = element.dataset.iconField || "";
 	const field = document.getElementById(fieldId);
-	if (!field) return;
+	if (!field) {return;}
 	const colorFieldId = element.dataset.iconColorField || "";
 	const colorField = colorFieldId
 		? document.getElementById(colorFieldId)
@@ -8852,7 +8936,7 @@ function closeIconPicker() {
 
 function refreshIconPickerResults() {
 	const results = app.querySelector("[data-icon-picker-results]");
-	if (!results || !state.iconPicker) return;
+	if (!results || !state.iconPicker) {return;}
 	results.innerHTML = iconPickerGridHtml();
 }
 
@@ -8866,7 +8950,7 @@ function updateIconPickerCurrent() {
 }
 
 function updateIconPickerColorPreview() {
-	if (!state.iconPicker) return;
+	if (!state.iconPicker) {return;}
 	const color = normalizeHexColor(
 		state.iconPicker.selectedColor,
 		normalizeHexColor(state.iconPicker.color, DASHBOARD_COLORS.Mind),
@@ -8879,7 +8963,7 @@ function updateIconPickerColorPreview() {
 		?.querySelector(".icon-picker-color-preview")
 		?.style.setProperty("--picked-color", color);
 	const input = overlay?.querySelector("[data-icon-picker-color-input]");
-	if (input && input.value.toLowerCase() !== color) input.value = color;
+	if (input && input.value.toLowerCase() !== color) {input.value = color;}
 	overlay?.querySelectorAll(".icon-picker-swatch").forEach((swatch) => {
 		const isSelected = normalizeHexColor(swatch.dataset.color) === color;
 		swatch.classList.toggle("is-selected", isSelected);
@@ -8888,7 +8972,7 @@ function updateIconPickerColorPreview() {
 }
 
 function selectIconPickerIcon(icon) {
-	if (!state.iconPicker) return;
+	if (!state.iconPicker) {return;}
 	state.iconPicker.selected =
 		normalizeIconSource(icon || "tabler:circle") || "tabler:circle";
 	updateIconPickerCurrent();
@@ -8896,7 +8980,7 @@ function selectIconPickerIcon(icon) {
 }
 
 function selectIconPickerColor(color) {
-	if (!state.iconPicker?.colorFieldId) return;
+	if (!state.iconPicker?.colorFieldId) {return;}
 	const normalized = normalizeHexColor(
 		color,
 		state.iconPicker.selectedColor || DASHBOARD_COLORS.Mind,
@@ -8907,7 +8991,7 @@ function selectIconPickerColor(color) {
 }
 
 function requestIconPickerSearch(query, limit) {
-	if (!state.iconPicker || String(query || "").trim().length < 3) return;
+	if (!state.iconPicker || String(query || "").trim().length < 3) {return;}
 	const searchPromise = searchIconifyIcons(query, limit);
 	refreshIconPickerResults();
 	searchPromise.then(() => {
@@ -8916,7 +9000,7 @@ function requestIconPickerSearch(query, limit) {
 			state.iconPicker.query !== query ||
 			state.iconPicker.limit !== limit
 		)
-			return;
+			{return;}
 		refreshIconPickerResults();
 	});
 }
@@ -8943,15 +9027,15 @@ function updateIconPickerField(fieldId, icon) {
 			);
 			trigger.querySelector(".icon-picker-trigger-symbol")?.replaceChildren();
 			const symbol = trigger.querySelector(".icon-picker-trigger-symbol");
-			if (symbol) symbol.innerHTML = trackerIconHtml(normalized);
+			if (symbol) {symbol.innerHTML = trackerIconHtml(normalized);}
 			const label = trigger.querySelector(".icon-picker-trigger-label");
-			if (label) label.textContent = iconDisplayName(normalized);
+			if (label) {label.textContent = iconDisplayName(normalized);}
 			const previewId = trigger.dataset.iconPreview || "";
 			const preview = previewId ? document.getElementById(previewId) : null;
 			if (preview) {
 				const previewIcon = preview.querySelector(".tracker-orb-icon");
-				if (previewIcon) previewIcon.innerHTML = trackerIconHtml(normalized);
-				else preview.innerHTML = trackerIconHtml(normalized);
+				if (previewIcon) {previewIcon.innerHTML = trackerIconHtml(normalized);}
+				else {preview.innerHTML = trackerIconHtml(normalized);}
 			}
 		});
 }
@@ -8972,18 +9056,18 @@ function updateIconPickerColorField(fieldId, color) {
 }
 
 function saveIconPickerSelection() {
-	if (!state.iconPicker) return;
+	if (!state.iconPicker) {return;}
 	updateIconPickerField(state.iconPicker.fieldId, state.iconPicker.selected);
 	if (state.iconPicker.colorFieldId)
-		updateIconPickerColorField(
+		{updateIconPickerColorField(
 			state.iconPicker.colorFieldId,
 			state.iconPicker.selectedColor,
-		);
+		);}
 	closeIconPicker();
 }
 
 function loadMoreIconPickerIcons() {
-	if (!state.iconPicker) return;
+	if (!state.iconPicker) {return;}
 	state.iconPicker.limit = Math.min(
 		192,
 		(Number(state.iconPicker.limit) || ICON_PICKER_PAGE_SIZE) +
@@ -8995,16 +9079,16 @@ function loadMoreIconPickerIcons() {
 
 function bindIconPickerControls() {
 	const overlay = app.querySelector("[data-icon-picker-overlay]");
-	if (!overlay || !state.iconPicker) return;
+	if (!overlay || !state.iconPicker) {return;}
 	overlay.addEventListener("click", (event) => {
 		const actionElement = event.target?.closest?.("[data-action]");
-		if (!actionElement || !overlay.contains(actionElement)) return;
+		if (!actionElement || !overlay.contains(actionElement)) {return;}
 		handleAction(actionElement);
 	});
 	overlay.addEventListener("keydown", (event) => {
-		if (!["Enter", " "].includes(event.key)) return;
+		if (!["Enter", " "].includes(event.key)) {return;}
 		const actionElement = event.target?.closest?.("[data-action]");
-		if (!actionElement || !overlay.contains(actionElement)) return;
+		if (!actionElement || !overlay.contains(actionElement)) {return;}
 		event.preventDefault();
 		handleAction(actionElement);
 	});
@@ -9021,7 +9105,7 @@ function bindIconPickerControls() {
 	if (colorInput) {
 		colorInput.addEventListener("input", () => {
 			const normalized = normalizeHexColor(colorInput.value);
-			if (!normalized) return;
+			if (!normalized) {return;}
 			selectIconPickerColor(normalized);
 		});
 	}
@@ -9030,10 +9114,10 @@ function bindIconPickerControls() {
 function trackerDropIndex(row, activeWrap, pointerX, pointerY = pointerX) {
 	const allWraps = Array.from(row.querySelectorAll("[data-tracker-orb-wrap]"));
 	const wraps = allWraps.filter((wrap) => wrap !== activeWrap);
-	if (!allWraps.length) return 0;
-	if (!wraps.length) return 0;
+	if (!allWraps.length) {return 0;}
+	if (!wraps.length) {return 0;}
 	const sampleRect = allWraps[0].getBoundingClientRect();
-	if (!sampleRect.width || !sampleRect.height) return 0;
+	if (!sampleRect.width || !sampleRect.height) {return 0;}
 	const rowStyle = window.getComputedStyle(row);
 	const rowGap = parseFloat(rowStyle.rowGap || rowStyle.gap || "0") || 0;
 	const columnGap = parseFloat(rowStyle.columnGap || rowStyle.gap || "0") || 0;
@@ -9066,7 +9150,7 @@ function setTrackerDropMarker(row, activeWrap, targetIndex) {
 	const wraps = Array.from(
 		row.querySelectorAll("[data-tracker-orb-wrap]"),
 	).filter((wrap) => wrap !== activeWrap);
-	if (!wraps.length) return;
+	if (!wraps.length) {return;}
 	const targetWrap = wraps[targetIndex];
 	if (targetWrap) {
 		targetWrap.classList.add("is-drop-before");
@@ -9079,14 +9163,14 @@ function bindTrackerOrbSorting() {
 	app.querySelectorAll("[data-tracker-reorder-row]").forEach((row) => {
 		row.querySelectorAll("[data-tracker-orb-wrap]").forEach((wrap) => {
 			const orb = wrap.querySelector(".tracker-orb");
-			if (!orb) return;
+			if (!orb) {return;}
 
 			orb.addEventListener("pointerdown", (event) => {
-				if (event.button !== undefined && event.button !== 0) return;
+				if (event.button !== undefined && event.button !== 0) {return;}
 				const area = wrap.dataset.area || row.dataset.area || "";
 				const kind = wrap.dataset.kind || row.dataset.kind || "thought";
 				const trackerId = wrap.dataset.id || "";
-				if (!area || !trackerId) return;
+				if (!area || !trackerId) {return;}
 
 				const startX = event.clientX;
 				const startY = event.clientY;
@@ -9113,9 +9197,9 @@ function bindTrackerOrbSorting() {
 						moveEvent.clientX - startX,
 						moveEvent.clientY - startY,
 					);
-					if (!isDragging && moved < 6) return;
+					if (!isDragging && moved < 6) {return;}
 					moveEvent.preventDefault();
-					if (!isDragging) startDrag(moveEvent);
+					if (!isDragging) {startDrag(moveEvent);}
 					targetIndex = trackerDropIndex(
 						row,
 						wrap,
@@ -9134,7 +9218,7 @@ function bindTrackerOrbSorting() {
 					wrap.classList.remove("is-dragging");
 					clearTrackerDropMarkers(row);
 
-					if (!isDragging) return;
+					if (!isDragging) {return;}
 					finishEvent.preventDefault();
 					if (kind === "combined") {
 						reorderCombinedTrackers(area, trackerId, targetIndex ?? 0);
@@ -9162,10 +9246,10 @@ function focusThoughtEditor() {
 		state.artifactMode !== "editor" ||
 		!["thought", "goal-progress"].includes(note?.properties?.role)
 	)
-		return;
+		{return;}
 	window.requestAnimationFrame(() => {
 		const editor = document.getElementById("editor-body");
-		if (!editor) return;
+		if (!editor) {return;}
 		editor.focus();
 		const end = editor.value.length;
 		editor.setSelectionRange(end, end);
@@ -9176,12 +9260,16 @@ function pyxdiaSidebarHtml() {
 	const expanded = state.pyxdiaExpanded;
 	const latest = latestPyxdiaLetter();
 	const latestOutput = latestCompletedPyxdiaLetter();
-	const activeThreadIds = new Set(activePyxdiaLetters().map((letter) => letter.threadId));
-	const threads = [...(state.pyxdiaThreads || [])].sort((a, b) => {
-		const bTime = Date.parse(b.updatedAt || b.createdAt || "") || 0;
-		const aTime = Date.parse(a.updatedAt || a.createdAt || "") || 0;
-		return bTime - aTime;
-	}).filter((thread) => activeThreadIds.has(thread.id));
+	const activeThreadIds = new Set(
+		activePyxdiaLetters().map((letter) => letter.threadId),
+	);
+	const threads = [...(state.pyxdiaThreads || [])]
+		.sort((a, b) => {
+			const bTime = Date.parse(b.updatedAt || b.createdAt || "") || 0;
+			const aTime = Date.parse(a.updatedAt || a.createdAt || "") || 0;
+			return bTime - aTime;
+		})
+		.filter((thread) => activeThreadIds.has(thread.id));
 	const actionItems = [
 		["pyxdia-new-letter", "Send Letter", "tabler:send-2", "Draft and send"],
 		["pyxdia-open-input", "Write A Letter", "tabler:pencil", "Current draft"],
@@ -9189,7 +9277,11 @@ function pyxdiaSidebarHtml() {
 			"pyxdia-open-output",
 			"Last Letter",
 			"tabler:mail-opened",
-			latestOutput ? "Reply ready" : latest ? pyxdiaStatusText(latest) : "No replies",
+			latestOutput
+				? "Reply ready"
+				: latest
+					? pyxdiaStatusText(latest)
+					: "No replies",
 		],
 	];
 	return `
@@ -9341,7 +9433,7 @@ function sidebarPagedItemsHtml(section, itemsHtml) {
 		.map((item) => item.trim())
 		.filter(Boolean)
 		.map((item) => `${item}</button>`);
-	if (!itemButtons.length) return "";
+	if (!itemButtons.length) {return "";}
 	const pageCount = Math.ceil(itemButtons.length / 5);
 	const maxPage = pageCount - 1;
 	const activePage = Math.min(
@@ -9378,7 +9470,7 @@ function pathCrumbText(label, className = "truncate muted") {
 }
 
 function bodyPathCrumbs() {
-	if (state.active !== "Body") return [];
+	if (state.active !== "Body") {return [];}
 	const crumbs = [];
 	const mode = ["timers", "nutrition", "workout", "notes"].includes(
 		state.bodyMode,
@@ -9414,12 +9506,12 @@ function bodyPathCrumbs() {
 		);
 	}
 	const note = findArtifact(state.artifactStore, state.selectedArtifactId);
-	if (note?.dashboard === "Body") crumbs.push(pathCrumbText(note.title));
+	if (note?.dashboard === "Body") {crumbs.push(pathCrumbText(note.title));}
 	return crumbs;
 }
 
 function lifePathCrumbs() {
-	if (state.active !== "Life") return [];
+	if (state.active !== "Life") {return [];}
 	const crumbs = [];
 	const tool = ["todo", "projects", "calendar"].includes(state.lifeTool)
 		? state.lifeTool
@@ -9451,61 +9543,61 @@ function lifePathCrumbs() {
 		const phase = selectedLifePhase(project);
 		const task = selectedLifeTask(phase);
 		if (project)
-			crumbs.push(
+			{crumbs.push(
 				pathCrumbButton(
 					project.title,
 					"select-life-project",
 					{ "data-id": project.id },
 					"truncate",
 				),
-			);
+			);}
 		if (phase)
-			crumbs.push(
+			{crumbs.push(
 				pathCrumbButton(
 					phase.title,
 					"select-life-phase",
 					{ "data-id": phase.id },
 					"truncate",
 				),
-			);
+			);}
 		if (task)
-			crumbs.push(
+			{crumbs.push(
 				pathCrumbButton(
 					task.title,
 					"select-life-task",
 					{ "data-task-id": task.id },
 					"truncate",
 				),
-			);
+			);}
 	}
 	const note = findArtifact(state.artifactStore, state.selectedArtifactId);
-	if (note?.dashboard === "Life") crumbs.push(pathCrumbText(note.title));
+	if (note?.dashboard === "Life") {crumbs.push(pathCrumbText(note.title));}
 	return crumbs;
 }
 
 function spiritPathCrumbs(spiritBook) {
-	if (state.active !== "Spirit") return [];
+	if (state.active !== "Spirit") {return [];}
 	const crumbs = [];
 	const years = spiritYears();
 	const activeYear =
 		spiritBook?.year ||
 		(years.includes(state.spiritYear) ? state.spiritYear : years[0]);
 	if (activeYear)
-		crumbs.push(
+		{crumbs.push(
 			pathCrumbButton(`Year ${activeYear}`, "set-spirit-year", {
 				"data-year": activeYear,
 			}),
-		);
-	if (spiritBook) crumbs.push(pathCrumbText(spiritBook.title));
+		);}
+	if (spiritBook) {crumbs.push(pathCrumbText(spiritBook.title));}
 	const note = findArtifact(state.artifactStore, state.selectedArtifactId);
-	if (note?.dashboard === "Spirit") crumbs.push(pathCrumbText(note.title));
+	if (note?.dashboard === "Spirit") {crumbs.push(pathCrumbText(note.title));}
 	return crumbs;
 }
 
 function pathBarExtraCrumbs(spiritBook) {
-	if (state.active === "Body") return bodyPathCrumbs();
-	if (state.active === "Life") return lifePathCrumbs();
-	if (state.active === "Spirit") return spiritPathCrumbs(spiritBook);
+	if (state.active === "Body") {return bodyPathCrumbs();}
+	if (state.active === "Life") {return lifePathCrumbs();}
+	if (state.active === "Spirit") {return spiritPathCrumbs(spiritBook);}
 	if (state.active === "PYXIDA") {
 		const labels = {
 			input: "Write A Letter",
@@ -9539,15 +9631,15 @@ function pathBarHtml(compendium, section, spiritBook) {
 }
 
 function contentHtml(compendium, section) {
-	if (state.active === "Dashboard") return dashboardGridHtml();
-	if (state.active === "Settings") return settingsHtml();
-	if (state.active === "Gallery") return galleryHtml();
-	if (state.active === "Trash") return trashHtml();
-	if (state.active === "PYXIDA") return pyxdiaHtml();
-	if (state.active === "Mind") return mindHtml(compendium, section);
-	if (state.active === "Body") return bodyHtml();
-	if (state.active === "Spirit") return spiritHtml();
-	if (state.active === "Life") return lifeHtml();
+	if (state.active === "Dashboard") {return dashboardGridHtml();}
+	if (state.active === "Settings") {return settingsHtml();}
+	if (state.active === "Gallery") {return galleryHtml();}
+	if (state.active === "Trash") {return trashHtml();}
+	if (state.active === "PYXIDA") {return pyxdiaHtml();}
+	if (state.active === "Mind") {return mindHtml(compendium, section);}
+	if (state.active === "Body") {return bodyHtml();}
+	if (state.active === "Spirit") {return spiritHtml();}
+	if (state.active === "Life") {return lifeHtml();}
 	return dashboardArtifactHtml(state.active);
 }
 
@@ -9610,7 +9702,7 @@ function dashboardAnalyticsHtml() {
 	);
 	const counts = Object.fromEntries(labels.map((label) => [label, 0]));
 	events.forEach((event) => {
-		if (counts[event.dashboard] !== undefined) counts[event.dashboard] += 1;
+		if (counts[event.dashboard] !== undefined) {counts[event.dashboard] += 1;}
 	});
 	const total = labels.reduce((sum, label) => sum + counts[label], 0);
 	let cursor = 0;
@@ -9636,7 +9728,7 @@ function dashboardAnalyticsHtml() {
 		chartType === "orbs"
 			? dashboardQuickOrbsHtml()
 			: chartType === "bar"
-			? `
+				? `
       <div class="dashboard-bar-chart" role="img" aria-label="Balance bar chart">
         ${labels
 					.map((label) => {
@@ -9655,7 +9747,7 @@ function dashboardAnalyticsHtml() {
 					.join("")}
       </div>
     `
-			: `
+				: `
       <div class="dashboard-pie">
         <svg class="dashboard-pie-chart" viewBox="0 0 148 148" aria-label="Open balance section">
           ${segments
@@ -9828,7 +9920,8 @@ function renderPyxdiaLetterMarkdown(text, imageRefs = []) {
 function pyxdiaNoteSelectionHtml(draft) {
 	const refs = pyxdiaNoteRefsFromArtifacts(state.artifactStore);
 	const selected = new Set(draft.contextSelections || []);
-	if (!refs.length) return emptyStateHtml("No note metadata", "Create notes first.");
+	if (!refs.length)
+		{return emptyStateHtml("No note metadata", "Create notes first.");}
 	return `
     <div class="pyxdia-note-ref-list">
       ${refs
@@ -9976,8 +10069,8 @@ function trashHtml() {
 }
 
 function trashStatusHtml(signedIn) {
-	if (!signedIn) return "";
-	if (!state.trashStatus && !state.trashError) return "";
+	if (!signedIn) {return "";}
+	if (!state.trashStatus && !state.trashError) {return "";}
 	return `
     <div class="pyxdia-status-strip${state.trashError ? " has-error" : ""}" role="status">
       ${state.trashStatus ? `<p>${escapeHtml(state.trashStatus)}</p>` : ""}
@@ -10390,7 +10483,7 @@ function settingsCloudHtml() {
 	const account = state.cloud || getCloudAccountState();
 	const entitlement = account.entitlement || {};
 	const signedIn = account.mode === "signed-in" && account.user;
-	const isCloud = entitlement.cloud === true || entitlement.admin === true;
+	const isCloud = Boolean(signedIn);
 	const username = signedIn
 		? account.user.displayName || account.user.email || "Signed in"
 		: "";
@@ -10423,7 +10516,7 @@ function settingsCloudHtml() {
         <div class="body-card-heading">
           <div>
             <h3>Cloud</h3>
-            <p>Local use is free. Cloud sync requires a subscription.</p>
+            <p>Local use is free. Sign in to sync this app across your devices.</p>
           </div>
           <div class="cloud-heading-controls">
             <span class="cloud-status-pill${isCloud ? " is-active" : ""}">${escapeHtml(statusLabel)}</span>
@@ -10458,12 +10551,10 @@ function settingsCloudHtml() {
             <span><strong>${escapeHtml(isCloud ? `Every ${cloudSyncIntervalLabel()}` : "Off")}</strong><small>Artifacts + encrypted media</small></span>
           </div>
           ${
-						!isCloud || account.billingCapable
+						account.billingCapable
 							? `
           <div class="action-row cloud-actions">
-            ${!isCloud ? `<button class="primary-button" data-action="cloud-subscribe" type="button"${busyAttr}>${buttonContent("tabler:credit-card", "Subscribe")}</button>` : ""}
             ${account.billingCapable ? `<button class="secondary-button" data-action="cloud-billing" type="button"${busyAttr}>${buttonContent("tabler:receipt", "Manage Billing")}</button>` : ""}
-            ${!isCloud ? `<button class="secondary-button" data-action="cloud-sign-out" type="button"${busyAttr}>${buttonContent("tabler:logout", "Sign out")}</button>` : ""}
           </div>
           `
 							: ""
@@ -10471,7 +10562,7 @@ function settingsCloudHtml() {
         `
 						: `
           <div class="action-row cloud-actions">
-            <button class="primary-button" data-action="cloud-sign-in" type="button"${busyAttr}>${buttonContent("tabler:login-2", "Sign in / Upgrade")}</button>
+            <button class="primary-button" data-action="cloud-sign-in" type="button"${busyAttr}>${buttonContent("tabler:login-2", "Sign in")}</button>
             <button class="secondary-button" data-action="cloud-google-sign-in" type="button"${busyAttr}>${buttonContent("tabler:brand-google", "Google")}</button>
           </div>
           <div class="cloud-email-form" aria-label="Email sign in">
@@ -10516,7 +10607,7 @@ function settingsCloudHtml() {
 function trackerAddFormHtml(area, kind = "thought") {
 	const normalizedKind = trackerKind(kind);
 	const config = trackerKindConfig(normalizedKind);
-	if (!isTrackerAddOpen(area, normalizedKind)) return "";
+	if (!isTrackerAddOpen(area, normalizedKind)) {return "";}
 	const fieldId = trackerFieldId(area, "icon");
 	const labelFieldId = trackerFieldId(area, "label");
 	return `
@@ -10547,12 +10638,12 @@ function trackerEditFormHtml(area, kind = "thought") {
 		parsedKey.area !== area ||
 		!parsedKey.id
 	)
-		return "";
+		{return "";}
 	const id = parsedKey.id;
 	const tracker = (trackerSettingsForKind(normalizedKind)?.[area] || []).find(
 		(item) => item.id === id,
 	);
-	if (!tracker) return "";
+	if (!tracker) {return "";}
 	const target = `edit-${id}`;
 	const confirmDelete =
 		state.trackerDeleteKey === trackerEditKey(area, id, normalizedKind);
@@ -10774,7 +10865,7 @@ function escapeRegExp(value) {
 }
 
 function removeDeletedImageReferences(ids) {
-	if (!state.artifactStore || !ids.length) return;
+	if (!state.artifactStore || !ids.length) {return;}
 	const patterns = ids.map(
 		(id) =>
 			new RegExp(
@@ -10785,29 +10876,29 @@ function removeDeletedImageReferences(ids) {
 	let changed = false;
 	const now = nowIso();
 	const artifacts = state.artifactStore.artifacts.map((artifact) => {
-		if (typeof artifact.body !== "string") return artifact;
+		if (typeof artifact.body !== "string") {return artifact;}
 		const nextBody = patterns
 			.reduce((body, pattern) => body.replace(pattern, ""), artifact.body)
 			.trim();
-		if (nextBody === artifact.body) return artifact;
+		if (nextBody === artifact.body) {return artifact;}
 		changed = true;
 		return { ...artifact, body: nextBody, edited: now };
 	});
-	if (changed) persistArtifactStore({ ...state.artifactStore, artifacts });
+	if (changed) {persistArtifactStore({ ...state.artifactStore, artifacts });}
 }
 
 async function deleteSelectedGalleryImages() {
 	const ids = state.gallerySelectedIds.filter((id) =>
 		(state.galleryImages || []).some((image) => image.id === id),
 	);
-	if (!ids.length) return;
+	if (!ids.length) {return;}
 	const label = `${ids.length} image${ids.length === 1 ? "" : "s"}`;
 	if (
 		!window.confirm(
 			`Delete ${label} from the gallery and remove their note references?`,
 		)
 	)
-		return;
+		{return;}
 	try {
 		await deleteLocalImages(ids);
 		removeDeletedImageReferences(ids);
@@ -10828,7 +10919,7 @@ async function deleteSelectedGalleryImages() {
 function spiritHtml() {
 	const note = findArtifact(state.artifactStore, state.selectedArtifactId);
 	if (note?.dashboard === "Spirit" && state.artifactMode === "editor")
-		return dashboardNoteEditorHtml(note);
+		{return dashboardNoteEditorHtml(note);}
 	if (note?.dashboard === "Spirit" && state.artifactMode === "viewer") {
 		return panelHtml(`
       ${headerHtml(note.title, "", artifactViewerActions(note))}
@@ -10849,7 +10940,7 @@ function spiritHtml() {
 	}
 
 	const selected = selectedSpiritBook();
-	if (selected) return spiritBookHtml(selected);
+	if (selected) {return spiritBookHtml(selected);}
 
 	const works = spiritWorks();
 	const years = spiritYears();
@@ -10977,9 +11068,9 @@ function spiritBookHtml(work) {
 function dashboardArtifactHtml(dashboard) {
 	const note = findArtifact(state.artifactStore, state.selectedArtifactId);
 	if (state.artifactMode === "editor" && note)
-		return dashboardNoteEditorHtml(note);
+		{return dashboardNoteEditorHtml(note);}
 	if (state.artifactMode === "viewer" && note)
-		return artifactReaderHtml(note, `${dashboardDisplayLabel(dashboard)} note`);
+		{return artifactReaderHtml(note, `${dashboardDisplayLabel(dashboard)} note`);}
 
 	const notes = rootNotesForDashboard(state.artifactStore, dashboard);
 	return panelHtml(`
@@ -11034,7 +11125,7 @@ function readerBodyHtml(title, body, emptyText = "No note text yet.") {
 function stripDuplicateTitleLine(title, body) {
 	const lines = String(body || "").split(/\r?\n/);
 	const firstContentIndex = lines.findIndex((line) => line.trim());
-	if (firstContentIndex === -1) return "";
+	if (firstContentIndex === -1) {return "";}
 	const normalizedTitle = normalizeReaderTitle(title);
 	const normalizedFirstLine = normalizeReaderTitle(lines[firstContentIndex]);
 	if (normalizedTitle && normalizedFirstLine === normalizedTitle) {
@@ -11059,7 +11150,7 @@ function artifactReaderHtml(note, _subtitle) {
 }
 
 function lifeEvents() {
-	if (!state.artifactStore) return [];
+	if (!state.artifactStore) {return [];}
 	const events = [];
 	const addEvent = (event) => {
 		const timestamp = event.timestamp || `${event.dateKey}T12:00:00`;
@@ -11079,13 +11170,13 @@ function lifeEvents() {
 			minuteKey,
 			title,
 		].join("|");
-		if (events.some((existing) => existing.eventKey === eventKey)) return;
+		if (events.some((existing) => existing.eventKey === eventKey)) {return;}
 		const artifact = findArtifact(state.artifactStore, event.artifactId);
 		events.push({ ...event, eventKey, parentId: artifact?.parentId || "" });
 	};
 	state.artifactStore.artifacts.forEach((artifact) => {
-		if (isDeletedArtifact(artifact)) return;
-		if (artifact.properties?.role === "spirit-reading-plan-item") return;
+		if (isDeletedArtifact(artifact)) {return;}
+		if (artifact.properties?.role === "spirit-reading-plan-item") {return;}
 		if (artifact.properties?.role === "thought") {
 			const timestamp =
 				artifact.properties?.thoughtLoggedAt ||
@@ -11193,8 +11284,8 @@ function lifeEvents() {
 }
 
 function lifeCalendarEventTitle(event) {
-	if (event.role === "thought" && event.thoughtLabel) return event.thoughtLabel;
-	if (event.role === "goal-progress" && event.goalLabel) return event.goalLabel;
+	if (event.role === "thought" && event.thoughtLabel) {return event.thoughtLabel;}
+	if (event.role === "goal-progress" && event.goalLabel) {return event.goalLabel;}
 	return event.title;
 }
 
@@ -11222,7 +11313,7 @@ function lifeCalendarEvents() {
 function renderLifeMonthCalendar() {
 	const calendarEl = document.getElementById("life-fullcalendar");
 	if (!calendarEl || state.active !== "Life" || state.lifeMode !== "month")
-		return;
+		{return;}
 	if (isMobileViewport()) {
 		calendarEl.innerHTML = lifeMobileMonthAgendaHtml();
 		return;
@@ -11243,7 +11334,7 @@ function renderLifeMonthCalendar() {
 		events: lifeCalendarEvents(),
 		eventClick(info) {
 			const artifactId = info.event.extendedProps.artifactId;
-			if (artifactId) openActivityArtifact(artifactId);
+			if (artifactId) {openActivityArtifact(artifactId);}
 		},
 		eventContent(info) {
 			const timeText = info.timeText || formatEventTime(info.event.start);
@@ -11353,20 +11444,20 @@ function lifeHtml() {
 		note?.dashboard === "Life" &&
 		note.properties?.role === "life-journal"
 	)
-		return lifeJournalEditorHtml(note);
+		{return lifeJournalEditorHtml(note);}
 	if (state.artifactMode === "editor" && note)
-		return dashboardNoteEditorHtml(note);
+		{return dashboardNoteEditorHtml(note);}
 	if (state.artifactMode === "viewer" && note) {
 		if (note.dashboard !== "Life")
-			return artifactReaderHtml(
+			{return artifactReaderHtml(
 				note,
 				`${dashboardDisplayLabel(note.dashboard)} note`,
-			);
+			);}
 		if (note.properties?.role !== "life-journal")
-			return artifactReaderHtml(
+			{return artifactReaderHtml(
 				note,
 				`${dashboardDisplayLabel("Life")} thought`,
-			);
+			);}
 		return panelHtml(`
       ${headerHtml(note.title, "", artifactViewerActions(note))}
       <div class="life-reader-grid">
@@ -11443,8 +11534,8 @@ function lifePanelHtml() {
 	const tool = ["todo", "projects", "calendar"].includes(state.lifeTool)
 		? state.lifeTool
 		: "calendar";
-	if (tool === "todo") return lifeTodoHtml();
-	if (tool === "projects") return lifeProjectsHtml();
+	if (tool === "todo") {return lifeTodoHtml();}
+	if (tool === "projects") {return lifeProjectsHtml();}
 	return `
     <div class="life-calendar-viewer">
       ${lifeCalendarModeSwitcherHtml()}
@@ -11454,9 +11545,9 @@ function lifePanelHtml() {
 }
 
 function lifeCalendarPanelHtml() {
-	if (state.lifeMode === "day") return lifeDayHtml();
-	if (state.lifeMode === "week") return lifeWeekHtml();
-	if (state.lifeMode === "list") return lifeListHtml();
+	if (state.lifeMode === "day") {return lifeDayHtml();}
+	if (state.lifeMode === "week") {return lifeWeekHtml();}
+	if (state.lifeMode === "list") {return lifeListHtml();}
 	return lifeMonthHtml();
 }
 
@@ -11559,7 +11650,7 @@ function lifeMonthFallbackHtml() {
 function lifeListHtml() {
 	const grouped = new Map();
 	lifeEvents().forEach((event) => {
-		if (!grouped.has(event.dateKey)) grouped.set(event.dateKey, []);
+		if (!grouped.has(event.dateKey)) {grouped.set(event.dateKey, []);}
 		grouped.get(event.dateKey).push(event);
 	});
 	return `
@@ -11731,8 +11822,8 @@ function lifeAttachmentsHtml(level, attachments = []) {
 
 function formatFileSize(size) {
 	const bytes = Number(size) || 0;
-	if (bytes >= 1048576) return `${Math.round(bytes / 104857.6) / 10} MB`;
-	if (bytes >= 1024) return `${Math.round(bytes / 102.4) / 10} KB`;
+	if (bytes >= 1048576) {return `${Math.round(bytes / 104857.6) / 10} MB`;}
+	if (bytes >= 1024) {return `${Math.round(bytes / 102.4) / 10} KB`;}
 	return `${bytes} B`;
 }
 
@@ -12075,9 +12166,9 @@ function bodyNutritionHtml(nutrition, nutritionDashOffset) {
 function bodyHtml() {
 	const note = findArtifact(state.artifactStore, state.selectedArtifactId);
 	if (state.artifactMode === "editor" && note)
-		return dashboardNoteEditorHtml(note);
+		{return dashboardNoteEditorHtml(note);}
 	if (state.artifactMode === "viewer" && note)
-		return artifactReaderHtml(note, `${dashboardDisplayLabel("Body")} note`);
+		{return artifactReaderHtml(note, `${dashboardDisplayLabel("Body")} note`);}
 
 	const notes = rootNotesForDashboard(state.artifactStore, "Body");
 	const nutrition = state.bodyTracker.nutrition;
@@ -12181,13 +12272,13 @@ function bodyModeSwitcherHtml() {
 function mindHtml(compendium, section) {
 	const note = findArtifact(state.artifactStore, state.selectedArtifactId);
 	if (state.artifactMode === "editor" && note?.dashboard === "Mind")
-		return dashboardNoteEditorHtml(note);
+		{return dashboardNoteEditorHtml(note);}
 	if (state.artifactMode === "viewer" && note?.dashboard === "Mind")
-		return artifactReaderHtml(note, `${dashboardDisplayLabel("Mind")} note`);
+		{return artifactReaderHtml(note, `${dashboardDisplayLabel("Mind")} note`);}
 	if (state.mindMode === "compendium-editor" && compendium)
-		return compendiumEditorHtml(compendium);
+		{return compendiumEditorHtml(compendium);}
 	if (state.mindMode === "section-editor" && section)
-		return sectionEditorHtml(section);
+		{return sectionEditorHtml(section);}
 	if (state.mindMode === "section-viewer" && section) {
 		return panelHtml(`
       ${headerHtml(
@@ -12205,9 +12296,9 @@ function mindHtml(compendium, section) {
     `);
 	}
 	if (state.mindMode === "reader" && compendium)
-		return compendiumReaderHtml(compendium);
+		{return compendiumReaderHtml(compendium);}
 	if (state.mindMode === "manager" && compendium)
-		return compendiumManagerHtml(compendium);
+		{return compendiumManagerHtml(compendium);}
 	return mindGridHtml();
 }
 
@@ -12215,10 +12306,10 @@ function truncatedWordsText(value, maxWords = 15) {
 	const text = String(value || "")
 		.trim()
 		.replace(/\s+/g, " ");
-	if (!text) return { text: "", truncated: false, wordCount: 0 };
+	if (!text) {return { text: "", truncated: false, wordCount: 0 };}
 	const words = text.split(" ");
 	if (words.length <= maxWords)
-		return { text, truncated: false, wordCount: words.length };
+		{return { text, truncated: false, wordCount: words.length };}
 	return {
 		text: `${words.slice(0, maxWords).join(" ")}...`,
 		truncated: true,
@@ -12231,8 +12322,8 @@ function compendiumTitleSizeClass(title) {
 		.trim()
 		.replace(/\s+/g, " ");
 	const words = normalized ? normalized.split(" ").length : 0;
-	if (words > 11 || normalized.length > 68) return " is-very-long";
-	if (words > 7 || normalized.length > 44) return " is-long";
+	if (words > 11 || normalized.length > 68) {return " is-very-long";}
+	if (words > 7 || normalized.length > 44) {return " is-long";}
 	return "";
 }
 
@@ -12476,7 +12567,7 @@ function sectionEditorHtml(section) {
 
 function dashboardNoteEditorHtml(note) {
 	if (note.dashboard === "Life" && note.properties?.role === "life-journal")
-		return lifeJournalEditorHtml(note);
+		{return lifeJournalEditorHtml(note);}
 	const isThought = note.properties?.role === "thought";
 	const isGoalProgress = note.properties?.role === "goal-progress";
 	const dashboardName = dashboardDisplayLabel(note.dashboard);
@@ -12624,11 +12715,7 @@ function editorHtml({
 		"editor-title",
 		valueTitle,
 	);
-	const displayBody = editorDraftFieldValue(
-		draftKey,
-		"editor-body",
-		valueBody,
-	);
+	const displayBody = editorDraftFieldValue(draftKey, "editor-body", valueBody);
 	return panelHtml(`
     ${headerHtml(
 			title,
@@ -12686,7 +12773,7 @@ function headerHtml(title, subtitle, actions = "", options = {}) {
 }
 
 function cameraModalHtml() {
-	if (!state.cameraOpen) return "";
+	if (!state.cameraOpen) {return "";}
 	const message =
 		state.cameraError || state.cameraStatus || "Opening camera...";
 	return `
@@ -12739,9 +12826,9 @@ function hideThoughtTooltip() {
 }
 
 function showThoughtTooltip(target) {
-	if (document.querySelector(".guided-tip-bubble")) return;
+	if (document.querySelector(".guided-tip-bubble")) {return;}
 	const label = simpleTooltipText(target?.dataset?.thoughtTooltip);
-	if (!label) return;
+	if (!label) {return;}
 	hideThoughtTooltip();
 	const tooltip = document.createElement("div");
 	tooltip.className = "thought-tooltip";
@@ -12750,7 +12837,7 @@ function showThoughtTooltip(target) {
 		.getComputedStyle(target)
 		.getPropertyValue("--thought-color")
 		.trim();
-	if (thoughtColor) tooltip.style.setProperty("--thought-color", thoughtColor);
+	if (thoughtColor) {tooltip.style.setProperty("--thought-color", thoughtColor);}
 	tooltip.innerHTML = `<span>${escapeHtml(label)}</span><i aria-hidden="true"></i>`;
 	document.body.append(tooltip);
 
@@ -12792,9 +12879,9 @@ function hideGuidedTip() {
 }
 
 function isElementVisible(element) {
-	if (!element || element.closest("[hidden], [inert]")) return false;
+	if (!element || element.closest("[hidden], [inert]")) {return false;}
 	const rect = element.getBoundingClientRect();
-	if (rect.width <= 0 || rect.height <= 0) return false;
+	if (rect.width <= 0 || rect.height <= 0) {return false;}
 	const style = window.getComputedStyle(element);
 	return (
 		style.display !== "none" &&
@@ -12806,9 +12893,9 @@ function isElementVisible(element) {
 function activeGuidedTip() {
 	const dismissed = new Set(state.dismissedTips || []);
 	for (const tip of GUIDED_TIP_SEQUENCE) {
-		if (dismissed.has(tip.id) || (tip.when && !tip.when())) continue;
+		if (dismissed.has(tip.id) || (tip.when && !tip.when())) {continue;}
 		const target = app.querySelector(tip.selector);
-		if (isElementVisible(target)) return { ...tip, target };
+		if (isElementVisible(target)) {return { ...tip, target };}
 	}
 	return null;
 }
@@ -12820,7 +12907,7 @@ function advanceGuidedTip(tipId) {
 }
 
 function showGuidedTip(tip) {
-	if (!tip?.target) return;
+	if (!tip?.target) {return;}
 	hideThoughtTooltip();
 	hideGuidedTip();
 	const bubble = document.createElement("button");
@@ -12865,21 +12952,21 @@ function showGuidedTip(tip) {
 function bindGuidedTips() {
 	window.requestAnimationFrame(() => {
 		const tip = activeGuidedTip();
-		if (tip) showGuidedTip(tip);
+		if (tip) {showGuidedTip(tip);}
 	});
 }
 
 function bindThoughtTooltips() {
 	app.querySelectorAll("[data-thought-tooltip]").forEach((element) => {
 		element.addEventListener("pointerenter", (event) => {
-			if (event.pointerType === "touch") return;
+			if (event.pointerType === "touch") {return;}
 			showThoughtTooltip(element);
 		});
 		element.addEventListener("pointerleave", hideThoughtTooltip);
 		element.addEventListener("focus", () => showThoughtTooltip(element));
 		element.addEventListener("blur", hideThoughtTooltip);
 		element.addEventListener("pointerdown", (event) => {
-			if (event.pointerType !== "touch") return;
+			if (event.pointerType !== "touch") {return;}
 			window.clearTimeout(thoughtTooltipLongPressTimer);
 			thoughtTooltipSuppressClickTarget = null;
 			thoughtTooltipLongPressTimer = window.setTimeout(() => {
@@ -12894,7 +12981,7 @@ function bindThoughtTooltips() {
 		element.addEventListener(
 			"click",
 			(event) => {
-				if (thoughtTooltipSuppressClickTarget !== element) return;
+				if (thoughtTooltipSuppressClickTarget !== element) {return;}
 				event.preventDefault();
 				event.stopImmediatePropagation();
 				thoughtTooltipSuppressClickTarget = null;
@@ -12921,11 +13008,11 @@ function headerActionLabel(button) {
 function bindHeaderActionTooltips() {
 	app.querySelectorAll(".panel-header-actions button").forEach((button) => {
 		const label = simpleTooltipText(headerActionLabel(button));
-		if (!label) return;
+		if (!label) {return;}
 		button.dataset.thoughtTooltip = label;
 		if (!button.getAttribute("aria-label"))
-			button.setAttribute("aria-label", label);
-		if (!button.getAttribute("title")) button.setAttribute("title", label);
+			{button.setAttribute("aria-label", label);}
+		if (!button.getAttribute("title")) {button.setAttribute("title", label);}
 	});
 }
 
@@ -12958,17 +13045,16 @@ function stopCameraStream() {
 		cameraStream = null;
 	}
 	const video = app.querySelector("[data-camera-video]");
-	if (video) video.srcObject = null;
+	if (video) {video.srcObject = null;}
 }
 
 function cameraErrorMessage(error) {
 	const name = error?.name || "";
 	if (name === "NotAllowedError" || name === "SecurityError")
-		return "Camera permission was blocked.";
+		{return "Camera permission was blocked.";}
 	if (name === "NotFoundError" || name === "OverconstrainedError")
-		return "No webcam camera was found.";
-	if (!window.isSecureContext)
-		return "Camera access needs HTTPS or localhost.";
+		{return "No webcam camera was found.";}
+	if (!window.isSecureContext) {return "Camera access needs HTTPS or localhost.";}
 	return error instanceof Error ? error.message : "Camera could not open.";
 }
 
@@ -12986,11 +13072,11 @@ function updateCameraStatus(status = "", error = "") {
 			state.cameraBusy || !cameraStream || Boolean(error);
 	}
 	const placeholder = app.querySelector("[data-camera-placeholder]");
-	if (placeholder) placeholder.hidden = Boolean(cameraStream && !error);
+	if (placeholder) {placeholder.hidden = Boolean(cameraStream && !error);}
 }
 
 async function startCameraStream(video) {
-	if (!video || !state.cameraOpen) return;
+	if (!video || !state.cameraOpen) {return;}
 	stopCameraStream();
 	const token = ++cameraRequestToken;
 	updateCameraStatus("Opening camera...", "");
@@ -13029,9 +13115,9 @@ async function startCameraStream(video) {
 
 function bindCameraControls() {
 	const modal = app.querySelector("[data-camera-modal]");
-	if (!modal || !state.cameraOpen) return;
+	if (!modal || !state.cameraOpen) {return;}
 	modal.addEventListener("click", (event) => {
-		if (event.target === modal) closeCamera();
+		if (event.target === modal) {closeCamera();}
 	});
 	modal.addEventListener("keydown", (event) => {
 		if (event.key === "Escape") {
@@ -13062,8 +13148,8 @@ function cameraBlobFromVideo(video, quality = 0.95) {
 		context.drawImage(video, 0, 0, width, height);
 		canvas.toBlob(
 			(blob) => {
-				if (blob) resolve(blob);
-				else reject(new Error("Could not capture camera photo."));
+				if (blob) {resolve(blob);}
+				else {reject(new Error("Could not capture camera photo."));}
 			},
 			"image/jpeg",
 			quality,
@@ -13077,7 +13163,7 @@ async function highQualityCameraBlob(video) {
 		try {
 			const capture = new window.ImageCapture(track);
 			const blob = await capture.takePhoto();
-			if (blob?.size) return blob;
+			if (blob?.size) {return blob;}
 		} catch {
 			// Some browsers expose ImageCapture but reject still capture for webcams.
 		}
@@ -13087,10 +13173,10 @@ async function highQualityCameraBlob(video) {
 
 function cameraImageExtension(type) {
 	const normalized = String(type || "").toLowerCase();
-	if (normalized.includes("png")) return "png";
-	if (normalized.includes("webp")) return "webp";
-	if (normalized.includes("heic")) return "heic";
-	if (normalized.includes("heif")) return "heif";
+	if (normalized.includes("png")) {return "png";}
+	if (normalized.includes("webp")) {return "webp";}
+	if (normalized.includes("heic")) {return "heic";}
+	if (normalized.includes("heif")) {return "heif";}
 	return "jpg";
 }
 
@@ -13098,8 +13184,7 @@ async function cameraFileFromVideo(video) {
 	const blob = await highQualityCameraBlob(video);
 	const type = blob.type || "image/jpeg";
 	const name = `camera-${todayDateKey()}-${Date.now()}.${cameraImageExtension(type)}`;
-	if (typeof File === "function")
-		return new File([blob], name, { type });
+	if (typeof File === "function") {return new File([blob], name, { type });}
 	return Object.assign(blob, { name, type });
 }
 
@@ -13131,7 +13216,7 @@ async function saveCameraFileToDevice(file) {
 			});
 			return "Device save sheet opened.";
 		} catch (error) {
-			if (error?.name === "AbortError") return "Device save canceled.";
+			if (error?.name === "AbortError") {return "Device save canceled.";}
 		}
 	}
 	downloadCameraFile(file);
@@ -13203,7 +13288,7 @@ async function applyCameraCapture(file) {
 			start: target.start,
 			end: target.end,
 		});
-		if (!inserted) throw new Error("Could not add camera photo.");
+		if (!inserted) {throw new Error("Could not add camera photo.");}
 		return {};
 	}
 	if (target.kind === "pyxdia") {
@@ -13223,7 +13308,7 @@ async function applyCameraCapture(file) {
 }
 
 async function captureCameraPhoto() {
-	if (state.cameraBusy) return;
+	if (state.cameraBusy) {return;}
 	const video = app.querySelector("[data-camera-video]");
 	if (!video || !cameraStream) {
 		updateCameraStatus("", "Camera is not ready yet.");
@@ -13258,20 +13343,20 @@ async function captureCameraPhoto() {
 
 function bindActions() {
 	app.querySelectorAll("[data-action]").forEach((element) => {
-		if (element.closest("[data-icon-picker-overlay]")) return;
+		if (element.closest("[data-icon-picker-overlay]")) {return;}
 		const action = element.dataset.action;
-		if (action === "open-donation") return;
+		if (action === "open-donation") {return;}
 		if (action === "select-spirit-plan") {
 			element.addEventListener("change", () => selectSpiritPlan(element.value));
 		} else {
 			element.addEventListener("click", (event) => {
 				const actionElement = eventActionElement(event);
-				if (actionElement && actionElement !== element) return;
+				if (actionElement && actionElement !== element) {return;}
 				handleAction(element);
 			});
 			element.addEventListener("keydown", (event) => {
 				if (event.target !== element || !["Enter", " "].includes(event.key))
-					return;
+					{return;}
 				event.preventDefault();
 				handleAction(element);
 			});
@@ -13305,10 +13390,12 @@ function bindPyxdiaControls() {
 		input.addEventListener("change", update);
 		input.addEventListener("paste", async (event) => {
 			const files = Array.from(event.clipboardData?.items || [])
-				.filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+				.filter(
+					(item) => item.kind === "file" && item.type.startsWith("image/"),
+				)
 				.map((item) => item.getAsFile())
 				.filter(Boolean);
-			if (!files.length) return;
+			if (!files.length) {return;}
 			event.preventDefault();
 			await insertPyxdiaLetterImages(files);
 		});
@@ -13348,20 +13435,18 @@ function bindPyxdiaControls() {
 			},
 			true,
 		);
-		settingsPanel
-			.querySelectorAll("input, textarea")
-			.forEach((field) => {
-				field.addEventListener("input", updateSettings);
-				field.addEventListener("change", updateSettings);
-				if (field.type === "checkbox") {
-					field.addEventListener("click", () => {
-						window.setTimeout(
-							() => updateSettings({ target: field, type: "change" }),
-							0,
-						);
-					});
-				}
-			});
+		settingsPanel.querySelectorAll("input, textarea").forEach((field) => {
+			field.addEventListener("input", updateSettings);
+			field.addEventListener("change", updateSettings);
+			if (field.type === "checkbox") {
+				field.addEventListener("click", () => {
+					window.setTimeout(
+						() => updateSettings({ target: field, type: "change" }),
+						0,
+					);
+				});
+			}
+		});
 	}
 }
 
@@ -13382,10 +13467,10 @@ function textWithMarkdownInsert(value, text, start, end) {
 
 async function uploadPyxdiaImagesAndInsert(files, options = {}) {
 	const images = files.filter((file) => file?.type?.startsWith("image/"));
-	if (!images.length) return null;
+	if (!images.length) {return null;}
 	const fail = (message) => {
 		state.pyxdiaError = message;
-		if (options.renderOnError) setState({ pyxdiaError: message });
+		if (options.renderOnError) {setState({ pyxdiaError: message });}
 		return null;
 	};
 	if (!isPyxdiaSignedIn() || state.cloud?.isLocalDemo) {
@@ -13428,10 +13513,7 @@ async function uploadPyxdiaImagesAndInsert(files, options = {}) {
 		...pyxdiaDraftFromDom(),
 		clientLetterId: letterId,
 		inputText: inserted.value,
-		imageRefs: [
-			...(state.pyxdiaDraft?.imageRefs || []),
-			...uploadedRefs,
-		],
+		imageRefs: [...(state.pyxdiaDraft?.imageRefs || []), ...uploadedRefs],
 		updatedAt: nowIso(),
 	});
 	state.pyxdiaDraft = draft;
@@ -13459,7 +13541,7 @@ async function insertPyxdiaLetterImages(files) {
 
 function insertTextAtPyxdiaCursor(text, start, end) {
 	const input = document.getElementById("pyxdia-letter-input");
-	if (!input) return;
+	if (!input) {return;}
 	const inserted = textWithMarkdownInsert(input.value, text, start, end);
 	input.value = inserted.value;
 	input.focus();
@@ -13479,8 +13561,8 @@ async function persistPyxdiaSettingsNow() {
 	const settings = normalizePyxdiaSettings(state.pyxdiaSettings);
 	state.pyxdiaSettings = settings;
 	savePyxdiaSettingsLocal(settings);
-	if (!settings.delayEnabled) processDueLocalPyxdiaJobs({ force: true });
-	if (!isPyxdiaSignedIn() || state.cloud?.isLocalDemo) return;
+	if (!settings.delayEnabled) {processDueLocalPyxdiaJobs({ force: true });}
+	if (!isPyxdiaSignedIn() || state.cloud?.isLocalDemo) {return;}
 	try {
 		const payload = await savePyxdiaSettings(settings, {
 			getIdToken: getCloudIdToken,
@@ -13493,7 +13575,9 @@ async function persistPyxdiaSettingsNow() {
 	} catch (error) {
 		setState({
 			pyxdiaError:
-				error instanceof Error ? error.message : "Could not save PYXIDA settings.",
+				error instanceof Error
+					? error.message
+					: "Could not save PYXIDA settings.",
 		});
 	}
 }
@@ -13504,7 +13588,7 @@ function bindPyxdiaImages() {
 		...(state.pyxdiaDraft?.imageRefs || []),
 		...(state.pyxdiaLetters || []).flatMap((letter) => letter.imageRefs || []),
 	].forEach((ref) => {
-		if (ref?.id) refs.set(ref.id, ref);
+		if (ref?.id) {refs.set(ref.id, ref);}
 	});
 	app.querySelectorAll("img[data-pyxdia-image]").forEach(async (image) => {
 		const ref = refs.get(image.dataset.pyxdiaImage || "");
@@ -13514,8 +13598,8 @@ function bindPyxdiaImages() {
 		}
 		try {
 			const url = await resolvePyxdiaImageUrl(ref);
-			if (url) image.src = url;
-			else image.classList.add("is-missing");
+			if (url) {image.src = url;}
+			else {image.classList.add("is-missing");}
 		} catch {
 			image.classList.add("is-missing");
 		}
@@ -13524,7 +13608,7 @@ function bindPyxdiaImages() {
 
 function bindDashboardIdentityAutoSave() {
 	const panel = app.querySelector(".interface-settings");
-	if (!panel) return;
+	if (!panel) {return;}
 	let saveTimer = null;
 	const scheduleSave = () => {
 		window.clearTimeout(saveTimer);
@@ -13550,7 +13634,7 @@ function bindTrackerEditorAutoSave() {
 			".goal-frequency-slider-row output",
 		);
 		const syncFrequencyControls = () => {
-			if (!customRange) return;
+			if (!customRange) {return;}
 			const isCustom = frequencySelect?.value === "custom";
 			customRange.disabled = !isCustom;
 			if (customOutput) {
@@ -13570,7 +13654,7 @@ function bindTrackerEditorAutoSave() {
 
 function eventActionElement(event) {
 	const direct = event.target?.closest?.("[data-action]");
-	if (direct) return direct;
+	if (direct) {return direct;}
 	return event.composedPath?.().find((node) => node?.dataset?.action) || null;
 }
 
@@ -13583,7 +13667,7 @@ function bindSidebarHorizontalScroll() {
 		element.addEventListener(
 			"wheel",
 			(event) => {
-				if (element.scrollWidth <= element.clientWidth) return;
+				if (element.scrollWidth <= element.clientWidth) {return;}
 				event.preventDefault();
 				const delta =
 					Math.abs(event.deltaX) > Math.abs(event.deltaY)
@@ -13600,7 +13684,7 @@ function bindSidebarHorizontalScroll() {
 }
 
 function updatePathBarOverflow(pathBar) {
-	if (!pathBar) return;
+	if (!pathBar) {return;}
 	const maxScroll = Math.max(0, pathBar.scrollWidth - pathBar.clientWidth);
 	pathBar.classList.toggle("is-overflow-left", pathBar.scrollLeft > 1);
 	pathBar.classList.toggle(
@@ -13611,16 +13695,16 @@ function updatePathBarOverflow(pathBar) {
 
 function bindPathBarOverflow() {
 	const pathBar = app.querySelector(".path-bar");
-	if (!pathBar) return;
+	if (!pathBar) {return;}
 	const refresh = () => updatePathBarOverflow(pathBar);
 	const focusCurrent = () => {
 		if (
 			pathBar.dataset.focusCurrent !== "true" ||
 			pathBar.dataset.currentFocused === "true"
 		)
-			return;
+			{return;}
 		const maxScroll = Math.max(0, pathBar.scrollWidth - pathBar.clientWidth);
-		if (maxScroll > 0) pathBar.scrollLeft = maxScroll;
+		if (maxScroll > 0) {pathBar.scrollLeft = maxScroll;}
 		pathBar.dataset.currentFocused = "true";
 		refresh();
 	};
@@ -13633,7 +13717,7 @@ function bindPathBarOverflow() {
 	pathBar.addEventListener(
 		"wheel",
 		(event) => {
-			if (pathBar.scrollWidth <= pathBar.clientWidth) return;
+			if (pathBar.scrollWidth <= pathBar.clientWidth) {return;}
 			event.preventDefault();
 			const delta =
 				Math.abs(event.deltaX) > Math.abs(event.deltaY)
@@ -13682,7 +13766,7 @@ function renumberSectionRows(list) {
 }
 
 function scrollSectionListWhileDragging(scrollArea, pointerY) {
-	if (!scrollArea) return;
+	if (!scrollArea) {return;}
 	const rect = scrollArea.getBoundingClientRect();
 	const edge = 56;
 	if (pointerY < rect.top + edge) {
@@ -13694,7 +13778,7 @@ function scrollSectionListWhileDragging(scrollArea, pointerY) {
 
 function bindCompendiumSectionSorting() {
 	const list = app.querySelector("[data-section-sort-list]");
-	if (!list) return;
+	if (!list) {return;}
 
 	list.querySelectorAll("[data-section-drag-handle]").forEach((handle) => {
 		handle.addEventListener("click", (event) => {
@@ -13703,11 +13787,11 @@ function bindCompendiumSectionSorting() {
 		});
 
 		handle.addEventListener("pointerdown", (event) => {
-			if (event.button !== undefined && event.button !== 0) return;
+			if (event.button !== undefined && event.button !== 0) {return;}
 			const activeRow = handle.closest("[data-section-row]");
 			const compendiumId = list.dataset.compendiumId;
 			const sectionId = activeRow?.dataset.id;
-			if (!activeRow || !compendiumId || !sectionId) return;
+			if (!activeRow || !compendiumId || !sectionId) {return;}
 
 			event.preventDefault();
 			event.stopPropagation();
@@ -13728,7 +13812,7 @@ function bindCompendiumSectionSorting() {
 					moveEvent.clientY,
 				);
 				if (!reorderCompendiumSection(compendiumId, sectionId, targetIndex))
-					return;
+					{return;}
 				moveSectionRow(list, activeRow, targetIndex);
 				renumberSectionRows(list);
 				moved = true;
@@ -13742,7 +13826,7 @@ function bindCompendiumSectionSorting() {
 				list.classList.remove("is-sorting");
 				activeRow.classList.remove("is-dragging");
 				handle.classList.remove("is-active");
-				if (!moved) return;
+				if (!moved) {return;}
 				touchCompendium(compendiumId);
 				persistCompendiums();
 			};
@@ -13759,7 +13843,7 @@ function bindDashboardBalanceHover() {
 	const setLinkedHover = (key, enabled) => {
 		linkedElements.forEach((element) => {
 			if (element.dataset.balanceKey === key)
-				element.classList.toggle("is-linked-hover", enabled);
+				{element.classList.toggle("is-linked-hover", enabled);}
 		});
 	};
 	linkedElements.forEach((element) => {
@@ -13806,20 +13890,20 @@ function setDashboardChartTabMarker(row, activeButton, targetIndex) {
 	const buttons = Array.from(
 		row.querySelectorAll("[data-dashboard-chart-tab]"),
 	).filter((button) => button !== activeButton);
-	if (!buttons.length) return;
+	if (!buttons.length) {return;}
 	const targetButton = buttons[targetIndex];
-	if (targetButton) targetButton.classList.add("is-drop-before");
-	else buttons[buttons.length - 1].classList.add("is-drop-after");
+	if (targetButton) {targetButton.classList.add("is-drop-before");}
+	else {buttons[buttons.length - 1].classList.add("is-drop-after");}
 }
 
 function bindDashboardChartTabSorting() {
 	const row = app.querySelector("[data-dashboard-chart-switcher]");
-	if (!row) return;
+	if (!row) {return;}
 	row.querySelectorAll("[data-dashboard-chart-tab]").forEach((button) => {
 		button.addEventListener("pointerdown", (event) => {
-			if (event.button !== undefined && event.button !== 0) return;
+			if (event.button !== undefined && event.button !== 0) {return;}
 			const tabId = button.dataset.chart || "";
-			if (!tabId) return;
+			if (!tabId) {return;}
 			const startX = event.clientX;
 			const startY = event.clientY;
 			let isDragging = false;
@@ -13830,7 +13914,11 @@ function bindDashboardChartTabSorting() {
 				row.classList.add("is-reordering");
 				button.classList.add("is-dragging");
 				button.setPointerCapture?.(event.pointerId);
-				targetIndex = dashboardChartTabDropIndex(row, button, moveEvent.clientX);
+				targetIndex = dashboardChartTabDropIndex(
+					row,
+					button,
+					moveEvent.clientX,
+				);
 				setDashboardChartTabMarker(row, button, targetIndex);
 			};
 
@@ -13839,10 +13927,14 @@ function bindDashboardChartTabSorting() {
 					moveEvent.clientX - startX,
 					moveEvent.clientY - startY,
 				);
-				if (!isDragging && moved < 6) return;
+				if (!isDragging && moved < 6) {return;}
 				moveEvent.preventDefault();
-				if (!isDragging) startDrag(moveEvent);
-				targetIndex = dashboardChartTabDropIndex(row, button, moveEvent.clientX);
+				if (!isDragging) {startDrag(moveEvent);}
+				targetIndex = dashboardChartTabDropIndex(
+					row,
+					button,
+					moveEvent.clientX,
+				);
 				setDashboardChartTabMarker(row, button, targetIndex);
 			};
 
@@ -13854,7 +13946,7 @@ function bindDashboardChartTabSorting() {
 				row.classList.remove("is-reordering");
 				button.classList.remove("is-dragging");
 				clearDashboardChartTabMarkers(row);
-				if (!isDragging) return;
+				if (!isDragging) {return;}
 				finishEvent.preventDefault();
 				state.suppressNextDashboardChartClick = true;
 				reorderDashboardChartTabs(tabId, targetIndex ?? 0);
@@ -13871,7 +13963,7 @@ function bindDashboardChartTabSorting() {
 }
 
 function updateDashboardOrbScrollOverflow(element) {
-	if (!element) return;
+	if (!element) {return;}
 	const maxScroll = Math.max(0, element.scrollWidth - element.clientWidth);
 	element.classList.toggle("is-overflow-left", element.scrollLeft > 1);
 	element.classList.toggle(
@@ -13889,7 +13981,7 @@ function bindDashboardOrbScroll() {
 		element.addEventListener(
 			"wheel",
 			(event) => {
-				if (element.scrollWidth <= element.clientWidth) return;
+				if (element.scrollWidth <= element.clientWidth) {return;}
 				event.preventDefault();
 				const delta =
 					Math.abs(event.deltaX) > Math.abs(event.deltaY)
@@ -13926,8 +14018,8 @@ function bindGalleryControls() {
 		input.addEventListener("change", () => {
 			const id = input.value;
 			const selected = new Set(state.gallerySelectedIds);
-			if (input.checked) selected.add(id);
-			else selected.delete(id);
+			if (input.checked) {selected.add(id);}
+			else {selected.delete(id);}
 			setState({ gallerySelectedIds: Array.from(selected) });
 		});
 	});
@@ -13935,7 +14027,7 @@ function bindGalleryControls() {
 
 function bindEditorMedia() {
 	const editor = document.getElementById("editor-body");
-	if (!editor) return;
+	if (!editor) {return;}
 	const cameraButton = app.querySelector("[data-editor-camera-button]");
 	if (cameraButton) {
 		cameraButton.addEventListener("pointerdown", (event) => {
@@ -13947,7 +14039,8 @@ function bindEditorMedia() {
 				kind: "editor",
 				dashboard: state.active,
 				start: editor.selectionStart ?? editor.value.length,
-				end: editor.selectionEnd ?? editor.selectionStart ?? editor.value.length,
+				end:
+					editor.selectionEnd ?? editor.selectionStart ?? editor.value.length,
 			});
 		});
 	}
@@ -13982,7 +14075,7 @@ function bindEditorMedia() {
 			.filter((item) => item.kind === "file" && item.type.startsWith("image/"))
 			.map((item) => item.getAsFile())
 			.filter(Boolean);
-		if (!files.length) return;
+		if (!files.length) {return;}
 		event.preventDefault();
 		await insertEditorImages(files);
 	});
@@ -13999,7 +14092,7 @@ function bindEditorMedia() {
 		const files = Array.from(event.dataTransfer?.files || []).filter((file) =>
 			file.type.startsWith("image/"),
 		);
-		if (!files.length) return;
+		if (!files.length) {return;}
 		event.preventDefault();
 		setEditorCursorFromPoint(event);
 		await insertEditorImages(files);
@@ -14008,7 +14101,7 @@ function bindEditorMedia() {
 
 function setEditorCursorFromPoint(event) {
 	const editor = document.getElementById("editor-body");
-	if (!editor) return;
+	if (!editor) {return;}
 	if (document.caretPositionFromPoint) {
 		const position = document.caretPositionFromPoint(
 			event.clientX,
@@ -14024,15 +14117,15 @@ function setEditorCursorFromPoint(event) {
 	}
 	if (document.caretRangeFromPoint) {
 		const range = document.caretRangeFromPoint(event.clientX, event.clientY);
-		if (range) editor.setSelectionRange(range.startOffset, range.startOffset);
+		if (range) {editor.setSelectionRange(range.startOffset, range.startOffset);}
 	}
 }
 
 async function insertEditorImages(files, range = null) {
 	const editor = document.getElementById("editor-body");
-	if (!editor) return false;
+	if (!editor) {return false;}
 	const images = files.filter((file) => file?.type?.startsWith("image/"));
-	if (!images.length) return false;
+	if (!images.length) {return false;}
 	const previousCursor =
 		range?.start ?? editor.selectionStart ?? editor.value.length;
 	const previousEnd = range?.end ?? editor.selectionEnd ?? previousCursor;
@@ -14059,7 +14152,7 @@ async function insertEditorImages(files, range = null) {
 
 function insertTextAtEditorCursor(text, start, end) {
 	const editor = document.getElementById("editor-body");
-	if (!editor) return;
+	if (!editor) {return;}
 	const before = editor.value.slice(0, start);
 	const after = editor.value.slice(end);
 	const prefix = before && !before.endsWith("\n") ? "\n\n" : "";
@@ -14099,12 +14192,22 @@ function markLocalAssetMissing(element, error) {
 	});
 }
 
+function markLocalAssetReady(element) {
+	element.classList.remove("is-missing");
+	element.removeAttribute("title");
+	delete element.dataset.mediaError;
+}
+
 function bindLocalAssetImages() {
 	app.querySelectorAll("img[data-local-asset]").forEach(async (image) => {
 		try {
 			const url = await resolveLocalImageUrl(image.dataset.localAsset);
-			if (url) image.src = url;
-			else markLocalAssetMissing(image, "No local or cloud media file was found.");
+			if (url) {
+				image.src = url;
+				markLocalAssetReady(image);
+			}
+			else
+				{markLocalAssetMissing(image, "No local or cloud media file was found.");}
 		} catch (error) {
 			markLocalAssetMissing(image, error);
 		}
@@ -14112,13 +14215,14 @@ function bindLocalAssetImages() {
 	app.querySelectorAll("a[data-local-asset-link]").forEach(async (link) => {
 		link.addEventListener("click", (event) => {
 			if (!link.href || link.getAttribute("href") === "#")
-				event.preventDefault();
+				{event.preventDefault();}
 		});
 		try {
 			const resolved = await resolveLocalFile(link.dataset.localAssetLink);
 			if (resolved.url) {
 				link.href = resolved.url;
 				link.download = link.dataset.localAssetName || resolved.name || "image";
+				markLocalAssetReady(link);
 			} else {
 				markLocalAssetMissing(link, "No local or cloud media file was found.");
 			}
@@ -14129,13 +14233,14 @@ function bindLocalAssetImages() {
 	app.querySelectorAll("a[data-local-file-link]").forEach(async (link) => {
 		link.addEventListener("click", (event) => {
 			if (!link.href || link.getAttribute("href") === "#")
-				event.preventDefault();
+				{event.preventDefault();}
 		});
 		try {
 			const resolved = await resolveLocalFile(link.dataset.localFileLink);
 			if (resolved.url) {
 				link.href = resolved.url;
 				link.download = resolved.name || link.download || "download";
+				markLocalAssetReady(link);
 			} else {
 				markLocalAssetMissing(link, "No local or cloud media file was found.");
 			}
@@ -14154,11 +14259,11 @@ function handleAction(element) {
 		"toggle-all-sidebar-sections",
 		"sidebar-page",
 	]);
-	if (!keepMenuOpenActions.has(action)) closeMobileMenu();
-	if (action === "open-camera") openCamera(cameraTargetFromElement(element));
-	if (action === "close-camera") closeCamera();
-	if (action === "capture-camera") void captureCameraPhoto();
-	if (action === "home") goHome();
+	if (!keepMenuOpenActions.has(action)) {closeMobileMenu();}
+	if (action === "open-camera") {openCamera(cameraTargetFromElement(element));}
+	if (action === "close-camera") {closeCamera();}
+	if (action === "capture-camera") {void captureCameraPhoto();}
+	if (action === "home") {goHome();}
 	if (action === "dashboard-root") {
 		if (state.active === "Mind") {
 			setState({
@@ -14180,7 +14285,7 @@ function handleAction(element) {
 		}
 	}
 	if (action === "compendium-root")
-		setState({ mindMode: "manager", selectedSectionId: null });
+		{setState({ mindMode: "manager", selectedSectionId: null });}
 	if (action === "toggle-mobile-menu") {
 		if (state.suppressNextMenuToggle) {
 			state.suppressNextMenuToggle = false;
@@ -14189,26 +14294,26 @@ function handleAction(element) {
 		}
 	}
 	if (action === "toggle-sidebar-section")
-		toggleSidebarSection(element.dataset.section);
+		{toggleSidebarSection(element.dataset.section);}
 	if (action === "toggle-pyxdia-menu")
-		setState({ pyxdiaExpanded: !state.pyxdiaExpanded });
-	if (action === "toggle-all-sidebar-sections") toggleAllSidebarSections();
+		{setState({ pyxdiaExpanded: !state.pyxdiaExpanded });}
+	if (action === "toggle-all-sidebar-sections") {toggleAllSidebarSections();}
 	if (action === "sidebar-page")
-		setSidebarPage(
+		{setSidebarPage(
 			element.dataset.section,
 			element.dataset.direction,
 			Number(element.dataset.maxPage || 0),
-		);
+		);}
 	if (action === "tracker-page")
-		setTrackerPage(
+		{setTrackerPage(
 			element.dataset.area,
 			element.dataset.direction,
 			Number(element.dataset.maxPage || 0),
 			element.dataset.editable === "true",
 			element.dataset.kind || "thought",
-		);
+		);}
 	if (action === "open-dashboard-card")
-		openDashboardCard(element.dataset.section);
+		{openDashboardCard(element.dataset.section);}
 	if (action === "open-dashboard-direct") {
 		setState({
 			active: element.dataset.section,
@@ -14219,7 +14324,7 @@ function handleAction(element) {
 		});
 	}
 	if (action === "set-dashboard-period")
-		setDashboardPeriod(element.dataset.period);
+		{setDashboardPeriod(element.dataset.period);}
 	if (action === "set-dashboard-chart") {
 		if (state.suppressNextDashboardChartClick) {
 			state.suppressNextDashboardChartClick = false;
@@ -14227,60 +14332,60 @@ function handleAction(element) {
 		}
 		setDashboardChartType(element.dataset.chart);
 	}
-	if (action === "set-theme") setTheme(element.dataset.theme);
-	if (action === "save-dashboard-identity") saveDashboardIdentitySettings();
+	if (action === "set-theme") {setTheme(element.dataset.theme);}
+	if (action === "save-dashboard-identity") {saveDashboardIdentitySettings();}
 	if (action === "reset-dashboard-identity-item")
-		resetDashboardIdentityItem(element.dataset.dashboard);
-	if (action === "open-icon-picker") openIconPicker(element);
-	if (action === "close-icon-picker") closeIconPicker();
+		{resetDashboardIdentityItem(element.dataset.dashboard);}
+	if (action === "open-icon-picker") {openIconPicker(element);}
+	if (action === "close-icon-picker") {closeIconPicker();}
 	if (action === "select-icon-picker-icon")
-		selectIconPickerIcon(element.dataset.icon);
+		{selectIconPickerIcon(element.dataset.icon);}
 	if (action === "select-icon-picker-color")
-		selectIconPickerColor(element.dataset.color);
-	if (action === "save-icon-picker") saveIconPickerSelection();
-	if (action === "load-more-icon-picker") loadMoreIconPickerIcons();
-	if (action === "open-compendium") openCompendium(element.dataset.id);
+		{selectIconPickerColor(element.dataset.color);}
+	if (action === "save-icon-picker") {saveIconPickerSelection();}
+	if (action === "load-more-icon-picker") {loadMoreIconPickerIcons();}
+	if (action === "open-compendium") {openCompendium(element.dataset.id);}
 	if (action === "mind-compendium-page")
-		setMindCompendiumPage(
+		{setMindCompendiumPage(
 			element.dataset.direction,
 			Number(element.dataset.maxPage || 0),
-		);
-	if (action === "toggle-mind-compendium-picker") toggleMindCompendiumPicker();
+		);}
+	if (action === "toggle-mind-compendium-picker") {toggleMindCompendiumPicker();}
 	if (action === "select-mind-compendium")
-		selectMindCompendiumFromPicker(
+		{selectMindCompendiumFromPicker(
 			element.dataset.id,
 			Number(element.dataset.index || 0),
 			Number(element.dataset.perPage || 1),
-		);
+		);}
 	if (action === "open-mind-section")
-		openMindSection(element.dataset.parentId, element.dataset.id);
+		{openMindSection(element.dataset.parentId, element.dataset.id);}
 	if (action === "open-artifact-note")
-		openArtifactNote(element.dataset.id, element.dataset.returnActive || "");
-	if (action === "open-life-activity") openActivityArtifact(element.dataset.id);
-	if (action === "export-artifacts") exportArtifacts();
-	if (action === "import-artifacts") importArtifacts();
-	if (action === "factory-defaults") restoreFactoryDefaults();
-	if (action === "clear-app-data") clearAppData();
-	if (action === "reset-tips") resetTips();
-	if (action === "dismiss-tip") dismissTip(element.dataset.tip, element);
-	if (action === "open-gallery") openGallery();
-	if (action === "close-gallery") goHome();
-	if (action === "open-trash") openTrash();
+		{openArtifactNote(element.dataset.id, element.dataset.returnActive || "");}
+	if (action === "open-life-activity") {openActivityArtifact(element.dataset.id);}
+	if (action === "export-artifacts") {exportArtifacts();}
+	if (action === "import-artifacts") {importArtifacts();}
+	if (action === "factory-defaults") {restoreFactoryDefaults();}
+	if (action === "clear-app-data") {clearAppData();}
+	if (action === "reset-tips") {resetTips();}
+	if (action === "dismiss-tip") {dismissTip(element.dataset.tip, element);}
+	if (action === "open-gallery") {openGallery();}
+	if (action === "close-gallery") {goHome();}
+	if (action === "open-trash") {openTrash();}
 	if (action === "trash-refresh")
-		void runTrashAction("Refreshing Trash...", refreshTrashState);
+		{void runTrashAction("Refreshing Trash...", refreshTrashState);}
 	if (action === "trash-save-settings")
-		void runTrashAction("Saving Trash settings...", saveTrashSettingsAction);
+		{void runTrashAction("Saving Trash settings...", saveTrashSettingsAction);}
 	if (action === "trash-restore-item")
-		void runTrashAction("Restoring item...", () =>
+		{void runTrashAction("Restoring item...", () =>
 			restoreTrashItemAction(element.dataset.id),
-		);
+		);}
 	if (action === "trash-hard-delete-item")
-		void runTrashAction("Deleting item...", () =>
+		{void runTrashAction("Deleting item...", () =>
 			hardDeleteTrashItemAction(element.dataset.id),
-		);
-	if (action === "gallery-select-all") selectAllGalleryImages();
-	if (action === "gallery-clear-selection") clearGallerySelection();
-	if (action === "gallery-delete-selected") deleteSelectedGalleryImages();
+		);}
+	if (action === "gallery-select-all") {selectAllGalleryImages();}
+	if (action === "gallery-clear-selection") {clearGallerySelection();}
+	if (action === "gallery-delete-selected") {deleteSelectedGalleryImages();}
 	if (action === "open-settings") {
 		setState({
 			active: "Settings",
@@ -14310,9 +14415,9 @@ function handleAction(element) {
 			trackerDeleteKey: "",
 		});
 	}
-	if (action === "close-settings") goHome();
+	if (action === "close-settings") {goHome();}
 	if (action === "set-settings-tab")
-		setState({
+		{setState({
 			settingsTab:
 				element.dataset.tab === "dashboard"
 					? "interface"
@@ -14320,14 +14425,13 @@ function handleAction(element) {
 			trackerAddArea: "",
 			trackerEditKey: "",
 			trackerDeleteKey: "",
-		});
+		});}
 	if (action === "pyxdia-new-letter" || action === "pyxdia-open-input")
-		openPyxdia("input");
-	if (action === "pyxdia-open-output") openPyxdia("output");
+		{openPyxdia("input");}
+	if (action === "pyxdia-open-output") {openPyxdia("output");}
 	if (action === "pyxdia-open-thread")
-		openPyxdia("thread", { pyxdiaActiveThreadId: element.dataset.id || "" });
-	if (action === "set-pyxdia-view")
-		openPyxdia(element.dataset.view || "input");
+		{openPyxdia("thread", { pyxdiaActiveThreadId: element.dataset.id || "" });}
+	if (action === "set-pyxdia-view") {openPyxdia(element.dataset.view || "input");}
 	if (action === "set-pyxdia-editor-mode") {
 		if (document.getElementById("pyxdia-letter-input")) {
 			savePyxdiaDraftLocal(pyxdiaDraftFromDom(), { render: false });
@@ -14338,17 +14442,17 @@ function handleAction(element) {
 		});
 	}
 	if (action === "pyxdia-save-draft")
-		void runPyxdiaAction("Saving draft...", savePyxdiaDraftAction);
+		{void runPyxdiaAction("Saving draft...", savePyxdiaDraftAction);}
 	if (action === "pyxdia-send-letter")
-		void runPyxdiaAction("Sending letter...", sendPyxdiaLetterAction);
+		{void runPyxdiaAction("Sending letter...", sendPyxdiaLetterAction);}
 	if (action === "pyxdia-refresh")
-		void runPyxdiaAction("Refreshing PYXIDA...", refreshPyxdiaState);
+		{void runPyxdiaAction("Refreshing PYXIDA...", refreshPyxdiaState);}
 	if (action === "pyxdia-retry-letter")
-		void runPyxdiaAction("Retrying letter...", () =>
+		{void runPyxdiaAction("Retrying letter...", () =>
 			retryPyxdiaLetterAction(element.dataset.id),
-		);
+		);}
 	if (action === "pyxdia-delete-letter")
-		void deletePyxdiaLetterAction(element.dataset.id);
+		{void deletePyxdiaLetterAction(element.dataset.id);}
 	if (action === "pyxdia-toggle-delay") {
 		window.setTimeout(() => {
 			const settings = pyxdiaSettingsFromForm();
@@ -14364,49 +14468,49 @@ function handleAction(element) {
 		);
 	}
 	if (action === "pyxdia-reset-memory")
-		void runPyxdiaAction("Resetting PYXIDA memory...", resetPyxdiaMemoryAction);
+		{void runPyxdiaAction("Resetting PYXIDA memory...", resetPyxdiaMemoryAction);}
 	if (action === "cloud-sign-in")
-		void runCloudAction("Signing in...", () => signInToCloud());
+		{void runCloudAction("Signing in...", () => signInToCloud());}
 	if (action === "cloud-google-sign-in")
-		void runCloudAction("Opening Google sign-in...", () => signInWithGoogle());
+		{void runCloudAction("Opening Google sign-in...", () => signInWithGoogle());}
 	if (action === "cloud-email-sign-in")
-		void runCloudAction("Signing in...", () => signInWithEmailForm());
+		{void runCloudAction("Signing in...", () => signInWithEmailForm());}
 	if (action === "cloud-email-create")
-		void runCloudAction("Creating account...", () =>
+		{void runCloudAction("Creating account...", () =>
 			signInWithEmailForm({ create: true }),
-		);
+		);}
 	if (action === "cloud-sign-out")
-		void runCloudAction("Signing out...", () => signOutCloud());
+		{void runCloudAction("Signing out...", () => signOutCloud());}
 	if (action === "cloud-subscribe")
-		void runCloudAction("Opening subscription checkout...", () =>
+		{void runCloudAction("Opening subscription checkout...", () =>
 			startCloudSubscription(cloudReturnUrl()),
-		);
+		);}
 	if (action === "cloud-billing")
-		void runCloudAction("Opening billing portal...", () =>
+		{void runCloudAction("Opening billing portal...", () =>
 			openBillingPortal(cloudReturnUrl()),
-		);
+		);}
 	if (action === "cloud-sync-now")
-		void runCloudAction("Syncing to Cloud...", () => syncCloudNow());
+		{void runCloudAction("Syncing to Cloud...", () => syncCloudNow());}
 	if (action === "cloud-load")
-		void runCloudAction("Loading Firebase artifacts...", () =>
+		{void runCloudAction("Loading Firebase artifacts...", () =>
 			loadCloudIntoLocalApp(),
-		);
+		);}
 	if (action === "cloud-delete-data")
-		void runCloudAction("Deleting Cloud data...", () => deleteCloudData());
+		{void runCloudAction("Deleting Cloud data...", () => deleteCloudData());}
 	if (action === "cloud-delete-account")
-		void runCloudAction("Deleting Cloud account...", () =>
+		{void runCloudAction("Deleting Cloud account...", () =>
 			deleteCloudAccountData(),
-		);
+		);}
 	if (action === "start-add-tracker")
-		setState({
+		{setState({
 			trackerAddArea: trackerAddKey(
 				element.dataset.area || "",
 				element.dataset.kind || "thought",
 			),
 			trackerEditKey: "",
 			trackerDeleteKey: "",
-		});
-	if (action === "cancel-add-tracker") setState({ trackerAddArea: "" });
+		});}
+	if (action === "cancel-add-tracker") {setState({ trackerAddArea: "" });}
 	if (action === "start-edit-tracker") {
 		if (state.suppressNextTrackerEditClick) {
 			state.suppressNextTrackerEditClick = false;
@@ -14423,40 +14527,40 @@ function handleAction(element) {
 		});
 	}
 	if (action === "cancel-edit-tracker")
-		setState({ trackerEditKey: "", trackerDeleteKey: "" });
+		{setState({ trackerEditKey: "", trackerDeleteKey: "" });}
 	if (action === "save-edit-tracker")
-		updateTracker(
+		{updateTracker(
 			element.dataset.area,
 			element.dataset.id,
 			element.dataset.kind || "thought",
-		);
+		);}
 	if (action === "transfer-tracker-kind")
-		transferTrackerKind(
+		{transferTrackerKind(
 			element.dataset.area,
 			element.dataset.id,
 			element.dataset.kind || "thought",
-		);
+		);}
 	if (action === "request-remove-tracker")
-		setState({
+		{setState({
 			trackerDeleteKey: trackerEditKey(
 				element.dataset.area,
 				element.dataset.id,
 				element.dataset.kind || "thought",
 			),
-		});
-	if (action === "cancel-remove-tracker") setState({ trackerDeleteKey: "" });
+		});}
+	if (action === "cancel-remove-tracker") {setState({ trackerDeleteKey: "" });}
 	if (action === "save-tracker")
-		addTracker(element.dataset.area, element.dataset.kind || "thought");
+		{addTracker(element.dataset.area, element.dataset.kind || "thought");}
 	if (action === "remove-tracker")
-		removeTracker(
+		{removeTracker(
 			element.dataset.area,
 			element.dataset.id,
 			element.dataset.kind || "thought",
-		);
+		);}
 	if (action === "quick-thought")
-		quickThought(element.dataset.area, element.dataset.id);
+		{quickThought(element.dataset.area, element.dataset.id);}
 	if (action === "quick-goal")
-		quickGoal(element.dataset.area, element.dataset.id, element);
+		{quickGoal(element.dataset.area, element.dataset.id, element);}
 	if (action === "open-thought-toast-note") {
 		const noteId = element.dataset.id || state.thoughtToast?.noteId;
 		const dashboard =
@@ -14476,66 +14580,68 @@ function handleAction(element) {
 		);
 	}
 	if (action === "delete-thought-toast-note")
-		void deleteThoughtToastNote(element.dataset.id || state.thoughtToast?.noteId);
-	if (action === "dismiss-thought-toast") clearThoughtToast();
-	if (action === "new-compendium") addCompendium();
+		{void deleteThoughtToastNote(
+			element.dataset.id || state.thoughtToast?.noteId,
+		);}
+	if (action === "dismiss-thought-toast") {clearThoughtToast();}
+	if (action === "new-compendium") {addCompendium();}
 	if (action === "new-artifact-note")
-		addDashboardNote(element.dataset.dashboard);
-	if (action === "delete-compendium") void deleteCompendium(element.dataset.id);
-	if (action === "delete-section") void deleteSection(element.dataset.id);
+		{addDashboardNote(element.dataset.dashboard);}
+	if (action === "delete-compendium") {void deleteCompendium(element.dataset.id);}
+	if (action === "delete-section") {void deleteSection(element.dataset.id);}
 	if (action === "delete-artifact-note")
-		void deleteDashboardNote(element.dataset.id);
-	if (action === "save-body-fast-settings") saveBodyFastSettings();
-	if (action === "start-body-fast") startBodyFast();
-	if (action === "stop-body-fast") stopBodyFast();
+		{void deleteDashboardNote(element.dataset.id);}
+	if (action === "save-body-fast-settings") {saveBodyFastSettings();}
+	if (action === "start-body-fast") {startBodyFast();}
+	if (action === "stop-body-fast") {stopBodyFast();}
 	if (action === "save-body-timer-settings")
-		saveBodyTimerSettings(element.dataset.mode);
-	if (action === "start-body-timer") startBodyTimer(element.dataset.mode);
-	if (action === "stop-body-timer") stopBodyTimer(element.dataset.mode);
-	if (action === "save-body-nutrition") saveBodyNutrition();
-	if (action === "save-body-nutrition-goals") saveBodyNutritionGoals();
-	if (action === "reset-body-nutrition") resetBodyNutrition();
-	if (action === "add-body-workout") addBodyWorkout();
-	if (action === "delete-body-workout") deleteBodyWorkout(element.dataset.id);
-	if (action === "set-body-mode") setBodyMode(element.dataset.mode);
-	if (action === "set-body-timer-mode") setBodyTimerMode(element.dataset.mode);
+		{saveBodyTimerSettings(element.dataset.mode);}
+	if (action === "start-body-timer") {startBodyTimer(element.dataset.mode);}
+	if (action === "stop-body-timer") {stopBodyTimer(element.dataset.mode);}
+	if (action === "save-body-nutrition") {saveBodyNutrition();}
+	if (action === "save-body-nutrition-goals") {saveBodyNutritionGoals();}
+	if (action === "reset-body-nutrition") {resetBodyNutrition();}
+	if (action === "add-body-workout") {addBodyWorkout();}
+	if (action === "delete-body-workout") {deleteBodyWorkout(element.dataset.id);}
+	if (action === "set-body-mode") {setBodyMode(element.dataset.mode);}
+	if (action === "set-body-timer-mode") {setBodyTimerMode(element.dataset.mode);}
 	if (action === "set-body-nutrition-mode")
-		setBodyNutritionMode(element.dataset.mode);
-	if (action === "set-life-tool") setLifeTool(element.dataset.tool);
-	if (action === "set-life-mode") setLifeMode(element.dataset.mode);
-	if (action === "add-life-todo") addLifeTodo();
-	if (action === "toggle-life-todo") toggleLifeTodo(element.dataset.id);
+		{setBodyNutritionMode(element.dataset.mode);}
+	if (action === "set-life-tool") {setLifeTool(element.dataset.tool);}
+	if (action === "set-life-mode") {setLifeMode(element.dataset.mode);}
+	if (action === "add-life-todo") {addLifeTodo();}
+	if (action === "toggle-life-todo") {toggleLifeTodo(element.dataset.id);}
 	if (action === "toggle-life-task")
-		toggleLifeTaskItem(
+		{toggleLifeTaskItem(
 			element.dataset.source,
 			element.dataset.id,
 			element.dataset.projectId,
 			element.dataset.phaseId,
-		);
+		);}
 	if (action === "edit-life-task-notes")
-		editLifeTaskNotes(
+		{editLifeTaskNotes(
 			element.dataset.source,
 			element.dataset.id,
 			element.dataset.projectId,
 			element.dataset.phaseId,
-		);
+		);}
 	if (action === "open-life-task")
-		openLifeTaskItem(
+		{openLifeTaskItem(
 			element.dataset.source,
 			element.dataset.id,
 			element.dataset.projectId,
 			element.dataset.phaseId,
-		);
+		);}
 	if (action === "open-life-project-task")
-		openLifeProjectTask(
+		{openLifeProjectTask(
 			element.dataset.projectId,
 			element.dataset.phaseId,
 			element.dataset.taskId,
-		);
-	if (action === "delete-life-todo") deleteLifeTodo(element.dataset.id);
-	if (action === "add-life-project") addLifeProject();
-	if (action === "select-life-project") selectLifeProject(element.dataset.id);
-	if (action === "select-life-phase") selectLifePhase(element.dataset.id);
+		);}
+	if (action === "delete-life-todo") {deleteLifeTodo(element.dataset.id);}
+	if (action === "add-life-project") {addLifeProject();}
+	if (action === "select-life-project") {selectLifeProject(element.dataset.id);}
+	if (action === "select-life-phase") {selectLifePhase(element.dataset.id);}
 	if (action === "select-life-task") {
 		if (element.dataset.projectId && element.dataset.phaseId) {
 			setState({
@@ -14548,59 +14654,59 @@ function handleAction(element) {
 			selectLifeTask(element.dataset.taskId);
 		}
 	}
-	if (action === "add-life-phase") addLifePhase(element.dataset.projectId);
+	if (action === "add-life-phase") {addLifePhase(element.dataset.projectId);}
 	if (action === "add-life-project-task")
-		addLifeProjectTask(element.dataset.projectId, element.dataset.phaseId);
+		{addLifeProjectTask(element.dataset.projectId, element.dataset.phaseId);}
 	if (action === "save-life-project-entity")
-		saveLifeProjectEntity(element.dataset.level);
+		{saveLifeProjectEntity(element.dataset.level);}
 	if (action === "upload-life-attachment")
-		uploadLifeAttachment(element.dataset.level);
+		{uploadLifeAttachment(element.dataset.level);}
 	if (action === "delete-life-attachment")
-		deleteLifeAttachment(element.dataset.level, element.dataset.id);
-	if (action === "set-spirit-year") setSpiritYear(Number(element.dataset.year));
+		{deleteLifeAttachment(element.dataset.level, element.dataset.id);}
+	if (action === "set-spirit-year") {setSpiritYear(Number(element.dataset.year));}
 	if (action === "spirit-prev-year") {
 		const years = spiritYears();
 		const index = years.indexOf(state.spiritYear);
-		if (index > 0) setSpiritYear(years[index - 1]);
+		if (index > 0) {setSpiritYear(years[index - 1]);}
 	}
 	if (action === "spirit-next-year") {
 		const years = spiritYears();
 		const index = years.indexOf(state.spiritYear);
-		if (index >= 0 && index < years.length - 1) setSpiritYear(years[index + 1]);
+		if (index >= 0 && index < years.length - 1) {setSpiritYear(years[index + 1]);}
 	}
-	if (action === "open-spirit-book") openSpiritBook(element.dataset.key);
-	if (action === "exit-spirit-book") exitSpiritBook();
+	if (action === "open-spirit-book") {openSpiritBook(element.dataset.key);}
+	if (action === "exit-spirit-book") {exitSpiritBook();}
 	if (action === "exit-spirit-note")
-		setState({ selectedArtifactId: null, artifactMode: "grid" });
-	if (action === "add-spirit-book-note") addSpiritBookNote(element.dataset.key);
+		{setState({ selectedArtifactId: null, artifactMode: "grid" });}
+	if (action === "add-spirit-book-note") {addSpiritBookNote(element.dataset.key);}
 	if (action === "toggle-spirit-complete")
-		toggleSpiritComplete(element.dataset.key);
-	if (action === "reader") setState({ mindMode: "reader" });
-	if (action === "manager") setState({ mindMode: "manager" });
+		{toggleSpiritComplete(element.dataset.key);}
+	if (action === "reader") {setState({ mindMode: "reader" });}
+	if (action === "manager") {setState({ mindMode: "manager" });}
 	if (action === "compendium-reader-page")
-		setCompendiumReaderPage(
+		{setCompendiumReaderPage(
 			element.dataset.id,
 			element.dataset.direction,
 			Number(element.dataset.maxPage || 0),
-		);
-	if (action === "edit-compendium") setState({ mindMode: "compendium-editor" });
-	if (action === "add-section") addSection();
+		);}
+	if (action === "edit-compendium") {setState({ mindMode: "compendium-editor" });}
+	if (action === "add-section") {addSection();}
 	if (action === "open-section")
-		setState({
+		{setState({
 			selectedSectionId: element.dataset.id,
 			mindMode: "section-viewer",
-		});
-	if (action === "edit-section") setState({ mindMode: "section-editor" });
-	if (action === "section-viewer") setState({ mindMode: "section-viewer" });
-	if (action === "edit-artifact-note") setState({ artifactMode: "editor" });
-	if (action === "artifact-viewer") closeArtifactEditor();
-	if (action === "close-artifact-viewer") closeArtifactViewer();
+		});}
+	if (action === "edit-section") {setState({ mindMode: "section-editor" });}
+	if (action === "section-viewer") {setState({ mindMode: "section-viewer" });}
+	if (action === "edit-artifact-note") {setState({ artifactMode: "editor" });}
+	if (action === "artifact-viewer") {closeArtifactEditor();}
+	if (action === "close-artifact-viewer") {closeArtifactViewer();}
 	if (action === "save-compendium")
-		saveCompendium(element.dataset.id, editorTitle(), editorBody());
+		{saveCompendium(element.dataset.id, editorTitle(), editorBody());}
 	if (action === "save-section")
-		saveSection(element.dataset.id, editorTitle(), editorBody());
+		{saveSection(element.dataset.id, editorTitle(), editorBody());}
 	if (action === "save-artifact-note")
-		saveDashboardNote(element.dataset.id, editorTitle(), editorBody());
+		{saveDashboardNote(element.dataset.id, editorTitle(), editorBody());}
 }
 
 function editorTitle() {
@@ -14614,11 +14720,11 @@ function editorBody() {
 function updateBodyTimerDom() {
 	BODY_TIMER_MODES.forEach(({ key }) => {
 		const timer = bodyTimerState(key);
-		if (!timer.active) return;
+		if (!timer.active) {return;}
 
 		const timeEl = document.getElementById(`body-timer-${key}-time`);
 		const ringEl = document.getElementById(`body-timer-${key}-ring`);
-		if (!timeEl || !ringEl) return;
+		if (!timeEl || !ringEl) {return;}
 
 		timeEl.textContent = formatDuration(getBodyTimerElapsedMs(key));
 		ringEl.style.strokeDashoffset = String(
@@ -14629,7 +14735,7 @@ function updateBodyTimerDom() {
 
 window.addEventListener("pagehide", () => stopCameraStream());
 document.addEventListener("visibilitychange", () => {
-	if (document.hidden && state.cameraOpen) closeCamera();
+	if (document.hidden && state.cameraOpen) {closeCamera();}
 });
 
 applyEnvironmentClasses();
@@ -14637,10 +14743,10 @@ render();
 void initCloudAccount((cloud) => {
 	state.cloud = cloud;
 	configureMediaCloudContext(cloud);
-	if (!isUserEditingInterface()) render();
+	if (!isUserEditingInterface()) {render();}
 	configureCloudAutoSync();
-	if (state.artifactStore) void maybePromptCloudImport(cloud);
-	if (cloud?.mode === "signed-in") void refreshPyxdiaState({ silent: true });
+	if (state.artifactStore) {void maybePromptCloudImport(cloud);}
+	if (cloud?.mode === "signed-in") {void refreshPyxdiaState({ silent: true });}
 });
 
 const installedAppMedia = window.matchMedia?.(INSTALLED_APP_QUERY);

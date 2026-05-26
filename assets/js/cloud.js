@@ -84,7 +84,7 @@ export function getCloudAccountState() {
 
 export async function getCloudIdToken(options = {}) {
 	if (!currentFirebaseUser) {
-		if (options.optional === true) return null;
+		if (options.optional === true) {return null;}
 		throw new Error("Sign in before using PYXIDA.");
 	}
 	return currentFirebaseUser.getIdToken(options.forceRefresh === true);
@@ -97,7 +97,7 @@ export function subscribeCloudAccount(listener) {
 }
 
 export async function initCloudAccount(listener) {
-	if (listener) subscribeCloudAccount(listener);
+	if (listener) {subscribeCloudAccount(listener);}
 	const demoSession = loadLocalDemoSession();
 	if (demoSession && isLocalDemoHost()) {
 		emitCloudState(
@@ -108,7 +108,7 @@ export async function initCloudAccount(listener) {
 
 	try {
 		await ensureFirebase();
-		if (authUnsubscribe) authUnsubscribe();
+		if (authUnsubscribe) {authUnsubscribe();}
 		authUnsubscribe = firebaseModules.onAuthStateChanged(
 			firebaseAuth,
 			(user) => {
@@ -635,7 +635,7 @@ async function deleteCollectionDocs(modules, collectionRef) {
 		}
 	}
 
-	if (operationCount > 0) await batch.commit();
+	if (operationCount > 0) {await batch.commit();}
 	return deletedCount;
 }
 
@@ -653,7 +653,7 @@ async function writeCollectionDocs(modules, collectionRef, docs) {
 		}
 	}
 
-	if (operationCount > 0) await batch.commit();
+	if (operationCount > 0) {await batch.commit();}
 }
 
 function normalizeExportJson(json, context = {}) {
@@ -803,7 +803,7 @@ function formatStorageGb(size) {
 
 function assertStorageUsageWithinLimit(usage) {
 	const totalBytes = Math.max(0, Number(usage?.totalBytes) || 0);
-	if (totalBytes <= CLOUD_STORAGE_LIMIT_BYTES) return;
+	if (totalBytes <= CLOUD_STORAGE_LIMIT_BYTES) {return;}
 	throw new Error(
 		`Cloud storage limit reached: ${formatStorageGb(totalBytes)} would exceed the 1GB limit.`,
 	);
@@ -825,7 +825,7 @@ function appJsonToCloudArtifactDocs(json, uid, context = {}) {
 	});
 
 	CLOUD_APP_STATE_KEYS.forEach((stateKey, index) => {
-		if (!Object.hasOwn(json.appState, stateKey)) return;
+		if (!Object.hasOwn(json.appState, stateKey)) {return;}
 		docs.push(
 			appStateToCloudDoc(stateKey, json.appState[stateKey], uid, {
 				order: index,
@@ -1009,12 +1009,12 @@ function cloudSafeLocalFile(file) {
 	delete safeFile.blob;
 	delete safeFile.dataUrl;
 	if (typeof safeFile.url === "string" && safeFile.url.startsWith("data:"))
-		delete safeFile.url;
+		{delete safeFile.url;}
 	if (
 		typeof safeFile.downloadUrl === "string" &&
 		safeFile.downloadUrl.startsWith("data:")
 	)
-		delete safeFile.downloadUrl;
+		{delete safeFile.downloadUrl;}
 	return safeFile;
 }
 
@@ -1134,21 +1134,24 @@ function cloudDocToLocalArtifact(doc) {
 		new Date().toISOString();
 	const edited = normalizeSyncTimestampFromFirestore(doc?.updatedAt) || created;
 	const ourstuff = doc?.data?.ourstuff || {};
-	return cloudLifecycleToLocalArtifact({
-		id: String(doc?.id || `artifact-${Date.now()}`),
-		type: String(doc?.type || "note"),
-		dashboard: String(ourstuff.dashboard || "Mind"),
-		parentId: ourstuff.parentId || null,
-		title: String(doc?.title || "Untitled"),
-		body: String(doc?.data?.core?.text || ""),
-		created,
-		edited,
-		childIds: Array.isArray(ourstuff.childIds) ? ourstuff.childIds : [],
-		properties: ourstuff.properties || {
-			status: String(doc?.status || "active"),
+	return cloudLifecycleToLocalArtifact(
+		{
+			id: String(doc?.id || `artifact-${Date.now()}`),
+			type: String(doc?.type || "note"),
+			dashboard: String(ourstuff.dashboard || "Mind"),
+			parentId: ourstuff.parentId || null,
+			title: String(doc?.title || "Untitled"),
+			body: String(doc?.data?.core?.text || ""),
+			created,
+			edited,
+			childIds: Array.isArray(ourstuff.childIds) ? ourstuff.childIds : [],
+			properties: ourstuff.properties || {
+				status: String(doc?.status || "active"),
+			},
+			analysis: ourstuff.analysis || {},
 		},
-		analysis: ourstuff.analysis || {},
-	}, doc);
+		doc,
+	);
 }
 
 function cloudLifecycleToLocalArtifact(artifact, doc = {}) {
@@ -1160,7 +1163,8 @@ function cloudLifecycleToLocalArtifact(artifact, doc = {}) {
 		deleteAfter: doc.deleteAfter || null,
 		deletedBy: doc.deletedBy || "",
 		deleteMode: doc.deleteMode || "",
-		originalCollection: doc.originalCollection || safeArtifact.originalCollection || "",
+		originalCollection:
+			doc.originalCollection || safeArtifact.originalCollection || "",
 	};
 }
 
@@ -1168,7 +1172,7 @@ function assertCloudDocsWithinLimit(docs) {
 	const oversized = docs.find(
 		(doc) => estimateJsonBytes(doc) > MAX_FIRESTORE_APPSTATE_BYTES,
 	);
-	if (!oversized) return;
+	if (!oversized) {return;}
 	throw new Error(
 		`Firebase artifact "${oversized.title || oversized.id}" is too large to sync as one document.`,
 	);
@@ -1219,9 +1223,9 @@ function numberOrFallback(value, fallback) {
 }
 
 function normalizeSyncTimestampFromFirestore(value) {
-	if (value?.toDate) return value.toDate().toISOString();
+	if (value?.toDate) {return value.toDate().toISOString();}
 	if (typeof value?.seconds === "number")
-		return new Date(value.seconds * 1000).toISOString();
+		{return new Date(value.seconds * 1000).toISOString();}
 	return normalizeSyncTimestamp(value);
 }
 
@@ -1259,7 +1263,7 @@ async function handleFirebaseAuthChange(user) {
 		firebaseAvailable: true,
 		isLocalDemo: false,
 		lastCloudSyncAt: loadLastCloudSyncAt(user.uid),
-		message: "Checking Cloud subscription...",
+		message: "Preparing Cloud sync...",
 		error: "",
 	});
 
@@ -1281,7 +1285,7 @@ async function handleFirebaseAuthChange(user) {
 		isLocalDemo: false,
 		billingCapable: Boolean(entitlement.cloud && !entitlement.admin),
 		lastCloudSyncAt: loadLastCloudSyncAt(user.uid),
-		message: entitlement.cloud ? "Cloud sync active." : "Cloud sync inactive.",
+		message: "Cloud sync active.",
 		error: bootstrap?.error || "",
 	});
 }
@@ -1378,7 +1382,7 @@ function signedOutState(message = "") {
 }
 
 async function ensureFirebase() {
-	if (firebaseModules && firebaseAuth && firebaseDb) return firebaseModules;
+	if (firebaseModules && firebaseAuth && firebaseDb) {return firebaseModules;}
 	if (!firebaseModulesPromise) {
 		firebaseModulesPromise = Promise.all([
 			import(
@@ -1415,8 +1419,8 @@ function requireSignedInFirebaseUser() {
 }
 
 function requireCloudEntitlement() {
-	if (!cloudState.entitlement?.cloud && !cloudState.entitlement?.admin) {
-		throw new Error("Cloud sync requires an active subscription.");
+	if (cloudState.mode !== "signed-in" || !cloudState.user) {
+		throw new Error("Sign in before using Cloud.");
 	}
 }
 
@@ -1431,7 +1435,7 @@ function firebaseUserProfile(user) {
 function getDeviceId() {
 	try {
 		const existing = window.localStorage.getItem(DEVICE_ID_KEY);
-		if (existing) return existing;
+		if (existing) {return existing;}
 		const next = `device-${crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
 		window.localStorage.setItem(DEVICE_ID_KEY, next);
 		return next;
@@ -1457,7 +1461,9 @@ function loadLastCloudSyncAt(uid = "") {
 	try {
 		const normalized = String(uid || "").trim();
 		if (normalized)
-			return window.localStorage.getItem(lastCloudSyncStorageKey(normalized)) || "";
+			{return (
+				window.localStorage.getItem(lastCloudSyncStorageKey(normalized)) || ""
+			);}
 		return window.localStorage.getItem(LAST_SYNC_KEY) || "";
 	} catch {
 		return "";
@@ -1492,7 +1498,7 @@ async function loadLocalDemoProfile() {
 		const response = await fetch(LOCAL_CLOUD_DEMO_CONFIG_URL, {
 			cache: "no-store",
 		});
-		if (!response.ok) return {};
+		if (!response.ok) {return {};}
 		const parsed = await response.json();
 		return {
 			email: typeof parsed.email === "string" ? parsed.email.trim() : "",
