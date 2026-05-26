@@ -3869,6 +3869,7 @@ select option:checked {
 	margin-top: 14px;
 	border-top: 1px solid var(--border-soft);
 	padding-top: 14px;
+	scroll-margin-top: 96px;
 }
 
 .tracker-add-form--embedded {
@@ -3897,6 +3898,7 @@ select option:checked {
 	margin-top: 14px;
 	border-top: 1px solid var(--border-soft);
 	padding-top: 14px;
+	scroll-margin-top: 96px;
 }
 
 .tracker-enabled-toggle {
@@ -4959,8 +4961,7 @@ select option:checked {
 	position: relative;
 	display: grid;
 	gap: 10px;
-	width: fit-content;
-	max-width: 100%;
+	width: min(100%, 648px);
 	justify-self: center;
 }
 
@@ -5039,7 +5040,7 @@ select option:checked {
 
 .compendium-page-indicator {
 	justify-self: center;
-	width: auto;
+	width: 100%;
 	border: 0;
 	background: transparent;
 	padding: 4px 8px;
@@ -5300,7 +5301,7 @@ select option:checked {
 	justify-items: center;
 	gap: 6px;
 	justify-self: center;
-	width: min(100%, 380px);
+	width: min(100%, 648px);
 	margin-top: 12px;
 	border-top: 1px solid var(--border-soft);
 	padding-top: 10px;
@@ -10149,7 +10150,7 @@ button.life-event-row:hover {
 	}
 
 	.compendium-picker-popover {
-		inset: 0 32px;
+		inset: 0;
 	}
 
 	.body-mode-button {

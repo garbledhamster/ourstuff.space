@@ -5656,6 +5656,34 @@ function setState(next) {
 	render();
 }
 
+function scrollPanelIntoView(panel) {
+	if (!panel) {return;}
+	const rect = panel.getBoundingClientRect();
+	const viewportHeight =
+		window.innerHeight || document.documentElement.clientHeight;
+	const isMostlyVisible = rect.top >= 80 && rect.bottom <= viewportHeight - 40;
+	if (isMostlyVisible) {return;}
+	panel.scrollIntoView({
+		behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+			? "auto"
+			: "smooth",
+		block: "start",
+	});
+}
+
+function scrollTrackerEditorIntoView(selector) {
+	window.requestAnimationFrame(() => {
+		scrollPanelIntoView(app.querySelector(selector));
+	});
+}
+
+function selectorValue(value) {
+	const text = String(value ?? "");
+	return window.CSS?.escape
+		? window.CSS.escape(text)
+		: text.replace(/["\\]/g, "\\$&");
+}
+
 function setCloudStatus(patch) {
 	setState({
 		cloud: {
@@ -10611,7 +10639,7 @@ function trackerAddFormHtml(area, kind = "thought") {
 	const fieldId = trackerFieldId(area, "icon");
 	const labelFieldId = trackerFieldId(area, "label");
 	return `
-    <div class="tracker-add-form">
+    <div class="tracker-add-form" data-tracker-add-form data-area="${escapeHtml(area)}" data-kind="${normalizedKind}">
       <div class="tracker-title-icon-row" style="--identity-color: ${dashboardColor(area)};">
         ${iconPickerFieldHtml({
 					fieldId,
@@ -14501,30 +14529,38 @@ function handleAction(element) {
 		{void runCloudAction("Deleting Cloud account...", () =>
 			deleteCloudAccountData(),
 		);}
-	if (action === "start-add-tracker")
-		{setState({
+	if (action === "start-add-tracker") {
+		const area = element.dataset.area || "";
+		const kind = trackerKind(element.dataset.kind || "thought");
+		setState({
 			trackerAddArea: trackerAddKey(
-				element.dataset.area || "",
-				element.dataset.kind || "thought",
+				area,
+				kind,
 			),
 			trackerEditKey: "",
 			trackerDeleteKey: "",
-		});}
+		});
+		scrollTrackerEditorIntoView(
+			`[data-tracker-add-form][data-area="${selectorValue(area)}"][data-kind="${selectorValue(kind)}"]`,
+		);
+	}
 	if (action === "cancel-add-tracker") {setState({ trackerAddArea: "" });}
 	if (action === "start-edit-tracker") {
 		if (state.suppressNextTrackerEditClick) {
 			state.suppressNextTrackerEditClick = false;
 			return;
 		}
+		const area = element.dataset.area || "";
+		const id = element.dataset.id || "";
+		const kind = trackerKind(element.dataset.kind || "thought");
 		setState({
-			trackerEditKey: trackerEditKey(
-				element.dataset.area,
-				element.dataset.id,
-				element.dataset.kind || "thought",
-			),
+			trackerEditKey: trackerEditKey(area, id, kind),
 			trackerDeleteKey: "",
 			trackerAddArea: "",
 		});
+		scrollTrackerEditorIntoView(
+			`[data-tracker-edit-form][data-area="${selectorValue(area)}"][data-id="${selectorValue(id)}"][data-kind="${selectorValue(kind)}"]`,
+		);
 	}
 	if (action === "cancel-edit-tracker")
 		{setState({ trackerEditKey: "", trackerDeleteKey: "" });}
