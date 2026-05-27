@@ -184,6 +184,8 @@ Superseded for app data by Phase 11. D1 remains payment/subscription storage onl
 - [x] Preserve remote content and create conflict files when both sides changed.
 - [x] Treat missing local files as deletes only when the remote hash still matches the manifest.
 - [x] Infer section order from `NN -` filenames and update compendium `childIds` through the hash-checked route.
+- [x] Bundle the runtime plugin as one Obsidian-loaded `main.js`.
+- [x] Add a vault-local diagnostic log for plugin load, pull, sync, API failures, and conflicts.
 
 ### Phase 3 - Verification
 
@@ -197,6 +199,8 @@ Superseded for app data by Phase 11. D1 remains payment/subscription storage onl
   Verified: Live route returned 2 compendiums and 6 sections, disposable create/edit/delete succeeded, and the rotated old key returned `401`.
 - [x] Run plugin sync-core against a disposable fake vault.
   Verified: Live snapshot generated 9 vault files, detected a fake local section edit, and deleted the temporary vault.
+- [x] Reinstall the plugin into both local vault plugin folders through the utility belt.
+- [x] Smoke-load the generated plugin with a mocked Obsidian API and confirm it writes `plugin_loaded`.
 
 ## Global Trashcan Lifecycle
 

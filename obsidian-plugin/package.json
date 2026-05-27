@@ -1,10 +1,11 @@
 {
   "name": "ourstuff-obsidian-sync",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Obsidian plugin for syncing Ourstuff compendiums.",
   "scripts": {
-    "check": "node --check main.js && node --check sync-core.cjs",
+    "build": "node build.cjs",
+    "check": "node build.cjs && node --check main.js && node --check main-source.cjs && node --check sync-core.cjs && node tests/bundle.test.cjs && node tests/load-smoke.test.cjs",
     "test": "node tests/sync-core.test.cjs"
   },
   "devDependencies": {}

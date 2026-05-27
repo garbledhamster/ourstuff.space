@@ -17,6 +17,7 @@ Ourstuff/Compendiums/<compendium title> [<compendiumId>]/_index.md
 Ourstuff/Compendiums/<compendium title> [<compendiumId>]/NN - <section title> [<sectionId>].md
 Ourstuff/Compendiums/_Conflicts/...
 Ourstuff/Compendiums/.ourstuff-sync/manifest.json
+Ourstuff/Compendiums/.ourstuff-sync/plugin.log
 ```
 
 Compendiums are folders. Sections are Markdown files. Stable IDs live in frontmatter and in the bracketed file or folder suffix, so title edits and safe renames do not break identity.
@@ -59,6 +60,17 @@ The raw key format is `ost_live_<prefix>_<secret>`. D1 stores only UID hash, pre
 - Section ordering is inferred from the `NN -` file prefixes and only changes remote `childIds` through the same hash-checked sync route.
 
 ## Checks
+
+The Obsidian runtime entrypoint is a single generated `main.js`, matching the shape of known-good local plugins. Edit `obsidian-plugin/main-source.cjs` and `obsidian-plugin/sync-core.cjs`, then build:
+
+```powershell
+cd .\obsidian-plugin
+npm run build
+npm run check
+npm test
+```
+
+The plugin writes a JSONL diagnostic log at `Ourstuff/Compendiums/.ourstuff-sync/plugin.log` on load, pull, sync, API failure, and conflict handling. It redacts API keys, bearer tokens, note bodies, and long private values.
 
 ```powershell
 .\scripts\check-obsidian-sync.ps1
