@@ -10361,11 +10361,13 @@ function pathBarHtml(compendium, section, spiritBook) {
 	const extraCrumbs = pathBarExtraCrumbs(spiritBook);
 	return `
     <nav class="path-bar" aria-label="Current location" tabindex="0"${extraCrumbs.length ? ' data-focus-current="true"' : ""}>
-      <button class="dashboard-home-link" data-action="home">Dashboard</button>
-      ${state.active !== "Dashboard" ? `<span>/</span><button data-action="dashboard-root">${escapeHtml(activeLabel)}</button>` : ""}
-      ${compendium ? `<span>/</span><button class="truncate" data-action="compendium-root">${escapeHtml(compendium.title)}</button>` : ""}
-      ${section ? `<span>/</span><span class="truncate muted">${escapeHtml(section.title)}</span>` : ""}
-      ${state.active === "Mind" ? "" : pathBarCrumbsHtml(extraCrumbs)}
+      <div class="path-bar-crumbs">
+        <button class="dashboard-home-link" data-action="home">Dashboard</button>
+        ${state.active !== "Dashboard" ? `<span>/</span><button data-action="dashboard-root">${escapeHtml(activeLabel)}</button>` : ""}
+        ${compendium ? `<span>/</span><button class="truncate" data-action="compendium-root">${escapeHtml(compendium.title)}</button>` : ""}
+        ${section ? `<span>/</span><span class="truncate muted">${escapeHtml(section.title)}</span>` : ""}
+        ${state.active === "Mind" ? "" : pathBarCrumbsHtml(extraCrumbs)}
+      </div>
       ${pathCameraButtonHtml()}
     </nav>
   `;
@@ -15215,11 +15217,12 @@ function updatePathBarOverflow(pathBar) {
 	if (!pathBar) {
 		return;
 	}
-	const maxScroll = Math.max(0, pathBar.scrollWidth - pathBar.clientWidth);
-	pathBar.classList.toggle("is-overflow-left", pathBar.scrollLeft > 1);
+	const scroller = pathBar.querySelector(".path-bar-crumbs") || pathBar;
+	const maxScroll = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+	pathBar.classList.toggle("is-overflow-left", scroller.scrollLeft > 1);
 	pathBar.classList.toggle(
 		"is-overflow-right",
-		pathBar.scrollLeft < maxScroll - 1,
+		scroller.scrollLeft < maxScroll - 1,
 	);
 }
 
@@ -15228,6 +15231,7 @@ function bindPathBarOverflow() {
 	if (!pathBar) {
 		return;
 	}
+	const scroller = pathBar.querySelector(".path-bar-crumbs") || pathBar;
 	const refresh = () => updatePathBarOverflow(pathBar);
 	const focusCurrent = () => {
 		if (
@@ -15236,9 +15240,9 @@ function bindPathBarOverflow() {
 		) {
 			return;
 		}
-		const maxScroll = Math.max(0, pathBar.scrollWidth - pathBar.clientWidth);
+		const maxScroll = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
 		if (maxScroll > 0) {
-			pathBar.scrollLeft = maxScroll;
+			scroller.scrollLeft = maxScroll;
 		}
 		pathBar.dataset.currentFocused = "true";
 		refresh();
@@ -15248,11 +15252,11 @@ function bindPathBarOverflow() {
 		focusCurrent();
 		refresh();
 	});
-	pathBar.addEventListener("scroll", refresh, { passive: true });
+	scroller.addEventListener("scroll", refresh, { passive: true });
 	pathBar.addEventListener(
 		"wheel",
 		(event) => {
-			if (pathBar.scrollWidth <= pathBar.clientWidth) {
+			if (scroller.scrollWidth <= scroller.clientWidth) {
 				return;
 			}
 			event.preventDefault();
@@ -15260,7 +15264,7 @@ function bindPathBarOverflow() {
 				Math.abs(event.deltaX) > Math.abs(event.deltaY)
 					? event.deltaX
 					: event.deltaY;
-			pathBar.scrollBy({ left: delta, behavior: "smooth" });
+			scroller.scrollBy({ left: delta, behavior: "smooth" });
 			requestAnimationFrame(refresh);
 		},
 		{ passive: false },
