@@ -4877,8 +4877,63 @@ select option:checked {
 	padding-right: 0;
 }
 
+.panel-header.is-title-collapsed {
+	gap: 8px;
+}
+
 .panel-header-copy {
 	min-width: 0;
+	width: 100%;
+	border: 0;
+	background: transparent;
+	color: inherit;
+	padding: 0;
+	text-align: left;
+	cursor: pointer;
+}
+
+.panel-header-copy:hover h2,
+.panel-header-copy:focus-visible h2 {
+	color: var(--accent);
+}
+
+.panel-header-copy:focus-visible {
+	outline: 2px solid var(--theme-ring);
+	outline-offset: 6px;
+}
+
+.title-popup-toggle {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+	width: 100%;
+	min-height: 40px;
+	border: 1px solid var(--border);
+	border-right: 0;
+	border-left: 0;
+	border-radius: 0;
+	background: rgba(15, 23, 42, 0.62);
+	color: var(--text);
+	font-family: var(--font-label);
+	font-size: 0.78rem;
+	font-weight: 900;
+	letter-spacing: 0.08em;
+	text-align: center;
+	cursor: pointer;
+}
+
+.title-popup-toggle:hover,
+.title-popup-toggle:focus-visible {
+	border-color: var(--border-accent);
+	background: var(--theme-control-hover);
+	color: #fff;
+	outline: none;
+}
+
+.title-popup-toggle span,
+.title-popup-toggle strong {
+	line-height: 1;
 }
 
 .panel-header h2,
@@ -9865,17 +9920,17 @@ button.life-event-row:hover {
 	}
 
 	.panel:has(> .dashboard-home) {
-		padding: 8px 6px 10px;
+		padding: 4px 6px 22px;
 	}
 
 	.dashboard-home {
-		gap: 12px;
+		gap: 10px;
 	}
 
 	.app-shell.is-browser-mode.is-mobile-viewport .dashboard-home {
 		--dashboard-card-size-height-cap: clamp(
-			112px,
-			calc((var(--app-height) - 430px) / 2),
+			124px,
+			calc((var(--app-height) - 392px) / 2),
 			var(--dashboard-card-size-base)
 		);
 		--dashboard-card-size: min(
@@ -9885,15 +9940,25 @@ button.life-event-row:hover {
 	}
 
 	.dashboard-analytics {
+		order: 2;
+		grid-row: 3;
 		gap: 8px;
 		padding: 8px 12px 10px;
 	}
 
 	.dashboard-grid {
+		order: 0;
+		grid-row: 1;
 		grid-template-columns: repeat(2, var(--dashboard-card-size));
 		grid-template-rows: none;
-		gap: 10px;
-		padding: 3px 5px 0;
+		align-content: start;
+		gap: 12px;
+		padding: 0 5px 18px;
+	}
+
+	.dashboard-divider {
+		order: 1;
+		grid-row: 2;
 	}
 
 	.dashboard-card {

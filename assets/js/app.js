@@ -116,6 +116,7 @@ const TRACKER_SETTINGS_KEY = "ourstuff.thoughts.v1";
 const GOAL_SETTINGS_KEY = "ourstuff.goals.v1";
 const DASHBOARD_IDENTITY_KEY = "ourstuff.dashboardIdentity.v1";
 const DASHBOARD_CHART_TABS_KEY = "ourstuff.dashboardChartTabs.v1";
+const HEADER_COLLAPSED_KEY = "ourstuff.headerCollapsed.v1";
 const SIDEBAR_WIDTH_KEY = "ourstuff.sidebarWidth.v1";
 const THEME_KEY = "ourstuff.theme.v1";
 const PYXIDA_SETTINGS_KEY = "ourstuff.pyxdiaSettings.v1";
@@ -1056,6 +1057,22 @@ function saveDashboardChartTabs(tabs = state.dashboardChartTabs) {
 		JSON.stringify(normalizeDashboardChartTabs(tabs)),
 	);
 	markLocalAppChanged();
+}
+
+function loadHeaderCollapsed() {
+	try {
+		return window.localStorage.getItem(HEADER_COLLAPSED_KEY) === "true";
+	} catch {
+		return false;
+	}
+}
+
+function saveHeaderCollapsed(collapsed = state.headerCollapsed) {
+	try {
+		window.localStorage.setItem(HEADER_COLLAPSED_KEY, collapsed ? "true" : "false");
+	} catch {
+		// Header collapse is a view preference; localStorage failure should not block the app.
+	}
 }
 
 function normalizeTracker(tracker, dashboard, index, fallbackType = "Thought") {
@@ -2355,11 +2372,12 @@ async function exportAppState(options = {}) {
 }
 
 async function exportAppStateJson(options = {}) {
+	const artifactStore = options.artifactStore || state.artifactStore;
 	return {
 		schemaVersion: SCHEMA_VERSION,
-		rootId: state.artifactStore?.rootId || "ourstuff-root",
-		artifacts: Array.isArray(state.artifactStore?.artifacts)
-			? state.artifactStore.artifacts
+		rootId: artifactStore?.rootId || "ourstuff-root",
+		artifacts: Array.isArray(artifactStore?.artifacts)
+			? artifactStore.artifacts
 			: [],
 		metadata: {
 			localUpdatedAt: localAppUpdatedAt(),
@@ -2811,6 +2829,18 @@ async function refreshCloudStorageUsage(options = {}) {
 async function uploadLocalStateToCloud() {
 	await migrateLocalImagesToCloudBeforeSync();
 	const json = await exportAppStateJson({ includeLocalFileData: false });
+	return saveAppStateJsonToCloud(json);
+}
+
+async function uploadArtifactStoreSnapshotToCloud(artifactStore) {
+	const json = await exportAppStateJson({
+		includeLocalFileData: false,
+		artifactStore,
+	});
+	return saveAppStateJsonToCloud(json);
+}
+
+async function saveAppStateJsonToCloud(json) {
 	assertNoCloudBase64Images(json);
 	const storageBytes = await localMediaStorageBytes();
 	const usage = await calculateCloudStorageUsage({ json, storageBytes });
@@ -3108,6 +3138,7 @@ function hasStoredAppState() {
 			window.localStorage.getItem(GOAL_SETTINGS_KEY) ||
 			window.localStorage.getItem(DASHBOARD_IDENTITY_KEY) ||
 			window.localStorage.getItem(DASHBOARD_CHART_TABS_KEY) ||
+			window.localStorage.getItem(HEADER_COLLAPSED_KEY) ||
 			window.localStorage.getItem(PYXIDA_SETTINGS_KEY) ||
 			window.localStorage.getItem(PYXIDA_LOCAL_STATE_KEY) ||
 			window.localStorage.getItem(THEME_KEY),
@@ -3159,6 +3190,7 @@ const state = {
 	pyxdiaNoteFilters: createDefaultPyxdiaNoteFilters(),
 	dismissedTips: loadDismissedTips(),
 	dashboardIdentity: loadDashboardIdentity(),
+	headerCollapsed: loadHeaderCollapsed(),
 	trackerAddArea: "",
 	trackerEditKey: "",
 	trackerDeleteKey: "",
@@ -6648,6 +6680,7 @@ async function restoreTrashItemAction(trashItemId) {
 	if (!trashItemId) {
 		return;
 	}
+	const previousItems = state.trashItems;
 	const item = state.trashItems.find(
 		(entry) => entry.trashItemId === trashItemId,
 	);
@@ -6656,18 +6689,29 @@ async function restoreTrashItemAction(trashItemId) {
 		setState({ trashBusy: false, trashStatus: "", trashError: "" });
 		return;
 	}
-	const result = await restoreTrashItem(trashItemId, {
-		getIdToken: getCloudIdToken,
-	});
-	restoreLocalTrashItem(item || result);
-	await refreshTrashState();
-	setState({ trashStatus: "Item restored." });
+	state.trashItems = state.trashItems.filter(
+		(entry) => entry.trashItemId !== trashItemId,
+	);
+	setState({ trashItems: state.trashItems, trashStatus: "Restoring item." });
+	try {
+		const result = await restoreTrashItem(trashItemId, {
+			getIdToken: getCloudIdToken,
+		});
+		restoreLocalTrashItem(item || result);
+		await refreshTrashState();
+		setState({ trashStatus: "Item restored." });
+	} catch (error) {
+		state.trashItems = previousItems;
+		setState({ trashItems: state.trashItems });
+		throw error;
+	}
 }
 
 async function hardDeleteTrashItemAction(trashItemId) {
 	if (!trashItemId) {
 		return;
 	}
+	const previousItems = state.trashItems;
 	const item = state.trashItems.find(
 		(entry) => entry.trashItemId === trashItemId,
 	);
@@ -6678,12 +6722,22 @@ async function hardDeleteTrashItemAction(trashItemId) {
 		setState({ trashBusy: false, trashStatus: "", trashError: "" });
 		return;
 	}
-	const result = await hardDeleteTrashItem(trashItemId, {
-		getIdToken: getCloudIdToken,
-	});
-	removeLocalTrashItem(item || result);
-	await refreshTrashState();
-	setState({ trashStatus: "Item permanently deleted." });
+	state.trashItems = state.trashItems.filter(
+		(entry) => entry.trashItemId !== trashItemId,
+	);
+	setState({ trashItems: state.trashItems, trashStatus: "Deleting item." });
+	try {
+		const result = await hardDeleteTrashItem(trashItemId, {
+			getIdToken: getCloudIdToken,
+		});
+		removeLocalTrashItem(item || result);
+		await refreshTrashState();
+		setState({ trashStatus: "Item permanently deleted." });
+	} catch (error) {
+		state.trashItems = previousItems;
+		setState({ trashItems: state.trashItems });
+		throw error;
+	}
 }
 
 function artifactTrashItemType(artifact) {
@@ -6843,14 +6897,30 @@ async function moveArtifactIdsToTrash(ids, options = {}) {
 	if (!window.confirm(options.confirmText || "Move this item to Trash?")) {
 		return false;
 	}
+	const cloudSyncStore = state.artifactStore;
+	const requests = cleanIds.map((itemId) => {
+		const artifact = findAnyArtifact(state.artifactStore, itemId);
+		return {
+			itemId,
+			itemType: artifactTrashItemType(artifact),
+		};
+	});
+	requests.forEach(({ itemId }) => {
+		upsertLocalArtifactLifecycle(itemId, localLifecycleFromTrashResult());
+	});
+	void finishArtifactTrashMove(requests, { cloudSyncStore });
+	return true;
+}
+
+async function finishArtifactTrashMove(requests, options = {}) {
 	try {
 		if (cloudHasSyncAccess()) {
-			await uploadLocalStateToCloud();
+			await uploadArtifactStoreSnapshotToCloud(
+				options.cloudSyncStore || state.artifactStore,
+			);
 		}
 		const results = [];
-		for (const itemId of cleanIds) {
-			const artifact = findAnyArtifact(state.artifactStore, itemId);
-			const itemType = artifactTrashItemType(artifact);
+		for (const { itemId, itemType } of requests) {
 			results.push(
 				await deleteUserItem(
 					{ itemType, itemId },
@@ -6875,12 +6945,14 @@ async function moveArtifactIdsToTrash(ids, options = {}) {
 		if (state.active === "Trash") {
 			await refreshTrashState().catch(() => {});
 		}
-		return true;
 	} catch (error) {
+		requests.forEach(({ itemId }) => {
+			upsertLocalArtifactLifecycle(itemId, localRestoreLifecyclePatch());
+		});
+		render();
 		window.alert(
 			error instanceof Error ? error.message : "Could not move item to Trash.",
 		);
-		return false;
 	}
 }
 
@@ -6903,6 +6975,17 @@ async function deletePyxdiaLetterAction(letterId) {
 	if (!window.confirm("Move this PYXIDA letter to Trash?")) {
 		return;
 	}
+	upsertLocalPyxdiaLetterLifecycle(letterId, localLifecycleFromTrashResult());
+	void finishPyxdiaLetterTrashMove(letterId);
+	setState({
+		pyxdiaLetters: state.pyxdiaLetters,
+		pyxdiaActiveThreadId: selectedPyxdiaThreadLetters().length
+			? state.pyxdiaActiveThreadId
+			: "",
+	});
+}
+
+async function finishPyxdiaLetterTrashMove(letterId) {
 	try {
 		const result = await deleteUserItem(
 			{ itemType: "pyxdia_letter", itemId: letterId },
@@ -6919,13 +7002,9 @@ async function deletePyxdiaLetterAction(letterId) {
 		if (state.active === "Trash") {
 			await refreshTrashState().catch(() => {});
 		}
-		setState({
-			pyxdiaLetters: state.pyxdiaLetters,
-			pyxdiaActiveThreadId: selectedPyxdiaThreadLetters().length
-				? state.pyxdiaActiveThreadId
-				: "",
-		});
 	} catch (error) {
+		upsertLocalPyxdiaLetterLifecycle(letterId, localRestoreLifecyclePatch());
+		render();
 		window.alert(
 			error instanceof Error
 				? error.message
@@ -7376,6 +7455,12 @@ function toggleMobileMenu() {
 	setState({ mobileMenuOpen: !state.mobileMenuOpen });
 }
 
+function toggleHeaderCollapse() {
+	const collapsed = !state.headerCollapsed;
+	saveHeaderCollapsed(collapsed);
+	setState({ headerCollapsed: collapsed });
+}
+
 function closeMobileMenu() {
 	if (!state.mobileMenuOpen) {
 		return false;
@@ -7570,6 +7655,7 @@ async function clearAppData(options = {}) {
 	window.localStorage.removeItem(GOAL_SETTINGS_KEY);
 	window.localStorage.removeItem(DASHBOARD_IDENTITY_KEY);
 	window.localStorage.removeItem(DASHBOARD_CHART_TABS_KEY);
+	window.localStorage.removeItem(HEADER_COLLAPSED_KEY);
 	window.localStorage.removeItem(PYXIDA_SETTINGS_KEY);
 	window.localStorage.removeItem(PYXIDA_LOCAL_STATE_KEY);
 	window.localStorage.removeItem(SIDEBAR_WIDTH_KEY);
@@ -7589,6 +7675,7 @@ async function clearAppData(options = {}) {
 	state.dashboardIdentity = cloneDefaultDashboardIdentity();
 	state.dashboardChartTabs = [...DEFAULT_DASHBOARD_CHART_TABS];
 	state.dashboardChartType = DEFAULT_DASHBOARD_CHART_TABS[0];
+	state.headerCollapsed = false;
 	state.theme = "default";
 	state.pyxdiaSettings = normalizePyxdiaSettings(DEFAULT_PYXIDA_SETTINGS);
 	state.pyxdiaThreads = [];
@@ -7649,6 +7736,7 @@ async function restoreFactoryDefaults() {
 	window.localStorage.removeItem(GOAL_SETTINGS_KEY);
 	window.localStorage.removeItem(DASHBOARD_IDENTITY_KEY);
 	window.localStorage.removeItem(DASHBOARD_CHART_TABS_KEY);
+	window.localStorage.removeItem(HEADER_COLLAPSED_KEY);
 	window.localStorage.removeItem(PYXIDA_SETTINGS_KEY);
 	window.localStorage.removeItem(PYXIDA_LOCAL_STATE_KEY);
 	window.localStorage.removeItem(SIDEBAR_WIDTH_KEY);
@@ -7669,6 +7757,7 @@ async function restoreFactoryDefaults() {
 	state.dashboardIdentity = cloneDefaultDashboardIdentity();
 	state.dashboardChartTabs = [...DEFAULT_DASHBOARD_CHART_TABS];
 	state.dashboardChartType = DEFAULT_DASHBOARD_CHART_TABS[0];
+	state.headerCollapsed = false;
 	state.theme = "default";
 	state.pyxdiaSettings = normalizePyxdiaSettings(DEFAULT_PYXIDA_SETTINGS);
 	state.pyxdiaThreads = [];
@@ -14108,13 +14197,29 @@ function panelHtml(inner) {
 
 function headerHtml(title, subtitle, actions = "", options = {}) {
 	const renderedTitle = options.titleHtml || escapeHtml(title);
+	const collapsed = state.headerCollapsed;
+	const headerText = [title, subtitle].filter(Boolean).join(" / ") || "Page title";
+	const label = collapsed ? "Show title" : "Hide title";
 	return `
-    <header class="panel-header">
+    <header class="panel-header${collapsed ? " is-title-collapsed" : ""}">
       ${actions ? `<div class="panel-header-actions">${actions}</div>` : ""}
-      <div class="panel-header-copy">
+      ${
+				collapsed
+					? ""
+					: `<div class="panel-header-copy" data-action="toggle-header-collapse" role="button" tabindex="0" aria-expanded="true" aria-label="${escapeHtml(`${label}: ${headerText}`)}">
         <h2>${renderedTitle}</h2>
         ${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ""}
-      </div>
+      </div>`
+			}
+      ${
+				collapsed
+					? `<button class="title-popup-toggle" data-action="toggle-header-collapse" type="button" aria-expanded="false" aria-label="${escapeHtml(`${label}: ${headerText}`)}">
+        <span aria-hidden="true">${collapsed ? "^^^" : "vvv"}</span>
+        <strong>${collapsed ? "SHOW TITLE" : "HIDE TITLE"}</strong>
+        <span aria-hidden="true">${collapsed ? "^^^" : "vvv"}</span>
+      </button>`
+					: ""
+			}
     </header>
   `;
 }
@@ -16009,6 +16114,9 @@ function handleAction(element) {
 		} else {
 			toggleMobileMenu();
 		}
+	}
+	if (action === "toggle-header-collapse") {
+		toggleHeaderCollapse();
 	}
 	if (action === "toggle-sidebar-section") {
 		toggleSidebarSection(element.dataset.section);

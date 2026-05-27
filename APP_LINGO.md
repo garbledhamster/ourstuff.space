@@ -37,6 +37,7 @@ Utility views live beside those areas:
 | Path bar | Breadcrumb row above content: Dashboard / Area / Item. | `pathBarHtml()`, `.path-bar` |
 | Panel | Standard framed content wrapper for most views. | `panelHtml()` |
 | Header | View title, subtitle, and right-side actions. | `headerHtml()` |
+| Title popup bar | Full-width collapsed header button that restores the shared title/subtitle area across pages. | `.title-popup-toggle`, `ourstuff.headerCollapsed.v1` |
 | Action row | Horizontal button group inside headers and forms. | `.action-row` |
 | Empty state | Placeholder card for views with no content yet. | `emptyStateHtml()` |
 
@@ -243,6 +244,7 @@ Default thought orb labels:
 | `ourstuff.goals.v1` | Goal orb settings per dashboard area. |
 | `ourstuff.dashboardIdentity.v1` | Dashboard area labels, numbers, and icons. |
 | `ourstuff.dashboardChartTabs.v1` | Saved home dashboard tab order for Orbs, Pie, and Bar. |
+| `ourstuff.headerCollapsed.v1` | Shared title/subtitle collapsed state for all app pages. |
 | `ourstuff.sidebarWidth.v1` | Desktop sidebar width. |
 | `ourstuff.theme.v1` | Active theme id. |
 | `ourstuff.pyxdiaSettings.v1` | PYXDIA local settings fallback. |
