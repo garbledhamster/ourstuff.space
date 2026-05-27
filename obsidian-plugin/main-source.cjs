@@ -145,15 +145,27 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
       });
       if (changes.length) {
         try {
-          await this.apiFetch("/api/obsidian/compendiums/sync", {
+          const syncResult = await this.apiFetch("/api/obsidian/compendiums/sync", {
             method: "POST",
             body: JSON.stringify({ changes, deviceId: "obsidian-plugin" }),
           });
+          const resolvedCount = syncResult?.resolvedConflicts?.length || 0;
+          if (resolvedCount) {
+            await this.logEvent("sync_conflicts_resolved_by_server", {
+              conflicts: resolvedCount,
+              bulkConflictStopped: Boolean(syncResult?.bulkConflictStopped),
+            });
+            if (showNotice) {
+              new Notice(syncResult?.bulkConflictStopped
+                ? "Ourstuff sync created a conflict review page."
+                : `Ourstuff sync created ${resolvedCount} conflict page(s).`);
+            }
+          }
         } catch (error) {
           if (error.status !== 409 || !error.result?.conflicts) throw error;
           await this.writeConflictFiles(error.result.conflicts, changes);
-          await this.logEvent("sync_conflicts_written", { conflicts: error.result.conflicts.length });
-          if (showNotice) new Notice(`Ourstuff sync found ${error.result.conflicts.length} conflict(s).`);
+          await this.logEvent("sync_legacy_conflicts_written", { conflicts: error.result.conflicts.length });
+          if (showNotice) new Notice(`Ourstuff sync wrote ${error.result.conflicts.length} legacy conflict file(s).`);
         }
       }
       await this.pullCompendiums({ showNotice: false });
