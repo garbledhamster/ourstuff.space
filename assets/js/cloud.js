@@ -468,11 +468,14 @@ export async function saveCloudStateJson(json, options = {}) {
 			savedAt,
 			cloudState.user?.uid || "local-demo-subscribed-user",
 		);
-		emitCloudState({
-			lastCloudSyncAt: savedAt,
-			message: "Local demo cloud state saved.",
-			error: "",
-		});
+		emitCloudState(
+			{
+				lastCloudSyncAt: savedAt,
+				message: "Local demo cloud state saved.",
+				error: "",
+			},
+			{ quiet: options.quiet === true },
+		);
 		return { updatedAt: savedAt, jsonBytes, storageUsage: usage, ...usage };
 	}
 
@@ -485,11 +488,14 @@ export async function saveCloudStateJson(json, options = {}) {
 	});
 	const syncedAt = normalizeSyncTimestamp(result?.updatedAt || savedAt);
 	saveLastCloudSyncAt(syncedAt, user.uid);
-	emitCloudState({
-		lastCloudSyncAt: syncedAt,
-		message: "Firebase artifacts saved.",
-		error: "",
-	});
+	emitCloudState(
+		{
+			lastCloudSyncAt: syncedAt,
+			message: "Firebase artifacts saved.",
+			error: "",
+		},
+		{ quiet: options.quiet === true },
+	);
 	return { ...result, updatedAt: syncedAt, jsonBytes };
 }
 
@@ -551,10 +557,14 @@ export async function getCloudStateInfo() {
 export function recordCloudSyncAt(
 	value = new Date().toISOString(),
 	message = "Cloud state synced.",
+	options = {},
 ) {
 	const syncedAt = normalizeSyncTimestamp(value);
 	saveLastCloudSyncAt(syncedAt);
-	emitCloudState({ lastCloudSyncAt: syncedAt, message, error: "" });
+	emitCloudState(
+		{ lastCloudSyncAt: syncedAt, message, error: "" },
+		{ quiet: options.quiet === true },
+	);
 	return syncedAt;
 }
 
@@ -1382,7 +1392,7 @@ export function estimateJsonBytes(json) {
 	return new TextEncoder().encode(JSON.stringify(json ?? null)).byteLength;
 }
 
-function emitCloudState(patch) {
+function emitCloudState(patch, options = {}) {
 	cloudState = {
 		...cloudState,
 		...patch,
@@ -1392,6 +1402,9 @@ function emitCloudState(patch) {
 			...(patch.entitlement || {}),
 		},
 	};
+	if (options.quiet === true) {
+		return;
+	}
 	listeners.forEach((listener) => {
 		listener(getCloudAccountState());
 	});

@@ -71,7 +71,7 @@ Rules:
 
 - Local changes are saved to local storage first, then debounced into Firebase artifacts when Cloud is active.
 - Cloud upload and sync are blocked when Firebase Storage media plus Firestore artifact payload bytes would exceed `CLOUD_STORAGE_LIMIT_BYTES` (`1,000,000,000` bytes).
-- Auto sync uploads this device's current state. It does not download over existing local data.
+- Background auto sync is upload/check-only and runs quietly after the interface is idle. It must not rebuild the active app shell, clear local UI state, or download over existing local data.
 - First sign-in only downloads Firebase artifacts automatically when this browser has no stored local app data.
 - Manual `Load cloud` is the destructive download path and asks for confirmation.
 - Importing a JSON export with Cloud active rebuilds the Firebase artifact collection: delete old artifact docs, import local JSON, then write the replacement artifact docs.

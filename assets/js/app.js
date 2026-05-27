@@ -130,6 +130,7 @@ const CLOUD_SYNC_INTERVAL_MS = 2 * 60 * 1000;
 const CLOUD_SYNC_MIN_INTERVAL_MS = 20 * 1000;
 const CLOUD_SYNC_CLOCK_SKEW_MS = 1000;
 const CLOUD_SYNC_DEBOUNCE_MS = 2500;
+const CLOUD_SYNC_IDLE_GRACE_MS = 1800;
 const ICONIFY_SEARCH_URL = "https://api.iconify.design/search";
 const ICONIFY_PREFIXES = "tabler,lucide,ph,mdi,material-symbols";
 const ICON_PICKER_PAGE_SIZE = 48;
@@ -440,8 +441,10 @@ let localChangeTrackingSuppressed = 0;
 let cloudSyncInFlight = null;
 let cloudAutoSyncTimer = null;
 let cloudAutoSyncDebounceTimer = null;
+let cloudAutoSyncIdleTimer = null;
 let lastCloudAutoSyncAttemptAt = 0;
 let cloudAutoSyncPrimedFor = "";
+let lastUserInterfaceActivityAt = Date.now();
 let cloudStorageUsageRefreshTimer = null;
 let cloudStorageUsageRefreshInFlight = false;
 let cloudStorageUsageSignature = "";
@@ -2004,6 +2007,32 @@ function markLocalAppChanged(value = nowIso()) {
 	return updatedAt;
 }
 
+function markUserInterfaceActivity() {
+	lastUserInterfaceActivityAt = Date.now();
+}
+
+function isInterfaceIdle() {
+	return Date.now() - lastUserInterfaceActivityAt >= CLOUD_SYNC_IDLE_GRACE_MS;
+}
+
+function shouldDeferBackgroundSync() {
+	return isUserEditingInterface() || !isInterfaceIdle();
+}
+
+function scheduleCloudAutoSyncWhenIdle(source = "interval", options = {}) {
+	if (cloudAutoSyncIdleTimer) {
+		window.clearTimeout(cloudAutoSyncIdleTimer);
+	}
+	const idleDelay = Math.max(
+		isUserEditingInterface() ? CLOUD_SYNC_IDLE_GRACE_MS : 250,
+		CLOUD_SYNC_IDLE_GRACE_MS - (Date.now() - lastUserInterfaceActivityAt),
+	);
+	cloudAutoSyncIdleTimer = window.setTimeout(() => {
+		cloudAutoSyncIdleTimer = null;
+		void triggerCloudAutoSync(source, { ...options, fromIdleRetry: true });
+	}, idleDelay);
+}
+
 async function withLocalChangeTrackingSuppressed(action) {
 	localChangeTrackingSuppressed += 1;
 	try {
@@ -2798,6 +2827,18 @@ function scheduleCloudStorageUsageRefresh(options = {}) {
 	}, options.delayMs ?? 0);
 }
 
+function applyCloudStorageUsage(usage) {
+	state.cloudStorageUsage = usage;
+	if (state.active === "Settings" && state.settingsTab === "cloud") {
+		const card = app.querySelector(".cloud-usage-card");
+		if (card) {
+			card.outerHTML = cloudStorageUsageHtml(usage);
+			return;
+		}
+	}
+	render();
+}
+
 async function refreshCloudStorageUsage(options = {}) {
 	if (cloudStorageUsageRefreshInFlight) {
 		return;
@@ -2808,7 +2849,7 @@ async function refreshCloudStorageUsage(options = {}) {
 		const fingerprint = cloudStorageUsageFingerprint(usage);
 		if (options.force || fingerprint !== cloudStorageUsageSignature) {
 			cloudStorageUsageSignature = fingerprint;
-			setState({ cloudStorageUsage: usage });
+			applyCloudStorageUsage(usage);
 		}
 	} catch (error) {
 		const fallback = storageUsageWithTotals({ source: "usage-error" });
@@ -2819,17 +2860,17 @@ async function refreshCloudStorageUsage(options = {}) {
 		const fingerprint = cloudStorageUsageFingerprint(fallback);
 		if (options.force || fingerprint !== cloudStorageUsageSignature) {
 			cloudStorageUsageSignature = fingerprint;
-			setState({ cloudStorageUsage: fallback });
+			applyCloudStorageUsage(fallback);
 		}
 	} finally {
 		cloudStorageUsageRefreshInFlight = false;
 	}
 }
 
-async function uploadLocalStateToCloud() {
+async function uploadLocalStateToCloud(options = {}) {
 	await migrateLocalImagesToCloudBeforeSync();
 	const json = await exportAppStateJson({ includeLocalFileData: false });
-	return saveAppStateJsonToCloud(json);
+	return saveAppStateJsonToCloud(json, options);
 }
 
 async function uploadArtifactStoreSnapshotToCloud(artifactStore) {
@@ -2840,16 +2881,21 @@ async function uploadArtifactStoreSnapshotToCloud(artifactStore) {
 	return saveAppStateJsonToCloud(json);
 }
 
-async function saveAppStateJsonToCloud(json) {
+async function saveAppStateJsonToCloud(json, options = {}) {
 	assertNoCloudBase64Images(json);
 	const storageBytes = await localMediaStorageBytes();
 	const usage = await calculateCloudStorageUsage({ json, storageBytes });
 	assertCloudStorageUsageAllowed(usage);
-	const result = await saveCloudStateJson(json, { storageBytes });
+	const result = await saveCloudStateJson(json, {
+		storageBytes,
+		quiet: options.quiet === true,
+	});
 	const updatedAt = normalizeIsoTimestamp(result?.updatedAt) || nowIso();
 	saveLocalAppUpdatedAt(updatedAt);
 	saveLocalAppOwner();
-	scheduleCloudStorageUsageRefresh({ force: true });
+	if (options.quiet !== true) {
+		scheduleCloudStorageUsageRefresh({ force: true });
+	}
 	return { updatedAt };
 }
 
@@ -2890,21 +2936,26 @@ function cloudSyncMessage(action, source = "manual") {
 	return `${prefix} checked. Already current.`;
 }
 
-function finishCloudSyncResult(result, source = "manual") {
+function finishCloudSyncResult(result, source = "manual", options = {}) {
 	if (!result || result.action === "skipped") {
 		return result;
 	}
 	const message = cloudSyncMessage(result.action, source);
-	recordCloudSyncAt(nowIso(), message);
+	recordCloudSyncAt(nowIso(), message, { quiet: options.quiet === true });
+	if (options.quiet === true) {
+		state.cloud = getCloudAccountState();
+		patchVisibleCloudStatus();
+	}
 	return { ...result, message };
 }
 
 async function syncCloudWithNewestWins(options = {}) {
 	const source = options.source || "manual";
+	const quiet = options.quiet === true;
 	if (!cloudHasSyncAccess()) {
 		return { action: "skipped", message: "Cloud sync is not active." };
 	}
-	if (source !== "manual" && isUserEditingInterface()) {
+	if (source !== "manual" && shouldDeferBackgroundSync()) {
 		return { action: "skipped", message: "Auto sync paused while editing." };
 	}
 	if (cloudSyncInFlight) {
@@ -2918,31 +2969,35 @@ async function syncCloudWithNewestWins(options = {}) {
 		const cloudUpdatedAt = cloudInfoUpdatedAt(info);
 		const localUpdatedAt = localAppUpdatedAt();
 		const localHasStoredData = hasStoredLocalData();
+		const canDownloadOnSignIn =
+			source === "sign-in" &&
+			info?.exists &&
+			(accountSwitched || !localHasStoredData);
 		const syncComparison = _compareIsoTimestamps(
 			cloudUpdatedAt,
 			localUpdatedAt,
 		);
 
+		if (canDownloadOnSignIn) {
+			const result = await importCloudInfoIntoLocal(info);
+			return finishCloudSyncResult(
+				{ action: "downloaded", ...result },
+				source,
+				{ quiet },
+			);
+		}
+
 		if (
-			source === "sign-in" &&
+			source === "interval" &&
 			info?.exists &&
-			(accountSwitched ||
-				!hadLocalOwner ||
-				!localHasStoredData ||
-				syncComparison >= 0)
+			(!localHasStoredData || syncComparison >= 0)
 		) {
-			const result = await importCloudInfoIntoLocal(info);
-			return finishCloudSyncResult({ action: "downloaded", ...result }, source);
-		}
-
-		if (source === "interval" && info?.exists && !localHasStoredData) {
-			const result = await importCloudInfoIntoLocal(info);
-			return finishCloudSyncResult({ action: "downloaded", ...result }, source);
-		}
-
-		if (info?.exists && localHasStoredData && syncComparison > 0) {
-			const result = await importCloudInfoIntoLocal(info);
-			return finishCloudSyncResult({ action: "downloaded", ...result }, source);
+			saveLocalAppOwner();
+			return finishCloudSyncResult(
+				{ action: "checked", updatedAt: cloudUpdatedAt || localUpdatedAt },
+				source,
+				{ quiet },
+			);
 		}
 
 		if (info?.exists && localHasStoredData && syncComparison === 0) {
@@ -2950,12 +3005,19 @@ async function syncCloudWithNewestWins(options = {}) {
 			return finishCloudSyncResult(
 				{ action: "checked", updatedAt: cloudUpdatedAt || localUpdatedAt },
 				source,
+				{ quiet },
 			);
 		}
 
-		if (info?.deleted && (!localHasStoredData || syncComparison >= 0)) {
+		if (
+			source === "manual" &&
+			info?.deleted &&
+			(!localHasStoredData || syncComparison >= 0)
+		) {
 			const result = await clearLocalFromCloudDelete(info);
-			return finishCloudSyncResult({ action: "cleared", ...result }, source);
+			return finishCloudSyncResult({ action: "cleared", ...result }, source, {
+				quiet,
+			});
 		}
 
 		if (!info?.exists && !localHasStoredData) {
@@ -2963,6 +3025,7 @@ async function syncCloudWithNewestWins(options = {}) {
 			return finishCloudSyncResult(
 				{ action: "checked", updatedAt: cloudUpdatedAt || localUpdatedAt },
 				source,
+				{ quiet },
 			);
 		}
 
@@ -2974,10 +3037,11 @@ async function syncCloudWithNewestWins(options = {}) {
 			return finishCloudSyncResult(
 				{ action: "checked", updatedAt: cloudUpdatedAt || localUpdatedAt },
 				source,
+				{ quiet },
 			);
 		}
 
-		const result = await uploadLocalStateToCloud();
+		const result = await uploadLocalStateToCloud({ quiet });
 		return finishCloudSyncResult(
 			{
 				action: "uploaded",
@@ -2985,6 +3049,7 @@ async function syncCloudWithNewestWins(options = {}) {
 				...result,
 			},
 			source,
+			{ quiet },
 		);
 	})();
 
@@ -2999,7 +3064,10 @@ async function triggerCloudAutoSync(source = "interval", options = {}) {
 	if (!cloudHasSyncAccess()) {
 		return { action: "skipped" };
 	}
-	if (source !== "manual" && isUserEditingInterface()) {
+	if (source !== "manual" && shouldDeferBackgroundSync()) {
+		if (source !== "interval" || options.fromIdleRetry === true) {
+			scheduleCloudAutoSyncWhenIdle(source, options);
+		}
 		return { action: "skipped", message: "Auto sync paused while editing." };
 	}
 	const now = Date.now();
@@ -3011,14 +3079,19 @@ async function triggerCloudAutoSync(source = "interval", options = {}) {
 	}
 	lastCloudAutoSyncAttemptAt = now;
 	try {
-		return await syncCloudWithNewestWins({ source });
-	} catch (error) {
-		setCloudStatus({
-			...getCloudAccountState(),
-			busy: false,
-			message: "Auto sync failed.",
-			error: error instanceof Error ? error.message : "Cloud sync failed.",
+		return await syncCloudWithNewestWins({
+			source,
+			quiet: source !== "manual",
 		});
+	} catch (error) {
+		if (source === "manual") {
+			setCloudStatus({
+				...getCloudAccountState(),
+				busy: false,
+				message: "Auto sync failed.",
+				error: error instanceof Error ? error.message : "Cloud sync failed.",
+			});
+		}
 		return { action: "error" };
 	}
 }
@@ -3031,8 +3104,12 @@ function configureCloudAutoSync() {
 		if (cloudAutoSyncDebounceTimer) {
 			window.clearTimeout(cloudAutoSyncDebounceTimer);
 		}
+		if (cloudAutoSyncIdleTimer) {
+			window.clearTimeout(cloudAutoSyncIdleTimer);
+		}
 		cloudAutoSyncTimer = null;
 		cloudAutoSyncDebounceTimer = null;
+		cloudAutoSyncIdleTimer = null;
 		lastCloudAutoSyncAttemptAt = 0;
 		cloudAutoSyncPrimedFor = "";
 		return;
@@ -3046,7 +3123,9 @@ function configureCloudAutoSync() {
 }
 
 async function syncCloudNow() {
-	return await syncCloudWithNewestWins({ source: "manual" });
+	const result = await uploadLocalStateToCloud();
+	recordCloudSyncAt(result.updatedAt || nowIso(), cloudSyncMessage("uploaded"));
+	return { action: "uploaded", ...result, message: cloudSyncMessage("uploaded") };
 }
 
 async function loadCloudIntoLocalApp() {
@@ -3116,7 +3195,8 @@ async function maybePromptCloudImport(cloud) {
 	if (cloudAutoSyncPrimedFor === userKey) {
 		return;
 	}
-	if (isUserEditingInterface()) {
+	if (shouldDeferBackgroundSync()) {
+		scheduleCloudAutoSyncWhenIdle("sign-in", { force: true });
 		return;
 	}
 	cloudAutoSyncPrimedFor = userKey;
@@ -6029,6 +6109,81 @@ function setCloudStatus(patch) {
 			},
 		},
 	});
+}
+
+function cloudStatusLabel(account = state.cloud || getCloudAccountState()) {
+	const entitlement = account.entitlement || {};
+	const signedIn = account.mode === "signed-in" && account.user;
+	if (!signedIn) {
+		return "Signed out";
+	}
+	if (entitlement.admin) {
+		return "Admin / Cloud enabled";
+	}
+	return signedIn ? "Cloud sync active" : "Cloud sync inactive";
+}
+
+function cloudUiSignature(account = {}) {
+	return JSON.stringify({
+		ready: Boolean(account.ready),
+		busy: Boolean(account.busy),
+		mode: account.mode || "",
+		uid: account.user?.uid || "",
+		isLocalDemo: Boolean(account.isLocalDemo),
+		firebaseAvailable: Boolean(account.firebaseAvailable),
+		billingCapable: Boolean(account.billingCapable),
+		cloud: Boolean(account.entitlement?.cloud),
+		admin: Boolean(account.entitlement?.admin),
+		localDemoAvailable: Boolean(account.localDemoAvailable),
+		obsidianKeyId: account.obsidianKey?.id || "",
+		obsidianKeyCopyAvailable: Boolean(account.obsidianKeyCopyAvailable),
+	});
+}
+
+function cloudStatusRegionHtml(account = state.cloud || getCloudAccountState()) {
+	return [
+		account.message
+			? `<p class="cloud-status-message">${escapeHtml(account.message)}</p>`
+			: "",
+		account.error
+			? `<p class="cloud-status-message cloud-status-message--error">${escapeHtml(account.error)}</p>`
+			: "",
+	].join("");
+}
+
+function patchVisibleCloudStatus() {
+	if (state.active !== "Settings" || state.settingsTab !== "cloud") {
+		return;
+	}
+	const account = state.cloud || getCloudAccountState();
+	const statusPill = app.querySelector("[data-cloud-status-pill]");
+	if (statusPill) {
+		const signedIn = account.mode === "signed-in" && account.user;
+		statusPill.textContent = cloudStatusLabel(account);
+		statusPill.classList.toggle("is-active", Boolean(signedIn));
+	}
+	const localUpdated = app.querySelector("[data-cloud-local-updated] strong");
+	if (localUpdated) {
+		const localUpdatedAt = localAppUpdatedAt({ persistDerived: false });
+		localUpdated.textContent = localUpdatedAt
+			? new Date(localUpdatedAt).toLocaleString()
+			: "No local changes";
+	}
+	const lastSync = app.querySelector("[data-cloud-last-sync] strong");
+	if (lastSync) {
+		lastSync.textContent = account.lastCloudSyncAt
+			? new Date(account.lastCloudSyncAt).toLocaleString()
+			: "Not synced";
+	}
+	const interval = app.querySelector("[data-cloud-auto-sync] strong");
+	if (interval) {
+		const signedIn = account.mode === "signed-in" && account.user;
+		interval.textContent = signedIn ? `Every ${cloudSyncIntervalLabel()}` : "Off";
+	}
+	const statusRegion = app.querySelector("[data-cloud-status-region]");
+	if (statusRegion) {
+		statusRegion.innerHTML = cloudStatusRegionHtml(account);
+	}
 }
 
 async function runCloudAction(message, action) {
@@ -11482,13 +11637,7 @@ function settingsCloudHtml() {
 	const username = signedIn
 		? account.user.displayName || account.user.email || "Signed in"
 		: "";
-	const statusLabel = signedIn
-		? entitlement.admin
-			? "Admin / Cloud enabled"
-			: isCloud
-				? "Cloud sync active"
-				: "Cloud sync inactive"
-		: "Signed out";
+	const statusLabel = cloudStatusLabel(account);
 	const localUpdatedAt = localAppUpdatedAt({ persistDerived: false });
 	const localBytes = estimateJsonBytes({
 		schemaVersion: SCHEMA_VERSION,
@@ -11514,7 +11663,7 @@ function settingsCloudHtml() {
             <p>Local use is free. Sign in to sync this app across your devices.</p>
           </div>
           <div class="cloud-heading-controls">
-            <span class="cloud-status-pill${isCloud ? " is-active" : ""}">${escapeHtml(statusLabel)}</span>
+            <span class="cloud-status-pill${isCloud ? " is-active" : ""}" data-cloud-status-pill>${escapeHtml(statusLabel)}</span>
               <div class="cloud-heading-actions" aria-label="Cloud sync actions">
                 ${
 									signedIn && isCloud
@@ -11548,9 +11697,9 @@ function settingsCloudHtml() {
           ${cloudStorageUsageHtml(state.cloudStorageUsage)}
           <div class="cloud-sync-grid">
             <span><strong>${escapeHtml(formatStorageGb(localBytes))}</strong><small>Current app JSON estimate</small></span>
-            <span><strong>${escapeHtml(localUpdatedAt ? new Date(localUpdatedAt).toLocaleString() : "No local changes")}</strong><small>Last local change</small></span>
-            <span><strong>${escapeHtml(account.lastCloudSyncAt ? new Date(account.lastCloudSyncAt).toLocaleString() : "Not synced")}</strong><small>Last sync from this device</small></span>
-            <span><strong>${escapeHtml(isCloud ? `Every ${cloudSyncIntervalLabel()}` : "Off")}</strong><small>Artifacts + encrypted media</small></span>
+            <span data-cloud-local-updated><strong>${escapeHtml(localUpdatedAt ? new Date(localUpdatedAt).toLocaleString() : "No local changes")}</strong><small>Last local change</small></span>
+            <span data-cloud-last-sync><strong>${escapeHtml(account.lastCloudSyncAt ? new Date(account.lastCloudSyncAt).toLocaleString() : "Not synced")}</strong><small>Last sync from this device</small></span>
+            <span data-cloud-auto-sync><strong>${escapeHtml(isCloud ? `Every ${cloudSyncIntervalLabel()}` : "Off")}</strong><small>Artifacts + encrypted media</small></span>
           </div>
           ${
 						account.billingCapable
@@ -11588,8 +11737,7 @@ function settingsCloudHtml() {
         `
 						: ""
 				}
-        ${account.message ? `<p class="cloud-status-message">${escapeHtml(account.message)}</p>` : ""}
-        ${account.error ? `<p class="cloud-status-message cloud-status-message--error">${escapeHtml(account.error)}</p>` : ""}
+        <div data-cloud-status-region>${cloudStatusRegionHtml(account)}</div>
       </section>
       ${obsidianSyncSettingsHtml(account, cloudActive, busyAttr)}
       <section class="interface-settings-section data-controls-section">
@@ -16819,14 +16967,24 @@ document.addEventListener("visibilitychange", () => {
 		closeCamera();
 	}
 });
+["pointerdown", "keydown", "wheel", "touchstart", "input"].forEach((eventName) => {
+	document.addEventListener(eventName, markUserInterfaceActivity, {
+		capture: true,
+		passive: true,
+	});
+});
 
 applyEnvironmentClasses();
 render();
 void initCloudAccount((cloud) => {
+	const previousSignature = cloudUiSignature(state.cloud);
 	state.cloud = cloud;
 	configureMediaCloudContext(cloud);
-	if (!isUserEditingInterface()) {
+	const nextSignature = cloudUiSignature(cloud);
+	if (previousSignature !== nextSignature && !isUserEditingInterface()) {
 		render();
+	} else {
+		patchVisibleCloudStatus();
 	}
 	configureCloudAutoSync();
 	if (state.artifactStore) {
