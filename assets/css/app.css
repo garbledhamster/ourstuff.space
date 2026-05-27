@@ -9956,6 +9956,38 @@ button.life-event-row:hover {
 		border-radius: 16px;
 	}
 
+	.dashboard-card-face {
+		padding: 8px;
+	}
+
+	.dashboard-card-back {
+		gap: 3px;
+	}
+
+	.dashboard-card-row {
+		gap: 1px;
+	}
+
+	.dashboard-card-row em {
+		font-size: 0.46rem;
+		letter-spacing: 0.08em;
+	}
+
+	.dashboard-card-row strong {
+		display: -webkit-box;
+		overflow: hidden;
+		font-size: 0.55rem;
+		line-height: 1.05;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 2;
+	}
+
+	.dashboard-card-open {
+		margin-top: 0;
+		font-size: 0.52rem;
+		line-height: 1;
+	}
+
 	.dashboard-textbox {
 		min-height: 320px;
 	}
