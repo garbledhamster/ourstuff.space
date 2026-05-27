@@ -1,6 +1,7 @@
 const assert = require("assert");
 const {
   buildChangesFromVault,
+  normalizeVaultPath,
   parseMarkdownArtifact,
   pathsForSnapshot,
   sanitizePathPart,
@@ -55,5 +56,29 @@ localFiles.set(sectionPath, files.get(sectionPath).replace("Section body", "Chan
 const { changes } = buildChangesFromVault({ manifest, localFiles, remoteSnapshot: snapshot });
 assert.strictEqual(changes.length, 1);
 assert.strictEqual(changes[0].artifact.body, "Changed body");
+
+const newLocalFiles = new Map(files);
+const newSectionPath = normalizeVaultPath(manifest.artifacts["comp-1"].folderPath, "02 - Field Notes.md");
+newLocalFiles.set(newSectionPath, {
+  path: newSectionPath,
+  content: "# Field Notes\n\nFresh body",
+});
+const { changes: newFileChanges, newFiles } = buildChangesFromVault({
+  manifest,
+  localFiles: newLocalFiles,
+  remoteSnapshot: snapshot,
+});
+const newSectionChange = newFileChanges.find((change) => change.artifact?.title === "Field Notes");
+assert(newSectionChange, "new markdown file should become a section upsert");
+assert.strictEqual(newSectionChange.baseHash, "");
+assert.strictEqual(newSectionChange.artifact.type, "note");
+assert.strictEqual(newSectionChange.artifact.parentId, "comp-1");
+assert.strictEqual(newSectionChange.artifact.body, "Fresh body");
+assert(/^obs_[A-Za-z0-9._-]+$/.test(newSectionChange.artifact.id));
+const parentOrderChange = newFileChanges.find((change) => change.artifact?.id === "comp-1");
+assert(parentOrderChange, "new section should update parent childIds order");
+assert(parentOrderChange.artifact.childIds.includes(newSectionChange.artifact.id));
+assert.strictEqual(newFiles.length, 1);
+assert.strictEqual(newFiles[0].path, newSectionPath);
 
 console.log("sync-core tests passed");

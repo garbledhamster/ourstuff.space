@@ -196,7 +196,11 @@ function buildChangesFromVault({ manifest, localFiles, remoteSnapshot }) {
   const changes = [];
   const conflicts = [];
   const seen = new Set();
+  const newFiles = [];
   const sectionEntriesByParent = new Map();
+  const manifestEntries = Object.values(manifest.artifacts || {});
+  const manifestPaths = new Set(manifestEntries.map((entry) => normalizeVaultPath(entry.path || "").toLowerCase()).filter(Boolean));
+  const usedIds = new Set([...manifestEntries.map((entry) => entry.id).filter(Boolean), ...remote.keys()]);
   Object.values(manifest.artifacts || {}).forEach((entry) => {
     const localItem = localFiles.get(entry.path);
     const localText = typeof localItem === "string" ? localItem : localItem?.content;
@@ -236,6 +240,44 @@ function buildChangesFromVault({ manifest, localFiles, remoteSnapshot }) {
       },
     });
   });
+  for (const localItem of uniqueLocalFileItems(localFiles)) {
+    const currentPath = normalizeVaultPath(localItem?.path || "");
+    if (!currentPath || manifestPaths.has(currentPath.toLowerCase()) || !currentPath.toLowerCase().endsWith(".md")) continue;
+    if (currentPath.includes(`/${CONFLICT_DIR}/`) || currentPath.includes(`/${MANIFEST_DIR}/`)) continue;
+    if (currentPath.split("/").pop()?.toLowerCase() === "_index.md") continue;
+    const parentEntry = compendiumEntryForPath(manifestEntries, currentPath);
+    if (!parentEntry) continue;
+    const fallbackId = uniqueLocalArtifactId(parentEntry.id, usedIds);
+    const fallback = {
+      id: fallbackId,
+      type: "note",
+      parentId: parentEntry.id,
+      title: titleFromPath(currentPath),
+      created: new Date().toISOString(),
+    };
+    const parsed = parseMarkdownArtifact(localItem.content, fallback);
+    if (!parsed.id || usedIds.has(parsed.id)) parsed.id = fallbackId;
+    usedIds.add(parsed.id);
+    seen.add(parsed.id);
+    if (!sectionEntriesByParent.has(parentEntry.id)) sectionEntriesByParent.set(parentEntry.id, []);
+    sectionEntriesByParent.get(parentEntry.id).push({ id: parsed.id, path: currentPath, title: parsed.title });
+    newFiles.push({ id: parsed.id, path: currentPath, parentId: parentEntry.id });
+    changes.push({
+      action: "upsert",
+      baseHash: "",
+      artifact: {
+        id: parsed.id,
+        type: "note",
+        parentId: parentEntry.id,
+        title: parsed.title,
+        body: parsed.body,
+        created: parsed.created,
+        edited: parsed.edited,
+        childIds: [],
+        properties: { role: "compendium-section", status: "active" },
+      },
+    });
+  }
   for (const [parentId, entries] of sectionEntriesByParent.entries()) {
     const parentEntry = manifest.artifacts?.[parentId];
     const remoteParent = remote.get(parentId);
@@ -260,7 +302,39 @@ function buildChangesFromVault({ manifest, localFiles, remoteSnapshot }) {
       },
     });
   }
-  return { changes, conflicts, seen };
+  return { changes, conflicts, seen, newFiles };
+}
+
+function uniqueLocalFileItems(localFiles) {
+  const byPath = new Map();
+  for (const item of localFiles.values()) {
+    const path = normalizeVaultPath(typeof item === "string" ? "" : item?.path || "");
+    if (!path || byPath.has(path.toLowerCase())) continue;
+    byPath.set(path.toLowerCase(), item);
+  }
+  return Array.from(byPath.values());
+}
+
+function compendiumEntryForPath(entries, filePath) {
+  return entries.find((entry) => {
+    if (entry.type !== "compendium" || !entry.folderPath) return false;
+    const folder = `${normalizeVaultPath(entry.folderPath).toLowerCase()}/`;
+    return filePath.toLowerCase().startsWith(folder);
+  }) || null;
+}
+
+function uniqueLocalArtifactId(parentId, usedIds) {
+  for (let index = 0; index < 25; index += 1) {
+    const random = Math.random().toString(36).slice(2, 10);
+    const id = `obs_${Date.now().toString(36)}_${sanitizePathPart(parentId, "section", 18).replace(/[^A-Za-z0-9._-]/g, "_")}_${random}`.slice(0, 120);
+    if (!usedIds.has(id)) return id;
+  }
+  return `obs_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 14)}`.slice(0, 120);
+}
+
+function titleFromPath(filePath) {
+  const name = String(filePath || "").split("/").pop() || "";
+  return sanitizePathPart(name.replace(/\.md$/i, "").replace(/^\d+\s*-\s*/, "").replace(/\s*\[[^\]]+\]\s*$/g, ""), "Untitled section", 120);
 }
 
 function compareSectionPaths(a, b) {

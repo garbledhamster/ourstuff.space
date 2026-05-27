@@ -56,6 +56,7 @@ The raw key format is `ost_live_<prefix>_<secret>`. D1 stores only UID hash, pre
 - V1 syncs Mind compendiums and sections only.
 - Pull reads the current Firestore artifact collection for `ourstuff-main`.
 - Push sends only changed local files with their manifest `baseHash`.
+- New Markdown files created inside an existing synced compendium folder become new compendium sections. The plugin assigns a stable `obs_...` ID, pushes the section, pulls the refreshed snapshot, and replaces the hand-made file with the canonical synced file that includes `ourstuff_*` frontmatter.
 - If local and remote both changed, the backend resolves the conflict so all clients converge: the artifact with the newest `edited` timestamp stays as the main page, and the losing version becomes a visible conflict page. If timestamps tie or are invalid, the current dashboard/server version stays main.
 - If 5 or more conflicts arrive in one sync, the backend stops that batch and creates one visible `Sync Conflict Review Needed` page instead of creating many conflict copies.
 - If a previously synced local file is missing and the remote hash still matches the manifest, the plugin sends a delete.

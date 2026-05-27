@@ -198,7 +198,11 @@ function buildChangesFromVault({ manifest, localFiles, remoteSnapshot }) {
   const changes = [];
   const conflicts = [];
   const seen = new Set();
+  const newFiles = [];
   const sectionEntriesByParent = new Map();
+  const manifestEntries = Object.values(manifest.artifacts || {});
+  const manifestPaths = new Set(manifestEntries.map((entry) => normalizeVaultPath(entry.path || "").toLowerCase()).filter(Boolean));
+  const usedIds = new Set([...manifestEntries.map((entry) => entry.id).filter(Boolean), ...remote.keys()]);
   Object.values(manifest.artifacts || {}).forEach((entry) => {
     const localItem = localFiles.get(entry.path);
     const localText = typeof localItem === "string" ? localItem : localItem?.content;
@@ -238,6 +242,44 @@ function buildChangesFromVault({ manifest, localFiles, remoteSnapshot }) {
       },
     });
   });
+  for (const localItem of uniqueLocalFileItems(localFiles)) {
+    const currentPath = normalizeVaultPath(localItem?.path || "");
+    if (!currentPath || manifestPaths.has(currentPath.toLowerCase()) || !currentPath.toLowerCase().endsWith(".md")) continue;
+    if (currentPath.includes(`/${CONFLICT_DIR}/`) || currentPath.includes(`/${MANIFEST_DIR}/`)) continue;
+    if (currentPath.split("/").pop()?.toLowerCase() === "_index.md") continue;
+    const parentEntry = compendiumEntryForPath(manifestEntries, currentPath);
+    if (!parentEntry) continue;
+    const fallbackId = uniqueLocalArtifactId(parentEntry.id, usedIds);
+    const fallback = {
+      id: fallbackId,
+      type: "note",
+      parentId: parentEntry.id,
+      title: titleFromPath(currentPath),
+      created: new Date().toISOString(),
+    };
+    const parsed = parseMarkdownArtifact(localItem.content, fallback);
+    if (!parsed.id || usedIds.has(parsed.id)) parsed.id = fallbackId;
+    usedIds.add(parsed.id);
+    seen.add(parsed.id);
+    if (!sectionEntriesByParent.has(parentEntry.id)) sectionEntriesByParent.set(parentEntry.id, []);
+    sectionEntriesByParent.get(parentEntry.id).push({ id: parsed.id, path: currentPath, title: parsed.title });
+    newFiles.push({ id: parsed.id, path: currentPath, parentId: parentEntry.id });
+    changes.push({
+      action: "upsert",
+      baseHash: "",
+      artifact: {
+        id: parsed.id,
+        type: "note",
+        parentId: parentEntry.id,
+        title: parsed.title,
+        body: parsed.body,
+        created: parsed.created,
+        edited: parsed.edited,
+        childIds: [],
+        properties: { role: "compendium-section", status: "active" },
+      },
+    });
+  }
   for (const [parentId, entries] of sectionEntriesByParent.entries()) {
     const parentEntry = manifest.artifacts?.[parentId];
     const remoteParent = remote.get(parentId);
@@ -262,7 +304,39 @@ function buildChangesFromVault({ manifest, localFiles, remoteSnapshot }) {
       },
     });
   }
-  return { changes, conflicts, seen };
+  return { changes, conflicts, seen, newFiles };
+}
+
+function uniqueLocalFileItems(localFiles) {
+  const byPath = new Map();
+  for (const item of localFiles.values()) {
+    const path = normalizeVaultPath(typeof item === "string" ? "" : item?.path || "");
+    if (!path || byPath.has(path.toLowerCase())) continue;
+    byPath.set(path.toLowerCase(), item);
+  }
+  return Array.from(byPath.values());
+}
+
+function compendiumEntryForPath(entries, filePath) {
+  return entries.find((entry) => {
+    if (entry.type !== "compendium" || !entry.folderPath) return false;
+    const folder = `${normalizeVaultPath(entry.folderPath).toLowerCase()}/`;
+    return filePath.toLowerCase().startsWith(folder);
+  }) || null;
+}
+
+function uniqueLocalArtifactId(parentId, usedIds) {
+  for (let index = 0; index < 25; index += 1) {
+    const random = Math.random().toString(36).slice(2, 10);
+    const id = `obs_${Date.now().toString(36)}_${sanitizePathPart(parentId, "section", 18).replace(/[^A-Za-z0-9._-]/g, "_")}_${random}`.slice(0, 120);
+    if (!usedIds.has(id)) return id;
+  }
+  return `obs_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 14)}`.slice(0, 120);
+}
+
+function titleFromPath(filePath) {
+  const name = String(filePath || "").split("/").pop() || "";
+  return sanitizePathPart(name.replace(/\.md$/i, "").replace(/^\d+\s*-\s*/, "").replace(/\s*\[[^\]]+\]\s*$/g, ""), "Untitled section", 120);
 }
 
 function compareSectionPaths(a, b) {
@@ -402,7 +476,7 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
       const remote = await this.apiFetch("/api/obsidian/compendiums");
       const manifest = await this.readManifest();
       const localFiles = await this.readManifestFiles(manifest);
-      const { changes } = buildChangesFromVault({
+      const { changes, newFiles } = buildChangesFromVault({
         manifest,
         localFiles,
         remoteSnapshot: remote,
@@ -411,13 +485,16 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
         compendiums: remote.compendiums?.length || 0,
         localFiles: localFiles.size,
         changes: changes.length,
+        newFiles: newFiles?.length || 0,
       });
+      let cleanupSyncedNewFiles = false;
       if (changes.length) {
         try {
           const syncResult = await this.apiFetch("/api/obsidian/compendiums/sync", {
             method: "POST",
             body: JSON.stringify({ changes, deviceId: "obsidian-plugin" }),
           });
+          cleanupSyncedNewFiles = true;
           const resolvedCount = syncResult?.resolvedConflicts?.length || 0;
           if (resolvedCount) {
             await this.logEvent("sync_conflicts_resolved_by_server", {
@@ -437,7 +514,10 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
           if (showNotice) new Notice(`Ourstuff sync wrote ${error.result.conflicts.length} legacy conflict file(s).`);
         }
       }
-      await this.pullCompendiums({ showNotice: false });
+      await this.pullCompendiums({
+        showNotice: false,
+        cleanupPaths: cleanupSyncedNewFiles ? (newFiles || []).map((file) => file.path) : [],
+      });
       this.localChangePending = false;
       this.pendingLocalReasons = new Set();
       await this.logEvent("sync_completed", { changes: changes.length, source, revision: this.lastKnownRevision });
@@ -453,7 +533,7 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
     }
   }
 
-  async pullCompendiums({ showNotice = true } = {}) {
+  async pullCompendiums({ showNotice = true, cleanupPaths = [] } = {}) {
     try {
       await this.logEvent("pull_started", {});
       const snapshot = await this.apiFetch("/api/obsidian/compendiums");
@@ -463,6 +543,13 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
         for (const [filePath, content] of files.entries()) {
           await this.ensureFolder(filePath.split("/").slice(0, -1).join("/"));
           await this.writeFile(filePath, content);
+        }
+        for (const cleanupPath of cleanupPaths) {
+          const normalized = normalizeVaultPath(cleanupPath);
+          if (!normalized || files.has(normalized) || normalized.includes(`/${CONFLICT_DIR}/`) || normalized.includes(`/${MANIFEST_FILE}`)) continue;
+          if (await this.app.vault.adapter.exists(normalized)) {
+            await this.app.vault.adapter.remove(normalized);
+          }
         }
       } finally {
         this.suppressVaultEvents = Math.max(0, this.suppressVaultEvents - 1);
@@ -635,6 +722,11 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
         files.set(entry.path, current);
       }
     }
+    for (const [key, current] of scanned.entries()) {
+      if (current?.path && key === current.path && !files.has(current.path)) {
+        files.set(current.path, current);
+      }
+    }
     return files;
   }
 
@@ -648,6 +740,7 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
         if (filePath.includes(`/${CONFLICT_DIR}/`) || filePath.includes(`/${MANIFEST_FILE}`)) continue;
         const content = await this.app.vault.adapter.read(filePath);
         const parsed = parseMarkdownArtifact(content, {});
+        found.set(filePath, { path: filePath, content });
         if (parsed.id) found.set(parsed.id, { path: filePath, content });
       }
       for (const child of listed.folders || []) {

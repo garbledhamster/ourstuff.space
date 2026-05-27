@@ -133,7 +133,7 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
       const remote = await this.apiFetch("/api/obsidian/compendiums");
       const manifest = await this.readManifest();
       const localFiles = await this.readManifestFiles(manifest);
-      const { changes } = buildChangesFromVault({
+      const { changes, newFiles } = buildChangesFromVault({
         manifest,
         localFiles,
         remoteSnapshot: remote,
@@ -142,13 +142,16 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
         compendiums: remote.compendiums?.length || 0,
         localFiles: localFiles.size,
         changes: changes.length,
+        newFiles: newFiles?.length || 0,
       });
+      let cleanupSyncedNewFiles = false;
       if (changes.length) {
         try {
           const syncResult = await this.apiFetch("/api/obsidian/compendiums/sync", {
             method: "POST",
             body: JSON.stringify({ changes, deviceId: "obsidian-plugin" }),
           });
+          cleanupSyncedNewFiles = true;
           const resolvedCount = syncResult?.resolvedConflicts?.length || 0;
           if (resolvedCount) {
             await this.logEvent("sync_conflicts_resolved_by_server", {
@@ -168,7 +171,10 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
           if (showNotice) new Notice(`Ourstuff sync wrote ${error.result.conflicts.length} legacy conflict file(s).`);
         }
       }
-      await this.pullCompendiums({ showNotice: false });
+      await this.pullCompendiums({
+        showNotice: false,
+        cleanupPaths: cleanupSyncedNewFiles ? (newFiles || []).map((file) => file.path) : [],
+      });
       this.localChangePending = false;
       this.pendingLocalReasons = new Set();
       await this.logEvent("sync_completed", { changes: changes.length, source, revision: this.lastKnownRevision });
@@ -184,7 +190,7 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
     }
   }
 
-  async pullCompendiums({ showNotice = true } = {}) {
+  async pullCompendiums({ showNotice = true, cleanupPaths = [] } = {}) {
     try {
       await this.logEvent("pull_started", {});
       const snapshot = await this.apiFetch("/api/obsidian/compendiums");
@@ -194,6 +200,13 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
         for (const [filePath, content] of files.entries()) {
           await this.ensureFolder(filePath.split("/").slice(0, -1).join("/"));
           await this.writeFile(filePath, content);
+        }
+        for (const cleanupPath of cleanupPaths) {
+          const normalized = normalizeVaultPath(cleanupPath);
+          if (!normalized || files.has(normalized) || normalized.includes(`/${CONFLICT_DIR}/`) || normalized.includes(`/${MANIFEST_FILE}`)) continue;
+          if (await this.app.vault.adapter.exists(normalized)) {
+            await this.app.vault.adapter.remove(normalized);
+          }
         }
       } finally {
         this.suppressVaultEvents = Math.max(0, this.suppressVaultEvents - 1);
@@ -366,6 +379,11 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
         files.set(entry.path, current);
       }
     }
+    for (const [key, current] of scanned.entries()) {
+      if (current?.path && key === current.path && !files.has(current.path)) {
+        files.set(current.path, current);
+      }
+    }
     return files;
   }
 
@@ -379,6 +397,7 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
         if (filePath.includes(`/${CONFLICT_DIR}/`) || filePath.includes(`/${MANIFEST_FILE}`)) continue;
         const content = await this.app.vault.adapter.read(filePath);
         const parsed = parseMarkdownArtifact(content, {});
+        found.set(filePath, { path: filePath, content });
         if (parsed.id) found.set(parsed.id, { path: filePath, content });
       }
       for (const child of listed.folders || []) {
