@@ -538,6 +538,37 @@ Rules:
 - `DELETE /api/cloud/account` marks all app states deleted in D1 and requests Firebase cloud account deletion.
 - If Firebase and D1 disagree, D1 wins.
 
+## Obsidian Sync Key And Compendium Routes
+
+The Obsidian plugin uses the same shared Worker and subscription source of truth, but it does not take ownership of the full app state.
+
+Key management routes require a Firebase ID token:
+
+```text
+GET /api/obsidian/key
+POST /api/obsidian/key
+DELETE /api/obsidian/key
+Authorization: Bearer <Firebase ID token>
+```
+
+Plugin routes require the one active Obsidian sync key:
+
+```text
+GET /api/obsidian/compendiums
+POST /api/obsidian/compendiums/sync
+Authorization: Bearer ost_live_<prefix>_<secret>
+```
+
+Rules:
+
+- Key creation and sync require active Cloud entitlement or owner/admin access.
+- Required Worker secrets are `FIREBASE_SERVICE_ACCOUNT_JSON` and `OBSIDIAN_API_KEY_SECRET`.
+- D1 stores only Firebase UID hashes, key prefixes, HMAC key hashes, scopes, status, timestamps, and safe event codes.
+- The raw key is returned once after create/refresh and cannot be recovered later.
+- The Worker reads/writes v1 compendium content from `/users/{uid}/apps/ourstuff-main/artifacts`.
+- Sync requests use `baseHash`; conflicts return controlled responses instead of overwriting remote content.
+- Raw API keys, Firebase ID tokens, note bodies, and private content are not logged.
+
 ## Subscription Entitlement Logic
 
 Use this conceptual logic:

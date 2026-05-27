@@ -54,6 +54,7 @@ let firebaseAuth = null;
 let firebaseDb = null;
 let authUnsubscribe = null;
 let currentFirebaseUser = null;
+let latestObsidianApiKey = "";
 
 const listeners = new Set();
 let cloudState = {
@@ -72,6 +73,8 @@ let cloudState = {
 	localDemoAvailable: isLocalDemoHost(),
 	firebaseAvailable: false,
 	billingCapable: false,
+	obsidianKey: null,
+	obsidianKeyCopyAvailable: false,
 };
 
 export function getCloudAccountState() {
@@ -79,6 +82,7 @@ export function getCloudAccountState() {
 		...cloudState,
 		user: cloudState.user ? { ...cloudState.user } : null,
 		entitlement: { ...cloudState.entitlement },
+		obsidianKey: cloudState.obsidianKey ? { ...cloudState.obsidianKey } : null,
 	};
 }
 
@@ -309,6 +313,130 @@ export async function openBillingPortal(returnUrl = currentReturnUrl()) {
 	}
 	emitCloudState({ busy: false, message: "Billing portal opened.", error: "" });
 	return result;
+}
+
+export async function refreshObsidianSyncKey() {
+	if (cloudState.isLocalDemo) {
+		emitCloudState({
+			obsidianKey: null,
+			obsidianKeyCopyAvailable: false,
+			message: "Obsidian sync keys require a signed-in Cloud account.",
+			error: "",
+		});
+		return null;
+	}
+	const user = requireSignedInFirebaseUser();
+	const idToken = await user.getIdToken();
+	const response = await fetch(`${PAYMENTS_WORKER_URL}/api/obsidian/key`, {
+		method: "GET",
+		headers: { authorization: `Bearer ${idToken}` },
+	});
+	const result = await response.json().catch(() => ({}));
+	if (!response.ok) {
+		emitCloudState({
+			obsidianKey: null,
+			obsidianKeyCopyAvailable: false,
+			error: result?.error?.message || "Could not load Obsidian sync key.",
+		});
+		throw new Error(result?.error?.message || "Could not load Obsidian sync key.");
+	}
+	emitCloudState({
+		obsidianKey: result.key || null,
+		obsidianKeyCopyAvailable: Boolean(latestObsidianApiKey),
+		error: "",
+	});
+	return result.key || null;
+}
+
+export async function createOrRotateObsidianSyncKey() {
+	if (cloudState.isLocalDemo) {
+		throw new Error("Obsidian sync keys require a signed-in Cloud account.");
+	}
+	const user = requireSignedInFirebaseUser();
+	const idToken = await user.getIdToken();
+	emitCloudState({
+		busy: true,
+		message: cloudState.obsidianKey
+			? "Refreshing Obsidian sync key..."
+			: "Creating Obsidian sync key...",
+		error: "",
+	});
+	const response = await fetch(`${PAYMENTS_WORKER_URL}/api/obsidian/key`, {
+		method: "POST",
+		headers: {
+			"content-type": "application/json",
+			authorization: `Bearer ${idToken}`,
+		},
+		body: JSON.stringify({ name: "Obsidian" }),
+	});
+	const result = await response.json().catch(() => ({}));
+	if (!response.ok) {
+		emitCloudState({
+			busy: false,
+			error: result?.error?.message || "Obsidian sync key creation failed.",
+		});
+		throw new Error(
+			result?.error?.message || "Obsidian sync key creation failed.",
+		);
+	}
+	latestObsidianApiKey = String(result.apiKey || "");
+	emitCloudState({
+		busy: false,
+		obsidianKey: result.key || null,
+		obsidianKeyCopyAvailable: Boolean(latestObsidianApiKey),
+		message: "Obsidian sync key ready. Copy it before leaving this screen.",
+		error: "",
+	});
+	return result;
+}
+
+export async function deleteObsidianSyncKey() {
+	if (cloudState.isLocalDemo) {
+		throw new Error("Obsidian sync keys require a signed-in Cloud account.");
+	}
+	const user = requireSignedInFirebaseUser();
+	const idToken = await user.getIdToken();
+	emitCloudState({
+		busy: true,
+		message: "Deleting Obsidian sync key...",
+		error: "",
+	});
+	const response = await fetch(`${PAYMENTS_WORKER_URL}/api/obsidian/key`, {
+		method: "DELETE",
+		headers: { authorization: `Bearer ${idToken}` },
+	});
+	const result = await response.json().catch(() => ({}));
+	if (!response.ok) {
+		emitCloudState({
+			busy: false,
+			error: result?.error?.message || "Obsidian sync key delete failed.",
+		});
+		throw new Error(result?.error?.message || "Obsidian sync key delete failed.");
+	}
+	latestObsidianApiKey = "";
+	emitCloudState({
+		busy: false,
+		obsidianKey: null,
+		obsidianKeyCopyAvailable: false,
+		message: result.deleted
+			? "Obsidian sync key deleted."
+			: "No Obsidian sync key was active.",
+		error: "",
+	});
+	return result;
+}
+
+export async function copyLatestObsidianApiKey() {
+	if (!latestObsidianApiKey) {
+		throw new Error("Create or refresh the Obsidian sync key first.");
+	}
+	await navigator.clipboard.writeText(latestObsidianApiKey);
+	emitCloudState({
+		obsidianKeyCopyAvailable: true,
+		message: "Obsidian sync key copied.",
+		error: "",
+	});
+	return true;
 }
 
 export async function saveCloudStateJson(json, options = {}) {
@@ -1270,8 +1398,14 @@ function emitCloudState(patch) {
 }
 
 async function handleFirebaseAuthChange(user) {
+	const previousUid = currentFirebaseUser?.uid || "";
+	const nextUid = user?.uid || "";
+	if (previousUid && previousUid !== nextUid) {
+		latestObsidianApiKey = "";
+	}
 	currentFirebaseUser = user || null;
 	if (!user) {
+		latestObsidianApiKey = "";
 		emitCloudState(signedOutState("Local use is active on this device."));
 		return;
 	}
@@ -1293,6 +1427,10 @@ async function handleFirebaseAuthChange(user) {
 	const claims = tokenResult?.claims || {};
 	const profile = await readUserProfile(user.uid).catch(() => null);
 	const entitlement = resolveEntitlement({ claims, profile, bootstrap });
+	const obsidianKey =
+		entitlement.cloud || entitlement.admin
+			? await readObsidianSyncKey(user).catch(() => null)
+			: null;
 
 	emitCloudState({
 		ready: true,
@@ -1306,6 +1444,8 @@ async function handleFirebaseAuthChange(user) {
 		isLocalDemo: false,
 		billingCapable: Boolean(entitlement.cloud && !entitlement.admin),
 		lastCloudSyncAt: loadLastCloudSyncAt(user.uid),
+		obsidianKey,
+		obsidianKeyCopyAvailable: Boolean(latestObsidianApiKey),
 		message: "Cloud sync active.",
 		error: bootstrap?.error || "",
 	});
@@ -1334,6 +1474,19 @@ async function readUserProfile(uid) {
 	const modules = await ensureFirebase();
 	const snapshot = await modules.getDoc(modules.doc(firebaseDb, "users", uid));
 	return snapshot.exists() ? snapshot.data() : null;
+}
+
+async function readObsidianSyncKey(user) {
+	const idToken = await user.getIdToken();
+	const response = await fetch(`${PAYMENTS_WORKER_URL}/api/obsidian/key`, {
+		method: "GET",
+		headers: { authorization: `Bearer ${idToken}` },
+	});
+	const result = await response.json().catch(() => ({}));
+	if (!response.ok) {
+		throw new Error(result?.error?.message || "Could not load Obsidian sync key.");
+	}
+	return result.key || null;
 }
 
 function resolveEntitlement({ claims = {}, profile = null, bootstrap = null }) {
@@ -1378,6 +1531,8 @@ function localDemoState(user, message) {
 		isLocalDemo: true,
 		localDemoAvailable: true,
 		billingCapable: false,
+		obsidianKey: null,
+		obsidianKeyCopyAvailable: false,
 		message,
 		error: "",
 		lastCloudSyncAt: loadLastCloudSyncAt(user?.uid),
@@ -1386,6 +1541,7 @@ function localDemoState(user, message) {
 
 function signedOutState(message = "") {
 	currentFirebaseUser = null;
+	latestObsidianApiKey = "";
 	return {
 		ready: true,
 		busy: false,
@@ -1397,6 +1553,8 @@ function signedOutState(message = "") {
 		isLocalDemo: false,
 		localDemoAvailable: isLocalDemoHost(),
 		billingCapable: false,
+		obsidianKey: null,
+		obsidianKeyCopyAvailable: false,
 		message,
 		error: "",
 	};

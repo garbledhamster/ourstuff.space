@@ -6,8 +6,11 @@ import {
 	shift,
 } from "https://cdn.jsdelivr.net/npm/@floating-ui/dom@1.7.5/+esm";
 import {
+	copyLatestObsidianApiKey,
+	createOrRotateObsidianSyncKey,
 	deleteCloudAccount,
 	deleteCloudStateJson,
+	deleteObsidianSyncKey,
 	estimateCloudStateStorageUsage,
 	estimateJsonBytes,
 	getCloudAccountState,
@@ -17,6 +20,7 @@ import {
 	loadCloudStateJson,
 	openBillingPortal,
 	recordCloudSyncAt,
+	refreshObsidianSyncKey,
 	saveCloudStateJson,
 	signInToCloud,
 	signInWithEmailPassword,
@@ -3062,6 +3066,16 @@ async function deleteCloudAccountData() {
 	await withLocalChangeTrackingSuppressed(() => clearAppData({ silent: true }));
 	saveLocalAppUpdatedAt(nowIso());
 	return { message: "Cloud account deletion requested." };
+}
+
+async function deleteObsidianKeyAction() {
+	const confirmed = window.confirm(
+		"Delete the Obsidian sync API key? Any Obsidian plugin using it will stop syncing until you create a new key.",
+	);
+	if (!confirmed) {
+		return;
+	}
+	return await deleteObsidianSyncKey();
 }
 
 async function maybePromptCloudImport(cloud) {
@@ -11371,6 +11385,9 @@ function settingsCloudHtml() {
 	const entitlement = account.entitlement || {};
 	const signedIn = account.mode === "signed-in" && account.user;
 	const isCloud = Boolean(signedIn);
+	const cloudActive = Boolean(
+		signedIn && !account.isLocalDemo && (entitlement.cloud || entitlement.admin),
+	);
 	const username = signedIn
 		? account.user.displayName || account.user.email || "Signed in"
 		: "";
@@ -11483,6 +11500,7 @@ function settingsCloudHtml() {
         ${account.message ? `<p class="cloud-status-message">${escapeHtml(account.message)}</p>` : ""}
         ${account.error ? `<p class="cloud-status-message cloud-status-message--error">${escapeHtml(account.error)}</p>` : ""}
       </section>
+      ${obsidianSyncSettingsHtml(account, cloudActive, busyAttr)}
       <section class="interface-settings-section data-controls-section">
         <div class="body-card-heading">
           <div>
@@ -11495,6 +11513,57 @@ function settingsCloudHtml() {
         </div>
       </section>
     </div>
+  `;
+}
+
+function obsidianSyncSettingsHtml(account, cloudActive, busyAttr) {
+	if (account.mode !== "signed-in" || !account.user) {
+		return "";
+	}
+	const key = account.obsidianKey || null;
+	const copyAvailable = Boolean(account.obsidianKeyCopyAvailable);
+	const createdLabel = key?.createdAt
+		? new Date(key.createdAt).toLocaleString()
+		: "Not created";
+	const lastUsedLabel = key?.lastUsedAt
+		? new Date(key.lastUsedAt).toLocaleString()
+		: "Never";
+	return `
+      <section class="interface-settings-section cloud-account-section obsidian-sync-section">
+        <div class="body-card-heading">
+          <div>
+            <h3>Obsidian Sync</h3>
+            <p>Sync Mind compendiums into your vault as folders and section markdown files.</p>
+          </div>
+          <div class="action-row data-controls-actions">
+            <button class="${key ? "secondary-button" : "primary-button"}" data-action="${key ? "obsidian-refresh-key" : "obsidian-create-key"}" type="button"${cloudActive ? busyAttr : " disabled"}>
+              ${buttonContent(key ? "tabler:refresh" : "tabler:key", key ? "Refresh API Key" : "Create API Key")}
+            </button>
+            ${
+							copyAvailable
+								? `<button class="secondary-button" data-action="obsidian-copy-key" type="button"${busyAttr}>${buttonContent("tabler:copy", "Copy Key")}</button>`
+								: ""
+						}
+            ${
+							key
+								? `<button class="secondary-button danger-button" data-action="obsidian-delete-key" type="button" aria-label="Delete Obsidian sync key"${busyAttr}>${buttonContent("tabler:trash", "Delete")}</button>`
+								: ""
+						}
+          </div>
+        </div>
+        ${
+					key
+						? `
+          <div class="cloud-sync-grid">
+            <span><strong>${escapeHtml(key.prefix || "Active")}</strong><small>Key prefix</small></span>
+            <span><strong>${escapeHtml(createdLabel)}</strong><small>Created</small></span>
+            <span><strong>${escapeHtml(lastUsedLabel)}</strong><small>Last used</small></span>
+            <span><strong>${escapeHtml((key.scopes || []).join(", ") || "Compendiums")}</strong><small>Scope</small></span>
+          </div>
+        `
+						: `<p class="cloud-status-message">${escapeHtml(cloudActive ? "No Obsidian sync key exists yet." : "A Cloud subscription is required before creating an Obsidian sync key.")}</p>`
+				}
+      </section>
   `;
 }
 
@@ -16248,6 +16317,26 @@ function handleAction(element) {
 	if (action === "cloud-delete-account") {
 		void runCloudAction("Deleting Cloud account...", () =>
 			deleteCloudAccountData(),
+		);
+	}
+	if (action === "obsidian-create-key" || action === "obsidian-refresh-key") {
+		void runCloudAction("Preparing Obsidian sync key...", () =>
+			createOrRotateObsidianSyncKey(),
+		);
+	}
+	if (action === "obsidian-copy-key") {
+		void runCloudAction("Copying Obsidian sync key...", () =>
+			copyLatestObsidianApiKey(),
+		);
+	}
+	if (action === "obsidian-delete-key") {
+		void runCloudAction("Deleting Obsidian sync key...", () =>
+			deleteObsidianKeyAction(),
+		);
+	}
+	if (action === "obsidian-refresh-key-status") {
+		void runCloudAction("Refreshing Obsidian sync key status...", () =>
+			refreshObsidianSyncKey(),
 		);
 	}
 	if (action === "start-add-tracker") {
