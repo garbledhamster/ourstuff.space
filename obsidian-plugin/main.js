@@ -319,10 +319,23 @@ function uniqueLocalFileItems(localFiles) {
 
 function compendiumEntryForPath(entries, filePath) {
   return entries.find((entry) => {
-    if (entry.type !== "compendium" || !entry.folderPath) return false;
-    const folder = `${normalizeVaultPath(entry.folderPath).toLowerCase()}/`;
+    if (entry.type !== "compendium") return false;
+    const folderPath = compendiumFolderPathFromEntry(entry);
+    if (!folderPath) return false;
+    const folder = `${folderPath.toLowerCase()}/`;
     return filePath.toLowerCase().startsWith(folder);
   }) || null;
+}
+
+function compendiumFolderPathFromEntry(entry) {
+  const explicitFolder = normalizeVaultPath(entry.folderPath || "");
+  if (explicitFolder) return explicitFolder;
+  const indexPath = normalizeVaultPath(entry.path || "");
+  if (!indexPath) return "";
+  if (indexPath.split("/").pop()?.toLowerCase() === "_index.md") {
+    return normalizeVaultPath(path.posix.dirname(indexPath));
+  }
+  return "";
 }
 
 function uniqueLocalArtifactId(parentId, usedIds) {
@@ -355,7 +368,7 @@ function conflictPathFor(conflict, root = DEFAULT_ROOT) {
 }
 
 const DIAGNOSTIC_LOG_FILE = ".ourstuff-sync/plugin.log";
-const PLUGIN_VERSION = "0.1.3";
+const PLUGIN_VERSION = "0.1.4";
 const DEFAULT_SYNC_ENDPOINT = "https://api.ourstuff.space";
 const DEFAULT_PASSIVE_SYNC_INTERVAL_SECONDS = 15;
 const MIN_PASSIVE_SYNC_INTERVAL_SECONDS = 5;

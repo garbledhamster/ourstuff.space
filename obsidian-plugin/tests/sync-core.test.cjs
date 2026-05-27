@@ -61,10 +61,12 @@ const newLocalFiles = new Map(files);
 const newSectionPath = normalizeVaultPath(manifest.artifacts["comp-1"].folderPath, "02 - Field Notes.md");
 newLocalFiles.set(newSectionPath, {
   path: newSectionPath,
-  content: "# Field Notes\n\nFresh body",
+  content: "Fresh body",
 });
+const legacyManifest = JSON.parse(JSON.stringify(manifest));
+delete legacyManifest.artifacts["comp-1"].folderPath;
 const { changes: newFileChanges, newFiles } = buildChangesFromVault({
-  manifest,
+  manifest: legacyManifest,
   localFiles: newLocalFiles,
   remoteSnapshot: snapshot,
 });

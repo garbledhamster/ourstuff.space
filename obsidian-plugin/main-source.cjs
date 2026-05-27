@@ -12,7 +12,7 @@ const {
 } = require("./sync-core.cjs");
 
 const DIAGNOSTIC_LOG_FILE = ".ourstuff-sync/plugin.log";
-const PLUGIN_VERSION = "0.1.3";
+const PLUGIN_VERSION = "0.1.4";
 const DEFAULT_SYNC_ENDPOINT = "https://api.ourstuff.space";
 const DEFAULT_PASSIVE_SYNC_INTERVAL_SECONDS = 15;
 const MIN_PASSIVE_SYNC_INTERVAL_SECONDS = 5;
