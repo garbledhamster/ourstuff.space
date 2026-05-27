@@ -924,6 +924,27 @@ async function restoreUserItem({ uid, trashItemId }) {
 				deletedBy: null,
 				deleteMode: admin.firestore.FieldValue.delete(),
 				originalCollection: admin.firestore.FieldValue.delete(),
+				data: {
+					ourstuff: {
+						artifact: {
+							deleted: false,
+							deletedAt: null,
+							deleteAfter: null,
+							deletedBy: "",
+							deleteMode: "",
+							originalCollection: "",
+							properties: {
+								deleted: false,
+								status: "active",
+								deletedAt: admin.firestore.FieldValue.delete(),
+								deleteAfter: admin.firestore.FieldValue.delete(),
+								deletedBy: admin.firestore.FieldValue.delete(),
+								deleteMode: admin.firestore.FieldValue.delete(),
+								originalCollection: admin.firestore.FieldValue.delete(),
+							},
+						},
+					},
+				},
 				updatedAt: now,
 			},
 			{ merge: true },
