@@ -62,7 +62,9 @@ The raw key format is `ost_live_<prefix>_<secret>`. D1 stores only UID hash, pre
 - If a previously synced local file is missing and the remote hash still matches the manifest, the plugin sends a delete. The backend soft-deletes the source artifact and adds it to the app Trash index so it can be restored from the dashboard.
 - If a previously synced local file is missing but the remote changed, the plugin creates a conflict instead of deleting.
 - Section ordering is inferred from the `NN -` file prefixes and only changes remote `childIds` through the same hash-checked sync route.
+- Sync popups are off by default. Users can turn on `Sync notices` in plugin settings, but background sync stays quiet either way.
 - Passive sync is quiet by default: local compendium Markdown edits are debounced, remote checks use the status endpoint, and full sync runs only when a local change or remote revision change is detected.
+- While a tracked Markdown file is the active Obsidian file and has recent local edits, pull writes skip that file and defer the remote revision. This prevents a background pull from overwriting the line the user is currently typing; the deferred server snapshot is retried after the edit cool-down or the next sync tick.
 
 ## Checks
 

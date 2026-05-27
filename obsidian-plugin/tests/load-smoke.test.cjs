@@ -92,6 +92,7 @@ function createFakeApp() {
   await plugin.onload();
   assert.strictEqual(plugin.settings.syncEndpoint, "https://api.ourstuff.space");
   assert.strictEqual(plugin.settings.apiBaseUrl, undefined);
+  assert.strictEqual(plugin.settings.showSyncNotices, false);
   assert.strictEqual(plugin.settings.passiveSyncEnabled, true);
   assert.strictEqual(plugin.settings.passiveSyncIntervalSeconds, 15);
   await plugin.apiFetch("/api/obsidian/compendiums");
@@ -100,6 +101,34 @@ function createFakeApp() {
   assert.strictEqual(plugin.isTrackedCompendiumPath("Ourstuff/Compendiums/Test [comp]/01 - A [sec].md"), true);
   assert.strictEqual(plugin.isTrackedCompendiumPath("Ourstuff/Compendiums/.ourstuff-sync/manifest.json"), false);
   assert.strictEqual(plugin.isTrackedCompendiumPath("Ourstuff/Compendiums/_Conflicts/conflict.md"), false);
+  app.workspace = {
+    getActiveFile() {
+      return { path: "Ourstuff/Compendiums/Test [comp]/01 - A [sec].md" };
+    },
+  };
+  plugin.noteLocalChange("Ourstuff/Compendiums/Test [comp]/01 - A [sec].md", "modify");
+  assert.strictEqual(plugin.protectedActiveFilePath(), "Ourstuff/Compendiums/Test [comp]/01 - A [sec].md");
+  app.files.set("Ourstuff/Compendiums/Test [comp]/01 - A [sec].md", "draft in progress");
+  plugin.apiFetch = async () => ({
+    revision: "remote-2",
+    compendiums: [{
+      id: "comp",
+      title: "Test",
+      hash: "comp-hash",
+      childIds: ["sec"],
+      sections: [{
+        id: "sec",
+        title: "A",
+        body: "remote body",
+        hash: "remote-hash",
+      }],
+    }],
+  });
+  const pullResult = await plugin.pullCompendiums({ showNotice: false, source: "test" });
+  assert.deepStrictEqual(pullResult.skippedProtectedFiles, ["Ourstuff/Compendiums/Test [comp]/01 - A [sec].md"]);
+  assert.strictEqual(app.files.get("Ourstuff/Compendiums/Test [comp]/01 - A [sec].md"), "draft in progress");
+  assert.strictEqual(plugin.lastKnownRevision, "");
+  plugin.stopPassiveSyncTimer();
   const log = app.files.get("Ourstuff/Compendiums/.ourstuff-sync/plugin.log");
   assert(log, "plugin load should create a diagnostic log");
   assert(log.includes("plugin_loaded"), "diagnostic log should record plugin_loaded");

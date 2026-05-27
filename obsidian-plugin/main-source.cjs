@@ -18,11 +18,13 @@ const DEFAULT_PASSIVE_SYNC_INTERVAL_SECONDS = 15;
 const MIN_PASSIVE_SYNC_INTERVAL_SECONDS = 5;
 const MAX_PASSIVE_SYNC_INTERVAL_SECONDS = 300;
 const LOCAL_CHANGE_DEBOUNCE_MS = 3000;
+const ACTIVE_EDIT_PROTECTION_MS = 45000;
 const DEFAULT_SETTINGS = {
   syncEndpoint: DEFAULT_SYNC_ENDPOINT,
   apiKey: "",
   rootFolder: DEFAULT_ROOT,
   syncOnStartup: false,
+  showSyncNotices: false,
   passiveSyncEnabled: true,
   passiveSyncIntervalSeconds: DEFAULT_PASSIVE_SYNC_INTERVAL_SECONDS,
 };
@@ -37,6 +39,9 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
       this.localChangeTimer = null;
       this.passiveSyncTimer = null;
       this.lastKnownRevision = "";
+      this.lastLocalChangeAtByPath = new Map();
+      this.pendingLocalPaths = new Set();
+      this.deferredRemoteRevision = "";
       await this.saveSettings();
       await this.loadLastKnownRevision();
       await this.logEvent("plugin_loaded", {
@@ -44,6 +49,7 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
         rootFolder: this.settings.rootFolder,
         syncEndpoint: this.settings.syncEndpoint,
         syncOnStartup: Boolean(this.settings.syncOnStartup),
+        showSyncNotices: Boolean(this.settings.showSyncNotices),
         passiveSyncEnabled: Boolean(this.settings.passiveSyncEnabled),
         passiveSyncIntervalSeconds: this.settings.passiveSyncIntervalSeconds,
       });
@@ -55,14 +61,14 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
       this.addCommand({
         id: "pull-ourstuff-compendiums",
         name: "Pull compendiums from Ourstuff",
-        callback: () => this.pullCompendiums(),
+        callback: () => this.pullCompendiums({ source: "command_pull" }),
       });
       this.addSettingTab(new OurstuffSyncSettingTab(this.app, this));
       this.addRibbonIcon("refresh-cw", "Sync Ourstuff compendiums", () => this.syncCompendiums());
       this.registerVaultChangeWatchers();
       this.restartPassiveSyncTimer();
       if (this.settings.syncOnStartup && this.settings.apiKey) {
-        setTimeout(() => this.syncCompendiums({ source: "startup" }), 1500);
+        setTimeout(() => this.syncCompendiums({ showNotice: false, source: "startup" }), 1500);
       }
     } catch (error) {
       await this.logEvent("plugin_load_failed", this.safeError(error)).catch(() => {});
@@ -158,7 +164,7 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
               conflicts: resolvedCount,
               bulkConflictStopped: Boolean(syncResult?.bulkConflictStopped),
             });
-            if (showNotice) {
+            if (this.shouldShowSyncNotice(showNotice)) {
               new Notice(syncResult?.bulkConflictStopped
                 ? "Ourstuff sync created a conflict review page."
                 : `Ourstuff sync created ${resolvedCount} conflict page(s).`);
@@ -168,20 +174,22 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
           if (error.status !== 409 || !error.result?.conflicts) throw error;
           await this.writeConflictFiles(error.result.conflicts, changes);
           await this.logEvent("sync_legacy_conflicts_written", { conflicts: error.result.conflicts.length });
-          if (showNotice) new Notice(`Ourstuff sync wrote ${error.result.conflicts.length} legacy conflict file(s).`);
+          if (this.shouldShowSyncNotice(showNotice)) new Notice(`Ourstuff sync wrote ${error.result.conflicts.length} legacy conflict file(s).`);
         }
       }
       await this.pullCompendiums({
         showNotice: false,
         cleanupPaths: cleanupSyncedNewFiles ? (newFiles || []).map((file) => file.path) : [],
+        source,
       });
       this.localChangePending = false;
       this.pendingLocalReasons = new Set();
+      this.pendingLocalPaths = new Set();
       await this.logEvent("sync_completed", { changes: changes.length, source, revision: this.lastKnownRevision });
-      if (showNotice) new Notice(changes.length ? "Ourstuff compendiums synced." : "Ourstuff compendiums already current.");
+      if (this.shouldShowSyncNotice(showNotice)) new Notice(changes.length ? "Ourstuff compendiums synced." : "Ourstuff compendiums already current.");
       return { changes: changes.length, revision: this.lastKnownRevision };
     } catch (error) {
-      if (showNotice) new Notice(error instanceof Error ? error.message : "Ourstuff sync failed.");
+      if (this.shouldShowSyncNotice(showNotice)) new Notice(error instanceof Error ? error.message : "Ourstuff sync failed.");
       await this.logEvent("sync_failed", this.safeError(error)).catch(() => {});
       console.error("ourstuff_obsidian_sync_failed", this.safeError(error));
       return null;
@@ -190,20 +198,31 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
     }
   }
 
-  async pullCompendiums({ showNotice = true, cleanupPaths = [] } = {}) {
+  async pullCompendiums({ showNotice = true, cleanupPaths = [], source = "manual_pull", protectActiveFile = true } = {}) {
     try {
-      await this.logEvent("pull_started", {});
+      const protectedPath = protectActiveFile ? this.protectedActiveFilePath() : "";
+      await this.logEvent("pull_started", { source, protectedActiveFile: Boolean(protectedPath) });
       const snapshot = await this.apiFetch("/api/obsidian/compendiums");
       const { files } = pathsForSnapshot(snapshot, this.settings.rootFolder || DEFAULT_ROOT);
+      const skippedProtectedFiles = [];
       this.suppressVaultEvents += 1;
       try {
         for (const [filePath, content] of files.entries()) {
+          const normalizedPath = normalizeVaultPath(filePath);
+          if (protectedPath && normalizedPath === protectedPath) {
+            skippedProtectedFiles.push(normalizedPath);
+            continue;
+          }
           await this.ensureFolder(filePath.split("/").slice(0, -1).join("/"));
           await this.writeFile(filePath, content);
         }
         for (const cleanupPath of cleanupPaths) {
           const normalized = normalizeVaultPath(cleanupPath);
           if (!normalized || files.has(normalized) || normalized.includes(`/${CONFLICT_DIR}/`) || normalized.includes(`/${MANIFEST_FILE}`)) continue;
+          if (protectedPath && normalized === protectedPath) {
+            skippedProtectedFiles.push(normalized);
+            continue;
+          }
           if (await this.app.vault.adapter.exists(normalized)) {
             await this.app.vault.adapter.remove(normalized);
           }
@@ -211,16 +230,22 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
       } finally {
         this.suppressVaultEvents = Math.max(0, this.suppressVaultEvents - 1);
       }
-      this.lastKnownRevision = snapshot.revision || this.lastKnownRevision || "";
+      if (skippedProtectedFiles.length) {
+        this.deferredRemoteRevision = snapshot.revision || "";
+      } else {
+        this.lastKnownRevision = snapshot.revision || this.lastKnownRevision || "";
+        this.deferredRemoteRevision = "";
+      }
       await this.logEvent("pull_completed", {
         compendiums: snapshot.compendiums?.length || 0,
         files: files.size,
+        skippedProtectedFiles,
         revision: snapshot.revision || "",
       });
-      if (showNotice) new Notice(`Pulled ${snapshot.compendiums?.length || 0} Ourstuff compendium(s).`);
-      return snapshot;
+      if (this.shouldShowSyncNotice(showNotice)) new Notice(`Pulled ${snapshot.compendiums?.length || 0} Ourstuff compendium(s).`);
+      return { ...snapshot, skippedProtectedFiles };
     } catch (error) {
-      if (showNotice) new Notice(error instanceof Error ? error.message : "Ourstuff pull failed.");
+      if (this.shouldShowSyncNotice(showNotice)) new Notice(error instanceof Error ? error.message : "Ourstuff pull failed.");
       await this.logEvent("pull_failed", this.safeError(error)).catch(() => {});
       throw error;
     }
@@ -255,6 +280,17 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
 
       const remote = await this.checkRemoteStatus();
       if (remote.changed) {
+        const protectedPath = this.protectedActiveFilePath();
+        if (protectedPath) {
+          this.deferredRemoteRevision = remote.revision;
+          await this.logEvent("passive_sync_deferred_active_file", {
+            reason,
+            activeFile: protectedPath,
+            previousRevision: this.lastKnownRevision,
+            nextRevision: remote.revision,
+          });
+          return;
+        }
         await this.logEvent("passive_sync_triggered", {
           reason: "remote_revision",
           previousRevision: this.lastKnownRevision,
@@ -285,8 +321,13 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
   }
 
   noteLocalChange(filePath, reason) {
-    if (this.suppressVaultEvents > 0 || !this.isTrackedCompendiumPath(filePath)) return;
+    const normalizedPath = normalizeVaultPath(filePath || "");
+    if (this.suppressVaultEvents > 0 || !this.isTrackedCompendiumPath(normalizedPath)) return;
     this.localChangePending = true;
+    if (!this.lastLocalChangeAtByPath) this.lastLocalChangeAtByPath = new Map();
+    if (!this.pendingLocalPaths) this.pendingLocalPaths = new Set();
+    this.lastLocalChangeAtByPath.set(normalizedPath, Date.now());
+    this.pendingLocalPaths.add(normalizedPath);
     if (!this.pendingLocalReasons) this.pendingLocalReasons = new Set();
     this.pendingLocalReasons.add(reason);
     if (this.localChangeTimer) clearTimeout(this.localChangeTimer);
@@ -305,6 +346,27 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
     if (path === this.diagnosticLogPath()) return false;
     if (path.includes("/.ourstuff-sync/")) return false;
     return true;
+  }
+
+  activeTrackedFilePath() {
+    const file = this.app?.workspace?.getActiveFile?.();
+    const path = normalizeVaultPath(file?.path || "");
+    return this.isTrackedCompendiumPath(path) ? path : "";
+  }
+
+  protectedActiveFilePath() {
+    const path = this.activeTrackedFilePath();
+    if (!path) return "";
+    const lastChangedAt = this.lastLocalChangeAtByPath?.get(path) || 0;
+    const hasPendingChange = Boolean(this.localChangePending && this.pendingLocalPaths?.has(path));
+    if (hasPendingChange || (lastChangedAt && Date.now() - lastChangedAt < ACTIVE_EDIT_PROTECTION_MS)) {
+      return path;
+    }
+    return "";
+  }
+
+  shouldShowSyncNotice(showNotice) {
+    return showNotice === true && this.settings.showSyncNotices === true;
   }
 
   restartPassiveSyncTimer() {
@@ -479,6 +541,7 @@ function normalizeSettings(saved = {}) {
   const settings = Object.assign({}, DEFAULT_SETTINGS, saved || {});
   const savedEndpoint = String(saved?.syncEndpoint || "").trim();
   settings.syncEndpoint = savedEndpoint || DEFAULT_SYNC_ENDPOINT;
+  settings.showSyncNotices = saved?.showSyncNotices === true;
   settings.passiveSyncEnabled = saved?.passiveSyncEnabled !== false;
   settings.passiveSyncIntervalSeconds = clampPassiveSyncInterval(saved?.passiveSyncIntervalSeconds);
   delete settings.apiBaseUrl;
@@ -544,6 +607,15 @@ class OurstuffSyncSettingTab extends PluginSettingTab {
         .setValue(Boolean(this.plugin.settings.syncOnStartup))
         .onChange(async (value) => {
           this.plugin.settings.syncOnStartup = value;
+          await this.plugin.saveSettings();
+        }));
+    new Setting(containerEl)
+      .setName("Sync notices")
+      .setDesc("Show Obsidian popups after sync or pull actions. Background sync stays quiet.")
+      .addToggle((toggle) => toggle
+        .setValue(Boolean(this.plugin.settings.showSyncNotices))
+        .onChange(async (value) => {
+          this.plugin.settings.showSyncNotices = value;
           await this.plugin.saveSettings();
         }));
     new Setting(containerEl)
