@@ -2,7 +2,7 @@ export const APP_ID = "ourstuff-main";
 export const SITE_ID = "ourstuff";
 export const APP_NAME = "Ourstuff";
 export const PAYMENTS_WORKER_URL =
-	"https://stripe-worker-api.jrice.workers.dev";
+	"https://api.ourstuff.space";
 export const PYXIDA_API_URL =
 	"https://us-central1-ourstuff-firebase.cloudfunctions.net/pyxdiaApi";
 export const PYXIDA_AI_API_URL =

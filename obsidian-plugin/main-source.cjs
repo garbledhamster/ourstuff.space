@@ -1,4 +1,4 @@
-const { Notice, Plugin, PluginSettingTab, Setting } = require("obsidian");
+const { Notice, Plugin, PluginSettingTab, Setting, requestUrl } = require("obsidian");
 const {
   DEFAULT_ROOT,
   CONFLICT_DIR,
@@ -12,9 +12,10 @@ const {
 } = require("./sync-core.cjs");
 
 const DIAGNOSTIC_LOG_FILE = ".ourstuff-sync/plugin.log";
-const PLUGIN_VERSION = "0.1.1";
+const PLUGIN_VERSION = "0.1.2";
+const DEFAULT_SYNC_ENDPOINT = "https://api.ourstuff.space";
 const DEFAULT_SETTINGS = {
-  apiBaseUrl: "https://stripe-worker-api.jrice.workers.dev",
+  syncEndpoint: DEFAULT_SYNC_ENDPOINT,
   apiKey: "",
   rootFolder: DEFAULT_ROOT,
   syncOnStartup: false,
@@ -23,11 +24,12 @@ const DEFAULT_SETTINGS = {
 module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
   async onload() {
     try {
-      this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+      this.settings = normalizeSettings(await this.loadData());
+      await this.saveSettings();
       await this.logEvent("plugin_loaded", {
         version: PLUGIN_VERSION,
         rootFolder: this.settings.rootFolder,
-        apiBaseUrl: this.settings.apiBaseUrl,
+        syncEndpoint: this.settings.syncEndpoint,
         syncOnStartup: Boolean(this.settings.syncOnStartup),
       });
       this.addCommand({
@@ -61,22 +63,40 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
     if (!this.settings.apiKey) {
       throw new Error("Add your Ourstuff Obsidian API key in plugin settings.");
     }
-    const response = await fetch(`${this.settings.apiBaseUrl.replace(/\/+$/, "")}${path}`, {
-      ...options,
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${this.settings.apiKey}`,
-        ...(options.headers || {}),
-      },
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const error = new Error(result?.error?.message || `Ourstuff API failed (${response.status})`);
+    const method = options.method || "GET";
+    const url = `${this.settings.syncEndpoint.replace(/\/+$/, "")}${path}`;
+    let response;
+    try {
+      response = await requestUrl({
+        url,
+        method,
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${this.settings.apiKey}`,
+          ...(options.headers || {}),
+        },
+        body: options.body,
+      });
+    } catch (error) {
+      const wrapped = new Error(`Ourstuff sync endpoint could not be reached: ${networkErrorMessage(error)}`);
+      wrapped.cause = error;
+      await this.logEvent("api_request_network_failed", {
+        path,
+        method,
+        endpoint: this.settings.syncEndpoint,
+        message: wrapped.message,
+      });
+      throw wrapped;
+    }
+    const result = response.json || parseJsonMaybe(response.text);
+    if (response.status < 200 || response.status >= 300) {
+      const error = new Error(result?.error?.message || `Ourstuff sync endpoint failed (${response.status})`);
       error.result = result;
       error.status = response.status;
       await this.logEvent("api_request_failed", {
         path,
-        method: options.method || "GET",
+        method,
+        endpoint: this.settings.syncEndpoint,
         status: response.status,
         message: error.message,
       });
@@ -281,6 +301,30 @@ function redactDiagnostic(value, depth = 0) {
   }));
 }
 
+function normalizeSettings(saved = {}) {
+  const settings = Object.assign({}, DEFAULT_SETTINGS, saved || {});
+  const savedEndpoint = String(saved?.syncEndpoint || "").trim();
+  settings.syncEndpoint = savedEndpoint || DEFAULT_SYNC_ENDPOINT;
+  delete settings.apiBaseUrl;
+  return settings;
+}
+
+function parseJsonMaybe(value) {
+  try {
+    return JSON.parse(String(value || "{}"));
+  } catch {
+    return {};
+  }
+}
+
+function networkErrorMessage(error) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  if (!message || message === "Failed to fetch") {
+    return "network request failed before the backend returned a response";
+  }
+  return message;
+}
+
 class OurstuffSyncSettingTab extends PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
@@ -292,16 +336,8 @@ class OurstuffSyncSettingTab extends PluginSettingTab {
     containerEl.empty();
     containerEl.createEl("h2", { text: "Ourstuff Sync" });
     new Setting(containerEl)
-      .setName("API base URL")
-      .addText((text) => text
-        .setValue(this.plugin.settings.apiBaseUrl)
-        .onChange(async (value) => {
-          this.plugin.settings.apiBaseUrl = value.trim() || DEFAULT_SETTINGS.apiBaseUrl;
-          await this.plugin.saveSettings();
-        }));
-    new Setting(containerEl)
       .setName("API key")
-      .setDesc("Stored only in this vault's plugin settings.")
+      .setDesc("Used only to call the Ourstuff sync backend. Billing and subscription checks stay server-side.")
       .addText((text) => {
         text.inputEl.type = "password";
         text

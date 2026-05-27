@@ -186,6 +186,7 @@ Superseded for app data by Phase 11. D1 remains payment/subscription storage onl
 - [x] Infer section order from `NN -` filenames and update compendium `childIds` through the hash-checked route.
 - [x] Bundle the runtime plugin as one Obsidian-loaded `main.js`.
 - [x] Add a vault-local diagnostic log for plugin load, pull, sync, API failures, and conflicts.
+- [x] Use Obsidian `requestUrl` and the public `api.ourstuff.space` sync endpoint instead of exposing the legacy Worker hostname in plugin settings.
 
 ### Phase 3 - Verification
 

@@ -7,6 +7,7 @@ This is the v1 bridge between Ourstuff Mind compendiums and Obsidian.
 - Plugin id: `ourstuff-obsidian-sync`
 - App UI: Settings > Data Controls > Obsidian Sync
 - Worker source: `C:\Codex\stripe-worker-api`
+- Public sync endpoint: `https://api.ourstuff.space`
 - Static plugin source: `obsidian-plugin`
 - Vault root: `Ourstuff/Compendiums`
 
@@ -61,7 +62,7 @@ The raw key format is `ost_live_<prefix>_<secret>`. D1 stores only UID hash, pre
 
 ## Checks
 
-The Obsidian runtime entrypoint is a single generated `main.js`, matching the shape of known-good local plugins. Edit `obsidian-plugin/main-source.cjs` and `obsidian-plugin/sync-core.cjs`, then build:
+The Obsidian runtime entrypoint is a single generated `main.js`, matching the shape of known-good local plugins. The plugin uses Obsidian's `requestUrl` helper and calls `https://api.ourstuff.space`; Stripe, D1, subscription checks, and entitlement decisions stay inside the backend Worker. Edit `obsidian-plugin/main-source.cjs` and `obsidian-plugin/sync-core.cjs`, then build:
 
 ```powershell
 cd .\obsidian-plugin

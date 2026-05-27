@@ -1,6 +1,7 @@
 const assert = require("assert");
 const Module = require("module");
 
+const requestCalls = [];
 const originalLoad = Module._load;
 Module._load = function patchedLoad(request, parent, isMain) {
   if (request === "obsidian") {
@@ -16,7 +17,10 @@ Module._load = function patchedLoad(request, parent, isMain) {
         }
 
         async loadData() {
-          return {};
+          return {
+            apiBaseUrl: "https://old.example.invalid",
+            apiKey: "ost_live_test_secret",
+          };
         }
 
         async saveData() {}
@@ -31,6 +35,10 @@ Module._load = function patchedLoad(request, parent, isMain) {
         }
       },
       Setting: class Setting {},
+      async requestUrl(requestOptions) {
+        requestCalls.push(requestOptions);
+        return { status: 200, json: {}, text: "{}" };
+      },
     };
   }
   return originalLoad(request, parent, isMain);
@@ -75,6 +83,11 @@ function createFakeApp() {
   const app = createFakeApp();
   const plugin = new Plugin(app);
   await plugin.onload();
+  assert.strictEqual(plugin.settings.syncEndpoint, "https://api.ourstuff.space");
+  assert.strictEqual(plugin.settings.apiBaseUrl, undefined);
+  await plugin.apiFetch("/api/obsidian/compendiums");
+  assert.strictEqual(requestCalls[0].url, "https://api.ourstuff.space/api/obsidian/compendiums");
+  assert.strictEqual(requestCalls[0].headers.authorization, "Bearer ost_live_test_secret");
   const log = app.files.get("Ourstuff/Compendiums/.ourstuff-sync/plugin.log");
   assert(log, "plugin load should create a diagnostic log");
   assert(log.includes("plugin_loaded"), "diagnostic log should record plugin_loaded");
