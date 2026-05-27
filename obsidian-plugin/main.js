@@ -281,30 +281,45 @@ function conflictPathFor(conflict, root = DEFAULT_ROOT) {
 }
 
 const DIAGNOSTIC_LOG_FILE = ".ourstuff-sync/plugin.log";
-const PLUGIN_VERSION = "0.1.2";
+const PLUGIN_VERSION = "0.1.3";
 const DEFAULT_SYNC_ENDPOINT = "https://api.ourstuff.space";
+const DEFAULT_PASSIVE_SYNC_INTERVAL_SECONDS = 15;
+const MIN_PASSIVE_SYNC_INTERVAL_SECONDS = 5;
+const MAX_PASSIVE_SYNC_INTERVAL_SECONDS = 300;
+const LOCAL_CHANGE_DEBOUNCE_MS = 3000;
 const DEFAULT_SETTINGS = {
   syncEndpoint: DEFAULT_SYNC_ENDPOINT,
   apiKey: "",
   rootFolder: DEFAULT_ROOT,
   syncOnStartup: false,
+  passiveSyncEnabled: true,
+  passiveSyncIntervalSeconds: DEFAULT_PASSIVE_SYNC_INTERVAL_SECONDS,
 };
 
 module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
   async onload() {
     try {
       this.settings = normalizeSettings(await this.loadData());
+      this.syncInProgress = false;
+      this.suppressVaultEvents = 0;
+      this.localChangePending = false;
+      this.localChangeTimer = null;
+      this.passiveSyncTimer = null;
+      this.lastKnownRevision = "";
       await this.saveSettings();
+      await this.loadLastKnownRevision();
       await this.logEvent("plugin_loaded", {
         version: PLUGIN_VERSION,
         rootFolder: this.settings.rootFolder,
         syncEndpoint: this.settings.syncEndpoint,
         syncOnStartup: Boolean(this.settings.syncOnStartup),
+        passiveSyncEnabled: Boolean(this.settings.passiveSyncEnabled),
+        passiveSyncIntervalSeconds: this.settings.passiveSyncIntervalSeconds,
       });
       this.addCommand({
         id: "sync-ourstuff-compendiums",
         name: "Sync compendiums",
-        callback: () => this.syncCompendiums(),
+        callback: () => this.syncCompendiums({ source: "command" }),
       });
       this.addCommand({
         id: "pull-ourstuff-compendiums",
@@ -313,8 +328,10 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
       });
       this.addSettingTab(new OurstuffSyncSettingTab(this.app, this));
       this.addRibbonIcon("refresh-cw", "Sync Ourstuff compendiums", () => this.syncCompendiums());
+      this.registerVaultChangeWatchers();
+      this.restartPassiveSyncTimer();
       if (this.settings.syncOnStartup && this.settings.apiKey) {
-        setTimeout(() => this.syncCompendiums(), 1500);
+        setTimeout(() => this.syncCompendiums({ source: "startup" }), 1500);
       }
     } catch (error) {
       await this.logEvent("plugin_load_failed", this.safeError(error)).catch(() => {});
@@ -374,9 +391,14 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
     return result;
   }
 
-  async syncCompendiums() {
+  async syncCompendiums({ showNotice = true, source = "manual" } = {}) {
+    if (this.syncInProgress) {
+      await this.logEvent("sync_skipped_busy", { source }).catch(() => {});
+      return null;
+    }
+    this.syncInProgress = true;
     try {
-      await this.logEvent("sync_started", { mode: "two-way" });
+      await this.logEvent("sync_started", { mode: "two-way", source });
       const remote = await this.apiFetch("/api/obsidian/compendiums");
       const manifest = await this.readManifest();
       const localFiles = await this.readManifestFiles(manifest);
@@ -400,16 +422,22 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
           if (error.status !== 409 || !error.result?.conflicts) throw error;
           await this.writeConflictFiles(error.result.conflicts, changes);
           await this.logEvent("sync_conflicts_written", { conflicts: error.result.conflicts.length });
-          new Notice(`Ourstuff sync found ${error.result.conflicts.length} conflict(s).`);
+          if (showNotice) new Notice(`Ourstuff sync found ${error.result.conflicts.length} conflict(s).`);
         }
       }
       await this.pullCompendiums({ showNotice: false });
-      await this.logEvent("sync_completed", { changes: changes.length });
-      new Notice(changes.length ? "Ourstuff compendiums synced." : "Ourstuff compendiums already current.");
+      this.localChangePending = false;
+      this.pendingLocalReasons = new Set();
+      await this.logEvent("sync_completed", { changes: changes.length, source, revision: this.lastKnownRevision });
+      if (showNotice) new Notice(changes.length ? "Ourstuff compendiums synced." : "Ourstuff compendiums already current.");
+      return { changes: changes.length, revision: this.lastKnownRevision };
     } catch (error) {
-      new Notice(error instanceof Error ? error.message : "Ourstuff sync failed.");
+      if (showNotice) new Notice(error instanceof Error ? error.message : "Ourstuff sync failed.");
       await this.logEvent("sync_failed", this.safeError(error)).catch(() => {});
       console.error("ourstuff_obsidian_sync_failed", this.safeError(error));
+      return null;
+    } finally {
+      this.syncInProgress = false;
     }
   }
 
@@ -418,10 +446,16 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
       await this.logEvent("pull_started", {});
       const snapshot = await this.apiFetch("/api/obsidian/compendiums");
       const { files } = pathsForSnapshot(snapshot, this.settings.rootFolder || DEFAULT_ROOT);
-      for (const [filePath, content] of files.entries()) {
-        await this.ensureFolder(filePath.split("/").slice(0, -1).join("/"));
-        await this.writeFile(filePath, content);
+      this.suppressVaultEvents += 1;
+      try {
+        for (const [filePath, content] of files.entries()) {
+          await this.ensureFolder(filePath.split("/").slice(0, -1).join("/"));
+          await this.writeFile(filePath, content);
+        }
+      } finally {
+        this.suppressVaultEvents = Math.max(0, this.suppressVaultEvents - 1);
       }
+      this.lastKnownRevision = snapshot.revision || this.lastKnownRevision || "";
       await this.logEvent("pull_completed", {
         compendiums: snapshot.compendiums?.length || 0,
         files: files.size,
@@ -434,6 +468,115 @@ module.exports = class OurstuffObsidianSyncPlugin extends Plugin {
       await this.logEvent("pull_failed", this.safeError(error)).catch(() => {});
       throw error;
     }
+  }
+
+  async checkRemoteStatus() {
+    const status = await this.apiFetch("/api/obsidian/compendiums/status");
+    const nextRevision = String(status.revision || "");
+    if (!nextRevision) return { changed: false, revision: "" };
+    if (!this.lastKnownRevision) {
+      await this.logEvent("passive_initial_revision_found", {
+        revision: nextRevision,
+        compendiums: status.compendiumCount || 0,
+        sections: status.sectionCount || 0,
+      });
+      return { changed: true, revision: nextRevision, status, initial: true };
+    }
+    return { changed: nextRevision !== this.lastKnownRevision, revision: nextRevision, status };
+  }
+
+  async passiveSyncTick(reason = "timer") {
+    if (!this.settings.passiveSyncEnabled || !this.settings.apiKey || this.syncInProgress) return;
+    try {
+      if (reason === "local_change" && this.localChangePending) {
+        await this.logEvent("passive_sync_triggered", {
+          reason,
+          localReasons: Array.from(this.pendingLocalReasons || []),
+        });
+        await this.syncCompendiums({ showNotice: false, source: "passive_local" });
+        return;
+      }
+
+      const remote = await this.checkRemoteStatus();
+      if (remote.changed) {
+        await this.logEvent("passive_sync_triggered", {
+          reason: "remote_revision",
+          previousRevision: this.lastKnownRevision,
+          nextRevision: remote.revision,
+          compendiums: remote.status?.compendiumCount || 0,
+          sections: remote.status?.sectionCount || 0,
+        });
+        await this.syncCompendiums({ showNotice: false, source: "passive_remote" });
+      }
+    } catch (error) {
+      await this.logEvent("passive_sync_failed", this.safeError(error)).catch(() => {});
+    }
+  }
+
+  registerVaultChangeWatchers() {
+    if (!this.app?.vault?.on) return;
+    const watch = (eventName, callback) => {
+      const eventRef = this.app.vault.on(eventName, callback);
+      if (this.registerEvent && eventRef) this.registerEvent(eventRef);
+    };
+    watch("create", (file) => this.noteLocalChange(file?.path, "create"));
+    watch("modify", (file) => this.noteLocalChange(file?.path, "modify"));
+    watch("delete", (file) => this.noteLocalChange(file?.path, "delete"));
+    watch("rename", (file, oldPath) => {
+      this.noteLocalChange(oldPath, "rename_old");
+      this.noteLocalChange(file?.path, "rename_new");
+    });
+  }
+
+  noteLocalChange(filePath, reason) {
+    if (this.suppressVaultEvents > 0 || !this.isTrackedCompendiumPath(filePath)) return;
+    this.localChangePending = true;
+    if (!this.pendingLocalReasons) this.pendingLocalReasons = new Set();
+    this.pendingLocalReasons.add(reason);
+    if (this.localChangeTimer) clearTimeout(this.localChangeTimer);
+    this.localChangeTimer = setTimeout(() => {
+      this.localChangeTimer = null;
+      this.passiveSyncTick("local_change");
+    }, LOCAL_CHANGE_DEBOUNCE_MS);
+  }
+
+  isTrackedCompendiumPath(filePath) {
+    const path = normalizeVaultPath(filePath || "");
+    const root = normalizeVaultPath(this.settings.rootFolder || DEFAULT_ROOT);
+    if (!path || !path.startsWith(`${root}/`) || !path.toLowerCase().endsWith(".md")) return false;
+    if (path.includes(`/${CONFLICT_DIR}/`)) return false;
+    if (path.includes(`/${MANIFEST_FILE}`)) return false;
+    if (path === this.diagnosticLogPath()) return false;
+    if (path.includes("/.ourstuff-sync/")) return false;
+    return true;
+  }
+
+  restartPassiveSyncTimer() {
+    this.stopPassiveSyncTimer();
+    if (!this.settings.passiveSyncEnabled) return;
+    const intervalMs = clampPassiveSyncInterval(this.settings.passiveSyncIntervalSeconds) * 1000;
+    this.passiveSyncTimer = setInterval(() => this.passiveSyncTick("timer"), intervalMs);
+    if (this.registerInterval) this.registerInterval(this.passiveSyncTimer);
+  }
+
+  stopPassiveSyncTimer() {
+    if (this.passiveSyncTimer) {
+      clearInterval(this.passiveSyncTimer);
+      this.passiveSyncTimer = null;
+    }
+    if (this.localChangeTimer) {
+      clearTimeout(this.localChangeTimer);
+      this.localChangeTimer = null;
+    }
+  }
+
+  onunload() {
+    this.stopPassiveSyncTimer();
+  }
+
+  async loadLastKnownRevision() {
+    const manifest = await this.readManifest().catch(() => null);
+    this.lastKnownRevision = String(manifest?.revision || "");
   }
 
   async writeConflictFiles(conflicts, localChanges = []) {
@@ -574,8 +717,16 @@ function normalizeSettings(saved = {}) {
   const settings = Object.assign({}, DEFAULT_SETTINGS, saved || {});
   const savedEndpoint = String(saved?.syncEndpoint || "").trim();
   settings.syncEndpoint = savedEndpoint || DEFAULT_SYNC_ENDPOINT;
+  settings.passiveSyncEnabled = saved?.passiveSyncEnabled !== false;
+  settings.passiveSyncIntervalSeconds = clampPassiveSyncInterval(saved?.passiveSyncIntervalSeconds);
   delete settings.apiBaseUrl;
   return settings;
+}
+
+function clampPassiveSyncInterval(value) {
+  const number = Number(value || DEFAULT_PASSIVE_SYNC_INTERVAL_SECONDS);
+  if (!Number.isFinite(number)) return DEFAULT_PASSIVE_SYNC_INTERVAL_SECONDS;
+  return Math.max(MIN_PASSIVE_SYNC_INTERVAL_SECONDS, Math.min(MAX_PASSIVE_SYNC_INTERVAL_SECONDS, Math.round(number)));
 }
 
 function parseJsonMaybe(value) {
@@ -633,6 +784,31 @@ class OurstuffSyncSettingTab extends PluginSettingTab {
           this.plugin.settings.syncOnStartup = value;
           await this.plugin.saveSettings();
         }));
+    new Setting(containerEl)
+      .setName("Passive sync")
+      .setDesc("Quietly watches local compendium files and checks the remote revision on an interval.")
+      .addToggle((toggle) => toggle
+        .setValue(Boolean(this.plugin.settings.passiveSyncEnabled))
+        .onChange(async (value) => {
+          this.plugin.settings.passiveSyncEnabled = value;
+          await this.plugin.saveSettings();
+          this.plugin.restartPassiveSyncTimer();
+        }));
+    new Setting(containerEl)
+      .setName("Passive check interval")
+      .setDesc("Seconds between lightweight remote revision checks. Local edits are debounced separately.")
+      .addText((text) => {
+        text.inputEl.type = "number";
+        text.inputEl.min = String(MIN_PASSIVE_SYNC_INTERVAL_SECONDS);
+        text.inputEl.max = String(MAX_PASSIVE_SYNC_INTERVAL_SECONDS);
+        text
+          .setValue(String(this.plugin.settings.passiveSyncIntervalSeconds))
+          .onChange(async (value) => {
+            this.plugin.settings.passiveSyncIntervalSeconds = clampPassiveSyncInterval(value);
+            await this.plugin.saveSettings();
+            this.plugin.restartPassiveSyncTimer();
+          });
+      });
     new Setting(containerEl)
       .setName("Diagnostic log")
       .setDesc(this.plugin.diagnosticLogPath())

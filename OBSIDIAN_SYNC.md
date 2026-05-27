@@ -46,6 +46,7 @@ Firebase-token key management endpoints:
 Plugin endpoints:
 
 - `GET /api/obsidian/compendiums`
+- `GET /api/obsidian/compendiums/status`: lightweight revision, count, and timestamp check for passive sync
 - `POST /api/obsidian/compendiums/sync`
 
 The raw key format is `ost_live_<prefix>_<secret>`. D1 stores only UID hash, prefix, key hash, scope, status, and safe timestamps/events. Raw keys, Firebase ID tokens, and note bodies must not be logged.
@@ -59,6 +60,7 @@ The raw key format is `ost_live_<prefix>_<secret>`. D1 stores only UID hash, pre
 - If a previously synced local file is missing and the remote hash still matches the manifest, the plugin sends a delete.
 - If a previously synced local file is missing but the remote changed, the plugin creates a conflict instead of deleting.
 - Section ordering is inferred from the `NN -` file prefixes and only changes remote `childIds` through the same hash-checked sync route.
+- Passive sync is quiet by default: local compendium Markdown edits are debounced, remote checks use the status endpoint, and full sync runs only when a local change or remote revision change is detected.
 
 ## Checks
 

@@ -187,6 +187,7 @@ Superseded for app data by Phase 11. D1 remains payment/subscription storage onl
 - [x] Bundle the runtime plugin as one Obsidian-loaded `main.js`.
 - [x] Add a vault-local diagnostic log for plugin load, pull, sync, API failures, and conflicts.
 - [x] Use Obsidian `requestUrl` and the public `api.ourstuff.space` sync endpoint instead of exposing the legacy Worker hostname in plugin settings.
+- [x] Add quiet passive sync with debounced local vault edits and lightweight remote revision checks.
 
 ### Phase 3 - Verification
 
@@ -202,6 +203,7 @@ Superseded for app data by Phase 11. D1 remains payment/subscription storage onl
   Verified: Live snapshot generated 9 vault files, detected a fake local section edit, and deleted the temporary vault.
 - [x] Reinstall the plugin into both local vault plugin folders through the utility belt.
 - [x] Smoke-load the generated plugin with a mocked Obsidian API and confirm it writes `plugin_loaded`.
+- [x] Deploy and verify the passive sync status endpoint.
 
 ## Global Trashcan Lifecycle
 
