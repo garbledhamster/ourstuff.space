@@ -12037,6 +12037,271 @@ function readerBodyHtml(title, body, emptyText = "No note text yet.") {
 			: "";
 }
 
+function nonEmptyPageLines(body) {
+	return String(body || "")
+		.split(/\r?\n/)
+		.map((line) => line.trim())
+		.filter(Boolean);
+}
+
+function inferPageDisplayMode({ title, body }) {
+	const hasTitle = String(title || "").trim().length > 0;
+	const lineCount = nonEmptyPageLines(body).length;
+	if (hasTitle && lineCount > 1) {
+		return "normal";
+	}
+	if (hasTitle && lineCount === 0) {
+		return "part";
+	}
+	if (hasTitle && lineCount === 1) {
+		return "chapter";
+	}
+	if (!hasTitle && lineCount === 1) {
+		return "focus";
+	}
+	return "body-only";
+}
+
+function splitCommaContent(line) {
+	const items = [];
+	let current = "";
+	let quote = "";
+	for (const character of String(line || "")) {
+		if ((character === '"' || character === "'") && !quote) {
+			quote = character;
+			current += character;
+			continue;
+		}
+		if (character === quote) {
+			quote = "";
+			current += character;
+			continue;
+		}
+		if (character === "," && !quote) {
+			items.push(current.trim());
+			current = "";
+			continue;
+		}
+		current += character;
+	}
+	if (current.trim()) {
+		items.push(current.trim());
+	}
+	return items.filter(Boolean);
+}
+
+function quotedContentValue(value) {
+	const text = String(value || "").trim();
+	const first = text[0];
+	const last = text[text.length - 1];
+	if (
+		text.length >= 2 &&
+		((first === '"' && last === '"') || (first === "'" && last === "'"))
+	) {
+		return text.slice(1, -1).replaceAll(`${first}${first}`, first).trim();
+	}
+	return null;
+}
+
+function safeHttpUrl(value) {
+	const text = String(value || "").trim();
+	try {
+		const url = new URL(text);
+		return url.protocol === "http:" || url.protocol === "https:" ? url : null;
+	} catch {
+		return null;
+	}
+}
+
+function parseImageReference(value) {
+	const text = String(value || "").trim();
+	const markdown = text.match(/^!\[([^\]]*)\]\(([^)\s]+)\)$/);
+	if (markdown) {
+		const parsed = parseImageReference(markdown[2]);
+		return parsed ? { ...parsed, alt: markdown[1] || "Image" } : null;
+	}
+	if (/^ourstuff-asset:[a-z0-9-]+$/i.test(text)) {
+		return {
+			type: "local",
+			id: text.replace(/^ourstuff-asset:/i, ""),
+			alt: "Image",
+		};
+	}
+	const url = safeHttpUrl(text);
+	if (
+		url &&
+		/\.(avif|gif|jpe?g|png|svg|webp)(\?.*)?$/i.test(`${url.pathname}${url.search}`)
+	) {
+		return { type: "remote", src: url.href, alt: "Image" };
+	}
+	return null;
+}
+
+function youtubeVideoId(value) {
+	const url = safeHttpUrl(value);
+	if (!url) {
+		return "";
+	}
+	const host = url.hostname.replace(/^www\./, "").toLowerCase();
+	let id = "";
+	if (host === "youtu.be") {
+		id = url.pathname.split("/").filter(Boolean)[0] || "";
+	}
+	if (host === "youtube.com" || host === "m.youtube.com") {
+		if (url.pathname === "/watch") {
+			id = url.searchParams.get("v") || "";
+		} else {
+			const parts = url.pathname.split("/").filter(Boolean);
+			if (parts[0] === "embed" || parts[0] === "shorts") {
+				id = parts[1] || "";
+			}
+		}
+	}
+	return /^[a-zA-Z0-9_-]{6,}$/.test(id) ? id : "";
+}
+
+function parseYoutubeReference(value) {
+	const id = youtubeVideoId(value);
+	return id ? { id, embedUrl: `https://www.youtube.com/embed/${id}` } : null;
+}
+
+function parseSingleLineContent(line) {
+	const text = String(line || "").trim();
+	if (!text) {
+		return { type: "text", text: "" };
+	}
+	const items = splitCommaContent(text);
+	if (items.length > 1) {
+		const images = items.map(parseImageReference);
+		if (images.every(Boolean)) {
+			return { type: "gallery", items: images };
+		}
+		const videos = items.map(parseYoutubeReference);
+		if (videos.every(Boolean)) {
+			return { type: "video-list", items: videos };
+		}
+		const quotes = items.map(quotedContentValue);
+		if (quotes.every((quote) => quote !== null && quote.length > 0)) {
+			return { type: "quote-list", items: quotes };
+		}
+	}
+	const image = parseImageReference(text);
+	if (image) {
+		return { type: "image", item: image };
+	}
+	const video = parseYoutubeReference(text);
+	if (video) {
+		return { type: "youtube", item: video };
+	}
+	return { type: "text", text };
+}
+
+function focusImageHtml(image) {
+	if (!image) {
+		return "";
+	}
+	if (image.type === "local") {
+		return `<img data-local-asset="${escapeHtml(image.id)}" alt="${escapeHtml(image.alt || "Image")}">`;
+	}
+	return `<img src="${escapeHtml(image.src)}" alt="${escapeHtml(image.alt || "Image")}" loading="lazy">`;
+}
+
+function youtubeEmbedHtml(video, label = "YouTube video") {
+	return `
+    <iframe
+      title="${escapeHtml(label)}"
+      src="${escapeHtml(video.embedUrl)}"
+      loading="lazy"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      allowfullscreen>
+    </iframe>
+  `;
+}
+
+function themedChildViewerHtml(parsed) {
+	if (parsed.type === "image") {
+		return `<div class="themed-child-viewer themed-child-viewer--image">${focusImageHtml(parsed.item)}</div>`;
+	}
+	if (parsed.type === "youtube") {
+		return `<div class="themed-child-viewer themed-child-viewer--video">${youtubeEmbedHtml(parsed.item)}</div>`;
+	}
+	if (parsed.type === "gallery") {
+		return `
+      <div class="themed-child-viewer themed-child-viewer--gallery">
+        ${parsed.items.map((item) => `<figure>${focusImageHtml(item)}</figure>`).join("")}
+      </div>
+    `;
+	}
+	if (parsed.type === "video-list") {
+		return `
+      <div class="themed-child-viewer themed-child-viewer--videos">
+        ${parsed.items.map((item, index) => `<figure>${youtubeEmbedHtml(item, `YouTube video ${index + 1}`)}</figure>`).join("")}
+      </div>
+    `;
+	}
+	if (parsed.type === "quote-list") {
+		return `
+      <div class="themed-child-viewer themed-child-viewer--quotes">
+        ${parsed.items.map((quote) => `<blockquote>${escapeHtml(quote)}</blockquote>`).join("")}
+      </div>
+    `;
+	}
+	return `<div class="themed-child-viewer themed-child-viewer--text"><p>${escapeHtml(parsed.text || "")}</p></div>`;
+}
+
+function pageNumberOverlayHtml({ current = 1, total = 1, label = "Page" } = {}) {
+	const safeTotal = Math.max(1, Number(total) || 1);
+	const safeCurrent = Math.min(Math.max(1, Number(current) || 1), safeTotal);
+	return `<div class="page-number-overlay" aria-label="${escapeHtml(`${label} ${safeCurrent} of ${safeTotal}`)}">${escapeHtml(`${label} ${safeCurrent} of ${safeTotal}`)}</div>`;
+}
+
+function pageContentHtml(title, body, pageContext = {}) {
+	const mode = inferPageDisplayMode({ title, body });
+	const lines = nonEmptyPageLines(body);
+	const cleanTitle = String(title || "").trim();
+	const pageNumber = pageNumberOverlayHtml(pageContext);
+	if (mode === "part") {
+		return `
+      <article class="page-content page-content--part">
+        <h2>${escapeHtml(cleanTitle)}</h2>
+        ${pageNumber}
+      </article>
+    `;
+	}
+	if (mode === "chapter") {
+		return `
+      <article class="page-content page-content--chapter">
+        <h2>${escapeHtml(cleanTitle)}</h2>
+        <p>${escapeHtml(lines[0] || "")}</p>
+        ${pageNumber}
+      </article>
+    `;
+	}
+	if (mode === "focus") {
+		return `
+      <article class="page-content page-content--focus">
+        ${themedChildViewerHtml(parseSingleLineContent(lines[0] || ""))}
+        ${pageNumber}
+      </article>
+    `;
+	}
+	if (mode === "body-only") {
+		return `
+      <article class="page-content page-content--body-only">
+        <div class="markdown-body">${body ? renderMarkdown(body) : "<p>No note text yet.</p>"}</div>
+        ${pageNumber}
+      </article>
+    `;
+	}
+	return `
+    <article class="page-content page-content--normal">
+      <h2 class="page-content-title">${escapeHtml(cleanTitle)}</h2>
+      <div class="markdown-body">${readerBodyHtml(cleanTitle, body)}</div>
+      ${pageNumber}
+    </article>
+  `;
+}
+
 function stripDuplicateTitleLine(title, body) {
 	const lines = String(body || "").split(/\r?\n/);
 	const firstContentIndex = lines.findIndex((line) => line.trim());
@@ -12061,8 +12326,8 @@ function normalizeReaderTitle(value) {
 
 function artifactReaderHtml(note, _subtitle) {
 	return panelHtml(`
-    ${headerHtml(note.title, "", artifactViewerActions(note))}
-    <div class="reader-panel"><div class="markdown-body">${readerBodyHtml(note.title, note.body)}</div></div>
+    <div class="reader-topbar reader-topbar--actions">${artifactViewerActions(note)}</div>
+    <div class="reader-panel">${pageContentHtml(note.title, note.body, { current: 1, total: 1 })}</div>
   `);
 }
 
@@ -13238,19 +13503,16 @@ function mindHtml(compendium, section) {
 		return sectionEditorHtml(section);
 	}
 	if (state.mindMode === "section-viewer" && section) {
+		const pageInfo = sectionPageInfo(section.id);
 		return panelHtml(`
-      ${headerHtml(
-				section.title,
-				"",
-				`
+      <div class="reader-topbar reader-topbar--actions">
         <div class="action-row">
           ${pageActionButton("edit-section", "tabler:pencil", "Edit section")}
           ${pageActionButton("delete-section", "tabler:trash", "Delete section", { danger: true, data: { id: section.id } })}
           ${pageActionButton("manager", "tabler:x", "Close section viewer", { className: "close-viewer-button" })}
         </div>
-      `,
-			)}
-      <div class="reader-panel"><div class="markdown-body">${readerBodyHtml(section.title, section.body)}</div></div>
+      </div>
+      <div class="reader-panel">${pageContentHtml(section.title, section.body, pageInfo)}</div>
     `);
 	}
 	if (state.mindMode === "reader" && compendium) {
@@ -13448,22 +13710,21 @@ function sectionListHtml(compendium) {
 }
 
 function compendiumReaderHtml(compendium) {
+	const totalPages = compendium.sections.length + 1;
 	const pages = [
 		{
 			key: "cover",
 			body: `
         <section class="reader-section reader-section--cover">
-          <h2 class="reader-compendium-title">${escapeHtml(compendium.title)}</h2>
-          <div class="markdown-body">${readerBodyHtml(compendium.title, compendium.body, "")}</div>
+          ${pageContentHtml(compendium.title, compendium.body, { current: 1, total: totalPages })}
         </section>
       `,
 		},
-		...compendium.sections.map((section) => ({
+		...compendium.sections.map((section, index) => ({
 			key: section.id,
 			body: `
         <section class="reader-section">
-          <button class="reader-section-title" data-action="open-section" data-id="${section.id}">${escapeHtml(section.title)}</button>
-          <div class="markdown-body">${renderMarkdown(section.body)}</div>
+          ${pageContentHtml(section.title, section.body, { current: index + 2, total: totalPages })}
         </section>
       `,
 		})),
@@ -13502,9 +13763,32 @@ function compendiumReaderHtml(compendium) {
         <span class="reader-page-dot reader-page-dot--side${hasPrev ? " is-available" : ""}" aria-hidden="true"></span>
         <span class="reader-page-dot reader-page-dot--current" aria-label="Page ${page + 1} of ${pages.length}"></span>
         <span class="reader-page-dot reader-page-dot--side${hasNext ? " is-available" : ""}" aria-hidden="true"></span>
+        <span class="reader-page-label">${escapeHtml(`Page ${page + 1} of ${pages.length}`)}</span>
       </div>
     </section>
   `);
+}
+
+function sectionPageInfo(sectionId) {
+	const compendium = state.compendiums.find((item) =>
+		item.sections.some((section) => section.id === sectionId),
+	);
+	if (!compendium) {
+		return { current: 1, total: 1 };
+	}
+	const index = compendium.sections.findIndex((section) => section.id === sectionId);
+	return {
+		current: index >= 0 ? index + 1 : 1,
+		total: Math.max(1, compendium.sections.length),
+	};
+}
+
+function editorPageInfo(saveAction, id) {
+	if (saveAction === "save-section") {
+		const info = sectionPageInfo(id);
+		return { ...info, label: "Editing page" };
+	}
+	return { current: 1, total: 1, label: "Editing page" };
 }
 
 function compendiumEditorHtml(compendium) {
@@ -13521,14 +13805,14 @@ function compendiumEditorHtml(compendium) {
 
 function sectionEditorHtml(section) {
 	return editorHtml({
-		title: "Edit Section",
-		subtitle:
-			"This can be a chapter, part, terms list, index, or any future compendium unit.",
+		title: "",
+		subtitle: "",
 		saveAction: "save-section",
 		cancelAction: "section-viewer",
 		id: section.id,
 		valueTitle: section.title,
 		valueBody: section.body,
+		sectionChrome: true,
 	});
 }
 
@@ -13634,6 +13918,7 @@ function lifeJournalEditorHtml(note) {
     `,
 			)}
     <form class="editor-form life-editor-form" data-editor-draft-key="${escapeHtml(draftKey)}">
+      ${pageNumberOverlayHtml({ current: 1, total: 1, label: "Editing page" })}
       ${editorSaveStatusHtml(note.properties?.isNewDraft ? "Unsaved" : "Saved")}
       <input id="editor-title" value="${escapeHtml(title)}" aria-label="Title">
       <div class="life-editor-grid">
@@ -13656,7 +13941,7 @@ function lifeJournalEditorHtml(note) {
       <label class="body-field editor-body-field">Journal
         <span class="editor-body-wrap has-image-button">
           <textarea id="editor-body" aria-label="Body" placeholder="What happened today? What needs attention?">${escapeHtml(body)}</textarea>
-          ${editorImageButtonHtml()}
+          ${cameraOrUploadInputHtml()}
         </span>
       </label>
       <div class="editor-footer-actions">
@@ -13676,6 +13961,7 @@ function editorHtml({
 	statusLabel = "",
 	valueTitle,
 	valueBody,
+	sectionChrome = false,
 }) {
 	const draftKey = editorDraftKeyFor(saveAction, id);
 	const displayTitle = editorDraftFieldValue(
@@ -13684,11 +13970,16 @@ function editorHtml({
 		valueTitle,
 	);
 	const displayBody = editorDraftFieldValue(draftKey, "editor-body", valueBody);
+	const pageInfo = editorPageInfo(saveAction, id);
+	const bodyHasCamera = !sectionChrome;
 	return panelHtml(`
-    ${headerHtml(
-			title,
-			subtitle,
-			`
+    ${
+			sectionChrome
+				? ""
+				: headerHtml(
+						title,
+						subtitle,
+						`
       <div class="action-row">
         ${saveAction === "save-artifact-note" ? pageActionButton("delete-artifact-note", "tabler:trash", "Delete note", { danger: true, data: { id } }) : ""}
         ${saveAction === "save-compendium" ? pageActionButton("delete-compendium", "tabler:trash", "Delete compendium", { danger: true, data: { id } }) : ""}
@@ -13696,29 +13987,46 @@ function editorHtml({
         ${pageActionButton(cancelAction, "tabler:x", "Close editor", { className: "close-viewer-button" })}
       </div>
     `,
-		)}
-    <form class="editor-form" data-editor-draft-key="${escapeHtml(draftKey)}">
+					)
+		}
+    <form class="editor-form${sectionChrome ? " editor-form--section" : ""}" data-editor-draft-key="${escapeHtml(draftKey)}">
+      ${
+				sectionChrome
+					? `
+        <nav class="section-editor-floating-nav" aria-label="Section editor actions">
+          ${cameraOrUploadInputHtml({ className: "page-action-button section-editor-nav-button", label: "Add photo" })}
+          ${pageActionButton(saveAction, "tabler:device-floppy", "Save section", { data: { id } })}
+          ${pageActionButton("delete-section", "tabler:trash", "Delete section", { data: { id } })}
+          ${pageActionButton(cancelAction, "tabler:x", "Exit section editor", { className: "close-viewer-button" })}
+        </nav>
+      `
+					: ""
+			}
+      ${pageNumberOverlayHtml(pageInfo)}
       ${editorSaveStatusHtml(statusLabel)}
       <input id="editor-title" value="${escapeHtml(displayTitle)}" aria-label="Title">
-      <div class="editor-body-wrap has-image-button">
+      <div class="editor-body-wrap${bodyHasCamera ? " has-image-button" : ""}">
         <textarea id="editor-body" aria-label="Body">${escapeHtml(displayBody)}</textarea>
-        ${editorImageButtonHtml()}
+        ${bodyHasCamera ? cameraOrUploadInputHtml() : ""}
       </div>
-      <div class="editor-footer-actions">
+      ${
+				sectionChrome
+					? ""
+					: `<div class="editor-footer-actions">
         <button class="secondary-button" data-action="${cancelAction}" type="button">${buttonContent("tabler:x", "Cancel")}</button>
         <button class="secondary-button" data-action="${saveAction}" data-id="${id}" type="button">${buttonContent("tabler:device-floppy", "Save")}</button>
-      </div>
+      </div>`
+			}
     </form>
   `);
 }
 
-function editorImageButtonHtml() {
+function cameraOrUploadInputHtml(options = {}) {
+	const className = options.className || "editor-image-button editor-camera-button";
+	const label = options.label || "Add photo";
 	return `
-    <button class="icon-button editor-image-button editor-camera-button" data-editor-camera-button type="button" aria-label="Open camera" title="Open camera">
+    <button class="icon-button ${escapeHtml(className)}" data-editor-camera-button type="button" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">
       ${iconHtml("tabler:camera")}
-    </button>
-    <button class="icon-button editor-image-button editor-upload-button" data-editor-image-button type="button" aria-label="Upload image" title="Upload image">
-      ${iconHtml("tabler:photo")}
     </button>
   `;
 }
@@ -13760,12 +14068,9 @@ function cameraModalHtml() {
           <video data-camera-video autoplay playsinline muted></video>
           <div class="camera-placeholder" data-camera-placeholder>${iconHtml("tabler:camera")}</div>
         </div>
-        <label class="camera-save-option">
-          <input data-camera-save-to-device type="checkbox"${state.cameraSaveToDevice ? " checked" : ""}>
-          <span>${iconHtml("tabler:download")} Save a high-quality copy to this device</span>
-        </label>
         <p class="camera-status${state.cameraError ? " has-error" : ""}" data-camera-status role="status">${escapeHtml(message)}</p>
         <div class="camera-actions">
+          <button class="secondary-button" data-action="upload-camera-target" type="button">${buttonContent("tabler:photo", "Upload")}</button>
           <button class="secondary-button" data-action="close-camera" type="button">${buttonContent("tabler:x", "Cancel")}</button>
           <button class="primary-button" data-action="capture-camera" data-camera-capture type="button" disabled>${buttonContent("tabler:camera", "Capture")}</button>
         </div>
@@ -14253,15 +14558,23 @@ async function saveCameraFileToDevice(file) {
 	return "Download started.";
 }
 
-async function createCameraDashboardNote(file, dashboard) {
+async function createCameraDashboardNote(files, dashboard) {
+	const imageFiles = Array.isArray(files) ? files : [files];
 	const normalizedDashboard = DASHBOARD_LABELS.includes(dashboard)
 		? dashboard
 		: "Mind";
-	const stored = await storeLocalImage(file, localMediaStoreOptions());
+	const markdownItems = [];
+	for (const file of imageFiles.filter(Boolean)) {
+		const stored = await storeLocalImage(file, localMediaStoreOptions());
+		markdownItems.push(stored.markdown);
+	}
+	if (!markdownItems.length) {
+		throw new Error("No image files were selected.");
+	}
 	scheduleCloudStorageUsageRefresh({ force: true });
 	const now = nowIso();
-	const title = `Camera Photo`;
-	const body = `## ${title}\n\nCaptured: ${currentTimestampLabel()}\n\n${stored.markdown}`;
+	const title = imageFiles.length > 1 ? "Uploaded Images" : "Camera Photo";
+	const body = `## ${title}\n\nCaptured: ${currentTimestampLabel()}\n\n${markdownItems.join("\n\n")}`;
 	const isLife = normalizedDashboard === "Life";
 	const note = {
 		id: makeId("artifact"),
@@ -14336,7 +14649,73 @@ async function applyCameraCapture(file) {
 			pyxdiaError: "",
 		};
 	}
-	return await createCameraDashboardNote(file, target.dashboard);
+	return await createCameraDashboardNote([file], target.dashboard);
+}
+
+async function applyCameraUpload(files) {
+	const target = normalizeCameraTarget(state.cameraTarget || {});
+	const images = Array.from(files || []).filter((file) =>
+		file?.type?.startsWith("image/"),
+	);
+	if (!images.length) {
+		throw new Error("Choose at least one image file.");
+	}
+	if (target.kind === "editor") {
+		const inserted = await insertEditorImages(images, {
+			start: target.start,
+			end: target.end,
+		});
+		if (!inserted) {
+			throw new Error("Could not add image.");
+		}
+		return {};
+	}
+	if (target.kind === "pyxdia") {
+		const draft = await uploadPyxdiaImagesAndInsert(images, { render: false });
+		if (!draft) {
+			throw new Error(state.pyxdiaError || "Could not add image.");
+		}
+		return {
+			active: "PYXIDA",
+			pyxdiaView: "input",
+			pyxdiaDraft: draft,
+			pyxdiaStatus: "Image added.",
+			pyxdiaError: "",
+		};
+	}
+	return await createCameraDashboardNote(images, target.dashboard);
+}
+
+function uploadCameraTargetImages() {
+	const input = document.createElement("input");
+	input.type = "file";
+	input.accept = "image/*";
+	input.multiple = true;
+	input.addEventListener(
+		"change",
+		async () => {
+			const files = Array.from(input.files || []);
+			if (!files.length) {
+				return;
+			}
+			updateCameraStatus("Adding image to app...", "");
+			try {
+				const patch = await applyCameraUpload(files);
+				stopCameraStream();
+				setState({
+					...cameraClosedState(),
+					...patch,
+				});
+			} catch (error) {
+				updateCameraStatus(
+					"",
+					error instanceof Error ? error.message : "Could not add image.",
+				);
+			}
+		},
+		{ once: true },
+	);
+	input.click();
 }
 
 async function captureCameraPhoto() {
@@ -15305,32 +15684,6 @@ function bindEditorMedia() {
 			});
 		});
 	}
-	const imageButton = app.querySelector("[data-editor-image-button]");
-	if (imageButton) {
-		imageButton.addEventListener("pointerdown", (event) => {
-			event.preventDefault();
-			editor.focus();
-		});
-		imageButton.addEventListener("click", async () => {
-			const start = editor.selectionStart ?? editor.value.length;
-			const end = editor.selectionEnd ?? start;
-			const input = document.createElement("input");
-			input.type = "file";
-			input.accept = "image/*";
-			input.multiple = true;
-			input.addEventListener(
-				"change",
-				async () => {
-					await insertEditorImages(Array.from(input.files || []), {
-						start,
-						end,
-					});
-				},
-				{ once: true },
-			);
-			input.click();
-		});
-	}
 	editor.addEventListener("paste", async (event) => {
 		const files = Array.from(event.clipboardData?.items || [])
 			.filter((item) => item.kind === "file" && item.type.startsWith("image/"))
@@ -15544,6 +15897,9 @@ function handleAction(element) {
 	}
 	if (action === "close-camera") {
 		closeCamera();
+	}
+	if (action === "upload-camera-target") {
+		uploadCameraTargetImages();
 	}
 	if (action === "capture-camera") {
 		void captureCameraPhoto();
@@ -16229,7 +16585,7 @@ function handleAction(element) {
 }
 
 function editorTitle() {
-	return document.getElementById("editor-title")?.value.trim() || "Untitled";
+	return document.getElementById("editor-title")?.value.trim() || "";
 }
 
 function editorBody() {
