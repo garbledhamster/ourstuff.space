@@ -9774,7 +9774,7 @@ button.life-event-row:hover {
 	:root {
 		--content-pad: 16px;
 		--bottom-menu-button-height: 46px;
-		--dashboard-card-size-base: min(154px, calc((100vw - 52px) / 2));
+		--dashboard-card-size-base: min(116px, calc((100vw - 52px) / 2));
 		--dashboard-card-size-height-cap: var(--dashboard-card-size-base);
 	}
 
@@ -9940,25 +9940,16 @@ button.life-event-row:hover {
 	}
 
 	.dashboard-analytics {
-		order: 2;
-		grid-row: 3;
 		gap: 8px;
 		padding: 8px 12px 10px;
 	}
 
 	.dashboard-grid {
-		order: 0;
-		grid-row: 1;
 		grid-template-columns: repeat(2, var(--dashboard-card-size));
 		grid-template-rows: none;
 		align-content: start;
 		gap: 12px;
 		padding: 0 5px 18px;
-	}
-
-	.dashboard-divider {
-		order: 1;
-		grid-row: 2;
 	}
 
 	.dashboard-card {
