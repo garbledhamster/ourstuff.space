@@ -37,7 +37,7 @@ Utility views live beside those areas:
 | Path bar | Breadcrumb row above content: Dashboard / Area / Item. | `pathBarHtml()`, `.path-bar` |
 | Panel | Standard framed content wrapper for most views. | `panelHtml()` |
 | Header | View title, subtitle, and right-side actions. | `headerHtml()` |
-| Title popup bar | Full-width collapsed header button that restores the shared title/subtitle area across pages. | `.title-popup-toggle`, `ourstuff.headerCollapsed.v1` |
+| Header snap | Scroll-triggered header collapse that snaps page title/actions out of view and gives the main body the available screen height until the user scrolls back to the top. | `.is-header-snapped`, `bindHeaderSnap()` |
 | Action row | Horizontal button group inside headers and forms. | `.action-row` |
 | Empty state | Placeholder card for views with no content yet. | `emptyStateHtml()` |
 
@@ -184,6 +184,7 @@ Default thought orb labels:
 | Data Controls | Firebase sign-in, subscription state, billing, manual sync controls, Obsidian Sync keys, and local Clear Data. | `settingsCloudHtml()`, `assets/js/cloud.js` |
 | Theme catalog | App-specific named themes and font sets. | `APP_THEMES`, `THEME_FONT_SETS` |
 | Theme engine | Portable helper that applies theme variables and previews. | `assets/js/themeSystem.js` |
+| Colorblind mode | Global accessibility adapter layered over the selected theme. | `ourstuff.colorMode.v1`, `.theme-accessibility-colorblind` |
 | Gallery | Local images inserted into markdown notes. | `galleryHtml()` |
 | Local media | IndexedDB-backed images and files. Images use `ourstuff-asset:` URLs. | `assets/js/localMedia.js` |
 | Trash | Global user-owned deletion lifecycle for notes, artifacts, and PYXDIA letters: retention settings, restore, permanent delete, active-view filtering, and the unified trash index. | `trashHtml()`, `assets/js/trash.js`, `trashApi` |
@@ -244,9 +245,9 @@ Default thought orb labels:
 | `ourstuff.goals.v1` | Goal orb settings per dashboard area. |
 | `ourstuff.dashboardIdentity.v1` | Dashboard area labels, numbers, and icons. |
 | `ourstuff.dashboardChartTabs.v1` | Saved home dashboard tab order for Orbs, Pie, and Bar. |
-| `ourstuff.headerCollapsed.v1` | Shared title/subtitle collapsed state for all app pages. |
 | `ourstuff.sidebarWidth.v1` | Desktop sidebar width. |
 | `ourstuff.theme.v1` | Active theme id. |
+| `ourstuff.colorMode.v1` | Global color mode: `standard` or `colorblind`. |
 | `ourstuff.pyxdiaSettings.v1` | PYXDIA local settings fallback. |
 | `ourstuff.pyxdiaPenpal.v1` | PYXDIA local/demo draft, letters, user-selected context, static memory, and dynamic retrieval metadata. |
 | `ourstuff.iconifySearchCache.v1` | Icon picker search cache. |

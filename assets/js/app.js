@@ -116,9 +116,9 @@ const TRACKER_SETTINGS_KEY = "ourstuff.thoughts.v1";
 const GOAL_SETTINGS_KEY = "ourstuff.goals.v1";
 const DASHBOARD_IDENTITY_KEY = "ourstuff.dashboardIdentity.v1";
 const DASHBOARD_CHART_TABS_KEY = "ourstuff.dashboardChartTabs.v1";
-const HEADER_COLLAPSED_KEY = "ourstuff.headerCollapsed.v1";
 const SIDEBAR_WIDTH_KEY = "ourstuff.sidebarWidth.v1";
 const THEME_KEY = "ourstuff.theme.v1";
+const COLOR_MODE_KEY = "ourstuff.colorMode.v1";
 const PYXIDA_SETTINGS_KEY = "ourstuff.pyxdiaSettings.v1";
 const PYXIDA_LOCAL_STATE_KEY = "ourstuff.pyxdiaPenpal.v1";
 const PYXIDA_RECENT_NOTE_DAYS = 30;
@@ -1062,19 +1062,24 @@ function saveDashboardChartTabs(tabs = state.dashboardChartTabs) {
 	markLocalAppChanged();
 }
 
-function loadHeaderCollapsed() {
+function normalizeColorMode(value) {
+	return value === "colorblind" ? "colorblind" : "standard";
+}
+
+function loadColorMode() {
 	try {
-		return window.localStorage.getItem(HEADER_COLLAPSED_KEY) === "true";
+		return normalizeColorMode(window.localStorage.getItem(COLOR_MODE_KEY));
 	} catch {
-		return false;
+		return "standard";
 	}
 }
 
-function saveHeaderCollapsed(collapsed = state.headerCollapsed) {
+function saveColorMode(mode = state.colorMode) {
 	try {
-		window.localStorage.setItem(HEADER_COLLAPSED_KEY, collapsed ? "true" : "false");
+		window.localStorage.setItem(COLOR_MODE_KEY, normalizeColorMode(mode));
+		markLocalAppChanged();
 	} catch {
-		// Header collapse is a view preference; localStorage failure should not block the app.
+		// Accessibility mode is a view preference; localStorage failure should not block the app.
 	}
 }
 
@@ -1719,6 +1724,17 @@ function applyThemeVariables(themeId) {
 	});
 }
 
+function applyColorMode(mode = state.colorMode) {
+	const colorMode = normalizeColorMode(mode);
+	const root = document.documentElement;
+	root.classList.toggle(
+		"theme-accessibility-colorblind",
+		colorMode === "colorblind",
+	);
+	root.dataset.colorMode = colorMode;
+	app.dataset.colorMode = colorMode;
+}
+
 function themeFontLabel(theme) {
 	return themeSystemFontLabel(theme, {
 		fontSets: THEME_FONT_SETS,
@@ -2096,7 +2112,9 @@ function removeLocalAppStorageKeys() {
 		TRACKER_SETTINGS_KEY,
 		GOAL_SETTINGS_KEY,
 		DASHBOARD_IDENTITY_KEY,
+		DASHBOARD_CHART_TABS_KEY,
 		THEME_KEY,
+		COLOR_MODE_KEY,
 		ICONIFY_SEARCH_CACHE_KEY,
 		LOCAL_APP_UPDATED_AT_KEY,
 	].forEach((key) => {
@@ -2122,6 +2140,7 @@ async function resetLocalAppForAccountSwitch(ownerId) {
 	state.goalSettings = cloneDefaultGoals();
 	state.dashboardIdentity = cloneDefaultDashboardIdentity();
 	state.theme = "default";
+	state.colorMode = "standard";
 	state.localAppUpdatedAt = "";
 	state.settingsTab = "getting-started";
 	state.trackerAddArea = "";
@@ -2204,6 +2223,7 @@ function applyEnvironmentClasses() {
 	const installed = isInstalledWebApp();
 	const mobile = isMobileViewport();
 	const theme = normalizeTheme(state?.theme);
+	const colorMode = normalizeColorMode(state?.colorMode);
 	app.classList.toggle("is-installed-app", installed);
 	app.classList.toggle("is-browser-mode", !installed);
 	app.classList.toggle("is-mobile-viewport", mobile);
@@ -2211,6 +2231,7 @@ function applyEnvironmentClasses() {
 	app.dataset.displayMode = installed ? "standalone" : "browser";
 	app.dataset.viewportMode = mobile ? "mobile" : "desktop";
 	applyThemeVariables(theme);
+	applyColorMode(colorMode);
 	app.dataset.theme = theme;
 }
 
@@ -2393,6 +2414,7 @@ async function exportAppState(options = {}) {
 			state.dashboardChartTabs || DEFAULT_DASHBOARD_CHART_TABS,
 		),
 		theme: normalizeTheme(state.theme),
+		colorMode: normalizeColorMode(state.colorMode),
 		cloudMediaKey: await exportCloudMediaKey(),
 		localFiles: await exportLocalFiles({
 			includeData: options.includeLocalFileData !== false,
@@ -2446,6 +2468,7 @@ async function restoreImportedAppState(appState) {
 		appState?.dashboardChartTabs || DEFAULT_DASHBOARD_CHART_TABS,
 	);
 	const theme = normalizeTheme(appState?.theme || state.theme);
+	const colorMode = normalizeColorMode(appState?.colorMode || state.colorMode);
 
 	state.bodyTracker = bodyTracker;
 	state.spiritProgress = spiritProgress;
@@ -2457,6 +2480,7 @@ async function restoreImportedAppState(appState) {
 	state.dashboardChartType =
 		dashboardChartTabs[0] || DEFAULT_DASHBOARD_CHART_TABS[0];
 	state.theme = theme;
+	state.colorMode = colorMode;
 	saveBodyTracker();
 	saveSpiritProgress();
 	saveLifePlannerStore(lifePlanner);
@@ -2465,6 +2489,7 @@ async function restoreImportedAppState(appState) {
 	saveDashboardIdentity(dashboardIdentity);
 	saveDashboardChartTabs(dashboardChartTabs);
 	saveTheme(theme);
+	saveColorMode(colorMode);
 	if (appState.cloudMediaKey) {
 		importCloudMediaKey(appState.cloudMediaKey);
 	}
@@ -3218,10 +3243,10 @@ function hasStoredAppState() {
 			window.localStorage.getItem(GOAL_SETTINGS_KEY) ||
 			window.localStorage.getItem(DASHBOARD_IDENTITY_KEY) ||
 			window.localStorage.getItem(DASHBOARD_CHART_TABS_KEY) ||
-			window.localStorage.getItem(HEADER_COLLAPSED_KEY) ||
 			window.localStorage.getItem(PYXIDA_SETTINGS_KEY) ||
 			window.localStorage.getItem(PYXIDA_LOCAL_STATE_KEY) ||
-			window.localStorage.getItem(THEME_KEY),
+			window.localStorage.getItem(THEME_KEY) ||
+			window.localStorage.getItem(COLOR_MODE_KEY),
 	);
 }
 
@@ -3255,6 +3280,7 @@ const state = {
 	lifeMode: "month",
 	settingsTab: "getting-started",
 	theme: loadTheme(),
+	colorMode: loadColorMode(),
 	pyxdiaSettings: loadPyxdiaSettings(),
 	pyxdiaThreads: initialPyxdiaLocalState.threads,
 	pyxdiaLetters: initialPyxdiaLocalState.letters,
@@ -3270,7 +3296,6 @@ const state = {
 	pyxdiaNoteFilters: createDefaultPyxdiaNoteFilters(),
 	dismissedTips: loadDismissedTips(),
 	dashboardIdentity: loadDashboardIdentity(),
-	headerCollapsed: loadHeaderCollapsed(),
 	trackerAddArea: "",
 	trackerEditKey: "",
 	trackerDeleteKey: "",
@@ -7610,12 +7635,6 @@ function toggleMobileMenu() {
 	setState({ mobileMenuOpen: !state.mobileMenuOpen });
 }
 
-function toggleHeaderCollapse() {
-	const collapsed = !state.headerCollapsed;
-	saveHeaderCollapsed(collapsed);
-	setState({ headerCollapsed: collapsed });
-}
-
 function closeMobileMenu() {
 	if (!state.mobileMenuOpen) {
 		return false;
@@ -7810,11 +7829,11 @@ async function clearAppData(options = {}) {
 	window.localStorage.removeItem(GOAL_SETTINGS_KEY);
 	window.localStorage.removeItem(DASHBOARD_IDENTITY_KEY);
 	window.localStorage.removeItem(DASHBOARD_CHART_TABS_KEY);
-	window.localStorage.removeItem(HEADER_COLLAPSED_KEY);
 	window.localStorage.removeItem(PYXIDA_SETTINGS_KEY);
 	window.localStorage.removeItem(PYXIDA_LOCAL_STATE_KEY);
 	window.localStorage.removeItem(SIDEBAR_WIDTH_KEY);
 	window.localStorage.removeItem(THEME_KEY);
+	window.localStorage.removeItem(COLOR_MODE_KEY);
 	window.localStorage.removeItem(ICONIFY_SEARCH_CACHE_KEY);
 	window.localStorage.removeItem(LOCAL_APP_UPDATED_AT_KEY);
 	clearDismissedTips();
@@ -7830,8 +7849,8 @@ async function clearAppData(options = {}) {
 	state.dashboardIdentity = cloneDefaultDashboardIdentity();
 	state.dashboardChartTabs = [...DEFAULT_DASHBOARD_CHART_TABS];
 	state.dashboardChartType = DEFAULT_DASHBOARD_CHART_TABS[0];
-	state.headerCollapsed = false;
 	state.theme = "default";
+	state.colorMode = "standard";
 	state.pyxdiaSettings = normalizePyxdiaSettings(DEFAULT_PYXIDA_SETTINGS);
 	state.pyxdiaThreads = [];
 	state.pyxdiaLetters = [];
@@ -7891,11 +7910,11 @@ async function restoreFactoryDefaults() {
 	window.localStorage.removeItem(GOAL_SETTINGS_KEY);
 	window.localStorage.removeItem(DASHBOARD_IDENTITY_KEY);
 	window.localStorage.removeItem(DASHBOARD_CHART_TABS_KEY);
-	window.localStorage.removeItem(HEADER_COLLAPSED_KEY);
 	window.localStorage.removeItem(PYXIDA_SETTINGS_KEY);
 	window.localStorage.removeItem(PYXIDA_LOCAL_STATE_KEY);
 	window.localStorage.removeItem(SIDEBAR_WIDTH_KEY);
 	window.localStorage.removeItem(THEME_KEY);
+	window.localStorage.removeItem(COLOR_MODE_KEY);
 	window.localStorage.removeItem(ICONIFY_SEARCH_CACHE_KEY);
 	window.localStorage.removeItem(LOCAL_APP_UPDATED_AT_KEY);
 	clearDismissedTips();
@@ -7912,8 +7931,8 @@ async function restoreFactoryDefaults() {
 	state.dashboardIdentity = cloneDefaultDashboardIdentity();
 	state.dashboardChartTabs = [...DEFAULT_DASHBOARD_CHART_TABS];
 	state.dashboardChartType = DEFAULT_DASHBOARD_CHART_TABS[0];
-	state.headerCollapsed = false;
 	state.theme = "default";
+	state.colorMode = "standard";
 	state.pyxdiaSettings = normalizePyxdiaSettings(DEFAULT_PYXIDA_SETTINGS);
 	state.pyxdiaThreads = [];
 	state.pyxdiaLetters = [];
@@ -9511,6 +9530,12 @@ function setTheme(theme) {
 	setState({ theme: nextTheme });
 }
 
+function setColorMode(mode) {
+	const nextMode = normalizeColorMode(mode);
+	saveColorMode(nextMode);
+	setState({ colorMode: nextMode });
+}
+
 function saveDashboardIdentitySettings() {
 	const current = normalizeDashboardIdentity(state.dashboardIdentity);
 	const displayMode =
@@ -9668,6 +9693,7 @@ function render() {
 	bindSidebarResize();
 	bindSidebarHorizontalScroll();
 	bindPathBarOverflow();
+	bindHeaderSnap();
 	bindCompendiumSectionSorting();
 	bindDashboardBalanceHover();
 	bindDashboardPeriodSlider();
@@ -11443,6 +11469,7 @@ function settingsGoalsHtml() {
 
 function settingsInterfaceHtml() {
 	const identity = normalizeDashboardIdentity(state.dashboardIdentity);
+	const colorMode = normalizeColorMode(state.colorMode);
 	return `
     <div class="settings-tab-panel interface-settings">
       <section class="interface-settings-section">
@@ -11508,6 +11535,22 @@ function settingsInterfaceHtml() {
             </button>
           `,
 					).join("")}
+        </div>
+      </section>
+      <section class="interface-settings-section">
+        <div class="body-card-heading">
+          <div>
+            <h3>Accessibility</h3>
+            <p>Layer display modes over the selected theme without changing the theme catalog.</p>
+          </div>
+        </div>
+        <div class="dashboard-identity-toggles color-mode-toggles" role="group" aria-label="Color mode">
+          <button class="dashboard-identity-toggle${colorMode === "standard" ? " is-active" : ""}" data-action="set-color-mode" data-color-mode="standard" type="button" aria-pressed="${colorMode === "standard" ? "true" : "false"}">
+            <span>Standard</span>
+          </button>
+          <button class="dashboard-identity-toggle${colorMode === "colorblind" ? " is-active" : ""}" data-action="set-color-mode" data-color-mode="colorblind" type="button" aria-pressed="${colorMode === "colorblind" ? "true" : "false"}">
+            <span>Colorblind</span>
+          </button>
         </div>
       </section>
     </div>
@@ -13019,8 +13062,8 @@ function lifeToolSwitcherHtml() {
 
 function lifeCalendarModeSwitcherHtml() {
 	const modes = [
-		["month", "Month", "tabler:calendar-month"],
-		["week", "Week", "tabler:calendar-week"],
+		["month", "Month", "tabler:calendar-week"],
+		["week", "Week", "tabler:calendar-month"],
 		["day", "Day", "tabler:calendar-event"],
 		["list", "List", "tabler:list-details"],
 	];
@@ -13977,6 +14020,9 @@ function mindGridHtml() {
           <span class="reader-page-dot reader-page-dot--current" aria-label="Compendiums ${currentStart} through ${currentEnd} of ${state.compendiums.length}"></span>
           <span class="reader-page-dot reader-page-dot--side${hasNext ? " is-available" : ""}" aria-hidden="true"></span>
         </button>
+        <button class="compendium-new-button" data-action="new-compendium" type="button">
+          ${buttonContent("tabler:plus", "New Compendium")}
+        </button>
       </div>
     </div>
   `);
@@ -14345,29 +14391,13 @@ function panelHtml(inner) {
 
 function headerHtml(title, subtitle, actions = "", options = {}) {
 	const renderedTitle = options.titleHtml || escapeHtml(title);
-	const collapsed = state.headerCollapsed;
-	const headerText = [title, subtitle].filter(Boolean).join(" / ") || "Page title";
-	const label = collapsed ? "Show title" : "Hide title";
 	return `
-    <header class="panel-header${collapsed ? " is-title-collapsed" : ""}">
+    <header class="panel-header">
       ${actions ? `<div class="panel-header-actions">${actions}</div>` : ""}
-      ${
-				collapsed
-					? ""
-					: `<div class="panel-header-copy" data-action="toggle-header-collapse" role="button" tabindex="0" aria-expanded="true" aria-label="${escapeHtml(`${label}: ${headerText}`)}">
+      <div class="panel-header-copy">
         <h2>${renderedTitle}</h2>
         ${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ""}
-      </div>`
-			}
-      ${
-				collapsed
-					? `<button class="title-popup-toggle" data-action="toggle-header-collapse" type="button" aria-expanded="false" aria-label="${escapeHtml(`${label}: ${headerText}`)}">
-        <span aria-hidden="true">${collapsed ? "^^^" : "vvv"}</span>
-        <strong>${collapsed ? "SHOW TITLE" : "HIDE TITLE"}</strong>
-        <span aria-hidden="true">${collapsed ? "^^^" : "vvv"}</span>
-      </button>`
-					: ""
-			}
+      </div>
     </header>
   `;
 }
@@ -15529,6 +15559,100 @@ function bindPathBarOverflow() {
 	}
 }
 
+function nearestVerticalScroller(target, root) {
+	const element = target?.closest?.("*");
+	let current = element;
+	while (current && current !== root && root.contains(current)) {
+		const style = window.getComputedStyle(current);
+		const canScroll =
+			current.scrollHeight > current.clientHeight + 2 &&
+			/(auto|scroll)/.test(`${style.overflowY} ${style.overflow}`);
+		if (canScroll) {
+			return current;
+		}
+		current = current.parentElement;
+	}
+	return root;
+}
+
+function setHeaderSnapped(snapped) {
+	const contentStage = app.querySelector(".content-stage");
+	const panel = contentStage?.querySelector(".panel");
+	if (!contentStage || !panel?.querySelector(".panel-header")) {
+		return;
+	}
+	contentStage.classList.toggle("is-header-snapped", snapped);
+	panel.classList.toggle("is-header-snapped", snapped);
+}
+
+function bindHeaderSnap() {
+	const contentStage = app.querySelector(".content-stage");
+	const panel = contentStage?.querySelector(".panel");
+	const header = panel?.querySelector(".panel-header");
+	if (!contentStage || !panel || !header) {
+		return;
+	}
+	let touchStartY = 0;
+	const isSnapped = () => contentStage.classList.contains("is-header-snapped");
+	const revealIfAtTop = (target = contentStage) => {
+		const scroller = nearestVerticalScroller(target, contentStage);
+		if (contentStage.scrollTop <= 2 && scroller.scrollTop <= 2) {
+			setHeaderSnapped(false);
+		}
+	};
+	contentStage.addEventListener(
+		"wheel",
+		(event) => {
+			if (Math.abs(event.deltaY) < 8) {
+				return;
+			}
+			if (event.deltaY > 0 && !isSnapped()) {
+				event.preventDefault();
+				setHeaderSnapped(true);
+				return;
+			}
+			if (event.deltaY < 0) {
+				revealIfAtTop(event.target);
+			}
+		},
+		{ passive: false },
+	);
+	contentStage.addEventListener(
+		"touchstart",
+		(event) => {
+			touchStartY = event.touches?.[0]?.clientY || 0;
+		},
+		{ passive: true },
+	);
+	contentStage.addEventListener(
+		"touchmove",
+		(event) => {
+			const currentY = event.touches?.[0]?.clientY || touchStartY;
+			const deltaY = touchStartY - currentY;
+			if (deltaY > 10 && !isSnapped()) {
+				event.preventDefault();
+				setHeaderSnapped(true);
+				touchStartY = currentY;
+				return;
+			}
+			if (deltaY < -10) {
+				revealIfAtTop(event.target);
+				touchStartY = currentY;
+			}
+		},
+		{ passive: false },
+	);
+	contentStage.addEventListener(
+		"scroll",
+		() => {
+			if (contentStage.scrollTop <= 2) {
+				revealIfAtTop(contentStage);
+			}
+		},
+		{ passive: true },
+	);
+}
+
 function sectionDropIndex(list, activeRow, pointerY) {
 	const rows = Array.from(list.querySelectorAll("[data-section-row]")).filter(
 		(row) => row !== activeRow,
@@ -16263,9 +16387,6 @@ function handleAction(element) {
 			toggleMobileMenu();
 		}
 	}
-	if (action === "toggle-header-collapse") {
-		toggleHeaderCollapse();
-	}
 	if (action === "toggle-sidebar-section") {
 		toggleSidebarSection(element.dataset.section);
 	}
@@ -16315,6 +16436,9 @@ function handleAction(element) {
 	}
 	if (action === "set-theme") {
 		setTheme(element.dataset.theme);
+	}
+	if (action === "set-color-mode") {
+		setColorMode(element.dataset.colorMode);
 	}
 	if (action === "save-dashboard-identity") {
 		saveDashboardIdentitySettings();

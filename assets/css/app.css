@@ -185,6 +185,28 @@ select option:checked {
 	color: var(--theme-select-option-active-text);
 }
 
+:root.theme-accessibility-colorblind {
+	--colorblind-pattern-color: color-mix(in srgb, var(--text) 34%, transparent);
+	--colorblind-focus-ring: 0 0 0 3px
+		color-mix(in srgb, var(--accent) 42%, transparent);
+}
+
+:root.theme-accessibility-colorblind .dashboard-pie-segment,
+:root.theme-accessibility-colorblind .dashboard-bar-button,
+:root.theme-accessibility-colorblind .tracker-orb,
+:root.theme-accessibility-colorblind .life-tracker-pill {
+	outline-offset: 2px;
+}
+
+:root.theme-accessibility-colorblind .body-mode-button.is-active,
+:root.theme-accessibility-colorblind .dashboard-chart-switcher button.is-active,
+:root.theme-accessibility-colorblind .theme-choice.is-active,
+:root.theme-accessibility-colorblind .dashboard-identity-toggle.is-active {
+	box-shadow:
+		inset 0 -2px 0 currentColor,
+		var(--colorblind-focus-ring);
+}
+
 .app-shell,
 .workspace,
 .sidebar,
@@ -370,6 +392,7 @@ select option:checked {
 :root.theme-consolas .icon-button,
 :root.theme-consolas .body-mode-button,
 :root.theme-consolas .dashboard-chart-switcher button,
+:root.theme-consolas .compendium-new-button,
 :root.theme-consolas .dashboard-period-slider,
 :root.theme-consolas .theme-choice {
 	border-color: var(--border-soft);
@@ -386,6 +409,8 @@ select option:checked {
 :root.theme-consolas .body-mode-button.is-active,
 :root.theme-consolas .dashboard-chart-switcher button:hover,
 :root.theme-consolas .dashboard-chart-switcher button.is-active,
+:root.theme-consolas .compendium-new-button:hover,
+:root.theme-consolas .compendium-new-button:focus-visible,
 :root.theme-consolas .dashboard-period-slider:focus-within,
 :root.theme-consolas .theme-choice:hover,
 :root.theme-consolas .theme-choice:focus-visible,
@@ -1554,7 +1579,7 @@ select option:checked {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
 	align-items: stretch;
-	width: min(100%, 492px);
+	width: min(100%, 560px);
 	gap: 7px;
 }
 
@@ -2823,6 +2848,19 @@ select option:checked {
 .dashboard-identity-toggle:has(input:checked) {
 	border-color: var(--accent);
 	background: color-mix(in srgb, var(--accent) 18%, var(--theme-control));
+}
+
+.dashboard-identity-toggle.is-active {
+	border-color: var(--accent);
+	background: color-mix(in srgb, var(--accent) 18%, var(--theme-control));
+}
+
+.color-mode-toggles {
+	margin-top: 0;
+}
+
+.color-mode-toggles .dashboard-identity-toggle {
+	cursor: pointer;
 }
 
 .dashboard-identity-grid {
@@ -4841,6 +4879,35 @@ select option:checked {
 	box-shadow: none;
 }
 
+.panel.is-header-snapped {
+	gap: 0;
+	padding-top: 0;
+}
+
+.content-stage.is-header-snapped {
+	overflow: hidden;
+}
+
+.content-stage.is-header-snapped .panel {
+	height: 100%;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.content-stage.is-header-snapped .panel > :last-child {
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+.content-stage.is-header-snapped .panel > .scroll-area,
+.content-stage.is-header-snapped .panel > .reader-panel,
+.content-stage.is-header-snapped .panel > .reader-book,
+.content-stage.is-header-snapped .panel > .editor-form,
+.content-stage.is-header-snapped .settings-tab-panel {
+	overflow-y: auto;
+	overscroll-behavior: contain;
+}
+
 .panel > :not(.panel-header) {
 	min-height: 0;
 }
@@ -4873,12 +4940,23 @@ select option:checked {
 	display: grid;
 	align-items: start;
 	gap: 10px;
+	max-height: 180px;
 	margin-bottom: 0;
+	overflow: hidden;
 	padding-right: 0;
+	opacity: 1;
+	transform: translateY(0);
+	transition:
+		max-height 0.16s ease,
+		opacity 0.12s ease,
+		transform 0.16s ease;
 }
 
-.panel-header.is-title-collapsed {
-	gap: 8px;
+.panel.is-header-snapped .panel-header {
+	max-height: 0;
+	opacity: 0;
+	pointer-events: none;
+	transform: translateY(-10px);
 }
 
 .panel-header-copy {
@@ -4889,51 +4967,6 @@ select option:checked {
 	color: inherit;
 	padding: 0;
 	text-align: left;
-	cursor: pointer;
-}
-
-.panel-header-copy:hover h2,
-.panel-header-copy:focus-visible h2 {
-	color: var(--accent);
-}
-
-.panel-header-copy:focus-visible {
-	outline: 2px solid var(--theme-ring);
-	outline-offset: 6px;
-}
-
-.title-popup-toggle {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	gap: 10px;
-	width: 100%;
-	min-height: 40px;
-	border: 1px solid var(--border);
-	border-right: 0;
-	border-left: 0;
-	border-radius: 0;
-	background: rgba(15, 23, 42, 0.62);
-	color: var(--text);
-	font-family: var(--font-label);
-	font-size: 0.78rem;
-	font-weight: 900;
-	letter-spacing: 0.08em;
-	text-align: center;
-	cursor: pointer;
-}
-
-.title-popup-toggle:hover,
-.title-popup-toggle:focus-visible {
-	border-color: var(--border-accent);
-	background: var(--theme-control-hover);
-	color: #fff;
-	outline: none;
-}
-
-.title-popup-toggle span,
-.title-popup-toggle strong {
-	line-height: 1;
 }
 
 .panel-header h2,
@@ -5431,12 +5464,38 @@ select option:checked {
 .compendium-grid-controls {
 	display: grid;
 	justify-items: center;
-	gap: 6px;
+	gap: 10px;
 	justify-self: center;
 	width: min(100%, 648px);
 	margin-top: 12px;
 	border-top: 1px solid var(--border-soft);
 	padding-top: 10px;
+}
+
+.compendium-new-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	width: 100%;
+	min-height: 42px;
+	border: 1px solid var(--border-soft);
+	border-radius: 0;
+	background: var(--theme-control, rgba(15, 23, 42, 0.72));
+	color: var(--text);
+	font-family: var(--font-label);
+	font-size: 0.78rem;
+	font-weight: 900;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.compendium-new-button:hover,
+.compendium-new-button:focus-visible {
+	border-color: var(--border-accent);
+	background: var(--theme-control-hover, #1e293b);
+	color: var(--on-surface-2, #fff);
+	outline: none;
 }
 
 .mind-grid-scroll {
@@ -6084,6 +6143,50 @@ select option:checked {
 	.fc-daygrid-day-events {
 	-webkit-mask-image: none;
 	mask-image: none;
+}
+
+.content-stage.is-header-snapped:has(.life-calendar-viewer) {
+	overflow: hidden;
+}
+
+.content-stage.is-header-snapped:has(.life-calendar-viewer) .panel {
+	height: 100%;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.content-stage.is-header-snapped:has(.life-calendar-viewer)
+	.panel
+	> .life-dashboard {
+	flex: 1 1 auto;
+}
+
+.content-stage.is-header-snapped:has(.life-calendar-viewer) .life-dashboard {
+	grid-template-rows: auto auto minmax(0, 1fr);
+	height: 100%;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.content-stage.is-header-snapped:has(.life-calendar-viewer) .life-mode-panel,
+.content-stage.is-header-snapped:has(.life-calendar-viewer)
+	.life-calendar-viewer {
+	height: 100%;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.content-stage.is-header-snapped:has(.life-calendar-viewer)
+	.life-calendar-viewer
+	> .life-card,
+.content-stage.is-header-snapped:has(.life-calendar-viewer) .life-card--month,
+.content-stage.is-header-snapped:has(.life-calendar-viewer) .life-date-list,
+.content-stage.is-header-snapped:has(.life-calendar-viewer)
+	.life-mobile-month-agenda {
+	height: 100%;
+	min-height: 0;
+	overflow-y: auto;
+	overscroll-behavior: contain;
 }
 
 .life-mode-panel {
@@ -8436,6 +8539,7 @@ button.life-event-row:hover {
 :root.theme-palette:not(.theme-consolas) .dashboard-identity-card,
 :root.theme-palette:not(.theme-consolas) .dashboard-identity-toggle,
 :root.theme-palette:not(.theme-consolas) .dashboard-chart-switcher,
+:root.theme-palette:not(.theme-consolas) .compendium-new-button,
 :root.theme-palette:not(.theme-consolas) .dashboard-period-slider,
 :root.theme-palette:not(.theme-consolas) .dashboard-card-face,
 :root.theme-palette:not(.theme-consolas) .dashboard-card-back-face,
@@ -8533,6 +8637,7 @@ button.life-event-row:hover {
 :root.theme-palette:not(.theme-consolas) .icon-button,
 :root.theme-palette:not(.theme-consolas) .body-mode-button,
 :root.theme-palette:not(.theme-consolas) .dashboard-chart-switcher button,
+:root.theme-palette:not(.theme-consolas) .compendium-new-button,
 :root.theme-palette:not(.theme-consolas) .tracker-page-controls button,
 :root.theme-palette:not(.theme-consolas) .compendium-rotator-edge,
 :root.theme-palette:not(.theme-consolas) .reader-slider-edge {
@@ -8593,6 +8698,8 @@ button.life-event-row:hover {
 :root.theme-palette:not(.theme-consolas)
 	.dashboard-chart-switcher
 	button.is-active,
+:root.theme-palette:not(.theme-consolas) .compendium-new-button:hover,
+:root.theme-palette:not(.theme-consolas) .compendium-new-button:focus-visible,
 :root.theme-palette:not(.theme-consolas) .dashboard-period-slider:focus-within,
 :root.theme-palette:not(.theme-consolas) .theme-choice:hover,
 :root.theme-palette:not(.theme-consolas) .theme-choice:focus-visible,
@@ -9120,6 +9227,7 @@ button.life-event-row:hover {
 
 :root.theme-consolas .body-mode-button,
 :root.theme-consolas .dashboard-chart-switcher button,
+:root.theme-consolas .compendium-new-button,
 :root.theme-consolas .dashboard-identity-toggle,
 :root.theme-consolas .spirit-year-button,
 :root.theme-consolas .spirit-lookup-link,
@@ -9157,6 +9265,8 @@ button.life-event-row:hover {
 :root.theme-consolas .body-mode-button.is-active,
 :root.theme-consolas .dashboard-chart-switcher button:hover,
 :root.theme-consolas .dashboard-chart-switcher button.is-active,
+:root.theme-consolas .compendium-new-button:hover,
+:root.theme-consolas .compendium-new-button:focus-visible,
 :root.theme-consolas .dashboard-period-slider:focus-within,
 :root.theme-consolas .sidebar-menu-nav-button:hover,
 :root.theme-consolas .sidebar-menu-nav-button:focus-visible,
