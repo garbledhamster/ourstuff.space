@@ -4899,6 +4899,21 @@ select option:checked {
 	min-height: 0;
 }
 
+.content-stage.is-header-snapped .dashboard-orb-nav {
+	max-height: 0;
+	margin-top: 0;
+	margin-bottom: 0;
+	opacity: 0;
+	overflow: hidden;
+	pointer-events: none;
+	transform: translateY(-10px);
+	transition:
+		max-height 0.16s ease,
+		margin 0.16s ease,
+		opacity 0.12s ease,
+		transform 0.16s ease;
+}
+
 .content-stage.is-header-snapped .panel > .scroll-area,
 .content-stage.is-header-snapped .panel > .reader-panel,
 .content-stage.is-header-snapped .panel > .reader-book,
@@ -4948,6 +4963,17 @@ select option:checked {
 	transform: translateY(0);
 	transition:
 		max-height 0.16s ease,
+		opacity 0.12s ease,
+		transform 0.16s ease;
+}
+
+.dashboard-orb-nav {
+	max-height: 180px;
+	opacity: 1;
+	transform: translateY(0);
+	transition:
+		max-height 0.16s ease,
+		margin 0.16s ease,
 		opacity 0.12s ease,
 		transform 0.16s ease;
 }
@@ -6162,7 +6188,7 @@ select option:checked {
 }
 
 .content-stage.is-header-snapped:has(.life-calendar-viewer) .life-dashboard {
-	grid-template-rows: auto auto minmax(0, 1fr);
+	grid-template-rows: 0 auto minmax(0, 1fr);
 	height: 100%;
 	min-height: 0;
 	overflow: hidden;

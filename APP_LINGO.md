@@ -37,7 +37,7 @@ Utility views live beside those areas:
 | Path bar | Breadcrumb row above content: Dashboard / Area / Item. | `pathBarHtml()`, `.path-bar` |
 | Panel | Standard framed content wrapper for most views. | `panelHtml()` |
 | Header | View title, subtitle, and right-side actions. | `headerHtml()` |
-| Header snap | Scroll-triggered header collapse that snaps page title/actions out of view and gives the main body the available screen height until the user scrolls back to the top. | `.is-header-snapped`, `bindHeaderSnap()` |
+| Header snap | Scroll-triggered collapse that snaps page title/actions and dashboard orbs out of view, then gives the main body the available screen height until the user scrolls back up outside a child scroller. | `.is-header-snapped`, `bindHeaderSnap()` |
 | Action row | Horizontal button group inside headers and forms. | `.action-row` |
 | Empty state | Placeholder card for views with no content yet. | `emptyStateHtml()` |
 

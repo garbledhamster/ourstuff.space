@@ -15575,6 +15575,27 @@ function nearestVerticalScroller(target, root) {
 	return root;
 }
 
+function canScrollVertically(element, direction) {
+	if (!element) {
+		return false;
+	}
+	const maxScroll = Math.max(0, element.scrollHeight - element.clientHeight);
+	if (maxScroll <= 2) {
+		return false;
+	}
+	if (direction > 0) {
+		return element.scrollTop < maxScroll - 2;
+	}
+	if (direction < 0) {
+		return element.scrollTop > 2;
+	}
+	return false;
+}
+
+function isChildScroller(scroller, root) {
+	return Boolean(scroller && scroller !== root);
+}
+
 function setHeaderSnapped(snapped) {
 	const contentStage = app.querySelector(".content-stage");
 	const panel = contentStage?.querySelector(".panel");
@@ -15592,61 +15613,72 @@ function bindHeaderSnap() {
 	if (!contentStage || !panel || !header) {
 		return;
 	}
+	const snapSurface = contentStage.closest(".content-shell") || contentStage;
 	let touchStartY = 0;
 	const isSnapped = () => contentStage.classList.contains("is-header-snapped");
-	const revealIfAtTop = (target = contentStage) => {
-		const scroller = nearestVerticalScroller(target, contentStage);
-		if (contentStage.scrollTop <= 2 && scroller.scrollTop <= 2) {
-			setHeaderSnapped(false);
+	const handleSnapIntent = (target, deltaY) => {
+		if (Math.abs(deltaY) < 8) {
+			return false;
 		}
+		const scroller = nearestVerticalScroller(target, contentStage);
+		const childScroller = isChildScroller(scroller, contentStage);
+		if (deltaY > 0) {
+			if (childScroller && canScrollVertically(scroller, 1)) {
+				return false;
+			}
+			if (!isSnapped()) {
+				setHeaderSnapped(true);
+				return true;
+			}
+			return false;
+		}
+		if (!isSnapped()) {
+			return false;
+		}
+		if (childScroller && canScrollVertically(scroller, -1)) {
+			return false;
+		}
+		if (contentStage.scrollTop <= 2) {
+			setHeaderSnapped(false);
+			return true;
+		}
+		return false;
 	};
-	contentStage.addEventListener(
+	snapSurface.addEventListener(
 		"wheel",
 		(event) => {
-			if (Math.abs(event.deltaY) < 8) {
-				return;
-			}
-			if (event.deltaY > 0 && !isSnapped()) {
+			if (handleSnapIntent(event.target, event.deltaY)) {
 				event.preventDefault();
-				setHeaderSnapped(true);
-				return;
-			}
-			if (event.deltaY < 0) {
-				revealIfAtTop(event.target);
 			}
 		},
 		{ passive: false },
 	);
-	contentStage.addEventListener(
+	snapSurface.addEventListener(
 		"touchstart",
 		(event) => {
 			touchStartY = event.touches?.[0]?.clientY || 0;
 		},
 		{ passive: true },
 	);
-	contentStage.addEventListener(
+	snapSurface.addEventListener(
 		"touchmove",
 		(event) => {
 			const currentY = event.touches?.[0]?.clientY || touchStartY;
 			const deltaY = touchStartY - currentY;
-			if (deltaY > 10 && !isSnapped()) {
+			if (handleSnapIntent(event.target, deltaY)) {
 				event.preventDefault();
-				setHeaderSnapped(true);
 				touchStartY = currentY;
 				return;
 			}
-			if (deltaY < -10) {
-				revealIfAtTop(event.target);
-				touchStartY = currentY;
-			}
+			touchStartY = currentY;
 		},
 		{ passive: false },
 	);
 	contentStage.addEventListener(
 		"scroll",
 		() => {
-			if (contentStage.scrollTop <= 2) {
-				revealIfAtTop(contentStage);
+			if (isSnapped() && contentStage.scrollTop <= 2) {
+				setHeaderSnapped(false);
 			}
 		},
 		{ passive: true },
