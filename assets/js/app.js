@@ -15602,6 +15602,9 @@ function setHeaderSnapped(snapped) {
 	if (!contentStage || !panel?.querySelector(".panel-header")) {
 		return;
 	}
+	if (snapped && contentStage.scrollTop > 0) {
+		contentStage.scrollTop = 0;
+	}
 	contentStage.classList.toggle("is-header-snapped", snapped);
 	panel.classList.toggle("is-header-snapped", snapped);
 }
@@ -15638,11 +15641,8 @@ function bindHeaderSnap() {
 		if (childScroller && canScrollVertically(scroller, -1)) {
 			return false;
 		}
-		if (contentStage.scrollTop <= 2) {
-			setHeaderSnapped(false);
-			return true;
-		}
-		return false;
+		setHeaderSnapped(false);
+		return true;
 	};
 	snapSurface.addEventListener(
 		"wheel",
