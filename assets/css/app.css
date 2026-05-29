@@ -958,6 +958,10 @@ select option:checked {
 	padding: 9px;
 }
 
+.sidebar-item--pyxdia.sidebar-item--no-number {
+	grid-template-columns: minmax(0, 1fr);
+}
+
 .sidebar-item--pyxdia .button-content {
 	justify-content: flex-start;
 	gap: 7px;
