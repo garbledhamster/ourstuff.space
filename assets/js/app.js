@@ -3291,6 +3291,7 @@ const state = {
 	lifeMode: "month",
 	settingsTab: "getting-started",
 	headerSnapped: false,
+	contentScrollPositions: {},
 	theme: loadTheme(),
 	colorMode: loadColorMode(),
 	pyxdiaSettings: loadPyxdiaSettings(),
@@ -3370,6 +3371,77 @@ const state = {
 	sidebarPages: {},
 	trackerPages: {},
 };
+
+let skipNextRenderScrollCapture = false;
+
+function contentScrollKey(source = state) {
+	const active = source.active || "Dashboard";
+	if (active === "PYXIDA") {
+		const view = ["input", "output", "thread"].includes(source.pyxdiaView)
+			? source.pyxdiaView
+			: "input";
+		const threadId = view === "thread" ? source.pyxdiaActiveThreadId || "" : "";
+		return `PYXIDA:${view}:${threadId}`;
+	}
+	if (active === "Life") {
+		return [
+			"Life",
+			source.lifeTool || "",
+			source.lifeMode || "",
+			source.selectedArtifactId || "",
+		].join(":");
+	}
+	if (active === "Mind") {
+		return [
+			"Mind",
+			source.mindMode || "",
+			source.artifactMode || "",
+			source.selectedCompendiumId || "",
+			source.selectedSectionId || "",
+			source.selectedArtifactId || "",
+		].join(":");
+	}
+	if (active === "Spirit") {
+		return [
+			"Spirit",
+			source.spiritYear || "",
+			source.selectedSpiritBookKey || "",
+			source.selectedArtifactId || "",
+		].join(":");
+	}
+	return [
+		active,
+		source.artifactMode || "",
+		source.selectedArtifactId || "",
+		source.settingsTab || "",
+	].join(":");
+}
+
+function captureContentScrollPosition(source = state) {
+	const contentStage = app.querySelector(".content-stage");
+	if (!contentStage) {
+		return;
+	}
+	state.contentScrollPositions = {
+		...(state.contentScrollPositions || {}),
+		[contentScrollKey(source)]: contentStage.scrollTop,
+	};
+}
+
+function restoreContentScrollPosition(key = contentScrollKey()) {
+	const contentStage = app.querySelector(".content-stage");
+	if (!contentStage) {
+		return;
+	}
+	const scrollTop = state.contentScrollPositions?.[key];
+	if (!Number.isFinite(scrollTop)) {
+		return;
+	}
+	contentStage.scrollTop = Math.min(
+		Math.max(0, scrollTop),
+		Math.max(0, contentStage.scrollHeight - contentStage.clientHeight),
+	);
+}
 
 function makeId(prefix) {
 	return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -6100,6 +6172,8 @@ function _ensureSpiritReadingArtifact(work) {
 }
 
 function setState(next) {
+	captureContentScrollPosition();
+	skipNextRenderScrollCapture = true;
 	Object.assign(state, next);
 	render();
 }
@@ -9803,6 +9877,12 @@ function render() {
 		return;
 	}
 
+	if (skipNextRenderScrollCapture) {
+		skipNextRenderScrollCapture = false;
+	} else {
+		captureContentScrollPosition();
+	}
+	const contentScrollRestoreKey = contentScrollKey();
 	const compendium = selectedCompendium();
 	const section = selectedSection();
 	const spiritBook = selectedSpiritBook();
@@ -9874,6 +9954,7 @@ function render() {
 	restoreEditorDraftFocus(editorDraft);
 	focusThoughtEditor();
 	restoreThoughtToastFocus(thoughtToastFocus);
+	restoreContentScrollPosition(contentScrollRestoreKey);
 	if (state.active === "Settings" && state.settingsTab === "cloud") {
 		scheduleCloudStorageUsageRefresh();
 	}
@@ -10302,6 +10383,9 @@ function setTrackerDropMarker(row, activeWrap, targetIndex) {
 
 function bindTrackerOrbSorting() {
 	app.querySelectorAll("[data-tracker-reorder-row]").forEach((row) => {
+		const shouldYieldVerticalScroll =
+			row.closest(".dashboard-orb-nav") &&
+			row.dataset.trackerCombined === "true";
 		row.querySelectorAll("[data-tracker-orb-wrap]").forEach((wrap) => {
 			const orb = wrap.querySelector(".tracker-orb");
 			if (!orb) {
@@ -10324,6 +10408,17 @@ function bindTrackerOrbSorting() {
 				let isDragging = false;
 				let targetIndex = null;
 
+				const suppressTrackerClickAfterScroll = () => {
+					state.suppressNextTrackerClick = true;
+					window.setTimeout(() => {
+						state.suppressNextTrackerClick = false;
+					}, 500);
+				};
+				const stopTracking = () => {
+					window.removeEventListener("pointermove", onPointerMove);
+					window.removeEventListener("pointerup", finishDrag);
+					window.removeEventListener("pointercancel", finishDrag);
+				};
 				const startDrag = (moveEvent) => {
 					isDragging = true;
 					state.suppressNextTrackerEditClick = true;
@@ -10340,11 +10435,19 @@ function bindTrackerOrbSorting() {
 				};
 
 				const onPointerMove = (moveEvent) => {
-					const moved = Math.hypot(
-						moveEvent.clientX - startX,
-						moveEvent.clientY - startY,
-					);
+					const deltaX = moveEvent.clientX - startX;
+					const deltaY = moveEvent.clientY - startY;
+					const moved = Math.hypot(deltaX, deltaY);
 					if (!isDragging && moved < 6) {
+						return;
+					}
+					if (
+						!isDragging &&
+						shouldYieldVerticalScroll &&
+						Math.abs(deltaY) > Math.abs(deltaX) + 2
+					) {
+						suppressTrackerClickAfterScroll();
+						stopTracking();
 						return;
 					}
 					moveEvent.preventDefault();
@@ -10361,9 +10464,7 @@ function bindTrackerOrbSorting() {
 				};
 
 				const finishDrag = (finishEvent) => {
-					window.removeEventListener("pointermove", onPointerMove);
-					window.removeEventListener("pointerup", finishDrag);
-					window.removeEventListener("pointercancel", finishDrag);
+					stopTracking();
 					orb.releasePointerCapture?.(finishEvent.pointerId);
 					row.classList.remove("is-reordering");
 					wrap.classList.remove("is-dragging");
@@ -10436,9 +10537,8 @@ function pyxdiaSidebarHtml() {
       <div class="sidebar-group-items pyxdia-sidebar-items"${expanded ? "" : " hidden"}>
         ${actionItems
 					.map(
-						([action, label, icon, detail], index) => `
-          <button class="sidebar-item sidebar-item--pyxdia${state.active === "PYXIDA" && ((action === "pyxdia-open-input" && state.pyxdiaView === "input") || (action === "pyxdia-open-output" && state.pyxdiaView === "output")) ? " is-active" : ""}" data-action="${action}" type="button">
-            <span class="sidebar-item-number">${String(index + 1).padStart(2, "0")}</span>
+						([action, label, icon, detail]) => `
+          <button class="sidebar-item sidebar-item--pyxdia sidebar-item--no-number${state.active === "PYXIDA" && ((action === "pyxdia-open-input" && state.pyxdiaView === "input") || (action === "pyxdia-open-output" && state.pyxdiaView === "output")) ? " is-active" : ""}" data-action="${action}" type="button">
             <span class="sidebar-item-label"><strong>${buttonContent(icon, label)}</strong><small>${escapeHtml(detail)}</small></span>
           </button>
         `,
@@ -15839,13 +15939,20 @@ function setHeaderSnapped(snapped) {
 	applyHeaderSnapState();
 }
 
+function supportsHeaderSnap(contentStage) {
+	return Boolean(contentStage && !contentStage.querySelector(".pyxdia-page"));
+}
+
 function applyHeaderSnapState() {
 	const contentStage = app.querySelector(".content-stage");
 	const panel = contentStage?.querySelector(".panel");
 	if (!contentStage || !panel?.querySelector(".panel-header")) {
 		return;
 	}
-	const snapped = Boolean(state.headerSnapped);
+	const snapped = Boolean(state.headerSnapped && supportsHeaderSnap(contentStage));
+	if (!snapped && state.headerSnapped) {
+		state.headerSnapped = false;
+	}
 	if (snapped && contentStage.scrollTop > 0) {
 		contentStage.scrollTop = 0;
 	}
@@ -15858,6 +15965,13 @@ function bindHeaderSnap() {
 	const panel = contentStage?.querySelector(".panel");
 	const header = panel?.querySelector(".panel-header");
 	if (!contentStage || !panel || !header) {
+		return;
+	}
+	if (
+		window.matchMedia("(max-width: 860px)").matches ||
+		!supportsHeaderSnap(contentStage)
+	) {
+		setHeaderSnapped(false);
 		return;
 	}
 	const snapSurface = contentStage.closest(".content-shell") || contentStage;
