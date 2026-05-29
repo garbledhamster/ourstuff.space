@@ -14308,11 +14308,34 @@ function compendiumPickerPopoverHtml(perPage) {
   `;
 }
 
+function compendiumListViewHtml() {
+	return `
+    <section class="compendium-list-view" aria-label="Compendiums">
+      <div class="compendium-list-scroll">
+        ${state.compendiums
+					.map(
+						(compendium) => `
+          <button class="compendium-list-item" data-action="open-compendium" data-id="${compendium.id}" type="button">
+            ${compendiumTitleHtml(compendium, "compendium-list-title")}
+          </button>
+        `,
+					)
+					.join("")}
+      </div>
+    </section>
+  `;
+}
+
 function mindGridHtml() {
 	const columns = mindCompendiumColumns();
-	const perPage = mindCompendiumsPerPage();
-	const shouldPage = state.compendiums.length > perPage;
-	const pages = chunkItems(state.compendiums, perPage);
+	const shouldUseListView = columns === 1;
+	const perPage = shouldUseListView
+		? Math.max(1, state.compendiums.length)
+		: mindCompendiumsPerPage();
+	const shouldPage = !shouldUseListView && state.compendiums.length > perPage;
+	const pages = shouldUseListView
+		? [state.compendiums]
+		: chunkItems(state.compendiums, perPage);
 	const maxPage = Math.max(0, pages.length - 1);
 	const page = mindCompendiumPage(maxPage);
 	const hasPrev = shouldPage && page > 0;
@@ -14328,7 +14351,10 @@ function mindGridHtml() {
       ${
 				state.compendiums.length
 					? `
-        <section class="compendium-rotator${state.mindCompendiumPickerOpen ? " is-picker-open" : ""}" aria-label="Compendiums" style="--compendium-columns: ${columns};">
+        ${
+					shouldUseListView
+						? compendiumListViewHtml()
+						: `<section class="compendium-rotator${state.mindCompendiumPickerOpen ? " is-picker-open" : ""}" aria-label="Compendiums" style="--compendium-columns: ${columns};">
           <div class="compendium-rotator-stage${shouldPage ? "" : " compendium-rotator-stage--single-page"}">
             ${
 							shouldPage
@@ -14373,16 +14399,23 @@ function mindGridHtml() {
 						}
             ${state.mindCompendiumPickerOpen ? compendiumPickerPopoverHtml(perPage) : ""}
           </div>
-        </section>
+        </section>`
+				}
       `
 					: `<div class="compendium-empty-wrap">${emptyStateHtml("No compendiums yet.", `Add the first compendium to begin organizing ${dashboardDisplayLabel("Mind")}.`)}${state.mindCompendiumPickerOpen ? compendiumPickerPopoverHtml(perPage) : ""}</div>`
 			}
       <div class="compendium-grid-controls">
-        <button class="reader-page-indicator compendium-page-indicator" data-action="toggle-mind-compendium-picker" type="button" aria-label="${state.mindCompendiumPickerOpen ? "Close compendium overview" : "Open compendium overview"}" aria-expanded="${state.mindCompendiumPickerOpen ? "true" : "false"}">
+        ${
+					shouldUseListView
+						? `<button class="compendium-new-button" data-action="new-compendium" type="button">
+          ${buttonContent("tabler:plus", "New Compendium")}
+        </button>`
+						: `<button class="reader-page-indicator compendium-page-indicator" data-action="toggle-mind-compendium-picker" type="button" aria-label="${state.mindCompendiumPickerOpen ? "Close compendium overview" : "Open compendium overview"}" aria-expanded="${state.mindCompendiumPickerOpen ? "true" : "false"}">
           <span class="reader-page-dot reader-page-dot--side${hasPrev ? " is-available" : ""}" aria-hidden="true"></span>
           <span class="reader-page-dot reader-page-dot--current" aria-label="Compendiums ${currentStart} through ${currentEnd} of ${state.compendiums.length}"></span>
           <span class="reader-page-dot reader-page-dot--side${hasNext ? " is-available" : ""}" aria-hidden="true"></span>
-        </button>
+        </button>`
+				}
       </div>
     </div>
   `);

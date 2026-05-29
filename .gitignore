@@ -1,4 +1,9 @@
 *.md
+!AGENTS.md
+!LLM.md
+!CODEX.md
+!CLAUDE.md
+!README.md
 assets/local-cloud-dev.json
 firebase-debug.log
 functions/venv/
@@ -14,3 +19,12 @@ mobile/ios/DerivedData/
 /scripts
 /artifacts
 /.local
+/.firebase
+/.mobile
+/.obsidian
+/.utility_belt
+/functions
+/.github
+LLM.md
+/.codex
+/.openrouter
