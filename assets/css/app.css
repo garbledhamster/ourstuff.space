@@ -1223,6 +1223,7 @@ select option:checked {
 .dashboard-home {
 	display: grid;
 	grid-template-rows: auto auto minmax(0, 1fr);
+	container-type: size;
 	height: 100%;
 	min-height: 0;
 	gap: 18px;
@@ -1233,6 +1234,7 @@ select option:checked {
 	display: grid;
 	grid-template-columns: repeat(4, var(--dashboard-card-size));
 	justify-content: center;
+	align-content: start;
 	gap: 16px;
 	min-height: 0;
 	padding: 5px;
@@ -1243,6 +1245,7 @@ select option:checked {
 	display: block;
 	min-width: 0;
 	width: var(--dashboard-card-size);
+	max-width: 100%;
 	aspect-ratio: 1;
 	border: 0;
 	border-radius: 0;
@@ -1253,6 +1256,36 @@ select option:checked {
 	text-align: center;
 	transform-style: preserve-3d;
 	transition: transform 0.2s ease;
+}
+
+@container (max-height: 650px) {
+	.dashboard-grid,
+	.dashboard-card {
+		--dashboard-card-size-height-cap: clamp(
+			98px,
+			calc((100cqh - 456px) / 2),
+			var(--dashboard-card-size-base)
+		);
+		--dashboard-card-size: min(
+			var(--dashboard-card-size-base),
+			var(--dashboard-card-size-height-cap)
+		);
+	}
+}
+
+@media (orientation: landscape) and (max-height: 760px) {
+	.dashboard-grid,
+	.dashboard-card {
+		--dashboard-card-size-height-cap: clamp(
+			92px,
+			calc((100vh - 458px) / 2),
+			var(--dashboard-card-size-base)
+		);
+		--dashboard-card-size: min(
+			var(--dashboard-card-size-base),
+			var(--dashboard-card-size-height-cap)
+		);
+	}
 }
 
 .dashboard-card:hover,
