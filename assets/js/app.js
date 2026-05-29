@@ -2999,16 +2999,19 @@ async function syncCloudWithNewestWins(options = {}) {
 		const cloudUpdatedAt = cloudInfoUpdatedAt(info);
 		const localUpdatedAt = localAppUpdatedAt();
 		const localHasStoredData = hasStoredLocalData();
-		const canDownloadOnSignIn =
-			source === "sign-in" &&
-			info?.exists &&
-			(accountSwitched || !localHasStoredData);
 		const syncComparison = _compareIsoTimestamps(
 			cloudUpdatedAt,
 			localUpdatedAt,
 		);
 
-		if (canDownloadOnSignIn) {
+		if (
+			source === "sign-in" &&
+			info?.exists &&
+			(accountSwitched ||
+				!hadLocalOwner ||
+				!localHasStoredData ||
+				syncComparison >= 0)
+		) {
 			const result = await importCloudInfoIntoLocal(info);
 			return finishCloudSyncResult(
 				{ action: "downloaded", ...result },
@@ -3017,14 +3020,19 @@ async function syncCloudWithNewestWins(options = {}) {
 			);
 		}
 
-		if (
-			source === "interval" &&
-			info?.exists &&
-			(!localHasStoredData || syncComparison >= 0)
-		) {
-			saveLocalAppOwner();
+		if (source === "interval" && info?.exists && !localHasStoredData) {
+			const result = await importCloudInfoIntoLocal(info);
 			return finishCloudSyncResult(
-				{ action: "checked", updatedAt: cloudUpdatedAt || localUpdatedAt },
+				{ action: "downloaded", ...result },
+				source,
+				{ quiet },
+			);
+		}
+
+		if (info?.exists && localHasStoredData && syncComparison > 0) {
+			const result = await importCloudInfoIntoLocal(info);
+			return finishCloudSyncResult(
+				{ action: "downloaded", ...result },
 				source,
 				{ quiet },
 			);
@@ -3153,13 +3161,7 @@ function configureCloudAutoSync() {
 }
 
 async function syncCloudNow() {
-	const result = await uploadLocalStateToCloud();
-	recordCloudSyncAt(result.updatedAt || nowIso(), cloudSyncMessage("uploaded"));
-	return {
-		action: "uploaded",
-		...result,
-		message: cloudSyncMessage("uploaded"),
-	};
+	return syncCloudWithNewestWins({ source: "manual" });
 }
 
 async function loadCloudIntoLocalApp() {
@@ -3288,6 +3290,7 @@ const state = {
 	lifeTool: "",
 	lifeMode: "month",
 	settingsTab: "getting-started",
+	headerSnapped: false,
 	theme: loadTheme(),
 	colorMode: loadColorMode(),
 	pyxdiaSettings: loadPyxdiaSettings(),
@@ -7979,77 +7982,80 @@ async function clearAppData(options = {}) {
 			return;
 		}
 	}
-	const emptyStore = createEmptyStore();
-	window.localStorage.removeItem(BODY_TRACKER_KEY);
-	window.localStorage.removeItem(SPIRIT_PROGRESS_KEY);
-	window.localStorage.removeItem(LIFE_PLANNER_KEY);
-	window.localStorage.removeItem(TRACKER_SETTINGS_KEY);
-	window.localStorage.removeItem(GOAL_SETTINGS_KEY);
-	window.localStorage.removeItem(DASHBOARD_IDENTITY_KEY);
-	window.localStorage.removeItem(DASHBOARD_CHART_TABS_KEY);
-	window.localStorage.removeItem(PYXIDA_SETTINGS_KEY);
-	window.localStorage.removeItem(PYXIDA_LOCAL_STATE_KEY);
-	window.localStorage.removeItem(SIDEBAR_WIDTH_KEY);
-	window.localStorage.removeItem(THEME_KEY);
-	window.localStorage.removeItem(COLOR_MODE_KEY);
-	window.localStorage.removeItem(ICONIFY_SEARCH_CACHE_KEY);
-	window.localStorage.removeItem(LOCAL_APP_UPDATED_AT_KEY);
-	clearDismissedTips();
-	await clearLocalFiles().catch(() => {});
-	saveArtifactStore(emptyStore);
-	state.artifactStore = emptyStore;
-	state.compendiums = [];
-	state.bodyTracker = createDefaultBodyTracker();
-	state.spiritProgress = {};
-	state.lifePlanner = createDefaultLifePlanner();
-	state.trackerSettings = createEmptyTrackerSettings();
-	state.goalSettings = createEmptyTrackerSettings();
-	state.dashboardIdentity = cloneDefaultDashboardIdentity();
-	state.dashboardChartTabs = [...DEFAULT_DASHBOARD_CHART_TABS];
-	state.dashboardChartType = DEFAULT_DASHBOARD_CHART_TABS[0];
-	state.theme = "default";
-	state.colorMode = "standard";
-	state.pyxdiaSettings = normalizePyxdiaSettings(DEFAULT_PYXIDA_SETTINGS);
-	state.pyxdiaThreads = [];
-	state.pyxdiaLetters = [];
-	state.pyxdiaDraft = createEmptyPyxdiaDraft();
-	state.pyxdiaMemory = createEmptyPyxdiaMemory();
-	state.pyxdiaExpanded = false;
-	state.pyxdiaView = "input";
-	state.pyxdiaActiveThreadId = "";
-	state.pyxdiaStatus = "";
-	state.pyxdiaError = "";
-	state.pyxdiaBusy = false;
-	state.trashSettings = normalizeTrashSettings();
-	state.trashItems = [];
-	state.trashCursor = "";
-	state.trashStatus = "";
-	state.trashError = "";
-	state.trashBusy = false;
-	state.settingsTab = "getting-started";
-	state.trackerAddArea = "";
-	state.trackerEditKey = "";
-	state.trackerDeleteKey = "";
-	state.suppressNextDashboardChartClick = false;
-	state.active = "Dashboard";
-	state.flipped = null;
-	state.mindMode = "grid";
-	state.artifactMode = "grid";
-	state.selectedCompendiumId = null;
-	state.selectedSectionId = null;
-	state.selectedArtifactId = null;
-	state.selectedSpiritBookKey = null;
-	state.lifeTool = "";
-	state.selectedLifeProjectId = null;
-	state.selectedLifePhaseId = null;
-	state.selectedLifeTaskId = null;
-	state.galleryImages = null;
-	state.gallerySelectedIds = [];
-	state.cloudStorageUsage = null;
-	saveTrackerSettings();
-	saveGoalSettings();
-	saveDashboardChartTabs(state.dashboardChartTabs);
-	goHome();
+	await withLocalChangeTrackingSuppressed(async () => {
+		const emptyStore = createEmptyStore();
+		window.localStorage.removeItem(BODY_TRACKER_KEY);
+		window.localStorage.removeItem(SPIRIT_PROGRESS_KEY);
+		window.localStorage.removeItem(LIFE_PLANNER_KEY);
+		window.localStorage.removeItem(TRACKER_SETTINGS_KEY);
+		window.localStorage.removeItem(GOAL_SETTINGS_KEY);
+		window.localStorage.removeItem(DASHBOARD_IDENTITY_KEY);
+		window.localStorage.removeItem(DASHBOARD_CHART_TABS_KEY);
+		window.localStorage.removeItem(PYXIDA_SETTINGS_KEY);
+		window.localStorage.removeItem(PYXIDA_LOCAL_STATE_KEY);
+		window.localStorage.removeItem(SIDEBAR_WIDTH_KEY);
+		window.localStorage.removeItem(THEME_KEY);
+		window.localStorage.removeItem(COLOR_MODE_KEY);
+		window.localStorage.removeItem(ICONIFY_SEARCH_CACHE_KEY);
+		window.localStorage.removeItem(LOCAL_APP_UPDATED_AT_KEY);
+		clearDismissedTips();
+		await clearLocalFiles().catch(() => {});
+		saveArtifactStore(emptyStore);
+		state.artifactStore = emptyStore;
+		state.compendiums = [];
+		state.bodyTracker = createDefaultBodyTracker();
+		state.spiritProgress = {};
+		state.lifePlanner = createDefaultLifePlanner();
+		state.trackerSettings = createEmptyTrackerSettings();
+		state.goalSettings = createEmptyTrackerSettings();
+		state.dashboardIdentity = cloneDefaultDashboardIdentity();
+		state.dashboardChartTabs = [...DEFAULT_DASHBOARD_CHART_TABS];
+		state.dashboardChartType = DEFAULT_DASHBOARD_CHART_TABS[0];
+		state.theme = "default";
+		state.colorMode = "standard";
+		state.localAppUpdatedAt = "";
+		state.pyxdiaSettings = normalizePyxdiaSettings(DEFAULT_PYXIDA_SETTINGS);
+		state.pyxdiaThreads = [];
+		state.pyxdiaLetters = [];
+		state.pyxdiaDraft = createEmptyPyxdiaDraft();
+		state.pyxdiaMemory = createEmptyPyxdiaMemory();
+		state.pyxdiaExpanded = false;
+		state.pyxdiaView = "input";
+		state.pyxdiaActiveThreadId = "";
+		state.pyxdiaStatus = "";
+		state.pyxdiaError = "";
+		state.pyxdiaBusy = false;
+		state.trashSettings = normalizeTrashSettings();
+		state.trashItems = [];
+		state.trashCursor = "";
+		state.trashStatus = "";
+		state.trashError = "";
+		state.trashBusy = false;
+		state.settingsTab = "getting-started";
+		state.trackerAddArea = "";
+		state.trackerEditKey = "";
+		state.trackerDeleteKey = "";
+		state.suppressNextDashboardChartClick = false;
+		state.active = "Dashboard";
+		state.flipped = null;
+		state.mindMode = "grid";
+		state.artifactMode = "grid";
+		state.selectedCompendiumId = null;
+		state.selectedSectionId = null;
+		state.selectedArtifactId = null;
+		state.selectedSpiritBookKey = null;
+		state.lifeTool = "";
+		state.selectedLifeProjectId = null;
+		state.selectedLifePhaseId = null;
+		state.selectedLifeTaskId = null;
+		state.galleryImages = null;
+		state.gallerySelectedIds = [];
+		state.cloudStorageUsage = null;
+		saveTrackerSettings();
+		saveGoalSettings();
+		saveDashboardChartTabs(state.dashboardChartTabs);
+		goHome();
+	});
 }
 
 async function restoreFactoryDefaults() {
@@ -9851,6 +9857,7 @@ function render() {
 	bindSidebarResize();
 	bindSidebarHorizontalScroll();
 	bindPathBarOverflow();
+	applyHeaderSnapState();
 	bindHeaderSnap();
 	bindCompendiumSectionSorting();
 	bindDashboardBalanceHover();
@@ -11879,7 +11886,9 @@ function settingsCloudHtml() {
 			thoughtSettings: state.trackerSettings,
 			goalSettings: state.goalSettings,
 			dashboardIdentity: state.dashboardIdentity,
+			dashboardChartTabs: state.dashboardChartTabs,
 			theme: state.theme,
+			colorMode: state.colorMode,
 		},
 	});
 	const busyAttr = account.busy ? " disabled" : "";
@@ -15826,11 +15835,17 @@ function isChildScroller(scroller, root) {
 }
 
 function setHeaderSnapped(snapped) {
+	state.headerSnapped = Boolean(snapped);
+	applyHeaderSnapState();
+}
+
+function applyHeaderSnapState() {
 	const contentStage = app.querySelector(".content-stage");
 	const panel = contentStage?.querySelector(".panel");
 	if (!contentStage || !panel?.querySelector(".panel-header")) {
 		return;
 	}
+	const snapped = Boolean(state.headerSnapped);
 	if (snapped && contentStage.scrollTop > 0) {
 		contentStage.scrollTop = 0;
 	}
@@ -15847,12 +15862,41 @@ function bindHeaderSnap() {
 	}
 	const snapSurface = contentStage.closest(".content-shell") || contentStage;
 	let touchStartY = 0;
+	let childSnapHandoff = null;
 	const isSnapped = () => contentStage.classList.contains("is-header-snapped");
-	const handleSnapIntent = (target, deltaY) => {
+	const clearChildSnapHandoff = () => {
+		childSnapHandoff = null;
+	};
+	const shouldHoldChildSnapHandoff = (scroller, direction, mode) => {
+		if (!isChildScroller(scroller, contentStage) || !direction) {
+			clearChildSnapHandoff();
+			return false;
+		}
+		if (canScrollVertically(scroller, direction)) {
+			childSnapHandoff = { scroller, direction, mode };
+			return false;
+		}
+		if (
+			childSnapHandoff?.scroller === scroller &&
+			childSnapHandoff.direction === direction
+		) {
+			if (mode === "wheel") {
+				clearChildSnapHandoff();
+			}
+			return true;
+		}
+		clearChildSnapHandoff();
+		return false;
+	};
+	const handleSnapIntent = (target, deltaY, mode = "wheel") => {
 		if (Math.abs(deltaY) < 8) {
 			return false;
 		}
 		const scroller = nearestVerticalScroller(target, contentStage);
+		const direction = Math.sign(deltaY);
+		if (shouldHoldChildSnapHandoff(scroller, direction, mode)) {
+			return true;
+		}
 		const childScroller = isChildScroller(scroller, contentStage);
 		if (deltaY > 0) {
 			if (childScroller && canScrollVertically(scroller, 1)) {
@@ -15876,7 +15920,7 @@ function bindHeaderSnap() {
 	snapSurface.addEventListener(
 		"wheel",
 		(event) => {
-			if (handleSnapIntent(event.target, event.deltaY)) {
+			if (handleSnapIntent(event.target, event.deltaY, "wheel")) {
 				event.preventDefault();
 			}
 		},
@@ -15886,6 +15930,7 @@ function bindHeaderSnap() {
 		"touchstart",
 		(event) => {
 			touchStartY = event.touches?.[0]?.clientY || 0;
+			clearChildSnapHandoff();
 		},
 		{ passive: true },
 	);
@@ -15894,7 +15939,7 @@ function bindHeaderSnap() {
 		(event) => {
 			const currentY = event.touches?.[0]?.clientY || touchStartY;
 			const deltaY = touchStartY - currentY;
-			if (handleSnapIntent(event.target, deltaY)) {
+			if (handleSnapIntent(event.target, deltaY, "touch")) {
 				event.preventDefault();
 				touchStartY = currentY;
 				return;
@@ -15903,6 +15948,12 @@ function bindHeaderSnap() {
 		},
 		{ passive: false },
 	);
+	snapSurface.addEventListener("touchend", clearChildSnapHandoff, {
+		passive: true,
+	});
+	snapSurface.addEventListener("touchcancel", clearChildSnapHandoff, {
+		passive: true,
+	});
 	contentStage.addEventListener(
 		"scroll",
 		() => {

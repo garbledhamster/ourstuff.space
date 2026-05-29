@@ -26,8 +26,10 @@ const CLOUD_APP_STATE_KEYS = [
 	"thoughtSettings",
 	"goalSettings",
 	"dashboardIdentity",
+	"dashboardChartTabs",
 	"cloudMediaKey",
 	"theme",
+	"colorMode",
 ];
 const CLOUD_APP_STATE_TITLES = {
 	bodyTracker: "Body tracker state",
@@ -36,8 +38,10 @@ const CLOUD_APP_STATE_TITLES = {
 	thoughtSettings: "Thought settings",
 	goalSettings: "Goal settings",
 	dashboardIdentity: "Dashboard identity settings",
+	dashboardChartTabs: "Dashboard chart tabs",
 	cloudMediaKey: "Cloud media key",
 	theme: "Interface theme",
+	colorMode: "Color mode",
 };
 
 const INACTIVE_ENTITLEMENT = {

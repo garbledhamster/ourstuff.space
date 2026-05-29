@@ -37,7 +37,7 @@ Utility views live beside those areas:
 | Path bar | Breadcrumb row above content: Dashboard / Area / Item. | `pathBarHtml()`, `.path-bar` |
 | Panel | Standard framed content wrapper for most views. | `panelHtml()` |
 | Header | View title, subtitle, and right-side actions. | `headerHtml()` |
-| Header snap | Scroll-triggered collapse that snaps page title/actions and dashboard orbs out of view, then gives the main body the available screen height until the user scrolls back up outside a child scroller. | `.is-header-snapped`, `bindHeaderSnap()` |
+| Header snap | Scroll-triggered collapse that snaps page title/actions and dashboard orbs out of view, with a child-scroll handoff buffer so inner scrollers must reach an edge before the outer snap can move. | `.is-header-snapped`, `bindHeaderSnap()` |
 | Action row | Horizontal button group inside headers and forms. | `.action-row` |
 | Empty state | Placeholder card for views with no content yet. | `emptyStateHtml()` |
 
@@ -229,7 +229,7 @@ Default thought orb labels:
 | Cloud storage usage | Combined Firebase Storage media bytes plus Firestore artifact bytes shown against the 1 GB Cloud cap. | `settingsCloudHtml()`, `calculateCloudStorageUsage()` |
 | Cloud storage limit | Hard app-side upload/sync cap of `1,000,000,000` bytes. | `CLOUD_STORAGE_LIMIT_BYTES` |
 | Local subscribed demo | Localhost-only development sign-in that behaves like an active Cloud subscription. | `assets/js/cloud.js`, `assets/local-cloud-dev.json` |
-| Sync now | Manual save of the full exported app JSON to Cloud. | `syncCloudNow()`, `saveCloudStateJson()` |
+| Sync now | Manual newest-wins Cloud sync. Downloads when Cloud is newer; uploads when this device is newer. | `syncCloudNow()`, `syncCloudWithNewestWins()` |
 | Load cloud | Manual restore of saved Cloud JSON into local app state after confirmation. | `loadCloudIntoLocalApp()`, `loadCloudStateJson()` |
 | Obsidian API key | One active Cloud-gated key for the Obsidian plugin; raw value is copy-only after create/refresh. | `createOrRotateObsidianSyncKey()`, `deleteObsidianSyncKey()` |
 | Subscription checkout | Firebase-token-authenticated Stripe subscription start. | `/api/subscriptions/checkout` |

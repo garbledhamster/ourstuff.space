@@ -123,14 +123,16 @@ Live verification on May 27, 2026 created an owner key, copied the final active 
 - `importAppStateJson(json)`: imports artifacts plus app-local state after confirmation.
 - `saveCloudStateJson(json)`: wipes and rewrites the user's Firebase artifact collection for this app.
 - `loadCloudStateJson()`: rebuilds the normal JSON export shape from Firebase artifact docs.
+- Orb settings are part of the app-local state split into Firestore docs: `thoughtSettings`, `goalSettings`, `dashboardIdentity`, `dashboardChartTabs`, and `colorMode`. The newest-wins sync path must download when the cloud copy is newer so a phone cannot overwrite desktop orbs with local defaults during manual Sync.
 - `getCloudStateInfo()`: checks whether cloud data or deletion markers exist before first-device sync.
 - `deleteCloudStateJson()`: deletes app artifact docs and marks the app metadata deleted.
 - `deleteCloudAccount()`: requests full cloud-account deletion.
 - `clearAppData({ silent: true })`: clears this browser after a cloud delete so testing can restart from a clean local app state.
-- `syncCloudNow()`: manual save-this-device-to-Firebase command.
+- `syncCloudNow()`: manual newest-wins sync that downloads when Firebase is newer and uploads when this device is newer.
 - `loadCloudIntoLocalApp()`: manual Firebase-artifacts-to-local command with destructive overwrite confirmation.
 - `calculateCloudStorageUsage()`: combines encrypted Firebase Storage media bytes with Firestore artifact bytes for the Cloud settings usage display.
 - `estimateCloudStateStorageUsage(json)`: estimates the exact app-counted Firestore payload bytes before sync.
+- `clearAppData()`: clears this browser without marking the empty local state as a cloud-sync candidate; use Cloud delete when the user really intends to remove Firebase artifacts.
 
 ## Subscription Worker Contract
 

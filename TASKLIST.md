@@ -74,6 +74,8 @@
 - [x] Prevent oversized JSON writes.
 - [x] Avoid destructive overwrite without confirmation.
 - [x] Add manual `Sync now`.
+- [x] Preserve orb/settings state during cross-device newest-wins sync so cloud-newer desktop orbs download onto phones instead of being overwritten by local defaults.
+- [x] Prevent local browser clear/reset from auto-uploading empty orb/settings state over the saved Firebase artifact collection.
 
 ### Phase 7 - Payments Integration
 
@@ -155,6 +157,10 @@ Superseded for app data by Phase 11. D1 remains payment/subscription storage onl
   Blocked: Requires interactive signed-in browser test with the Cloud-enabled account.
 
 ## Obsidian Compendium Sync
+
+## UI Shell Polish
+
+- [x] Add header-snap child-scroll handoff so inner scrollers must reach an edge and yield a separate scroll gesture before the outer snap moves.
 
 ### Phase 0 - Worker Contract
 
