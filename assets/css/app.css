@@ -4978,12 +4978,6 @@ select option:checked {
 	overscroll-behavior: contain;
 }
 
-.content-stage.is-header-snapped:has(.pyxdia-page),
-.content-stage.is-header-snapped:has(.pyxdia-page) .panel {
-	height: auto;
-	overflow-y: auto;
-}
-
 .panel > :not(.panel-header) {
 	min-height: 0;
 }

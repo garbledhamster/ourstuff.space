@@ -3433,6 +3433,9 @@ function restoreContentScrollPosition(key = contentScrollKey()) {
 	if (!contentStage) {
 		return;
 	}
+	if (contentStage.classList.contains("is-header-snapped")) {
+		return;
+	}
 	const scrollTop = state.contentScrollPositions?.[key];
 	if (!Number.isFinite(scrollTop)) {
 		return;
@@ -15950,9 +15953,6 @@ function applyHeaderSnapState() {
 		return;
 	}
 	const snapped = Boolean(state.headerSnapped && supportsHeaderSnap(contentStage));
-	if (!snapped && state.headerSnapped) {
-		state.headerSnapped = false;
-	}
 	if (snapped && contentStage.scrollTop > 0) {
 		contentStage.scrollTop = 0;
 	}
