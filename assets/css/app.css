@@ -1812,6 +1812,7 @@ select option:checked {
 	place-items: center;
 	align-content: center;
 	gap: 8px;
+	width: min(100%, 390px);
 	min-width: 0;
 	-webkit-tap-highlight-color: transparent;
 	-webkit-user-select: none;
@@ -1819,7 +1820,6 @@ select option:checked {
 }
 
 .dashboard-pie-wrap--orbs {
-	width: min(100%, 390px);
 	place-items: stretch;
 	user-select: auto;
 }
