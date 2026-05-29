@@ -195,14 +195,16 @@ Default thought orb labels:
 | Term | Meaning | Main code |
 | --- | --- | --- |
 | PYXDIA PENPAL | Reflective AI trainer letter exchange. It is not a therapist, doctor, clinician, or replacement for care. | `pyxdiaHtml()`, `assets/js/pyxdia.js` |
-| PYXDIA sidebar group | Top sidebar section with Send Letter, Input Letter, Output Letter, and conversations. | `pyxdiaSidebarHtml()` |
-| Input Letter | Draft editor for the user's letter and user-selected context. | `pyxdiaInputHtml()` |
-| Output Letter | Plain-text reply state. Pending, processing, failed, and completed states render without markdown. | `pyxdiaOutputHtml()` |
-| PYXDIA conversation | Thread of submitted letters and replies over time. | `pyxdiaThreadHtml()` |
+| PYXDIA sidebar group | Top sidebar section with Write A Letter and the Letter Chain list. | `pyxdiaSidebarHtml()` |
+| Write A Letter | Draft editor for the user's letter and user-selected context. | `pyxdiaInputHtml()` |
+| Latest Reply | Plain-text reply state. Pending, processing, failed, and completed states render without markdown. | `pyxdiaOutputHtml()` |
+| Letter Chain | Thread of submitted letters and replies over time, with Reply opening Write A Letter for that `threadId`. | `pyxdiaThreadHtml()` |
 | Note metadata | Selected note references used as PYXDIA context: number, title, dashboard, role, edited date, and word count only. The UI starts with all non-deleted notes checked, supports filters and bulk controls, and the backend omits raw note IDs/bodies from provider prompts. | `pyxdiaNoteRefsFromArtifacts()` |
-| PYXDIA settings | Enable, delay, instruction, "what PYXDIA should know", memory, and reset controls. | `settingsPyxdiaHtml()` |
-| User-selected context | Highest-authority context explicitly chosen for the current letter: pasted text plus selected metadata references. | `userSelectedContext`, `normalizePyxdiaUserSelectedContext()` |
+| Balance statistics | Optional PYXDIA slider that adds dashboard/activity counts and percentages to user-selected context without raw note bodies or browser-extension data. | `pyxdiaBalanceStatisticsForSettings()` |
+| PYXDIA settings | Enable, delay, instruction, "what PYXDIA should know", memory, AI Brain, balance statistics, and reset controls. | `settingsPyxdiaHtml()` |
+| User-selected context | Highest-authority context explicitly chosen for the current letter: pasted text, selected metadata references, and optional balance statistics. | `userSelectedContext`, `normalizePyxdiaUserSelectedContext()` |
 | PYXDIA static memory | Compact visible/resettable PII-safe profile of durable patterns, not raw notes, chats, or full letters. | `pyxdiaMemory.staticMemory`, `/pyxdiaMemories/current` |
+| AI Brain memory | Optional server-side PYXDIA read/write integration. Approved context is read into prompts; completed themes/statistics are written as draft memories with raw storage disabled. | `AI_BRAIN_*`, `functions/index.js` |
 | PYXDIA dynamic retrieval memory | Backend-selected supporting context for a letter, stored with retrieval reasons and lower authority than user-selected context. | `dynamicRetrievalMemory`, `buildDynamicRetrievalMemory()` |
 | PYXDIA backend | Firebase Node 22 Functions API that verifies Firebase ID tokens, rate-limits user requests, scrubs input, queues jobs, calls the server-side provider, and writes Firestore state. | `functions/index.js` |
 
@@ -248,8 +250,8 @@ Default thought orb labels:
 | `ourstuff.sidebarWidth.v1` | Desktop sidebar width. |
 | `ourstuff.theme.v1` | Active theme id. |
 | `ourstuff.colorMode.v1` | Global color mode: `standard` or `colorblind`. |
-| `ourstuff.pyxdiaSettings.v1` | PYXDIA local settings fallback. |
-| `ourstuff.pyxdiaPenpal.v1` | PYXDIA local/demo draft, letters, user-selected context, static memory, and dynamic retrieval metadata. |
+| `ourstuff.pyxdiaSettings.v1` | PYXDIA local settings fallback, including balance-statistics level and AI Brain toggle preference. |
+| `ourstuff.pyxdiaPenpal.v1` | PYXDIA local/demo draft, letters, user-selected context, optional balance statistics, static memory, and dynamic retrieval metadata. |
 | `ourstuff.iconifySearchCache.v1` | Icon picker search cache. |
 | `ourstuff.localMedia.v1` | IndexedDB database for local images and files. |
 | `ourstuff.mediaCryptoKey.v1.{uid}` | Per-user browser key for encrypted Firebase Storage media. |

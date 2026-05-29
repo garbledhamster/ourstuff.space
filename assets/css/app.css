@@ -2731,6 +2731,16 @@ select option:checked {
 	margin-top: 14px;
 }
 
+.pyxdia-range-field small {
+	color: var(--muted);
+	font-size: 0.78rem;
+	line-height: 1.35;
+}
+
+.pyxdia-range-field input[type="range"] {
+	width: 100%;
+}
+
 .pyxdia-memory-card {
 	display: grid;
 	gap: 12px;
@@ -7999,6 +8009,9 @@ button.life-event-row:hover {
 }
 
 .reader-section {
+	display: grid;
+	min-height: 100%;
+	width: min(100%, 780px);
 	max-width: 780px;
 	margin: 0 auto;
 	padding-bottom: 0;
@@ -8006,6 +8019,7 @@ button.life-event-row:hover {
 }
 
 .reader-section:has(.page-content--focus) {
+	width: min(100%, 1040px);
 	max-width: 1040px;
 }
 
@@ -8125,7 +8139,8 @@ button.life-event-row:hover {
 }
 
 .panel-header .close-viewer-button,
-.reader-heading .close-viewer-button {
+.reader-heading .close-viewer-button,
+.reader-topbar .close-viewer-button {
 	position: static;
 	top: auto;
 	right: auto;

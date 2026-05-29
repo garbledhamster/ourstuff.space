@@ -154,8 +154,8 @@ PYXDIA is implemented as a local-first letter workspace in the static app plus a
 
 Frontend files:
 
-- `assets/js/pyxdia.js`: settings normalization, note metadata references, three-context normalization, letter size checks, and authenticated API calls.
-- `assets/js/app.js`: sidebar group, PYXDIA view, draft/output/thread UI, Settings > PYXDIA, local demo lifecycle, all-notes-by-default metadata selector with filters/budget warnings, user-selected context, and memory display/reset controls.
+- `assets/js/pyxdia.js`: settings normalization, note metadata references, user-selected context/balance-statistics normalization, letter size checks, and authenticated API calls.
+- `assets/js/app.js`: sidebar group, PYXDIA view, draft/output/thread UI, chain replies, Settings > PYXDIA, local demo lifecycle, all-notes-by-default metadata selector with filters/budget warnings, user-selected context, balance statistics, and memory display/reset controls.
 - `assets/css/app.css`: PYXDIA sidebar, editor, output, conversation, and settings layout.
 
 Local keys:
@@ -173,6 +173,10 @@ API defaults:
 
 - `PYXDIA_API_URL`: `https://us-central1-ourstuff-firebase.cloudfunctions.net/pyxdiaApi`
 - `PYXDIA_AI_API_URL`: `https://us-central1-ourstuff-firebase.cloudfunctions.net/aiApi`
+- `AI_BRAIN_API_BASE`: optional backend-only AI Brain base URL.
+- `AI_BRAIN_API_TOKEN` or `AI_BRAIN_API_KEY`: optional backend-only bearer credential.
+- `AI_BRAIN_PROJECT_SLUG`: optional project slug, default `ourstuff.space`.
+- `AI_BRAIN_CONSUMER`: optional consumer name, default `pyxdia`.
 
 Routes:
 
@@ -193,10 +197,12 @@ Firestore paths:
 
 Memory/context architecture:
 
-- User-selected context is highest authority and travels on drafts/letters as `userSelectedContext`; it contains only user-pasted text and selected metadata references unless the user explicitly pastes body text. Note metadata starts all selected by default, can be filtered/customized, and is capped at 300 refs or 40,000 serialized metadata characters before Send is allowed.
+- User-selected context is highest authority and travels on drafts/letters as `userSelectedContext`; it contains only user-pasted text, selected metadata references, and optional balance statistics unless the user explicitly pastes body text. Note metadata starts all selected by default, can be filtered/customized, and is capped at 300 refs or 40,000 serialized metadata characters before Send is allowed.
+- Balance statistics are controlled by a Settings > PYXDIA slider and include only dashboard/activity counts, percentages, note totals, tracker summaries, recent activity metadata, and the selected period. They do not use browser plugins/extensions, raw note bodies, or hidden browser activity.
 - Static memory lives inside `/pyxdiaMemories/current` as `staticMemory`; it is a compact PII-safe profile of durable patterns with confidence, status, reasons, and source letter IDs, not raw notes, chats, or full letters.
+- AI Brain memory is optional and backend-only. When configured, the backend reads approved/locked LLM-safe context from `GET /api/v1/projects/{project}/context?consumer=pyxdia` and writes completed PYXDIA themes/statistics to `POST /api/v1/remember` with `allowRawStorage: false` and `status: "draft"`.
 - Dynamic retrieval memory is built by the backend per processed letter as `dynamicRetrievalMemory`; it currently uses bounded prior PYXDIA letter summaries and memory markers with retrieval reasons.
-- Prompt assembly names all three systems and tells the model to prefer current user-selected context over static memory, and static memory over dynamic retrieval.
+- Prompt assembly tells the model to prefer current user-selected context over static memory, approved AI Brain memory, and dynamic retrieval.
 
 Security behavior:
 
@@ -204,6 +210,7 @@ Security behavior:
 - Full note bodies are not sent automatically; the UI sends selected note metadata plus any user-pasted context as highest-authority user-selected context.
 - Provider prompts omit raw note bodies and raw note IDs. Backend prompt formatting scrubs/redacts note title/dashboard/role/date metadata before provider use.
 - Static memory updates use scrubbed/minimized letter text and only keep durable-pattern candidates; dynamic retrieval stores summaries and reasons instead of full history.
+- AI Brain reads/writes happen only from Firebase Functions, never from browser code. If AI Brain is not configured, PYXDIA continues without it and exposes a settings status.
 - Sending requires a signed-in Cloud/Firebase user in production. Localhost can use the existing local subscribed demo path and deterministic local completion for UI testing.
 - The backend blocks likely API keys, auth tokens, private keys, and valid card-number patterns instead of redacting and continuing.
 - The backend rate-limits PYXDIA writes per signed-in user, claims processing jobs transactionally, skips jobs until `availableAt`, and stores rate-limit buckets in backend-owned Firestore docs.

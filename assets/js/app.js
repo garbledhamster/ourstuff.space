@@ -1388,14 +1388,18 @@ function normalizePyxdiaDraft(value = {}) {
 	const fallback = createEmptyPyxdiaDraft();
 	const draft = value && typeof value === "object" ? value : {};
 	const rawContextSelections =
-		draft.userSelectedContext?.contextSelections ?? draft.contextSelections ?? [];
+		draft.userSelectedContext?.contextSelections ??
+		draft.contextSelections ??
+		[];
 	const rawSelectedNoteRefs =
 		draft.userSelectedContext?.selectedNoteRefs ?? draft.includedNoteRefs ?? [];
 	const hasCustomSelection =
 		String(draft.noteSelectionMode || "") === "custom" ||
 		(!draft.noteSelectionMode &&
-			((Array.isArray(rawContextSelections) && rawContextSelections.length > 0) ||
-				(Array.isArray(rawSelectedNoteRefs) && rawSelectedNoteRefs.length > 0)));
+			((Array.isArray(rawContextSelections) &&
+				rawContextSelections.length > 0) ||
+				(Array.isArray(rawSelectedNoteRefs) &&
+					rawSelectedNoteRefs.length > 0)));
 	const noteSelectionMode = hasCustomSelection ? "custom" : "all";
 	const userSelectedContext = normalizePyxdiaUserSelectedContext({
 		...(draft.userSelectedContext || {}),
@@ -1403,6 +1407,7 @@ function normalizePyxdiaDraft(value = {}) {
 			draft.userSelectedContext?.manualText ?? draft.userIncludedContext ?? "",
 		selectedNoteRefs: rawSelectedNoteRefs,
 		contextSelections: rawContextSelections,
+		balanceStatistics: draft.userSelectedContext?.balanceStatistics,
 	});
 	return {
 		...fallback,
@@ -3150,7 +3155,11 @@ function configureCloudAutoSync() {
 async function syncCloudNow() {
 	const result = await uploadLocalStateToCloud();
 	recordCloudSyncAt(result.updatedAt || nowIso(), cloudSyncMessage("uploaded"));
-	return { action: "uploaded", ...result, message: cloudSyncMessage("uploaded") };
+	return {
+		action: "uploaded",
+		...result,
+		message: cloudSyncMessage("uploaded"),
+	};
 }
 
 async function loadCloudIntoLocalApp() {
@@ -3286,6 +3295,7 @@ const state = {
 	pyxdiaLetters: initialPyxdiaLocalState.letters,
 	pyxdiaDraft: initialPyxdiaLocalState.draft,
 	pyxdiaMemory: initialPyxdiaLocalState.memory,
+	pyxdiaAiBrain: null,
 	pyxdiaExpanded: false,
 	pyxdiaView: "input",
 	pyxdiaActiveThreadId: "",
@@ -4856,7 +4866,7 @@ function clearEditorDraft(key) {
 	state.editorDrafts = nextDrafts;
 }
 
-function clearCurrentEditorDraft() {
+function _clearCurrentEditorDraft() {
 	const formKey =
 		app.querySelector("[data-editor-draft-key]")?.dataset.editorDraftKey || "";
 	clearEditorDraft(formKey || currentEditorDraftKey());
@@ -6165,7 +6175,9 @@ function cloudUiSignature(account = {}) {
 	});
 }
 
-function cloudStatusRegionHtml(account = state.cloud || getCloudAccountState()) {
+function cloudStatusRegionHtml(
+	account = state.cloud || getCloudAccountState(),
+) {
 	return [
 		account.message
 			? `<p class="cloud-status-message">${escapeHtml(account.message)}</p>`
@@ -6203,7 +6215,9 @@ function patchVisibleCloudStatus() {
 	const interval = app.querySelector("[data-cloud-auto-sync] strong");
 	if (interval) {
 		const signedIn = account.mode === "signed-in" && account.user;
-		interval.textContent = signedIn ? `Every ${cloudSyncIntervalLabel()}` : "Off";
+		interval.textContent = signedIn
+			? `Every ${cloudSyncIntervalLabel()}`
+			: "Off";
 	}
 	const statusRegion = app.querySelector("[data-cloud-status-region]");
 	if (statusRegion) {
@@ -6246,7 +6260,10 @@ function toggleSidebarSection(section) {
 
 function toggleAllSidebarSections() {
 	const labels = DASHBOARD_LABELS;
-	const shouldExpand = !labels.every((label) => state.sidebarExpanded[label]);
+	const expandedCount = labels.filter(
+		(label) => state.sidebarExpanded[label],
+	).length;
+	const shouldExpand = expandedCount < 2;
 	setState({
 		sidebarExpanded: Object.fromEntries(
 			labels.map((label) => [label, shouldExpand]),
@@ -6365,6 +6382,112 @@ function pyxdiaAllNoteRefs() {
 	return pyxdiaNoteRefsFromArtifacts(state.artifactStore);
 }
 
+function pyxdiaBalanceStatsLevel(settings = state.pyxdiaSettings) {
+	const value = Number(settings?.balanceStatsLevel);
+	if (!Number.isFinite(value)) {
+		return 0;
+	}
+	return Math.min(100, Math.max(0, Math.round(value / 25) * 25));
+}
+
+function pyxdiaTrackerStatistics(events = []) {
+	const counts = new Map();
+	events.forEach((event) => {
+		const kind =
+			event.role === "thought"
+				? "thought"
+				: event.role === "goal-progress"
+					? "goal"
+					: "";
+		const label =
+			kind === "thought"
+				? event.thoughtLabel
+				: kind === "goal"
+					? event.goalLabel
+					: "";
+		const area = DASHBOARD_LABELS.includes(event.dashboard)
+			? event.dashboard
+			: "Life";
+		if (!kind || !label) {
+			return;
+		}
+		const key = `${area}|${kind}|${label}`;
+		const current = counts.get(key) || { area, kind, label, count: 0 };
+		current.count += 1;
+		counts.set(key, current);
+	});
+	return [...counts.values()]
+		.sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
+		.slice(0, 16);
+}
+
+function pyxdiaBalanceStatisticsForSettings(settings = state.pyxdiaSettings) {
+	const level = pyxdiaBalanceStatsLevel(settings);
+	if (!level || !state.artifactStore) {
+		return null;
+	}
+	const period = dashboardPeriodOption(state.dashboardPeriod).id;
+	const artifacts = (state.artifactStore.artifacts || []).filter(
+		(artifact) => !isDeletedArtifact(artifact),
+	);
+	const notes = artifacts.filter((artifact) => artifact.type === "note");
+	const periodEvents = lifeEvents().filter((event) =>
+		eventIsInPeriod(event, period),
+	);
+	const totalEvents = periodEvents.length;
+	const areas = DASHBOARD_LABELS.map((area) => {
+		const areaEvents = periodEvents.filter((event) => event.dashboard === area);
+		const areaNotes = notes.filter((note) => note.dashboard === area).length;
+		const thoughts = areaEvents.filter(
+			(event) => event.role === "thought",
+		).length;
+		const goals = areaEvents.filter(
+			(event) => event.role === "goal-progress",
+		).length;
+		return {
+			name: area,
+			count: areaEvents.length,
+			percent: totalEvents
+				? Math.round((areaEvents.length / totalEvents) * 100)
+				: 0,
+			notes: areaNotes,
+			thoughts,
+			goals,
+		};
+	});
+	const stats = {
+		enabled: true,
+		level,
+		period,
+		generatedAt: nowIso(),
+		totalEvents,
+		totalNotes: notes.length,
+		areas,
+	};
+	if (level >= 50) {
+		stats.trackerSummary = pyxdiaTrackerStatistics(periodEvents);
+	}
+	if (level >= 75) {
+		stats.recentActivity = periodEvents
+			.slice()
+			.sort((a, b) => {
+				const bTime = Date.parse(b.timestamp || b.dateKey || "") || 0;
+				const aTime = Date.parse(a.timestamp || a.dateKey || "") || 0;
+				return bTime - aTime;
+			})
+			.slice(0, 12)
+			.map((event) => ({
+				area: DASHBOARD_LABELS.includes(event.dashboard)
+					? event.dashboard
+					: "Life",
+				role: event.role || "note",
+				action: event.action || "activity",
+				dateKey: event.dateKey || dateKeyFromValue(event.timestamp),
+			}));
+	}
+	return stats;
+}
+
 function pyxdiaEffectiveSelectedNoteIds(
 	draft = state.pyxdiaDraft,
 	refs = pyxdiaAllNoteRefs(),
@@ -6435,10 +6558,12 @@ function pyxdiaDraftFromDom(options = {}) {
 	).map((item) => item.value);
 	const refs = pyxdiaAllNoteRefs();
 	const selectedNoteRefs = refs.filter((ref) => selections.includes(ref.id));
-	const currentSelectionMode =
-		normalizePyxdiaDraft(state.pyxdiaDraft).noteSelectionMode;
+	const currentSelectionMode = normalizePyxdiaDraft(
+		state.pyxdiaDraft,
+	).noteSelectionMode;
 	const noteSelectionMode =
-		options.noteSelectionMode === "all" || options.noteSelectionMode === "custom"
+		options.noteSelectionMode === "all" ||
+		options.noteSelectionMode === "custom"
 			? options.noteSelectionMode
 			: currentSelectionMode || "all";
 	const userSelectedContext = normalizePyxdiaUserSelectedContext({
@@ -6447,6 +6572,7 @@ function pyxdiaDraftFromDom(options = {}) {
 			: state.pyxdiaDraft?.userIncludedContext || "",
 		selectedNoteRefs,
 		contextSelections: selections,
+		balanceStatistics: pyxdiaBalanceStatisticsForSettings(state.pyxdiaSettings),
 	});
 	const now = nowIso();
 	return normalizePyxdiaDraft({
@@ -6526,6 +6652,7 @@ function applyPyxdiaStatePayload(payload = {}) {
 	state.pyxdiaLetters = local.letters;
 	state.pyxdiaDraft = local.draft;
 	state.pyxdiaMemory = local.memory;
+	state.pyxdiaAiBrain = payload.aiBrain || state.pyxdiaAiBrain;
 	savePyxdiaSettingsLocal(settings);
 	savePyxdiaLocalState();
 	return { settings, ...local };
@@ -6549,6 +6676,31 @@ function openPyxdia(view = "input", patch = {}) {
 	});
 }
 
+function openPyxdiaReplyToThread(threadId) {
+	if (!threadId) {
+		openPyxdia("input");
+		return;
+	}
+	const current = normalizePyxdiaDraft(state.pyxdiaDraft);
+	const draft = normalizePyxdiaDraft({
+		...current,
+		threadId,
+		clientLetterId:
+			current.threadId === threadId
+				? current.clientLetterId
+				: makeId("pyxdia-letter"),
+		updatedAt: nowIso(),
+	});
+	state.pyxdiaDraft = draft;
+	savePyxdiaLocalState();
+	openPyxdia("input", {
+		pyxdiaActiveThreadId: threadId,
+		pyxdiaDraft: draft,
+		pyxdiaStatus: "Replying in this letter chain.",
+		pyxdiaError: "",
+	});
+}
+
 function pyxdiaSettingsFromForm() {
 	const current = state.pyxdiaSettings || DEFAULT_PYXIDA_SETTINGS;
 	const delayEnabled = document.getElementById("pyxdia-setting-delay")?.checked;
@@ -6558,6 +6710,10 @@ function pyxdiaSettingsFromForm() {
 		delayEnabled,
 		pyxdiaDelayEnabled: delayEnabled,
 		memoryEnabled: document.getElementById("pyxdia-setting-memory")?.checked,
+		aiBrainMemoryEnabled: document.getElementById("pyxdia-setting-ai-brain")
+			?.checked,
+		balanceStatsLevel: document.getElementById("pyxdia-balance-stats-level")
+			?.value,
 		delayMinHours: document.getElementById("pyxdia-delay-min")?.value,
 		delayMaxHours: document.getElementById("pyxdia-delay-max")?.value,
 		generalInstructions:
@@ -7338,8 +7494,10 @@ async function completeLocalPyxdiaLetter(letterId) {
 	});
 }
 
-function buildLocalPyxdiaReply(letter, settings) {
-	const cleanLetter = String(letter.inputText || "").replace(/\s+/g, " ").trim();
+function buildLocalPyxdiaReply(letter, _settings) {
+	const cleanLetter = String(letter.inputText || "")
+		.replace(/\s+/g, " ")
+		.trim();
 	const firstLine =
 		String(letter.inputText || "")
 			.split(/\n+/)
@@ -10249,8 +10407,6 @@ function focusThoughtEditor() {
 
 function pyxdiaSidebarHtml() {
 	const expanded = state.pyxdiaExpanded;
-	const latest = latestPyxdiaLetter();
-	const latestOutput = latestCompletedPyxdiaLetter();
 	const activeThreadIds = new Set(
 		activePyxdiaLetters().map((letter) => letter.threadId),
 	);
@@ -10262,18 +10418,7 @@ function pyxdiaSidebarHtml() {
 		})
 		.filter((thread) => activeThreadIds.has(thread.id));
 	const actionItems = [
-		["pyxdia-new-letter", "Send Letter", "tabler:send-2", "Draft and send"],
 		["pyxdia-open-input", "Write A Letter", "tabler:pencil", "Current draft"],
-		[
-			"pyxdia-open-output",
-			"Last Letter",
-			"tabler:mail-opened",
-			latestOutput
-				? "Reply ready"
-				: latest
-					? pyxdiaStatusText(latest)
-					: "No replies",
-		],
 	];
 	return `
     <section class="sidebar-group sidebar-group--pyxdia${expanded ? " is-expanded" : " is-collapsed"}">
@@ -10293,7 +10438,7 @@ function pyxdiaSidebarHtml() {
 					)
 					.join("")}
         <div class="pyxdia-sidebar-conversations" aria-label="PYXIDA conversations">
-          <span>Conversations</span>
+          <span>Letter Chain</span>
           ${
 						threads.length
 							? threads
@@ -10317,15 +10462,17 @@ function pyxdiaSidebarHtml() {
 
 function sidebarHtml(_compendium) {
 	const sectionLabels = DASHBOARD_LABELS;
-	const allExpanded = sectionLabels.every(
+	const expandedCount = sectionLabels.filter(
 		(label) => state.sidebarExpanded[label],
-	);
+	).length;
+	const collapseMode = expandedCount >= 2;
+	const toggleAllLabel = collapseMode ? "Collapse all" : "Expand all";
 	return `
     <aside class="sidebar">
       <div class="sidebar-fixed-top">
         <nav class="sidebar-menu-nav" aria-label="Menu controls">
-          <button class="sidebar-menu-nav-button" data-action="toggle-all-sidebar-sections" type="button" aria-pressed="${allExpanded ? "true" : "false"}" aria-label="${allExpanded ? "Collapse all" : "Expand all"}" title="${allExpanded ? "Collapse all" : "Expand all"}">
-            ${iconHtml(allExpanded ? "tabler:chevrons-up" : "tabler:chevrons-down")}
+          <button class="sidebar-menu-nav-button" data-action="toggle-all-sidebar-sections" type="button" aria-pressed="${collapseMode ? "true" : "false"}" aria-label="${toggleAllLabel}" title="${toggleAllLabel}">
+            ${iconHtml(collapseMode ? "tabler:chevrons-up" : "tabler:chevrons-down")}
           </button>
           ${dashboardPeriodSliderHtml("sidebar-period-slider")}
           <button class="sidebar-menu-nav-button sidebar-menu-nav-trash" data-action="open-trash" type="button" aria-label="Open Trash" title="Trash">
@@ -10612,8 +10759,8 @@ function pathBarExtraCrumbs(spiritBook) {
 	if (state.active === "PYXIDA") {
 		const labels = {
 			input: "Write A Letter",
-			output: "Last Letter",
-			thread: selectedPyxdiaThread()?.title || "Conversation",
+			output: "Latest Reply",
+			thread: selectedPyxdiaThread()?.title || "Letter Chain",
 		};
 		return [pathCrumbText(labels[state.pyxdiaView] || "Write A Letter")];
 	}
@@ -10948,7 +11095,7 @@ function pyxdiaInputHtml() {
   `;
 }
 
-function renderPyxdiaLetterMarkdown(text, imageRefs = []) {
+function renderPyxdiaLetterMarkdown(text, _imageRefs = []) {
 	const html = renderMarkdown(text || "");
 	return html || `<p>${escapeHtml("Nothing written yet.")}</p>`;
 }
@@ -11033,7 +11180,8 @@ function pyxdiaNoteSelectionHtml(draft) {
 
 function pyxdiaNoteFiltersFromDom() {
 	return normalizePyxdiaNoteFilters({
-		search: app.querySelector("[data-pyxdia-note-filter='search']")?.value || "",
+		search:
+			app.querySelector("[data-pyxdia-note-filter='search']")?.value || "",
 		dashboard:
 			app.querySelector("[data-pyxdia-note-filter='dashboard']")?.value || "",
 		role: app.querySelector("[data-pyxdia-note-filter='role']")?.value || "",
@@ -11122,13 +11270,13 @@ function pyxdiaLastLetterHtml(options = {}) {
     <section class="pyxdia-output${options.embedded ? " pyxdia-output--embedded" : ""}">
       <div class="body-card-heading">
         <div>
-          <h3>Last Letter</h3>
-          <p>No last letter yet.</p>
+          <h3>Letter Chain</h3>
+          <p>No latest reply yet.</p>
         </div>
       </div>
       <div class="pyxdia-pending-card">
         <strong>No reply yet</strong>
-        <span>Send a letter to create the first pending reply.</span>
+        <span>Write a letter to start the first chain.</span>
       </div>
     </section>
   `;
@@ -11148,7 +11296,7 @@ function pyxdiaLastLetterHtml(options = {}) {
     <section class="pyxdia-output${options.embedded ? " pyxdia-output--embedded" : ""}">
       <div class="body-card-heading">
         <div>
-          <h3>${escapeHtml(pending ? "Reply Pending" : "Last Letter")}</h3>
+          <h3>${escapeHtml(pending ? "Reply Pending" : "Latest Reply")}</h3>
           <p>${escapeHtml(pyxdiaStatusText(latest))}</p>
         </div>
         ${actions}
@@ -11180,6 +11328,9 @@ function pyxdiaThreadHtml() {
         <div>
           <h3>${escapeHtml(thread.title)}</h3>
           <p>${escapeHtml(`${letters.length} letter${letters.length === 1 ? "" : "s"} / ${thread.latestState}`)}</p>
+        </div>
+        <div class="action-row">
+          <button class="secondary-button" data-action="pyxdia-reply-thread" data-id="${escapeHtml(thread.id)}" type="button">${buttonContent("tabler:message-reply", "Reply")}</button>
         </div>
       </div>
       <div class="pyxdia-thread-list">
@@ -11560,6 +11711,19 @@ function settingsInterfaceHtml() {
 function settingsPyxdiaHtml() {
 	const settings = normalizePyxdiaSettings(state.pyxdiaSettings);
 	const memory = normalizePyxdiaMemory(state.pyxdiaMemory);
+	const statsLevel = pyxdiaBalanceStatsLevel(settings);
+	const aiBrain = state.pyxdiaAiBrain || {};
+	const aiBrainStatus = aiBrain.configured
+		? "AI Brain memory is configured on the server."
+		: "AI Brain memory is not configured on the server yet.";
+	const statsLabel =
+		statsLevel === 0
+			? "Off"
+			: statsLevel === 25
+				? "Light"
+				: statsLevel === 50
+					? "Standard"
+					: "Full";
 	const staticMemory = normalizePyxdiaStaticMemory(memory.staticMemory);
 	const dynamicRetrievalMemory = normalizePyxdiaDynamicRetrievalMemory(
 		memory.dynamicRetrievalMemory,
@@ -11593,10 +11757,18 @@ function settingsPyxdiaHtml() {
             <input id="pyxdia-setting-memory" type="checkbox"${settings.memoryEnabled ? " checked" : ""}>
             <span>Memory</span>
           </label>
+          <label class="dashboard-identity-toggle">
+            <input id="pyxdia-setting-ai-brain" type="checkbox"${settings.aiBrainMemoryEnabled ? " checked" : ""}>
+            <span>AI Brain</span>
+          </label>
         </div>
         <div class="body-form-grid pyxdia-delay-grid">
           <label class="body-field">Delay min hours<input id="pyxdia-delay-min" type="number" min="0" max="168" step="1" value="${escapeHtml(settings.delayMinHours)}"></label>
           <label class="body-field">Delay max hours<input id="pyxdia-delay-max" type="number" min="0" max="336" step="1" value="${escapeHtml(settings.delayMaxHours)}"></label>
+          <label class="body-field body-field--full pyxdia-range-field">Balance statistics
+            <input id="pyxdia-balance-stats-level" type="range" min="0" max="100" step="25" value="${escapeHtml(statsLevel)}">
+            <small>${escapeHtml(statsLabel)} context. Sends counts and percentages only, never note bodies.</small>
+          </label>
         </div>
         <label class="body-field body-field--full">Instructions / personality
           <textarea id="pyxdia-general-instructions" rows="4">${escapeHtml(settings.generalInstructions)}</textarea>
@@ -11608,6 +11780,18 @@ function settingsPyxdiaHtml() {
           <button class="secondary-button" data-action="pyxdia-save-settings" type="button"${state.pyxdiaBusy ? " disabled" : ""}>${buttonContent("tabler:device-floppy", "Save Settings")}</button>
           <button class="secondary-button danger-button" data-action="pyxdia-reset-memory" type="button"${state.pyxdiaBusy ? " disabled" : ""}>${buttonContent("tabler:restore", "Reset Memory")}</button>
         </div>
+      </section>
+      <section class="interface-settings-section">
+        <div class="body-card-heading">
+          <div>
+            <h3>AI Brain</h3>
+            <p>Server-side read/write memory connection for approved PYXIDA context.</p>
+          </div>
+        </div>
+        <article class="pyxdia-memory-card">
+          <p>${escapeHtml(aiBrainStatus)}</p>
+          <small>${escapeHtml(aiBrain.consumer ? `Consumer: ${aiBrain.consumer}` : "Writes stay draft-first when configured.")}</small>
+        </article>
       </section>
       <section class="interface-settings-section">
         <div class="body-card-heading">
@@ -11675,7 +11859,9 @@ function settingsCloudHtml() {
 	const signedIn = account.mode === "signed-in" && account.user;
 	const isCloud = Boolean(signedIn);
 	const cloudActive = Boolean(
-		signedIn && !account.isLocalDemo && (entitlement.cloud || entitlement.admin),
+		signedIn &&
+			!account.isLocalDemo &&
+			(entitlement.cloud || entitlement.admin),
 	);
 	const username = signedIn
 		? account.user.displayName || account.user.email || "Signed in"
@@ -12481,11 +12667,32 @@ function parseImageReference(value) {
 	const url = safeHttpUrl(text);
 	if (
 		url &&
-		/\.(avif|gif|jpe?g|png|svg|webp)(\?.*)?$/i.test(`${url.pathname}${url.search}`)
+		/\.(avif|gif|jpe?g|png|svg|webp)(\?.*)?$/i.test(
+			`${url.pathname}${url.search}`,
+		)
 	) {
 		return { type: "remote", src: url.href, alt: "Image" };
 	}
 	return null;
+}
+
+function parseMarkdownImageReference(value) {
+	const text = String(value || "").trim();
+	const markdown = text.match(/^!\[([^\]]*)\]\(([^)\s]+)\)$/);
+	if (!markdown) {
+		return null;
+	}
+	const parsed = parseImageReference(markdown[2]);
+	return parsed ? { ...parsed, alt: markdown[1] || "Image" } : null;
+}
+
+function blockquoteContentValue(value) {
+	const text = String(value || "").trim();
+	if (!text.startsWith(">")) {
+		return null;
+	}
+	const quote = text.replace(/^>\s?/, "").trim();
+	return quote || null;
 }
 
 function youtubeVideoId(value) {
@@ -12523,7 +12730,7 @@ function parseSingleLineContent(line) {
 	}
 	const items = splitCommaContent(text);
 	if (items.length > 1) {
-		const images = items.map(parseImageReference);
+		const images = items.map(parseMarkdownImageReference);
 		if (images.every(Boolean)) {
 			return { type: "gallery", items: images };
 		}
@@ -12535,6 +12742,14 @@ function parseSingleLineContent(line) {
 		if (quotes.every((quote) => quote !== null && quote.length > 0)) {
 			return { type: "quote-list", items: quotes };
 		}
+		const blockquotes = items.map(blockquoteContentValue);
+		if (blockquotes.every((quote) => quote !== null && quote.length > 0)) {
+			return { type: "quote-list", items: blockquotes };
+		}
+	}
+	const quote = blockquoteContentValue(text);
+	if (quote) {
+		return { type: "quote-list", items: [quote] };
 	}
 	const image = parseImageReference(text);
 	if (image) {
@@ -12600,7 +12815,11 @@ function themedChildViewerHtml(parsed) {
 	return `<div class="themed-child-viewer themed-child-viewer--text"><p>${escapeHtml(parsed.text || "")}</p></div>`;
 }
 
-function pageNumberOverlayHtml({ current = 1, total = 1, label = "Page" } = {}) {
+function pageNumberOverlayHtml({
+	current = 1,
+	total = 1,
+	label = "Page",
+} = {}) {
 	const safeTotal = Math.max(1, Number(total) || 1);
 	const safeCurrent = Math.min(Math.max(1, Number(current) || 1), safeTotal);
 	return `<div class="page-number-overlay" aria-label="${escapeHtml(`${label} ${safeCurrent} of ${safeTotal}`)}">${escapeHtml(`${label} ${safeCurrent} of ${safeTotal}`)}</div>`;
@@ -14088,8 +14307,12 @@ function compendiumReaderHtml(compendium) {
 	const hasPrev = page > 0;
 	const hasNext = page < maxPage;
 	return panelHtml(`
-    <div class="reader-topbar">
-      <button class="icon-button" data-action="manager" type="button" aria-label="Close reader" title="Close">${iconHtml("tabler:x")}</button>
+    <div class="reader-topbar reader-topbar--actions">
+      <div class="action-row">
+        ${pageActionButton("edit-compendium", "tabler:pencil", "Edit compendium")}
+        ${pageActionButton("delete-compendium", "tabler:trash", "Delete compendium", { danger: true, data: { id: compendium.id } })}
+        ${pageActionButton("manager", "tabler:x", "Close reader", { className: "close-viewer-button" })}
+      </div>
     </div>
     <section class="reader-book reader-book--compendium" aria-label="${escapeHtml(compendium.title)} reader">
       <div class="reader-slider">
@@ -14130,7 +14353,9 @@ function sectionPageInfo(sectionId) {
 	if (!compendium) {
 		return { current: 1, total: 1 };
 	}
-	const index = compendium.sections.findIndex((section) => section.id === sectionId);
+	const index = compendium.sections.findIndex(
+		(section) => section.id === sectionId,
+	);
 	return {
 		current: index >= 0 ? index + 1 : 1,
 		total: Math.max(1, compendium.sections.length),
@@ -14376,7 +14601,8 @@ function editorHtml({
 }
 
 function cameraOrUploadInputHtml(options = {}) {
-	const className = options.className || "editor-image-button editor-camera-button";
+	const className =
+		options.className || "editor-image-button editor-camera-button";
 	const label = options.label || "Add photo";
 	return `
     <button class="icon-button ${escapeHtml(className)}" data-editor-camera-button type="button" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">
@@ -15185,9 +15411,12 @@ function bindPyxdiaControls() {
 	}
 	app.querySelectorAll("[data-pyxdia-note-ref]").forEach((checkbox) => {
 		checkbox.addEventListener("change", () => {
-			savePyxdiaDraftLocal(pyxdiaDraftFromDom({ noteSelectionMode: "custom" }), {
-				render: false,
-			});
+			savePyxdiaDraftLocal(
+				pyxdiaDraftFromDom({ noteSelectionMode: "custom" }),
+				{
+					render: false,
+				},
+			);
 			applyPyxdiaNoteFiltersDom();
 		});
 	});
@@ -15333,7 +15562,7 @@ async function insertPyxdiaLetterImages(files) {
 	await uploadPyxdiaImagesAndInsert(files, { renderOnError: true });
 }
 
-function insertTextAtPyxdiaCursor(text, start, end) {
+function _insertTextAtPyxdiaCursor(text, start, end) {
 	const input = document.getElementById("pyxdia-letter-input");
 	if (!input) {
 		return;
@@ -16619,7 +16848,7 @@ function handleAction(element) {
 			trackerDeleteKey: "",
 		});
 	}
-	if (action === "pyxdia-new-letter" || action === "pyxdia-open-input") {
+	if (action === "pyxdia-open-input") {
 		openPyxdia("input");
 	}
 	if (action === "pyxdia-open-output") {
@@ -16627,6 +16856,11 @@ function handleAction(element) {
 	}
 	if (action === "pyxdia-open-thread") {
 		openPyxdia("thread", { pyxdiaActiveThreadId: element.dataset.id || "" });
+	}
+	if (action === "pyxdia-reply-thread") {
+		openPyxdiaReplyToThread(
+			element.dataset.id || state.pyxdiaActiveThreadId || "",
+		);
 	}
 	if (action === "set-pyxdia-view") {
 		openPyxdia(element.dataset.view || "input");
@@ -17123,12 +17357,14 @@ document.addEventListener("visibilitychange", () => {
 		closeCamera();
 	}
 });
-["pointerdown", "keydown", "wheel", "touchstart", "input"].forEach((eventName) => {
-	document.addEventListener(eventName, markUserInterfaceActivity, {
-		capture: true,
-		passive: true,
-	});
-});
+["pointerdown", "keydown", "wheel", "touchstart", "input"].forEach(
+	(eventName) => {
+		document.addEventListener(eventName, markUserInterfaceActivity, {
+			capture: true,
+			passive: true,
+		});
+	},
+);
 
 applyEnvironmentClasses();
 render();

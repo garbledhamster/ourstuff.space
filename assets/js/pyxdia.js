@@ -14,6 +14,8 @@ export const DEFAULT_PYXIDA_SETTINGS = {
 	pyxdiaDelayEnabled: true,
 	pyxdiaDelayMs: 24 * 60 * 60 * 1000,
 	memoryEnabled: true,
+	aiBrainMemoryEnabled: true,
+	balanceStatsLevel: 0,
 	generalInstructions:
 		"Be a reflective growth companion. Be direct, kind, practical, and non-clinical.",
 	userWantsPyxdiaToKnow: "",
@@ -40,6 +42,8 @@ export function normalizePyxdiaSettings(value = {}) {
 		pyxdiaDelayEnabled: delayEnabled,
 		pyxdiaDelayMs: delayEnabled ? min * 60 * 60 * 1000 : 0,
 		memoryEnabled: source.memoryEnabled !== false,
+		aiBrainMemoryEnabled: source.aiBrainMemoryEnabled !== false,
+		balanceStatsLevel: clampNumber(source.balanceStatsLevel, 0, 100, 0),
 		generalInstructions: cleanText(
 			source.generalInstructions,
 			DEFAULT_PYXIDA_SETTINGS.generalInstructions,
@@ -140,8 +144,54 @@ export function normalizePyxdiaUserSelectedContext(value = {}) {
 		selectedProjectEntryIds: Array.isArray(source.selectedProjectEntryIds)
 			? source.selectedProjectEntryIds.map(String).filter(Boolean).slice(0, 24)
 			: [],
+		balanceStatistics: normalizeBalanceStatistics(source.balanceStatistics),
 		contextSelections: selectedIds,
 		schemaVersion: PYXIDA_CONTEXT_SCHEMA_VERSION,
+	};
+}
+
+function normalizeBalanceStatistics(value = null) {
+	if (!value || typeof value !== "object") {
+		return null;
+	}
+	const source = value;
+	const areas = Array.isArray(source.areas)
+		? source.areas
+				.slice(0, 4)
+				.map((area) => ({
+					name: String(area?.name || "").slice(0, 40),
+					count: clampNumber(area?.count, 0, 100000, 0),
+					percent: clampFloat(area?.percent, 0, 100, 0),
+					notes: clampNumber(area?.notes, 0, 100000, 0),
+					thoughts: clampNumber(area?.thoughts, 0, 100000, 0),
+					goals: clampNumber(area?.goals, 0, 100000, 0),
+				}))
+				.filter((area) => area.name)
+		: [];
+	return {
+		enabled: source.enabled === true,
+		level: clampNumber(source.level, 0, 100, 0),
+		period: String(source.period || "").slice(0, 40),
+		generatedAt: String(source.generatedAt || "").slice(0, 80),
+		totalEvents: clampNumber(source.totalEvents, 0, 100000, 0),
+		totalNotes: clampNumber(source.totalNotes, 0, 100000, 0),
+		areas,
+		recentActivity: Array.isArray(source.recentActivity)
+			? source.recentActivity.slice(0, 16).map((item) => ({
+					area: String(item?.area || "").slice(0, 40),
+					role: String(item?.role || "").slice(0, 60),
+					action: String(item?.action || "").slice(0, 60),
+					dateKey: String(item?.dateKey || "").slice(0, 40),
+				}))
+			: [],
+		trackerSummary: Array.isArray(source.trackerSummary)
+			? source.trackerSummary.slice(0, 24).map((item) => ({
+					area: String(item?.area || "").slice(0, 40),
+					label: String(item?.label || "").slice(0, 80),
+					kind: String(item?.kind || "").slice(0, 40),
+					count: clampNumber(item?.count, 0, 100000, 0),
+				}))
+			: [],
 	};
 }
 

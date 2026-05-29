@@ -26,6 +26,8 @@ const DEFAULT_SETTINGS = {
 	pyxdiaDelayEnabled: true,
 	pyxdiaDelayMs: 24 * 60 * 60 * 1000,
 	memoryEnabled: true,
+	aiBrainMemoryEnabled: true,
+	balanceStatsLevel: 0,
 	generalInstructions:
 		"Be a reflective growth companion. Be direct, kind, practical, and non-clinical.",
 	userWantsPyxdiaToKnow: "",
@@ -303,6 +305,7 @@ async function statePayload(uid) {
 		memory: memorySnap.exists
 			? normalizeMemory(memorySnap.data(), uid)
 			: emptyMemory(uid),
+		aiBrain: aiBrainStatus(),
 		draft: draftSnap.exists
 			? normalizeDraftPayload(draftSnap.data(), uid)
 			: draftDoc(uid),
@@ -517,6 +520,17 @@ async function processJob(uid, jobId) {
 			letter,
 			memory,
 		);
+		const aiBrainContext =
+			settings.aiBrainMemoryEnabled === false
+				? emptyAiBrainContext("disabled")
+				: await fetchAiBrainContext().catch((error) => ({
+						...emptyAiBrainContext("error"),
+						errorCode: safeMetadataField(
+							error?.message || "ai_brain_error",
+							"",
+							80,
+						),
+					}));
 		const scrubbedUserSelectedContext = {
 			...userSelectedContext,
 			manualText: userSelectedContext.manualText
@@ -533,6 +547,7 @@ async function processJob(uid, jobId) {
 			settings: scrubbedSettings,
 			staticMemory,
 			dynamicRetrievalMemory,
+			aiBrainContext,
 			userSelectedContext: scrubbedUserSelectedContext,
 			letter:
 				letter.scrubbedInputText || scrubText(letter.inputText || "").text,
@@ -542,6 +557,22 @@ async function processJob(uid, jobId) {
 		const scannedOutput = scrubText(output);
 		validatePlainOutput(scannedOutput.text);
 		const completedAt = nowIso();
+		const aiBrainWrite =
+			settings.aiBrainMemoryEnabled === false
+				? { status: "disabled", draftFirst: true }
+				: await rememberAiBrainDraft({
+						letter,
+						outputText: scannedOutput.text,
+						stats: scrubbedUserSelectedContext.balanceStatistics,
+					}).catch((error) => ({
+						status: "error",
+						draftFirst: true,
+						errorCode: safeMetadataField(
+							error?.message || "ai_brain_error",
+							"",
+							80,
+						),
+					}));
 		await Promise.all([
 			letterRef.set(
 				{
@@ -549,6 +580,8 @@ async function processJob(uid, jobId) {
 					outputText: scannedOutput.text,
 					staticMemorySnapshot: compactStaticMemorySnapshot(staticMemory),
 					dynamicRetrievalMemory,
+					aiBrainContextSnapshot: compactAiBrainContextSnapshot(aiBrainContext),
+					aiBrainMemoryWrite: aiBrainWrite,
 					completedAt,
 					updatedAt: completedAt,
 					modelName: result.model || "",
@@ -1532,6 +1565,14 @@ function normalizeSettings(value = {}) {
 		pyxdiaDelayEnabled: delayEnabled,
 		pyxdiaDelayMs: delayEnabled ? min * 60 * 60 * 1000 : 0,
 		memoryEnabled: source.memoryEnabled !== false,
+		aiBrainMemoryEnabled: source.aiBrainMemoryEnabled !== false,
+		balanceStatsLevel: Math.min(
+			100,
+			Math.max(
+				0,
+				Math.round(clampNumber(source.balanceStatsLevel, 0, 100, 0) / 25) * 25,
+			),
+		),
 		generalInstructions: cleanText(
 			source.generalInstructions,
 			DEFAULT_SETTINGS.generalInstructions,
@@ -1630,7 +1671,7 @@ function validatePlainOutput(text) {
 	}
 }
 
-async function generateLetter(prompt, settings) {
+async function generateLetter(prompt, _settings) {
 	const apiKey = String(process.env.OPENROUTER_API_KEY || "").trim();
 	if (!apiKey) {
 		if (allowLocalProviderFallback()) {
@@ -1643,32 +1684,29 @@ async function generateLetter(prompt, settings) {
 		);
 	}
 	const model = pyxdiaModelName();
-	const response = await fetch(
-		OPENROUTER_URL,
-		{
-			method: "POST",
-			headers: {
-				authorization: `Bearer ${apiKey}`,
-				"content-type": "application/json",
-				"http-referer": "https://ourstuff.space",
-				"x-title": "Ourstuff PYXIDA",
-			},
-			body: JSON.stringify({
-				model,
-				messages: [
-					{
-						role: "system",
-						content:
-							"You are PYXIDA PENPAL. Return one warm plain-text letter only. Do not use markdown.",
-					},
-					{ role: "user", content: prompt },
-				],
-				temperature: 0.62,
-				max_tokens: 1400,
-				reasoning: PYXDIA_REASONING,
-			}),
+	const response = await fetch(OPENROUTER_URL, {
+		method: "POST",
+		headers: {
+			authorization: `Bearer ${apiKey}`,
+			"content-type": "application/json",
+			"http-referer": "https://ourstuff.space",
+			"x-title": "Ourstuff PYXIDA",
 		},
-	);
+		body: JSON.stringify({
+			model,
+			messages: [
+				{
+					role: "system",
+					content:
+						"You are PYXIDA PENPAL. Return one warm plain-text letter only. Do not use markdown.",
+				},
+				{ role: "user", content: prompt },
+			],
+			temperature: 0.62,
+			max_tokens: 1400,
+			reasoning: PYXDIA_REASONING,
+		}),
+	});
 	if (!response.ok) {
 		throw policyError("provider_failed", SAFE_ERRORS.provider_failed, 502);
 	}
@@ -1702,6 +1740,189 @@ function providerConfigured() {
 	return Boolean(String(process.env.OPENROUTER_API_KEY || "").trim());
 }
 
+function aiBrainConfig() {
+	const apiBase = String(process.env.AI_BRAIN_API_BASE || "")
+		.trim()
+		.replace(/\/+$/, "");
+	const token = String(
+		process.env.AI_BRAIN_API_TOKEN || process.env.AI_BRAIN_API_KEY || "",
+	).trim();
+	return {
+		apiBase,
+		token,
+		projectSlug: String(
+			process.env.AI_BRAIN_PROJECT_SLUG || "ourstuff.space",
+		).trim(),
+		consumer: String(process.env.AI_BRAIN_CONSUMER || "pyxdia").trim(),
+		configured: Boolean(apiBase && token),
+	};
+}
+
+function aiBrainStatus() {
+	const config = aiBrainConfig();
+	return {
+		configured: config.configured,
+		projectSlug: config.projectSlug,
+		consumer: config.consumer,
+		readEnabled: config.configured,
+		writeEnabled: config.configured,
+		draftFirst: true,
+	};
+}
+
+function emptyAiBrainContext(status = "skipped") {
+	return {
+		status,
+		items: [],
+		piiSafe: true,
+		retrievedAt: "",
+		consumer: aiBrainConfig().consumer,
+	};
+}
+
+async function aiBrainFetchJson(path, init = {}) {
+	const config = aiBrainConfig();
+	if (!config.configured) {
+		return null;
+	}
+	const response = await fetch(`${config.apiBase}${path}`, {
+		...init,
+		headers: {
+			authorization: `Bearer ${config.token}`,
+			"content-type": "application/json",
+			"x-brain-consumer": config.consumer,
+			...(init.headers || {}),
+		},
+	});
+	if (!response.ok) {
+		throw new Error(`ai_brain_${response.status}`);
+	}
+	return response.json();
+}
+
+async function fetchAiBrainContext() {
+	const config = aiBrainConfig();
+	if (!config.configured) {
+		return emptyAiBrainContext("not_configured");
+	}
+	const payload = await aiBrainFetchJson(
+		`/api/v1/projects/${encodeURIComponent(config.projectSlug)}/context?consumer=${encodeURIComponent(config.consumer)}`,
+	);
+	const items = Array.isArray(payload?.items)
+		? payload.items
+		: Array.isArray(payload?.context)
+			? payload.context
+			: [];
+	return {
+		status: "ok",
+		items: items
+			.filter(
+				(item) =>
+					item?.llmSafe !== false &&
+					["approved", "locked", "active"].includes(
+						String(item?.status || "approved").toLowerCase(),
+					),
+			)
+			.slice(0, 12)
+			.map((item) => ({
+				id: safeMetadataField(item.id || item.memoryId || "", "", 120),
+				text: safePromptText(
+					item.text || item.summary || item.content || "",
+					700,
+				),
+				tags: Array.isArray(item.tags)
+					? item.tags.map((tag) => safeMetadataField(tag, "", 40)).slice(0, 8)
+					: [],
+				status: safeMetadataField(item.status || "approved", "approved", 40),
+			}))
+			.filter((item) => item.text),
+		piiSafe: true,
+		retrievedAt: nowIso(),
+		consumer: config.consumer,
+	};
+}
+
+function formatAiBrainContext(context = emptyAiBrainContext()) {
+	const safe = context || emptyAiBrainContext();
+	if (safe.status !== "ok" || !safe.items?.length) {
+		return JSON.stringify(
+			{
+				status: safe.status || "skipped",
+				items: [],
+				policy:
+					"Use no AI Brain context unless approved LLM-safe items are present.",
+			},
+			null,
+			2,
+		);
+	}
+	return JSON.stringify(
+		{
+			status: "ok",
+			authority: "approved_ai_brain_memory",
+			authorityRank: 2.5,
+			policy:
+				"Approved or locked LLM-safe AI Brain context only. Lower priority than the current letter and selected context.",
+			items: safe.items,
+		},
+		null,
+		2,
+	);
+}
+
+function compactAiBrainContextSnapshot(context = emptyAiBrainContext()) {
+	return {
+		status: context.status || "skipped",
+		itemCount: Array.isArray(context.items) ? context.items.length : 0,
+		retrievedAt: context.retrievedAt || "",
+		consumer: context.consumer || aiBrainConfig().consumer,
+		piiSafe: true,
+	};
+}
+
+function safeAiBrainMemoryText({ letter, outputText, stats } = {}) {
+	const input = scrubText(
+		letter?.scrubbedInputText || letter?.inputText || "",
+	).text;
+	const pattern = memoryCandidateFromLetter({
+		...letter,
+		scrubbedInputText: input,
+	});
+	const safeStats = safeBalanceStatisticsForPrompt(stats);
+	return JSON.stringify(
+		{
+			source: "pyxdia",
+			theme: pattern,
+			replySummary: safePromptText(outputText || "", 700),
+			balanceStatistics: safeStats,
+		},
+		null,
+		2,
+	).slice(0, 4000);
+}
+
+async function rememberAiBrainDraft({ letter, outputText, stats } = {}) {
+	const config = aiBrainConfig();
+	if (!config.configured) {
+		return { status: "not_configured", draftFirst: true };
+	}
+	await aiBrainFetchJson("/api/v1/remember", {
+		method: "POST",
+		body: JSON.stringify({
+			projectSlug: config.projectSlug,
+			consumer: config.consumer,
+			sourceApp: "pyxdia",
+			text: safeAiBrainMemoryText({ letter, outputText, stats }),
+			userSuggestedCategory: "02 Patterns",
+			userSuggestedTags: ["pyxdia", "ourstuff", "balance"],
+			allowRawStorage: false,
+			status: "draft",
+			allowedConsumers: ["chatgpt", "codex", "mort", "mcp", "pyxdia"],
+		}),
+	});
+	return { status: "draft_created", draftFirst: true, writtenAt: nowIso() };
+}
+
 function normalizeDraftPayload(value = {}, uid = "", options = {}) {
 	const source = value && typeof value === "object" ? value : {};
 	const userSelectedContext = normalizeUserSelectedContext({
@@ -1718,6 +1939,7 @@ function normalizeDraftPayload(value = {}, uid = "", options = {}) {
 			source.userSelectedContext?.contextSelections ??
 			source.contextSelections ??
 			[],
+		balanceStatistics: source.userSelectedContext?.balanceStatistics,
 	});
 	return {
 		...draftDoc(uid),
@@ -1766,7 +1988,59 @@ function normalizeUserSelectedContext(value = {}) {
 			? source.selectedProjectEntryIds.map(String).filter(Boolean).slice(0, 24)
 			: [],
 		contextSelections: selectedIds,
+		balanceStatistics: normalizeBalanceStatistics(source.balanceStatistics),
 		schemaVersion: 1,
+	};
+}
+
+function normalizeBalanceStatistics(value = null) {
+	if (!value || typeof value !== "object") {
+		return null;
+	}
+	const source = value;
+	const level = Math.min(
+		100,
+		Math.max(0, Math.round(clampNumber(source.level, 0, 100, 0) / 25) * 25),
+	);
+	if (!level || source.enabled === false) {
+		return null;
+	}
+	const areas = Array.isArray(source.areas)
+		? source.areas.slice(0, 4).map((area) => ({
+				name: safeMetadataField(area?.name || "", "Area", 80),
+				count: clampNumber(area?.count, 0, 100000, 0),
+				percent: clampNumber(area?.percent, 0, 100, 0),
+				notes: clampNumber(area?.notes, 0, 100000, 0),
+				thoughts: clampNumber(area?.thoughts, 0, 100000, 0),
+				goals: clampNumber(area?.goals, 0, 100000, 0),
+			}))
+		: [];
+	const recentActivity = Array.isArray(source.recentActivity)
+		? source.recentActivity.slice(0, 12).map((item) => ({
+				area: safeMetadataField(item?.area || "", "Area", 80),
+				role: safeMetadataField(item?.role || "activity", "activity", 80),
+				action: safeMetadataField(item?.action || "activity", "activity", 80),
+				dateKey: safeMetadataField(item?.dateKey || "", "", 32),
+			}))
+		: [];
+	const trackerSummary = Array.isArray(source.trackerSummary)
+		? source.trackerSummary.slice(0, 16).map((item) => ({
+				area: safeMetadataField(item?.area || "", "Area", 80),
+				label: safeMetadataField(item?.label || "", "Tracker", 120),
+				kind: safeMetadataField(item?.kind || "tracker", "tracker", 80),
+				count: clampNumber(item?.count, 0, 100000, 0),
+			}))
+		: [];
+	return {
+		enabled: true,
+		level,
+		period: safeMetadataField(source.period || "day", "day", 32),
+		generatedAt: safeMetadataField(source.generatedAt || "", "", 80),
+		totalEvents: clampNumber(source.totalEvents, 0, 1000000, 0),
+		totalNotes: clampNumber(source.totalNotes, 0, 1000000, 0),
+		areas,
+		recentActivity: level >= 75 ? recentActivity : [],
+		trackerSummary: level >= 50 ? trackerSummary : [],
 	};
 }
 
@@ -1787,10 +2061,13 @@ function normalizeNoteRef(value = {}) {
 function validateUserSelectedContextBudget(context = {}) {
 	const selected = normalizeUserSelectedContext(context);
 	const safeRefs = selected.selectedNoteRefs.map(safeNoteMetadataForPrompt);
-	const chars = JSON.stringify(safeRefs).length;
+	const chars =
+		JSON.stringify(safeRefs).length +
+		JSON.stringify(safeBalanceStatisticsForPrompt(selected.balanceStatistics))
+			.length;
 	if (
 		selected.selectedNoteRefs.length > NOTE_METADATA_MAX_REFS ||
-		chars > NOTE_METADATA_MAX_CHARS
+		chars > NOTE_METADATA_MAX_CHARS + 8000
 	) {
 		throw policyError("context_too_large", SAFE_ERRORS.context_too_large);
 	}
@@ -1926,17 +2203,19 @@ function buildPrompt({
 	settings,
 	staticMemory,
 	dynamicRetrievalMemory,
+	aiBrainContext,
 	userSelectedContext,
 	letter,
 }) {
 	return [
 		"SYSTEM:\nYou are PYXIDA PENPAL, a reflective growth companion and AI trainer inside Ourstuff.\nWrite an actual personal letter back to the user. The letter should feel warm, attentive, grounded, and useful.\nYour purpose is to help the user restore balance, notice early drift before it becomes a problem, name the value conflict underneath the letter, and choose one concrete repair action.\nYou are not a therapist, doctor, clinician, crisis service, or replacement for professional care. Do not diagnose or claim clinical authority.\nUse Adlerian belonging/usefulness, DBT observe/name/choose skills, and Jungian role/archetype language silently as thinking tools. Do not lecture about those frameworks unless the user asked for them.\nReturn plain text only. No markdown, headings, bullets, tables, code fences, or clinical labels.\nInput may be scrubbed. Do not reconstruct placeholders, identities, contact details, or hidden personal data.",
 		"LETTER CONTRACT:\nOpen with a simple salutation.\nReflect the user's actual concern without parroting it back awkwardly.\nName the balance signal you see and why it matters.\nUse selected note metadata only as pattern context, never as private note content.\nOffer one small next action that can happen within the next day.\nClose with a short steady sign-off from PYXIDA.\nKeep the reply to roughly 350 to 700 words unless the user's settings ask otherwise.",
-		"CONTEXT AUTHORITY:\n1. Current letter and user-selected context are intentional and highest authority.\n2. PYXIDA static memory is a compact PII-safe profile of durable patterns.\n3. PYXIDA dynamic retrieval memory is automatic supporting context. Use it lightly and ignore it when it conflicts with the current letter or user-selected context.",
+		"CONTEXT AUTHORITY:\n1. Current letter and user-selected context are intentional and highest authority.\n2. PYXIDA static memory is a compact PII-safe profile of durable patterns.\n3. Approved AI Brain memory is external long-term context and must stay lower priority than the current letter.\n4. PYXIDA dynamic retrieval memory is automatic supporting context. Use it lightly and ignore it when it conflicts with the current letter or user-selected context.",
 		`USER SETTINGS:\n${settings.generalInstructions || ""}`,
 		`WHAT THE USER WANTS PYXIDA TO KNOW:\n${settings.userWantsPyxdiaToKnow || ""}`,
 		`USER-SELECTED CONTEXT:\n${formatUserSelectedContext(userSelectedContext)}`,
 		`PYXIDA STATIC MEMORY:\n${formatStaticMemory(staticMemory)}`,
+		`AI BRAIN APPROVED CONTEXT:\n${formatAiBrainContext(aiBrainContext)}`,
 		`PYXIDA DYNAMIC RETRIEVAL MEMORY:\n${formatDynamicRetrievalMemory(dynamicRetrievalMemory)}`,
 		`CURRENT LETTER:\n${letter || ""}`,
 	].join("\n\n");
@@ -1952,7 +2231,9 @@ function fallbackLetter(prompt) {
 			.slice(0, 180);
 	}
 	const clean = snippet.replace(/\s+/g, " ").trim() || "your letter";
-	const familySignal = /\bfamily|wife|husband|kids?|children|home\b/i.test(clean);
+	const familySignal = /\bfamily|wife|husband|kids?|children|home\b/i.test(
+		clean,
+	);
 	const workSignal = /\bcode|coding|work|app|project|build|computer\b/i.test(
 		clean,
 	);
@@ -1978,11 +2259,15 @@ function fallbackLetter(prompt) {
 function formatUserSelectedContext(context = {}) {
 	const selected = normalizeUserSelectedContext(context);
 	const safeRefs = selected.selectedNoteRefs.map(safeNoteMetadataForPrompt);
+	const balanceStatistics = safeBalanceStatisticsForPrompt(
+		selected.balanceStatistics,
+	);
 	return JSON.stringify(
 		{
 			authority: selected.authority,
 			manualText: safePromptText(selected.manualText, 3000),
 			selectedNoteMetadata: safeRefs,
+			balanceStatistics,
 			noteMetadataPolicy:
 				"Metadata only: title, dashboard, role, edited date, and word count. Raw note bodies and note IDs are intentionally omitted.",
 			selectedMemoryEntryIds: selected.selectedMemoryEntryIds,
@@ -1991,6 +2276,26 @@ function formatUserSelectedContext(context = {}) {
 		null,
 		2,
 	);
+}
+
+function safeBalanceStatisticsForPrompt(value = null) {
+	const stats = normalizeBalanceStatistics(value);
+	if (!stats) {
+		return null;
+	}
+	return {
+		authority: "user_selected_balance_statistics",
+		authorityRank: 1.5,
+		policy:
+			"Counts and percentages only. Raw note bodies, browser data, extensions, and plugins are intentionally omitted.",
+		level: stats.level,
+		period: stats.period,
+		totalEvents: stats.totalEvents,
+		totalNotes: stats.totalNotes,
+		areas: stats.areas,
+		trackerSummary: stats.trackerSummary,
+		recentActivity: stats.recentActivity,
+	};
 }
 
 function safeNoteMetadataForPrompt(ref = {}) {
@@ -2173,7 +2478,7 @@ function compactStaticMemorySnapshot(memory = {}) {
 	};
 }
 
-async function threadContext(uid, threadId) {
+async function _threadContext(uid, threadId) {
 	if (!threadId) {
 		return "";
 	}

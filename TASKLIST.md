@@ -226,7 +226,7 @@ Superseded for app data by Phase 11. D1 remains payment/subscription storage onl
 - [x] Add Trash link below Thanks / Donate in the sidebar.
 - [x] Wire app-area delete actions for artifact-backed notes, compendiums/sections, artifacts, and PYXDIA letters through Trash.
 - [x] Hide soft-deleted artifacts from active note/artifact lists, dashboard note lists, PYXDIA note references, and Life/Spirit derived surfaces.
-- [x] Hide soft-deleted PYXDIA letters from Last Letter, conversations, state payloads, retry, and processing jobs.
+- [x] Hide soft-deleted PYXDIA letters from Latest Reply, Letter Chain, state payloads, retry, and processing jobs.
 - [x] Add index lifecycle helper for `quicknoteIndex`, `noteSearchIndex`, `pyxdiaDynamicMemoryIndex`, PYXDIA thread indexes, and static-memory source references.
 - [x] Preserve linked media on soft delete/restore and use backend storage cleanup on hard delete.
 
@@ -248,12 +248,14 @@ Superseded for app data by Phase 11. D1 remains payment/subscription storage onl
 - [x] Add `assets/js/pyxdia.js` API/settings helper.
 - [x] Export safe Firebase ID token helper from `assets/js/cloud.js`.
 - [x] Add PYXDIA sidebar group before dashboard groups.
-- [x] Add Send Letter, Input Letter, Output Letter, and conversation list states.
+- [x] Add Write A Letter, Latest Reply, and Letter Chain states.
+- [x] Add Reply actions that reuse existing `threadId` chains.
 - [x] Add local draft persistence and size limits.
 - [x] Add note metadata selection without automatic note-body transfer.
 - [x] Add all-notes-by-default metadata selection with search, area/role filters, selected/recent filters, bulk controls, and visible metadata budget warnings.
 - [x] Render output as escaped plain text, not markdown.
 - [x] Add Settings > PYXDIA with enable, delay, instructions, memory, and reset controls.
+- [x] Add PYXDIA balance statistics slider with minimized counts/percentages only.
 
 ### Phase 1 - Backend
 
@@ -267,6 +269,7 @@ Superseded for app data by Phase 11. D1 remains payment/subscription storage onl
 - [x] Rewrite PYXDIA prompt/fallback toward a warm balance-oriented penpal letter instead of framework exposition.
 - [x] Add compact PYXDIA memory update.
 - [x] Split PYXDIA context into user-selected context, static memory, and dynamic retrieval memory without adding new stores.
+- [x] Add optional backend-only AI Brain read/write integration with draft-first writes and raw storage disabled.
 - [x] Add paid-AI entitlement guard for provider-backed calls.
 - [x] Add coarse signed-in user rate limits for PYXDIA backend routes.
 
