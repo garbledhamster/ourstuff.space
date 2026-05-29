@@ -199,6 +199,7 @@ Default thought orb labels:
 | Write A Letter | Draft editor for the user's letter and user-selected context. | `pyxdiaInputHtml()` |
 | Latest Reply | Plain-text reply state. Pending, processing, failed, and completed states render without markdown. | `pyxdiaOutputHtml()` |
 | Letter Chain | Thread of submitted letters and replies over time, with Reply opening Write A Letter for that `threadId`. | `pyxdiaThreadHtml()` |
+| Regenerate Reply | Requeues a completed template/local fallback reply through the normal retry route so PYXDIA can replace it with a provider-backed response. | `isTemplatePyxdiaReply()`, `retryPyxdiaLetterAction()` |
 | Note metadata | Selected note references used as PYXDIA context: number, title, dashboard, role, edited date, and word count only. The UI starts with all non-deleted notes checked, supports filters and bulk controls, and the backend omits raw note IDs/bodies from provider prompts. | `pyxdiaNoteRefsFromArtifacts()` |
 | Balance statistics | Optional PYXDIA slider that adds dashboard/activity counts and percentages to user-selected context without raw note bodies or browser-extension data. | `pyxdiaBalanceStatisticsForSettings()` |
 | PYXDIA settings | Enable, delay, instruction, "what PYXDIA should know", memory, AI Brain, balance statistics, and reset controls. | `settingsPyxdiaHtml()` |

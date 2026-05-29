@@ -1492,6 +1492,7 @@ function normalizePyxdiaLetter(value = {}) {
 		failedAt: normalizeIsoTimestamp(value.failedAt) || null,
 		errorCode: String(value.errorCode || ""),
 		errorMessageSafe: String(value.errorMessageSafe || ""),
+		modelName: String(value.modelName || ""),
 		deleted: value.deleted === true,
 		deletedAt: normalizeIsoTimestamp(value.deletedAt) || null,
 		deleteAfter: normalizeIsoTimestamp(value.deleteAfter) || null,
@@ -6369,7 +6370,9 @@ function isPyxdiaSignedIn() {
 function pyxdiaStatusText(letter) {
 	const stateLabel = String(letter?.state || "").toLowerCase();
 	if (stateLabel === "completed") {
-		return "Reply ready.";
+		return isTemplatePyxdiaReply(letter)
+			? "Template reply. Regenerate for a real model response."
+			: "Reply ready.";
 	}
 	if (stateLabel === "processing") {
 		return "PYXIDA is writing back.";
@@ -6381,6 +6384,20 @@ function pyxdiaStatusText(letter) {
 		return letter?.errorMessageSafe || "PYXIDA could not finish. Try again.";
 	}
 	return "Draft saved.";
+}
+
+function isTemplatePyxdiaReply(letter = {}) {
+	if (String(letter.modelName || "") === "local-template") {
+		return true;
+	}
+	const output = String(letter.outputText || "");
+	return [
+		"I read the center of what you sent",
+		"In Adlerian language",
+		"In DBT terms",
+		"archetype language helps",
+		"I will keep this grounded and non-clinical",
+	].some((marker) => output.includes(marker));
 }
 
 function pyxdiaThreadTitleFromText(text = "") {
@@ -6909,6 +6926,8 @@ async function retryPyxdiaLetterAction(letterId) {
 	if (!letterId) {
 		return;
 	}
+	const existingLetter = state.pyxdiaLetters.find((item) => item.id === letterId);
+	const isRegeneration = isTemplatePyxdiaReply(existingLetter);
 	if (isPyxdiaSignedIn() && !state.cloud?.isLocalDemo) {
 		const payload = await retryPyxdiaLetter(letterId, {
 			getIdToken: getCloudIdToken,
@@ -6916,12 +6935,12 @@ async function retryPyxdiaLetterAction(letterId) {
 		applyPyxdiaStatePayload(payload);
 		setState({
 			pyxdiaBusy: false,
-			pyxdiaStatus: "Retry queued.",
+			pyxdiaStatus: isRegeneration ? "Regeneration queued." : "Retry queued.",
 			pyxdiaError: "",
 		});
 		return;
 	}
-	const letter = state.pyxdiaLetters.find((item) => item.id === letterId);
+	const letter = existingLetter;
 	if (!letter) {
 		return;
 	}
@@ -11392,11 +11411,17 @@ function pyxdiaLastLetterHtml(options = {}) {
   `;
 	}
 	const pending = latest.state !== "completed";
+	const templateReply = !pending && isTemplatePyxdiaReply(latest);
 	const actions = `
     <div class="action-row">
       ${
 				latest.state === "failed"
 					? `<button class="secondary-button" data-action="pyxdia-retry-letter" data-id="${escapeHtml(latest.id)}" type="button">${buttonContent("tabler:refresh", "Retry")}</button>`
+					: ""
+			}
+      ${
+				templateReply
+					? `<button class="secondary-button" data-action="pyxdia-retry-letter" data-id="${escapeHtml(latest.id)}" type="button">${buttonContent("tabler:refresh", "Regenerate Reply")}</button>`
 					: ""
 			}
       <button class="secondary-button danger-button" data-action="pyxdia-delete-letter" data-id="${escapeHtml(latest.id)}" type="button">${buttonContent("tabler:trash", "Move to Trash")}</button>
@@ -11439,7 +11464,7 @@ function pyxdiaThreadHtml() {
           <h3>${escapeHtml(thread.title)}</h3>
           <p>${escapeHtml(`${letters.length} letter${letters.length === 1 ? "" : "s"} / ${thread.latestState}`)}</p>
         </div>
-        <div class="action-row">
+						<div class="action-row">
           <button class="secondary-button" data-action="pyxdia-reply-thread" data-id="${escapeHtml(thread.id)}" type="button">${buttonContent("tabler:message-reply", "Reply")}</button>
         </div>
       </div>
@@ -11451,6 +11476,11 @@ function pyxdiaThreadHtml() {
             <header>
               <strong>${escapeHtml(formatActivityTimestamp(letter.submittedAt || letter.createdAt))}</strong>
               <span>${escapeHtml(pyxdiaStatusText(letter))}</span>
+              ${
+								isTemplatePyxdiaReply(letter)
+									? `<button class="secondary-button" data-action="pyxdia-retry-letter" data-id="${escapeHtml(letter.id)}" type="button">${buttonContent("tabler:refresh", "Regenerate Reply")}</button>`
+									: ""
+							}
               <button class="secondary-button danger-button" data-action="pyxdia-delete-letter" data-id="${escapeHtml(letter.id)}" type="button">${buttonContent("tabler:trash", "Move to Trash")}</button>
             </header>
             <div class="pyxdia-thread-input markdown-body">${renderPyxdiaLetterMarkdown(letter.inputText, letter.imageRefs)}</div>
@@ -14252,7 +14282,6 @@ function compendiumPickerPopoverHtml(perPage) {
           <strong>Compendiums</strong>
           <p>Organize your knowledge with a compendium.</p>
         </div>
-        <button class="icon-button compendium-picker-add" data-action="new-compendium" type="button" aria-label="Add Compendium" title="Add Compendium">${iconHtml("tabler:plus")}</button>
       </div>
       ${
 				state.compendiums.length
@@ -14272,6 +14301,9 @@ function compendiumPickerPopoverHtml(perPage) {
       `
 					: `<div class="compendium-picker-empty"><strong>No compendiums yet.</strong><span>Add one to start building the grid.</span></div>`
 			}
+      <button class="compendium-new-button" data-action="new-compendium" type="button">
+        ${buttonContent("tabler:plus", "New Compendium")}
+      </button>
     </div>
   `;
 }
@@ -14350,9 +14382,6 @@ function mindGridHtml() {
           <span class="reader-page-dot reader-page-dot--side${hasPrev ? " is-available" : ""}" aria-hidden="true"></span>
           <span class="reader-page-dot reader-page-dot--current" aria-label="Compendiums ${currentStart} through ${currentEnd} of ${state.compendiums.length}"></span>
           <span class="reader-page-dot reader-page-dot--side${hasNext ? " is-available" : ""}" aria-hidden="true"></span>
-        </button>
-        <button class="compendium-new-button" data-action="new-compendium" type="button">
-          ${buttonContent("tabler:plus", "New Compendium")}
         </button>
       </div>
     </div>
@@ -17067,8 +17096,14 @@ function handleAction(element) {
 		void runPyxdiaAction("Refreshing PYXIDA...", refreshPyxdiaState);
 	}
 	if (action === "pyxdia-retry-letter") {
-		void runPyxdiaAction("Retrying letter...", () =>
-			retryPyxdiaLetterAction(element.dataset.id),
+		const letter = state.pyxdiaLetters.find(
+			(item) => item.id === element.dataset.id,
+		);
+		void runPyxdiaAction(
+			isTemplatePyxdiaReply(letter)
+				? "Regenerating reply..."
+				: "Retrying letter...",
+			() => retryPyxdiaLetterAction(element.dataset.id),
 		);
 	}
 	if (action === "pyxdia-delete-letter") {

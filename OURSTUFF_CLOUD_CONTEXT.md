@@ -216,8 +216,11 @@ Security behavior:
 - Sending requires a signed-in Cloud/Firebase user in production. Localhost can use the existing local subscribed demo path and deterministic local completion for UI testing.
 - The backend blocks likely API keys, auth tokens, private keys, and valid card-number patterns instead of redacting and continuing.
 - The backend rate-limits PYXDIA writes per signed-in user, claims processing jobs transactionally, skips jobs until `availableAt`, and stores rate-limit buckets in backend-owned Firestore docs.
+- `OPENROUTER_API_KEY` is declared as a Firebase v2 secret and bound to `pyxdiaApi`, `aiApi`, and `processPyxdiaJobs`; the key must stay outside frontend code and repo files.
 - When `OPENROUTER_API_KEY` is configured, paid model calls require `admin` or `cloud` entitlement from Firebase claims/profile unless `PYXDIA_ALLOW_ALL_SIGNED_IN=true` is intentionally set.
-- OpenRouter is used only server-side when `OPENROUTER_API_KEY` is configured. The model default is `PYXDIA_MODEL || PYXIDA_MODEL || "~openai/gpt-latest"`. Without that secret, production surfaces a safe provider-not-configured failure; emulator/test/explicit `PYXDIA_ALLOW_LOCAL_FALLBACK=true` can still use the deterministic non-provider plain-text fallback.
+- OpenRouter is used only server-side when `OPENROUTER_API_KEY` is configured. The model default is `PYXDIA_MODEL || PYXIDA_MODEL || "openai/gpt-chat-latest"`. Without that secret, production surfaces a safe provider-not-configured failure; only emulator/test mode can use the deterministic non-provider plain-text fallback.
+- Provider requests are split into system/developer/user messages, require concrete grounding in the current letter, disable OpenRouter provider fallback with ZDR requested, and use presence/frequency penalties to reduce repeated boilerplate.
+- Completed replies marked `modelName: "local-template"` or containing old framework-exposition markers are surfaced with `Regenerate Reply` so they can be requeued through the provider without destructive migration.
 - Function CORS is scoped to `https://ourstuff.space`, `https://*.ourstuff.space`, `localhost`, and `127.0.0.1`.
 
 ## Trash Lifecycle

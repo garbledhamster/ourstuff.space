@@ -1,10 +1,12 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");
 const crypto = require("node:crypto");
 
 admin.initializeApp();
 
+const OPENROUTER_API_KEY = defineSecret("OPENROUTER_API_KEY");
 const APP_ID = "ourstuff-main";
 const ALLOWED_ORIGINS = [
 	/^https:\/\/([a-z0-9-]+\.)?ourstuff\.space$/i,
@@ -12,7 +14,7 @@ const ALLOWED_ORIGINS = [
 	/^http:\/\/127\.0\.0\.1:\d+$/i,
 ];
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const PYXDIA_DEFAULT_MODEL = "~openai/gpt-latest";
+const PYXDIA_DEFAULT_MODEL = "openai/gpt-chat-latest";
 const PYXDIA_REASONING = Object.freeze({ effort: "low", exclude: true });
 const LETTER_MAX_WORDS = 650;
 const LETTER_MAX_CHARS = 3500;
@@ -60,7 +62,11 @@ const TRASH_CLEANUP_BATCH_LIMIT = 100;
 const TRASH_ITEM_TYPES = new Set(["artifact", "note", "pyxdia_letter"]);
 
 exports.pyxdiaApi = onRequest(
-	{ cors: ALLOWED_ORIGINS, timeoutSeconds: 120 },
+	{
+		cors: ALLOWED_ORIGINS,
+		timeoutSeconds: 120,
+		secrets: [OPENROUTER_API_KEY],
+	},
 	async (req, res) => {
 		try {
 			if (req.method === "OPTIONS") {
@@ -104,7 +110,11 @@ exports.pyxdiaApi = onRequest(
 );
 
 exports.aiApi = onRequest(
-	{ cors: ALLOWED_ORIGINS, timeoutSeconds: 120 },
+	{
+		cors: ALLOWED_ORIGINS,
+		timeoutSeconds: 120,
+		secrets: [OPENROUTER_API_KEY],
+	},
 	async (req, res) => {
 		try {
 			if (req.method === "OPTIONS") {
@@ -207,24 +217,27 @@ exports.trashApi = onRequest(
 	},
 );
 
-exports.processPyxdiaJobs = onSchedule("every 30 minutes", async () => {
-	const db = admin.firestore();
-	const now = nowIso();
-	const users = await db.collection("users").get();
-	for (const userDoc of users.docs) {
-		const jobs = await appRef(userDoc.id)
-			.collection("pyxdiaProcessingJobs")
-			.where("state", "==", "queued")
-			.limit(10)
-			.get();
-		for (const job of jobs.docs) {
-			if (String(job.data().availableAt || "") > now) {
-				continue;
+exports.processPyxdiaJobs = onSchedule(
+	{ schedule: "every 30 minutes", secrets: [OPENROUTER_API_KEY] },
+	async () => {
+		const db = admin.firestore();
+		const now = nowIso();
+		const users = await db.collection("users").get();
+		for (const userDoc of users.docs) {
+			const jobs = await appRef(userDoc.id)
+				.collection("pyxdiaProcessingJobs")
+				.where("state", "==", "queued")
+				.limit(10)
+				.get();
+			for (const job of jobs.docs) {
+				if (String(job.data().availableAt || "") > now) {
+					continue;
+				}
+				await processJob(userDoc.id, job.id);
 			}
-			await processJob(userDoc.id, job.id);
 		}
-	}
-});
+	},
+);
 
 exports.cleanupExpiredTrash = onSchedule("every day 03:00", async () => {
 	const db = admin.firestore();
@@ -1662,7 +1675,8 @@ function validatePlainOutput(text) {
 		!value ||
 		["# ", "## ", "- ", "* ", "```", "| ---"].some((token) =>
 			value.includes(token),
-		)
+		) ||
+		isTemplatePyxdiaOutput(value)
 	) {
 		throw policyError(
 			"output_validation_failed",
@@ -1671,8 +1685,19 @@ function validatePlainOutput(text) {
 	}
 }
 
+function isTemplatePyxdiaOutput(value = "") {
+	const text = String(value || "");
+	return [
+		"I read the center of what you sent",
+		"In Adlerian language",
+		"In DBT terms",
+		"archetype language helps",
+		"I will keep this grounded and non-clinical",
+	].some((marker) => text.includes(marker));
+}
+
 async function generateLetter(prompt, _settings) {
-	const apiKey = String(process.env.OPENROUTER_API_KEY || "").trim();
+	const apiKey = openRouterApiKey();
 	if (!apiKey) {
 		if (allowLocalProviderFallback()) {
 			return { letter_text: fallbackLetter(prompt), model: "local-template" };
@@ -1684,6 +1709,7 @@ async function generateLetter(prompt, _settings) {
 		);
 	}
 	const model = pyxdiaModelName();
+	const messages = providerMessages(prompt);
 	const response = await fetch(OPENROUTER_URL, {
 		method: "POST",
 		headers: {
@@ -1694,17 +1720,15 @@ async function generateLetter(prompt, _settings) {
 		},
 		body: JSON.stringify({
 			model,
-			messages: [
-				{
-					role: "system",
-					content:
-						"You are PYXIDA PENPAL. Return one warm plain-text letter only. Do not use markdown.",
-				},
-				{ role: "user", content: prompt },
-			],
-			temperature: 0.62,
+			messages,
+			temperature: 0.78,
+			presence_penalty: 0.35,
+			frequency_penalty: 0.45,
 			max_tokens: 1400,
 			reasoning: PYXDIA_REASONING,
+			provider: {
+				allow_fallbacks: false,
+			},
 		}),
 	});
 	if (!response.ok) {
@@ -1715,6 +1739,29 @@ async function generateLetter(prompt, _settings) {
 		letter_text: String(payload.choices?.[0]?.message?.content || "").trim(),
 		model,
 	};
+}
+
+function providerMessages(prompt) {
+	if (prompt && typeof prompt === "object") {
+		return [
+			{ role: "system", content: String(prompt.system || "") },
+			{ role: "developer", content: String(prompt.developer || "") },
+			{ role: "user", content: String(prompt.user || "") },
+		].filter((message) => message.content.trim());
+	}
+	return [
+		{
+			role: "system",
+			content:
+				"You are PYXIDA PENPAL. Return one warm plain-text letter only. Do not use markdown, headings, bullets, or clinical labels.",
+		},
+		{
+			role: "developer",
+			content:
+				"Write from the user's actual words. Avoid canned openings, framework exposition, generic therapy-sounding advice, and repeated template paragraphs.",
+		},
+		{ role: "user", content: String(prompt || "") },
+	];
 }
 
 function pyxdiaModelName() {
@@ -1730,14 +1777,24 @@ function pyxdiaModelName() {
 function allowLocalProviderFallback() {
 	return (
 		String(process.env.FUNCTIONS_EMULATOR || "").toLowerCase() === "true" ||
-		String(process.env.NODE_ENV || "").toLowerCase() === "test" ||
-		String(process.env.PYXDIA_ALLOW_LOCAL_FALLBACK || "").toLowerCase() ===
-			"true"
+		String(process.env.NODE_ENV || "").toLowerCase() === "test"
 	);
 }
 
 function providerConfigured() {
-	return Boolean(String(process.env.OPENROUTER_API_KEY || "").trim());
+	return Boolean(openRouterApiKey());
+}
+
+function openRouterApiKey() {
+	const envKey = String(process.env.OPENROUTER_API_KEY || "").trim();
+	if (envKey) {
+		return envKey;
+	}
+	try {
+		return String(OPENROUTER_API_KEY.value() || "").trim();
+	} catch {
+		return "";
+	}
 }
 
 function aiBrainConfig() {
@@ -2207,10 +2264,32 @@ function buildPrompt({
 	userSelectedContext,
 	letter,
 }) {
-	return [
-		"SYSTEM:\nYou are PYXIDA PENPAL, a reflective growth companion and AI trainer inside Ourstuff.\nWrite an actual personal letter back to the user. The letter should feel warm, attentive, grounded, and useful.\nYour purpose is to help the user restore balance, notice early drift before it becomes a problem, name the value conflict underneath the letter, and choose one concrete repair action.\nYou are not a therapist, doctor, clinician, crisis service, or replacement for professional care. Do not diagnose or claim clinical authority.\nUse Adlerian belonging/usefulness, DBT observe/name/choose skills, and Jungian role/archetype language silently as thinking tools. Do not lecture about those frameworks unless the user asked for them.\nReturn plain text only. No markdown, headings, bullets, tables, code fences, or clinical labels.\nInput may be scrubbed. Do not reconstruct placeholders, identities, contact details, or hidden personal data.",
-		"LETTER CONTRACT:\nOpen with a simple salutation.\nReflect the user's actual concern without parroting it back awkwardly.\nName the balance signal you see and why it matters.\nUse selected note metadata only as pattern context, never as private note content.\nOffer one small next action that can happen within the next day.\nClose with a short steady sign-off from PYXIDA.\nKeep the reply to roughly 350 to 700 words unless the user's settings ask otherwise.",
-		"CONTEXT AUTHORITY:\n1. Current letter and user-selected context are intentional and highest authority.\n2. PYXIDA static memory is a compact PII-safe profile of durable patterns.\n3. Approved AI Brain memory is external long-term context and must stay lower priority than the current letter.\n4. PYXIDA dynamic retrieval memory is automatic supporting context. Use it lightly and ignore it when it conflicts with the current letter or user-selected context.",
+	const system = [
+		"You are PYXIDA PENPAL, a reflective growth companion and AI trainer inside Ourstuff.",
+		"Write one actual personal letter back to the user. Be warm, attentive, grounded, specific, and useful.",
+		"You are not a therapist, doctor, clinician, crisis service, or replacement for professional care. Do not diagnose or claim clinical authority.",
+		"Use Adlerian belonging/usefulness, DBT observe/name/choose skills, and Jungian role/archetype language silently as thinking tools only. Do not mention those frameworks unless the user explicitly asks.",
+		"Return plain text only. No markdown, headings, bullets, tables, code fences, links, or clinical labels.",
+		"Input may be scrubbed. Do not reconstruct placeholders, identities, contact details, or hidden personal data.",
+	].join("\n");
+	const developer = [
+		"LETTER CONTRACT:",
+		"Open with a simple salutation, but vary the wording naturally across replies.",
+		"Ground the letter in at least two concrete details from the current letter or selected context. Do not merely restate the first sentence.",
+		"Name the actual tension, value conflict, or balance signal you see, then explain why it matters in ordinary language.",
+		"Offer one small next action that can happen within the next day. Make it specific enough that the user can tell whether it happened.",
+		"Close with a short steady sign-off from PYXIDA.",
+		"Do not write canned template paragraphs. Do not say 'I read the center of what you sent.' Do not say 'In Adlerian language' or 'In DBT terms.'",
+		"Use selected note metadata only as pattern context, never as private note content.",
+		"Keep the reply to roughly 300 to 650 words unless the user's settings ask otherwise.",
+		"",
+		"CONTEXT AUTHORITY:",
+		"1. Current letter and user-selected context are intentional and highest authority.",
+		"2. PYXIDA static memory is a compact PII-safe profile of durable patterns.",
+		"3. Approved AI Brain memory is external long-term context and must stay lower priority than the current letter.",
+		"4. PYXIDA dynamic retrieval memory is automatic supporting context. Use it lightly and ignore it when it conflicts with the current letter or user-selected context.",
+	].join("\n");
+	const user = [
 		`USER SETTINGS:\n${settings.generalInstructions || ""}`,
 		`WHAT THE USER WANTS PYXIDA TO KNOW:\n${settings.userWantsPyxdiaToKnow || ""}`,
 		`USER-SELECTED CONTEXT:\n${formatUserSelectedContext(userSelectedContext)}`,
@@ -2219,12 +2298,14 @@ function buildPrompt({
 		`PYXIDA DYNAMIC RETRIEVAL MEMORY:\n${formatDynamicRetrievalMemory(dynamicRetrievalMemory)}`,
 		`CURRENT LETTER:\n${letter || ""}`,
 	].join("\n\n");
+	return { system, developer, user };
 }
 
 function fallbackLetter(prompt) {
 	let snippet = "your letter";
-	if (prompt.includes("CURRENT LETTER:")) {
-		snippet = prompt
+	const promptText = promptToText(prompt);
+	if (promptText.includes("CURRENT LETTER:")) {
+		snippet = promptText
 			.split("CURRENT LETTER:", 2)[1]
 			.trim()
 			.split(/\n/)[0]
@@ -2254,6 +2335,16 @@ function fallbackLetter(prompt) {
 		"",
 		"PYXIDA",
 	].join("\n");
+}
+
+function promptToText(prompt) {
+	if (prompt && typeof prompt === "object") {
+		return [prompt.system, prompt.developer, prompt.user]
+			.map((part) => String(part || ""))
+			.filter(Boolean)
+			.join("\n\n");
+	}
+	return String(prompt || "");
 }
 
 function formatUserSelectedContext(context = {}) {

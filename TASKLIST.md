@@ -271,8 +271,10 @@ Superseded for app data by Phase 11. D1 remains payment/subscription storage onl
 - [x] Add PII/secret/card blocking and basic scrub reports.
 - [x] Add queued processing job model and scheduled processor with transaction-based claiming.
 - [x] Add server-side OpenRouter client with deterministic no-secret fallback for testability.
-- [x] Default PYXDIA provider calls to `PYXDIA_MODEL || PYXIDA_MODEL || "~openai/gpt-latest"` and keep local fallback limited to emulator/test/explicit fallback mode.
-- [x] Rewrite PYXDIA prompt/fallback toward a warm balance-oriented penpal letter instead of framework exposition.
+- [x] Bind `OPENROUTER_API_KEY` as a Firebase v2 secret on `pyxdiaApi`, `aiApi`, and `processPyxdiaJobs`.
+- [x] Default PYXDIA provider calls to `PYXDIA_MODEL || PYXIDA_MODEL || "openai/gpt-chat-latest"` and keep local fallback limited to emulator/test mode only.
+- [x] Rewrite PYXDIA provider messages toward a warm balance-oriented penpal letter instead of framework exposition or repeated templates.
+- [x] Add `Regenerate Reply` for completed template replies so old `local-template` output can be requeued without destructive migration.
 - [x] Add compact PYXDIA memory update.
 - [x] Split PYXDIA context into user-selected context, static memory, and dynamic retrieval memory without adding new stores.
 - [x] Add optional backend-only AI Brain read/write integration with draft-first writes and raw storage disabled.
@@ -293,6 +295,7 @@ Superseded for app data by Phase 11. D1 remains payment/subscription storage onl
 - [x] Run JS syntax checks.
 - [x] Run Firebase Functions Node syntax/export checks.
 - [x] Add PYXDIA smoke coverage for model alias, metadata-only provider prompt, server-side metadata scrubbing, and non-template fallback wording.
+- [x] Add PYXDIA smoke coverage for Firebase secret binding, production fallback gating, provider no-fallback settings, and regenerate UI.
 - [x] Run local browser smoke test on desktop and mobile viewport.
 - [x] Deploy Firebase Functions.
   Verified: Targeted deploy created/updated `pyxdiaApi`, `aiApi`, and `processPyxdiaJobs` in `us-central1` without deleting existing `verifyRecaptcha`.
@@ -300,4 +303,4 @@ Superseded for app data by Phase 11. D1 remains payment/subscription storage onl
 - [x] Verify auth-required live routes reject unsigned requests.
 - [x] Verify CORS allows `http://localhost:4173` and `https://ourstuff.space`.
 - [ ] Configure `OPENROUTER_API_KEY` in backend secret/env for production AI replies.
-  Blocked: Requires provider key setup outside frontend code. In production, missing provider config now surfaces a safe provider-not-configured failure instead of pretending a canned fallback is a model reply; emulator/test can still use the deterministic fallback.
+  Blocked: Requires provider key value setup outside frontend code. The functions are bound to the Firebase v2 secret; production missing-provider behavior surfaces a safe provider-not-configured failure instead of writing a canned fallback, and emulator/test can still use the deterministic fallback.

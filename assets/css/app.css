@@ -5307,6 +5307,7 @@ select option:checked {
 	inset: 0;
 	z-index: 3;
 	display: grid;
+	grid-template-rows: auto minmax(0, 1fr) auto;
 	align-content: start;
 	gap: 10px;
 	min-width: 0;
@@ -5349,14 +5350,6 @@ select option:checked {
 	color: var(--muted);
 	font-size: 0.82rem;
 	line-height: 1.35;
-}
-
-.compendium-picker-add {
-	flex: 0 0 auto;
-	width: 32px;
-	min-width: 32px;
-	height: 32px;
-	min-height: 32px;
 }
 
 .compendium-picker-empty {
@@ -5549,21 +5542,20 @@ select option:checked {
 .compendium-grid-controls {
 	display: grid;
 	justify-items: center;
-	gap: 10px;
 	justify-self: center;
 	width: min(100%, 648px);
-	margin-top: 12px;
-	border-top: 1px solid var(--border-soft);
-	padding-top: 10px;
+	margin-top: 8px;
 }
 
 .compendium-new-button {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
+	justify-self: center;
 	gap: 8px;
 	width: 100%;
 	min-height: 42px;
+	margin: 0;
 	border: 1px solid var(--border-soft);
 	border-radius: 0;
 	background: var(--theme-control, rgba(15, 23, 42, 0.72));
