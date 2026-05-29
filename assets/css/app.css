@@ -1277,14 +1277,106 @@ select option:checked {
 	.dashboard-grid,
 	.dashboard-card {
 		--dashboard-card-size-height-cap: clamp(
-			92px,
-			calc((100vh - 458px) / 2),
+			76px,
+			calc((100vh - 438px) / 2),
 			var(--dashboard-card-size-base)
 		);
 		--dashboard-card-size: min(
 			var(--dashboard-card-size-base),
 			var(--dashboard-card-size-height-cap)
 		);
+	}
+}
+
+@media (min-width: 861px) and (max-height: 820px) {
+	.dashboard-home {
+		gap: 12px;
+	}
+
+	.dashboard-grid,
+	.dashboard-card {
+		--dashboard-card-size-height-cap: clamp(
+			104px,
+			calc(100vh - 648px),
+			var(--dashboard-card-size-base)
+		);
+		--dashboard-card-size: min(
+			var(--dashboard-card-size-base),
+			var(--dashboard-card-size-height-cap)
+		);
+	}
+
+	.dashboard-grid {
+		gap: 12px;
+	}
+
+	.dashboard-card-face {
+		padding: 12px;
+	}
+
+	.dashboard-card-title {
+		gap: 6px;
+		font-size: clamp(0.9rem, 2.4vh, 1.25rem);
+	}
+
+	.dashboard-card-icon .button-icon {
+		width: 1em;
+		height: 1em;
+	}
+
+	.dashboard-analytics {
+		gap: 8px;
+		padding: 10px 16px;
+	}
+
+	.dashboard-analytics-header {
+		gap: 4px;
+	}
+
+	.dashboard-analytics-header h2 {
+		font-size: 1.18rem;
+	}
+
+	.dashboard-analytics-header p {
+		font-size: 0.9rem;
+		line-height: 1.18;
+	}
+
+	.dashboard-analytics-body,
+	.dashboard-pie-wrap {
+		gap: 6px;
+	}
+
+	.dashboard-pie {
+		width: clamp(112px, 18vh, 148px);
+	}
+
+	.dashboard-bar-chart {
+		min-height: clamp(108px, 18vh, 148px);
+	}
+
+	.dashboard-bar-button {
+		height: clamp(108px, 18vh, 148px);
+		gap: 4px;
+	}
+
+	.dashboard-bar-track {
+		height: clamp(66px, 11.8vh, 96px);
+	}
+
+	.dashboard-period-slider {
+		gap: 5px;
+	}
+
+	.dashboard-period-range {
+		height: 16px;
+	}
+
+	.dashboard-chart-switcher button {
+		min-height: 32px;
+		gap: 4px;
+		padding: 5px 8px;
+		font-size: 0.64rem;
 	}
 }
 
@@ -10230,10 +10322,12 @@ button.life-event-row:hover {
 		gap: 10px;
 	}
 
-	.app-shell.is-browser-mode.is-mobile-viewport .dashboard-home {
+	.app-shell.is-browser-mode.is-mobile-viewport .dashboard-home,
+	.app-shell.is-browser-mode.is-mobile-viewport .dashboard-grid,
+	.app-shell.is-browser-mode.is-mobile-viewport .dashboard-card {
 		--dashboard-card-size-height-cap: clamp(
-			124px,
-			calc((var(--app-height) - 392px) / 2),
+			78px,
+			calc((var(--app-height) - 480px) / 2),
 			var(--dashboard-card-size-base)
 		);
 		--dashboard-card-size: min(
@@ -10257,6 +10351,16 @@ button.life-event-row:hover {
 
 	.dashboard-card {
 		border-radius: 16px;
+	}
+
+	.dashboard-card-title {
+		gap: 6px;
+		font-size: 1rem;
+	}
+
+	.dashboard-card-icon .button-icon {
+		width: 1em;
+		height: 1em;
 	}
 
 	.dashboard-card-face {
@@ -10302,6 +10406,79 @@ button.life-event-row:hover {
 
 	.dashboard-analytics-body {
 		grid-template-columns: 1fr;
+	}
+
+	@media (max-height: 700px) {
+		.dashboard-home {
+			gap: 8px;
+		}
+
+		.dashboard-analytics {
+			gap: 6px;
+			padding: 6px 10px 8px;
+		}
+
+		.dashboard-analytics-header {
+			gap: 3px;
+		}
+
+		.dashboard-analytics-header h2 {
+			font-size: 1.12rem;
+		}
+
+		.dashboard-analytics-header p {
+			font-size: 0.82rem;
+			line-height: 1.15;
+		}
+
+		.dashboard-pie-wrap,
+		.dashboard-analytics-body {
+			gap: 5px;
+		}
+
+		.dashboard-grid {
+			gap: 8px;
+			padding-bottom: 12px;
+		}
+
+		.dashboard-card-title {
+			gap: 4px;
+			font-size: 0.86rem;
+		}
+
+		.dashboard-card-face {
+			padding: 6px;
+		}
+
+		.dashboard-card-back {
+			gap: 2px;
+		}
+
+		.dashboard-card-row em {
+			font-size: 0.38rem;
+			letter-spacing: 0.06em;
+		}
+
+		.dashboard-card-row strong {
+			font-size: 0.46rem;
+			line-height: 1;
+			-webkit-line-clamp: 1;
+		}
+
+		.dashboard-card-open {
+			font-size: 0.42rem;
+		}
+
+		.dashboard-chart-switcher button {
+			min-height: 30px;
+			gap: 3px;
+			padding: 4px 6px;
+			font-size: 0.6rem;
+		}
+
+		.dashboard-period-slider {
+			gap: 4px;
+		}
 	}
 
 	.getting-started-page {
