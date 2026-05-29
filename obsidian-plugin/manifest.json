@@ -1,9 +1,0 @@
-{
-  "id": "ourstuff-obsidian-sync",
-  "name": "Ourstuff Obsidian Sync",
-  "version": "0.1.4",
-  "minAppVersion": "1.5.0",
-  "description": "Sync Ourstuff Mind compendiums into Obsidian folders and markdown section files.",
-  "author": "Ourstuff.Space",
-  "isDesktopOnly": false
-}
