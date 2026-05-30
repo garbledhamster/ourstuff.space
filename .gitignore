@@ -6,9 +6,9 @@
 !README.md
 assets/local-cloud-dev.json
 firebase-debug.log
-functions/venv/
-functions/__pycache__/
-functions/node_modules/
+.node/venv/
+.node/__pycache__/
+.node/node_modules/
 mobile/node_modules/
 mobile/android/.gradle/
 mobile/android/app/build/
@@ -23,7 +23,7 @@ mobile/ios/DerivedData/
 /.mobile
 /.obsidian
 /.utility_belt
-/functions
+/.node
 /.github
 LLM.md
 /.codex
