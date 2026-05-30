@@ -28,3 +28,6 @@ mobile/ios/DerivedData/
 LLM.md
 /.codex
 /.openrouter
+/.security
+/.wrangler
+opencode.json

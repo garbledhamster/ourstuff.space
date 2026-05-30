@@ -3724,7 +3724,7 @@ function dashboardTitleHtml(dashboard) {
 	const overflowCount = Math.max(0, displayLabel.length - 10);
 	const fontSize = Math.max(0.62, 1.12 - overflowCount * 0.055);
 	labelParts.push(
-		`<span class="dashboard-card-name" style="font-size: ${fontSize.toFixed(3)}rem;">${escapeHtml(displayLabel)}</span>`,
+		`<span class="dashboard-card-name" style="--name-size: ${fontSize.toFixed(3)}rem;">${escapeHtml(displayLabel)}</span>`,
 	);
 	parts.push(
 		`<span class="dashboard-card-label">${labelParts.join("")}</span>`,
@@ -12971,7 +12971,9 @@ function pageContentHtml(title, body, pageContext = {}) {
 	const mode = inferPageDisplayMode({ title, body });
 	const lines = nonEmptyPageLines(body);
 	const cleanTitle = String(title || "").trim();
-	const pageNumber = pageNumberOverlayHtml(pageContext);
+	const pageNumber = pageContext.skipPageNumber
+		? ""
+		: pageNumberOverlayHtml(pageContext);
 	if (mode === "part") {
 		return `
       <article class="page-content page-content--part">
@@ -14463,7 +14465,7 @@ function compendiumReaderHtml(compendium) {
 			key: "cover",
 			body: `
         <section class="reader-section reader-section--cover">
-          ${pageContentHtml(compendium.title, compendium.body, { current: 1, total: totalPages })}
+          ${pageContentHtml(compendium.title, compendium.body, { current: 1, total: totalPages, skipPageNumber: true })}
         </section>
       `,
 		},
@@ -14471,7 +14473,7 @@ function compendiumReaderHtml(compendium) {
 			key: section.id,
 			body: `
         <section class="reader-section">
-          ${pageContentHtml(section.title, section.body, { current: index + 2, total: totalPages })}
+          ${pageContentHtml(section.title, section.body, { current: index + 2, total: totalPages, skipPageNumber: true })}
         </section>
       `,
 		})),
@@ -14511,10 +14513,12 @@ function compendiumReaderHtml(compendium) {
         </button>
       </div>
       <div class="reader-page-indicator" aria-label="Reader page position">
-        <span class="reader-page-dot reader-page-dot--side${hasPrev ? " is-available" : ""}" aria-hidden="true"></span>
-        <span class="reader-page-dot reader-page-dot--current" aria-label="Page ${page + 1} of ${pages.length}"></span>
-        <span class="reader-page-dot reader-page-dot--side${hasNext ? " is-available" : ""}" aria-hidden="true"></span>
         <span class="reader-page-label">${escapeHtml(`Page ${page + 1} of ${pages.length}`)}</span>
+        <span class="reader-page-dots" aria-hidden="true">
+          <span class="reader-page-dot reader-page-dot--side${hasPrev ? " is-available" : ""}"></span>
+          <span class="reader-page-dot reader-page-dot--current"></span>
+          <span class="reader-page-dot reader-page-dot--side${hasNext ? " is-available" : ""}"></span>
+        </span>
       </div>
     </section>
   `);

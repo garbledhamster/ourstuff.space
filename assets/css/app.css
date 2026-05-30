@@ -1271,6 +1271,20 @@ select option:checked {
 			var(--dashboard-card-size-height-cap)
 		);
 	}
+
+	.dashboard-card-title {
+		gap: 6px;
+		font-size: clamp(0.75rem, 2.4cqh, 1.25rem);
+	}
+
+	.dashboard-card-name {
+		font-size: clamp(0.55rem, 2.2cqh, var(--name-size, 1.12rem));
+	}
+
+	.dashboard-card-icon .button-icon {
+		width: 1em;
+		height: 1em;
+	}
 }
 
 @media (orientation: landscape) and (max-height: 760px) {
@@ -1285,6 +1299,20 @@ select option:checked {
 			var(--dashboard-card-size-base),
 			var(--dashboard-card-size-height-cap)
 		);
+	}
+
+	.dashboard-card-title {
+		gap: 6px;
+		font-size: clamp(0.65rem, 2.6vh, 1.2rem);
+	}
+
+	.dashboard-card-name {
+		font-size: clamp(0.5rem, 2.2vh, var(--name-size, 1.12rem));
+	}
+
+	.dashboard-card-icon .button-icon {
+		width: 1em;
+		height: 1em;
 	}
 }
 
@@ -1317,6 +1345,10 @@ select option:checked {
 	.dashboard-card-title {
 		gap: 6px;
 		font-size: clamp(0.9rem, 2.4vh, 1.25rem);
+	}
+
+	.dashboard-card-name {
+		font-size: clamp(0.7rem, 2vh, var(--name-size, 1.12rem));
 	}
 
 	.dashboard-card-icon .button-icon {
@@ -1545,6 +1577,7 @@ select option:checked {
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: clip;
+	font-size: var(--name-size, 1.12rem);
 }
 
 .dashboard-card-icon {
@@ -8333,12 +8366,25 @@ button.life-event-row:hover {
 	min-height: 20px;
 }
 
+.reader-book .reader-page-indicator {
+	flex-direction: column;
+	gap: 6px;
+	min-height: 32px;
+}
+
 .reader-page-label {
 	color: var(--faint);
 	font-family: var(--font-label);
 	font-size: 0.72rem;
 	letter-spacing: 0;
 	text-transform: uppercase;
+}
+
+.reader-page-dots {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
 }
 
 .reader-page-dot {
