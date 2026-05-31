@@ -94,6 +94,7 @@ let cloudState = {
 	spaceRole: "owner",
 	cloudOwnerUid: "",
 	sharedSpace: null,
+	familyInvites: [],
 };
 
 export function getCloudAccountState() {
@@ -103,6 +104,9 @@ export function getCloudAccountState() {
 		entitlement: { ...cloudState.entitlement },
 		obsidianKey: cloudState.obsidianKey ? { ...cloudState.obsidianKey } : null,
 		sharedSpace: cloudState.sharedSpace ? { ...cloudState.sharedSpace } : null,
+		familyInvites: Array.isArray(cloudState.familyInvites)
+			? cloudState.familyInvites.map((invite) => ({ ...invite }))
+			: [],
 	};
 }
 
@@ -637,9 +641,13 @@ export async function deleteCloudAccount() {
 
 export async function refreshFamilySharingState() {
 	const user = requireSignedInFirebaseUser();
-	const sharedSpace = await readFamilySpaceState(user);
+	const [sharedSpace, familyInvites] = await Promise.all([
+		readFamilySpaceState(user),
+		readFamilyInvites(user),
+	]);
 	emitCloudState({
 		sharedSpace,
+		familyInvites,
 		spaceRole: sharedSpace.role,
 		cloudOwnerUid: sharedSpace.ownerUid || user.uid,
 		message: "Family sharing refreshed.",
@@ -649,21 +657,64 @@ export async function refreshFamilySharingState() {
 }
 
 export async function addFamilyMember(email, role = "reader") {
-	return familyMemberRequest("POST", "/members", { email, role });
+	return sendFamilyInvite(email, role);
+}
+
+export async function sendFamilyInvite(email, role = "reader") {
+	requireCloudOwnerAccess();
+	const result = await familyApiRequest("POST", "/members", { email, role });
+	await refreshFamilySharingState();
+	return result;
+}
+
+export async function listFamilyInvites() {
+	const user = requireSignedInFirebaseUser();
+	const familyInvites = await readFamilyInvites(user);
+	emitCloudState({ familyInvites, error: "" });
+	return familyInvites;
+}
+
+export async function acceptFamilyInvite(inviteId) {
+	const result = await familyApiRequest(
+		"POST",
+		`/invites/${encodeURIComponent(inviteId)}/accept`,
+	);
+	await refreshFamilySharingState();
+	return result;
+}
+
+export async function declineFamilyInvite(inviteId) {
+	const result = await familyApiRequest(
+		"POST",
+		`/invites/${encodeURIComponent(inviteId)}/decline`,
+	);
+	await refreshFamilySharingState();
+	return result;
+}
+
+export async function leaveFamilySpace() {
+	const result = await familyApiRequest("POST", "/leave");
+	await refreshFamilySharingState();
+	return result;
 }
 
 export async function updateFamilyMember(uid, role = "reader") {
-	return familyMemberRequest("PATCH", `/members/${encodeURIComponent(uid)}`, {
+	requireCloudOwnerAccess();
+	const result = await familyApiRequest("PATCH", `/members/${encodeURIComponent(uid)}`, {
 		role,
 	});
+	await refreshFamilySharingState();
+	return result;
 }
 
 export async function removeFamilyMember(uid) {
-	return familyMemberRequest("DELETE", `/members/${encodeURIComponent(uid)}`);
+	requireCloudOwnerAccess();
+	const result = await familyApiRequest("DELETE", `/members/${encodeURIComponent(uid)}`);
+	await refreshFamilySharingState();
+	return result;
 }
 
-async function familyMemberRequest(method, path, payload = {}) {
-	requireCloudOwnerAccess();
+async function familyApiRequest(method, path, payload = {}) {
 	const user = requireSignedInFirebaseUser();
 	const idToken = await user.getIdToken();
 	const response = await fetch(`${FAMILY_API_URL}${path}`, {
@@ -681,7 +732,6 @@ async function familyMemberRequest(method, path, payload = {}) {
 			result?.error?.message || result?.message || "Family sharing update failed.",
 		);
 	}
-	await refreshFamilySharingState();
 	return result;
 }
 
@@ -1518,9 +1568,13 @@ async function handleFirebaseAuthChange(user) {
 				role: "owner",
 				ownerUid: user.uid,
 				members: [],
+				invites: [],
 				error: errorMessage(error),
 			}))
 		: null;
+	const familyInvites = activeSpaceIsFamily()
+		? await readFamilyInvites(user).catch(() => [])
+		: [];
 	const cloudOwnerUid = sharedSpace?.ownerUid || user.uid;
 	const spaceRole = sharedSpace?.role || "owner";
 	const obsidianKey =
@@ -1545,6 +1599,7 @@ async function handleFirebaseAuthChange(user) {
 		spaceRole,
 		cloudOwnerUid,
 		sharedSpace,
+		familyInvites,
 		message:
 			activeSpaceIsFamily() && spaceRole !== "owner"
 				? `Family space joined as ${spaceRole}.`
@@ -1606,6 +1661,23 @@ async function readFamilySpaceState(user) {
 	return normalizeSharedSpace(result);
 }
 
+async function readFamilyInvites(user) {
+	const idToken = await user.getIdToken();
+	const response = await fetch(`${FAMILY_API_URL}/invites`, {
+		method: "GET",
+		headers: { authorization: `Bearer ${idToken}` },
+	});
+	const result = await response.json().catch(() => ({}));
+	if (!response.ok) {
+		throw new Error(
+			result?.error?.message || result?.message || "Could not load Family invites.",
+		);
+	}
+	return Array.isArray(result.invites)
+		? result.invites.map(normalizeFamilyInvite).filter((invite) => invite.inviteId)
+		: [];
+}
+
 function normalizeSharedSpace(value = {}) {
 	const ownerUid = String(value.ownerUid || value.owner || "").trim();
 	const role = ["owner", "editor", "reader"].includes(value.role)
@@ -1620,6 +1692,22 @@ function normalizeSharedSpace(value = {}) {
 		canManageMembers: role === "owner",
 		canDeleteCloud: role === "owner",
 		members: Array.isArray(value.members) ? value.members : [],
+		invites: Array.isArray(value.invites)
+			? value.invites.map(normalizeFamilyInvite).filter((invite) => invite.inviteId)
+			: [],
+	};
+}
+
+function normalizeFamilyInvite(value = {}) {
+	return {
+		inviteId: String(value.inviteId || ""),
+		email: String(value.email || ""),
+		role: value.role === "editor" ? "editor" : "reader",
+		status: String(value.status || "pending"),
+		ownerUid: String(value.ownerUid || ""),
+		createdAt: String(value.createdAt || ""),
+		updatedAt: String(value.updatedAt || ""),
+		invitedByDisplay: String(value.invitedByDisplay || "Family owner"),
 	};
 }
 
@@ -1695,6 +1783,7 @@ function signedOutState(message = "") {
 		spaceRole: "owner",
 		cloudOwnerUid: "",
 		sharedSpace: null,
+		familyInvites: [],
 		message,
 		error: "",
 	};

@@ -6,24 +6,27 @@ import {
 	shift,
 } from "https://cdn.jsdelivr.net/npm/@floating-ui/dom@1.7.5/+esm";
 import {
-	addFamilyMember,
+	acceptFamilyInvite,
 	copyLatestObsidianApiKey,
 	createOrRotateObsidianSyncKey,
 	deleteCloudAccount,
 	deleteCloudStateJson,
 	deleteObsidianSyncKey,
+	declineFamilyInvite,
 	estimateCloudStateStorageUsage,
 	estimateJsonBytes,
 	getCloudAccountState,
 	getCloudIdToken,
 	getCloudStateInfo,
 	initCloudAccount,
+	leaveFamilySpace,
 	loadCloudStateJson,
 	openBillingPortal,
 	recordCloudSyncAt,
 	refreshObsidianSyncKey,
 	removeFamilyMember,
 	saveCloudStateJson,
+	sendFamilyInvite,
 	signInToCloud,
 	signInWithEmailPassword,
 	signInWithGoogle,
@@ -3686,10 +3689,10 @@ async function signInWithEmailForm(options = {}) {
 	await signInWithEmailPassword(email, password, options);
 }
 
-async function addFamilyMemberFromDom() {
+async function sendFamilyInviteFromDom() {
 	const email = document.getElementById("family-member-email")?.value || "";
 	const role = document.getElementById("family-member-role")?.value || "reader";
-	return await addFamilyMember(email, role);
+	return await sendFamilyInvite(email, role);
 }
 
 async function removeFamilyMemberAction(uid) {
@@ -3697,12 +3700,22 @@ async function removeFamilyMemberAction(uid) {
 		return null;
 	}
 	const confirmed = window.confirm(
-		"Remove this member from the Family space? Their joined Family cloud cache will be cleared on next refresh.",
+		"Remove this member from the Family space? Their previous Family space will be restored when possible.",
 	);
 	if (!confirmed) {
 		return null;
 	}
 	return await removeFamilyMember(uid);
+}
+
+async function leaveFamilySpaceAction() {
+	const confirmed = window.confirm(
+		"Leave this Family space? Your previous Family space will be restored when possible.",
+	);
+	if (!confirmed) {
+		return null;
+	}
+	return await leaveFamilySpace();
 }
 
 function hasStoredAppState() {
@@ -7082,6 +7095,8 @@ function cloudUiSignature(account = {}) {
 		spaceRole: account.spaceRole || "",
 		cloudOwnerUid: account.cloudOwnerUid || "",
 		sharedMemberCount: account.sharedSpace?.members?.length || 0,
+		sentInviteCount: account.sharedSpace?.invites?.length || 0,
+		receivedInviteCount: account.familyInvites?.length || 0,
 	});
 }
 
@@ -13149,20 +13164,36 @@ function familySharingSettingsHtml(account, busyAttr) {
 	const members = Array.isArray(account.sharedSpace?.members)
 		? account.sharedSpace.members
 		: [];
+	const sentInvites = Array.isArray(account.sharedSpace?.invites)
+		? account.sharedSpace.invites
+		: [];
+	const receivedInvites = Array.isArray(account.familyInvites)
+		? account.familyInvites
+		: [];
 	return `
       <section class="interface-settings-section cloud-account-section">
         <div class="body-card-heading">
           <div>
             <h3>Family Sharing</h3>
-            <p>${escapeHtml(owner ? "Invite existing Firebase accounts as editors or readers." : `You are a ${role}. Readers can view and export; editors can edit and sync.`)}</p>
+            <p>${escapeHtml(owner ? "Send email invites as editor or reader. Access starts only after acceptance." : `You are a ${role}. Readers can view and export; editors can edit and sync.`)}</p>
           </div>
           <span class="cloud-status-pill is-active">${escapeHtml(role)}</span>
         </div>
         ${
+					receivedInvites.length
+						? `
+          <p class="cloud-status-message">Pending invites for your signed-in email</p>
+          <div class="cloud-sync-grid">
+            ${receivedInvites.map((invite) => familyReceivedInviteRowHtml(invite, busyAttr)).join("")}
+          </div>
+        `
+						: ""
+				}
+        ${
 					owner
 						? `
           <div class="cloud-email-form" aria-label="Family member invite">
-            <label class="body-field">Member email<input id="family-member-email" type="email" autocomplete="off" placeholder="person@example.com"></label>
+            <label class="body-field">Invite email<input id="family-member-email" type="email" autocomplete="off" placeholder="person@example.com"></label>
             <label class="body-field">Role
               <select id="family-member-role">
                 <option value="editor">Editor</option>
@@ -13170,16 +13201,58 @@ function familySharingSettingsHtml(account, busyAttr) {
               </select>
             </label>
             <div class="action-row cloud-actions">
-              <button class="primary-button" data-action="family-member-add" type="button"${busyAttr}>${buttonContent("tabler:user-plus", "Add member")}</button>
+              <button class="primary-button" data-action="family-member-add" type="button"${busyAttr}>${buttonContent("tabler:send", "Send invite")}</button>
             </div>
+          </div>
+        `
+						: `
+          <div class="action-row cloud-actions">
+            <button class="secondary-button danger-button" data-action="family-leave" type="button"${busyAttr}>${buttonContent("tabler:logout-2", "Leave Family")}</button>
+          </div>
+        `
+				}
+        ${
+					owner
+						? `
+          <p class="cloud-status-message">Pending invites</p>
+          <div class="cloud-sync-grid">
+            ${sentInvites.length ? sentInvites.map((invite) => familySentInviteRowHtml(invite)).join("") : `<span><strong>No pending invites</strong><small>Send an invite when someone should join this Family space.</small></span>`}
           </div>
         `
 						: ""
 				}
+        <p class="cloud-status-message">Accepted members</p>
         <div class="cloud-sync-grid">
-          ${members.length ? members.map((member) => familyMemberRowHtml(member, owner, busyAttr)).join("") : `<span><strong>No members</strong><small>${owner ? "Only you can access this Family space." : "Ask the owner to add members."}</small></span>`}
+          ${members.length ? members.map((member) => familyMemberRowHtml(member, owner, busyAttr)).join("") : `<span><strong>No accepted members</strong><small>${owner ? "Only you can access this Family space." : "No other accepted members are listed."}</small></span>`}
         </div>
       </section>
+  `;
+}
+
+function familyReceivedInviteRowHtml(invite, busyAttr) {
+	const inviteId = String(invite.inviteId || "");
+	const label = invite.invitedByDisplay || "Family owner";
+	const role = invite.role === "editor" ? "editor" : "reader";
+	return `
+    <span>
+      <strong>${escapeHtml(label)}</strong>
+      <small>
+        Invited you as ${escapeHtml(role)}
+        <button class="cloud-danger-link" data-action="family-invite-accept" data-invite-id="${escapeHtml(inviteId)}" type="button"${busyAttr}>Accept</button>
+        <button class="cloud-danger-link" data-action="family-invite-decline" data-invite-id="${escapeHtml(inviteId)}" type="button"${busyAttr}>Decline</button>
+      </small>
+    </span>
+  `;
+}
+
+function familySentInviteRowHtml(invite) {
+	const role = invite.role === "editor" ? "editor" : "reader";
+	const created = invite.createdAt ? new Date(invite.createdAt).toLocaleString() : "Pending";
+	return `
+    <span>
+      <strong>${escapeHtml(invite.email || "Pending invite")}</strong>
+      <small>${escapeHtml(role)} invite sent ${escapeHtml(created)}</small>
+    </span>
   `;
 }
 
@@ -18445,7 +18518,17 @@ function handleAction(element) {
 		);
 	}
 	if (action === "family-member-add") {
-		void runCloudAction("Adding Family member...", () => addFamilyMemberFromDom());
+		void runCloudAction("Sending Family invite...", () => sendFamilyInviteFromDom());
+	}
+	if (action === "family-invite-accept") {
+		void runCloudAction("Accepting Family invite...", () =>
+			acceptFamilyInvite(element.dataset.inviteId || ""),
+		);
+	}
+	if (action === "family-invite-decline") {
+		void runCloudAction("Declining Family invite...", () =>
+			declineFamilyInvite(element.dataset.inviteId || ""),
+		);
 	}
 	if (action === "family-member-role") {
 		void runCloudAction("Updating Family member...", () =>
@@ -18456,6 +18539,9 @@ function handleAction(element) {
 		void runCloudAction("Removing Family member...", () =>
 			removeFamilyMemberAction(element.dataset.uid || ""),
 		);
+	}
+	if (action === "family-leave") {
+		void runCloudAction("Leaving Family space...", () => leaveFamilySpaceAction());
 	}
 	if (action === "obsidian-create-key" || action === "obsidian-refresh-key") {
 		void runCloudAction("Preparing Obsidian sync key...", () =>
