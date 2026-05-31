@@ -279,76 +279,83 @@ const COMPENDIUM_TWO_QUERY = "(max-width: 820px)";
 const COMPENDIUM_ONE_QUERY = "(max-width: 520px)";
 const COMPENDIUM_ROWS_PER_PAGE = 2;
 const DASHBOARD_LABELS = ["Mind", "Body", "Spirit", "Life"];
-const DASHBOARD_RETURN_TIP = "dashboard-return";
-const COMPENDIUM_GRID_TIP = "compendium-grid";
 const SIMPLE_TOOLTIP_WORD_LIMIT = 7;
-const GUIDED_TIP_SEQUENCE = [
+const NAVIGATION_TOUR_STEPS = [
 	{
-		id: DASHBOARD_RETURN_TIP,
-		selector: ".dashboard-home-link",
-		label: "Return to dashboard",
-		placement: "bottom",
-		when: () => state.active !== "Dashboard",
-	},
-	{
-		id: "dashboard-balance-tip",
-		selector: ".dashboard-analytics",
-		label: "Check your balance",
-		placement: "bottom",
-	},
-	{
-		id: "dashboard-range-tip",
-		selector: ".dashboard-period-slider:not(.sidebar-period-slider)",
-		label: "Change time range",
-		placement: "top",
-	},
-	{
-		id: "dashboard-chart-tip",
-		selector: ".dashboard-chart-switcher",
-		label: "Switch dashboard tab",
-		placement: "top",
-	},
-	{
-		id: "dashboard-card-tip",
-		selector: ".dashboard-card",
-		label: "Open a core area",
-		placement: "top",
-	},
-	{
-		id: "sidebar-menu-tip",
+		id: "menu-button",
+		route: "dashboard",
 		selector: ".mobile-menu-toggle",
-		label: "Open side menu",
+		label: "Tap the bottom bar to open the notes menu.",
 		placement: "bottom",
 	},
 	{
-		id: "sidebar-sections-tip",
+		id: "menu-open",
+		route: "dashboard-menu",
+		selector: ".sidebar",
+		label: "This menu holds your notes, settings, gallery, timer, and data tools.",
+		placement: "right",
+	},
+	{
+		id: "menu-groups",
+		route: "dashboard-menu",
 		selector: ".sidebar-group-toggle",
-		label: "Open side sections",
-		placement: "top",
+		label: "Each group opens the notes for one dashboard area.",
+		placement: "right",
 	},
 	{
-		id: "sidebar-settings-tip",
+		id: "menu-settings",
+		route: "dashboard-menu",
 		selector: ".sidebar-text-link[data-action='open-settings']",
-		label: "Customize the interface",
+		label: "Settings is where you tune defaults, orbs, interface, and data.",
 		placement: "top",
 	},
 	{
-		id: "dashboard-orbs-tip",
-		selector: ".dashboard-orb-nav .tracker-orb:not(.tracker-orb--add)",
-		label: "Tap orbs to log",
+		id: "mind",
+		route: "Mind",
+		selector: ".content-stage .panel-header",
+		label: "Mind is for notes, ideas, questions, and compendiums.",
 		placement: "top",
 	},
 	{
-		id: "dashboard-tools-tip",
-		selector:
-			".body-tool-switcher .body-mode-button, .life-tool-switcher .body-mode-button, .spirit-year-button",
-		label: "Switch tools here",
+		id: "body",
+		route: "Body",
+		selector: ".content-stage .panel-header",
+		label: "Body is for timers, nutrition, workouts, sleep, and physical notes.",
 		placement: "top",
 	},
 	{
-		id: COMPENDIUM_GRID_TIP,
-		selector: ".compendium-page-indicator",
-		label: "Open overview",
+		id: "spirit",
+		route: "Spirit",
+		selector: ".content-stage .panel-header",
+		label: "Spirit is for reading, reflection, values, study, and meaning.",
+		placement: "top",
+	},
+	{
+		id: "life",
+		route: "Life",
+		selector: ".content-stage .panel-header",
+		label: "Life is for your calendar, journal, tasks, projects, and attachments.",
+		placement: "top",
+	},
+	{
+		id: "dashboard-orbs",
+		route: "dashboard",
+		selector: ".dashboard-chart-switcher",
+		label: "Use Orbs, Pie, and Bar to scan your activity from different angles.",
+		placement: "top",
+	},
+	{
+		id: "dashboard-cards",
+		route: "dashboard",
+		selector: ".dashboard-card",
+		label: "Open a card to work inside Mind, Body, Spirit, or Life.",
+		placement: "top",
+	},
+	{
+		id: "done",
+		route: "dashboard",
+		selector: ".dashboard-home",
+		label: "Navigation tour complete. Click once more to close it.",
 		placement: "top",
 	},
 ];
@@ -499,6 +506,7 @@ let thoughtTooltipSuppressClickTarget = null;
 let guidedTipCleanup = null;
 let guidedTipTarget = null;
 let guidedTipTargetClickHandler = null;
+let guidedTipDocumentClickHandler = null;
 let dashboardPeriodGlowTimer = null;
 let localChangeTrackingSuppressed = 0;
 let cloudSyncInFlight = null;
@@ -1123,6 +1131,69 @@ const SPACE_DEFAULTS = {
 			"Restore Family defaults? This replaces only the local Family dataset with empty notes, empty logs, and family-focused orbs.",
 		trackers: familyTrackerItems,
 		goals: familyGoalItems,
+	},
+};
+
+const GETTING_STARTED_SPACE_GUIDES = {
+	[PERSONAL_SPACE_ID]: {
+		icon: "fluent:person-heart-24-regular",
+		title: "Personal Defaults",
+		actionLabel: "Use Self Help Defaults",
+		description:
+			"Use Personal for the whole-life dashboard: notes, care routines, reading, calendar, and reflection in one private local-first space.",
+		defaults:
+			"The Self Help Defaults restore the original starter notes, orbs, goals, tips, and app structure for getting steady when life feels scattered.",
+		areas: {
+			Mind: "Ideas, notes, books, questions, and reusable compendiums.",
+			Body: "Fasting, food, workouts, sleep, symptoms, and physical routines.",
+			Spirit: "Reading, meaning, values, gratitude, prayer, and reflection.",
+			Life: "Calendar, journal, todos, projects, and the thread across days.",
+		},
+		rhythm: [
+			["Capture", "Put each thought, workout, reading note, or day summary where it belongs."],
+			["Check", "Use Balance to see where your attention has been going lately."],
+			["Return", "Edit notes as your understanding changes so the record shows growth."],
+		],
+	},
+	[WORK_SPACE_ID]: {
+		icon: "tabler:briefcase",
+		title: "Work Defaults",
+		actionLabel: "Restore Work Defaults",
+		description:
+			"Use Work for job notes, meetings, deliverables, focus routines, and planning without mixing them into your Personal space.",
+		defaults:
+			"Work Defaults start with empty notes and work-safe orbs for knowledge, movement, focus, and productivity.",
+		areas: {
+			Mind: "Knowledge, references, meeting notes, decisions, and reusable docs.",
+			Body: "Workday movement, breaks, energy, and practical health signals.",
+			Spirit: "Focus, reset, study, values, and reflection around work habits.",
+			Life: "Projects, tasks, calendars, deliverables, and follow-through.",
+		},
+		rhythm: [
+			["Capture", "Turn meetings, ideas, blockers, and tasks into durable work notes."],
+			["Plan", "Use Life for projects and next actions; use Mind for reusable knowledge."],
+			["Review", "Use Balance to catch whether planning, focus, or execution needs attention."],
+		],
+	},
+	[FAMILY_SPACE_ID]: {
+		icon: "tabler:users-group",
+		title: "Family Defaults",
+		actionLabel: "Restore Family Defaults",
+		description:
+			"Use Family for shared memories, routines, planning, study notes, and household coordination.",
+		defaults:
+			"Family Defaults start with empty notes and family-focused orbs for memories, exercise, study, routines, and connection.",
+		areas: {
+			Mind: "Memories, household knowledge, family notes, and shared questions.",
+			Body: "Exercise, meals, sleep, appointments, and health routines.",
+			Spirit: "Study, reflection, gratitude, prayer, and shared learning.",
+			Life: "Family planner, events, todos, projects, and recurring routines.",
+		},
+		rhythm: [
+			["Capture", "Save memories, routines, tasks, and plans where everyone can find them."],
+			["Coordinate", "Use Life for calendars and tasks; use Mind for shared reference notes."],
+			["Reconnect", "Use Spirit and Family orbs to keep reflection and connection visible."],
+		],
 	},
 };
 
@@ -2017,7 +2088,6 @@ function applyCoreTooltips() {
 		[".sidebar-text-link[data-action='open-gallery']", "Open gallery"],
 		[".cloud-heading-actions [data-action='import-artifacts']", "Import data"],
 		[".cloud-heading-actions [data-action='export-artifacts']", "Export data"],
-		[".cloud-heading-actions [data-action='reset-tips']", "Replay tips"],
 		[".reader-page-indicator", "Open overview"],
 		[".compendium-rotator-edge--prev", "Previous compendiums"],
 		[".compendium-rotator-edge--next", "Next compendiums"],
@@ -3705,6 +3775,7 @@ const state = {
 	pyxdiaLastRefreshAt: "",
 	pyxdiaNoteFilters: createDefaultPyxdiaNoteFilters(),
 	dismissedTips: loadDismissedTips(),
+	navigationTour: null,
 	dashboardIdentity: loadDashboardIdentity(),
 	trackerAddArea: "",
 	trackerEditKey: "",
@@ -12456,54 +12527,92 @@ function settingsTabsHtml(activeTab) {
   `;
 }
 
+function gettingStartedGuide(spaceId = activeSpaceId()) {
+	return (
+		GETTING_STARTED_SPACE_GUIDES[spaceId] ||
+		GETTING_STARTED_SPACE_GUIDES[PERSONAL_SPACE_ID]
+	);
+}
+
+function gettingStartedDefaultActionHtml(spaceId = activeSpaceId()) {
+	const guide = gettingStartedGuide(spaceId);
+	if (spaceId === PERSONAL_SPACE_ID) {
+		return `<button class="primary-button" data-action="factory-defaults" type="button">${buttonContent(guide.icon, guide.actionLabel)}</button>`;
+	}
+	const config = SPACE_DEFAULTS[spaceId] || {};
+	return `
+    <div class="action-row body-actions">
+      <button class="primary-button" data-action="restore-space-defaults" data-space="${escapeHtml(spaceId)}" type="button">${buttonContent(guide.icon, guide.actionLabel)}</button>
+      <button class="secondary-button" data-action="create-empty-space" data-space="${escapeHtml(spaceId)}" type="button">${buttonContent(config.icon || guide.icon, config.emptyLabel || `Create empty ${DATA_SPACES[spaceId]?.label || "space"} space`)}</button>
+    </div>
+  `;
+}
+
+function gettingStartedSpaceGuideHtml(spaceId = activeSpaceId()) {
+	const guide = gettingStartedGuide(spaceId);
+	return `
+    <section class="getting-started-defaults">
+      <div class="getting-started-defaults-main">
+        <span class="getting-started-defaults-icon" aria-hidden="true">${iconHtml(guide.icon)}</span>
+        <div>
+          <h3>${escapeHtml(guide.title)}</h3>
+          <p>${escapeHtml(guide.defaults)}</p>
+        </div>
+      </div>
+      ${gettingStartedDefaultActionHtml(spaceId)}
+    </section>
+  `;
+}
+
 function settingsGettingStartedHtml() {
-	const personalActive = activeSpaceId() === PERSONAL_SPACE_ID;
+	const guide = gettingStartedGuide();
 	return `
     <div class="settings-tab-panel getting-started-page">
-      <section class="getting-started-intro">
-        <h3>Build a clear picture of your life</h3>
-        <p>This space works best when it becomes a steady record of what you are learning, how you are taking care of yourself, what gives you direction, and what is actually happening day to day. Small entries are enough. The value comes from returning to them and seeing the pattern.</p>
-      </section>
-      <section class="getting-started-defaults">
+      <section class="getting-started-defaults getting-started-navigation">
         <div class="getting-started-defaults-main">
-          <span class="getting-started-defaults-icon" aria-hidden="true">${iconHtml("fluent:person-heart-24-regular")}</span>
+          <span class="getting-started-defaults-icon" aria-hidden="true">${iconHtml("tabler:route")}</span>
           <div>
-            <h3>Self Help Defaults</h3>
-            <p>Start from the supportive default setup with the original sample notes, orbs, goals, tips, and app structure restored. This is the guided starter state for someone using the app to get steady when life feels scattered.</p>
+            <h3>Show Navigation</h3>
+            <p>Start a guided walkthrough when you want it. Each click advances to the next page; Stop closes the guide.</p>
           </div>
         </div>
-        <button class="primary-button" data-action="factory-defaults" type="button"${personalActive ? "" : " disabled"}>${buttonContent("fluent:person-heart-24-regular", "Use Self Help Defaults")}</button>
-        ${personalActive ? "" : `<p class="cloud-status-message">Self Help Defaults restore the Personal starter dataset. Switch to Personal to use them.</p>`}
+        <button class="primary-button" data-action="start-navigation-tour" type="button">${buttonContent("tabler:route", "Show Navigation")}</button>
       </section>
+      <section class="getting-started-intro">
+        <h3>${escapeHtml(activeSpaceLabel())} space</h3>
+        <p>${escapeHtml(guide.description)}</p>
+      </section>
+      ${gettingStartedSpaceGuideHtml(activeSpaceId())}
       <div class="getting-started-grid">
         <article>
           <span>${dashboardInlineLabelHtml("Mind")}</span>
           <h3>${escapeHtml(dashboardDisplayLabel("Mind"))}</h3>
-          <p>Use ${escapeHtml(dashboardDisplayLabel("Mind"))} for ideas, notes, books, concepts, plans, and anything you want to understand more clearly. Start rough, then shape notes into sections when an idea becomes reusable.</p>
+          <p>${escapeHtml(guide.areas.Mind)}</p>
         </article>
         <article>
           <span>${dashboardInlineLabelHtml("Body")}</span>
           <h3>${escapeHtml(dashboardDisplayLabel("Body"))}</h3>
-          <p>Use ${escapeHtml(dashboardDisplayLabel("Body"))} for fasting, food, workouts, sleep signals, symptoms, and physical routines. The goal is not perfect tracking; it is enough detail to notice what helps and what tends to throw you off.</p>
+          <p>${escapeHtml(guide.areas.Body)}</p>
         </article>
         <article>
           <span>${dashboardInlineLabelHtml("Spirit")}</span>
           <h3>${escapeHtml(dashboardDisplayLabel("Spirit"))}</h3>
-          <p>Use ${escapeHtml(dashboardDisplayLabel("Spirit"))} for reading, meaning, values, gratitude, prayer, reflection, and the longer questions you want to live with. Mark progress and keep notes close to the works or practices that prompted them.</p>
+          <p>${escapeHtml(guide.areas.Spirit)}</p>
         </article>
         <article>
           <span>${dashboardInlineLabelHtml("Life")}</span>
           <h3>${escapeHtml(dashboardDisplayLabel("Life"))}</h3>
-          <p>Use ${escapeHtml(dashboardDisplayLabel("Life"))} as the calendar and journal layer. Log the day, attach thought and goal orbs, and record what changed. The calendar helps you see when you worked on something and how steady the rhythm has been.</p>
+          <p>${escapeHtml(guide.areas.Life)}</p>
         </article>
       </div>
       <section class="getting-started-rhythm">
         <h3>A simple rhythm</h3>
         <div>
-          <p><strong>Capture:</strong> Put the thing where it belongs. A thought goes to ${escapeHtml(dashboardDisplayLabel("Mind"))}. A workout goes to ${escapeHtml(dashboardDisplayLabel("Body"))}. A reading note goes to ${escapeHtml(dashboardDisplayLabel("Spirit"))}. A day summary goes to ${escapeHtml(dashboardDisplayLabel("Life"))}.</p>
-          <p><strong>Check:</strong> Use the dashboard balance chart to see what has been getting attention lately. It is a signal, not a score.</p>
-          <p><strong>Connect:</strong> Use the ${escapeHtml(dashboardDisplayLabel("Life"))} calendar to see how scattered edits become a visible thread across days.</p>
-          <p><strong>Return:</strong> Edit notes as your understanding changes. The audit trail keeps the history visible so the record shows growth instead of only the final version.</p>
+          ${guide.rhythm
+						.map(
+							([label, text]) => `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(text)}</p>`,
+						)
+						.join("")}
         </div>
       </section>
     </div>
@@ -12874,7 +12983,6 @@ function settingsCloudHtml() {
                 <div class="cloud-heading-action-row">
                   <button class="secondary-button" data-action="import-artifacts" type="button"${signedIn && !canWriteSpace ? " disabled" : ""}>${buttonContent("tabler:file-import", "Import")}</button>
                   <button class="secondary-button" data-action="export-artifacts" type="button">${buttonContent("tabler:file-export", "Export")}</button>
-                  <button class="secondary-button" data-action="reset-tips" type="button">${buttonContent("tabler:bulb", "Reset tips")}</button>
                 </div>
               </div>
           </div>
@@ -15870,6 +15978,10 @@ function hideGuidedTip() {
 		guidedTipCleanup();
 		guidedTipCleanup = null;
 	}
+	if (guidedTipDocumentClickHandler) {
+		document.removeEventListener("click", guidedTipDocumentClickHandler, true);
+		guidedTipDocumentClickHandler = null;
+	}
 	if (guidedTipTarget && guidedTipTargetClickHandler) {
 		guidedTipTarget.removeEventListener(
 			"click",
@@ -15883,6 +15995,73 @@ function hideGuidedTip() {
 	app.querySelectorAll(".is-guided-tip-target").forEach((element) => {
 		element.classList.remove("is-guided-tip-target");
 	});
+}
+
+function navigationTourRouteState(route) {
+	const next = {
+		mobileMenuOpen: false,
+		flipped: null,
+		artifactMode: "grid",
+		selectedArtifactId: null,
+		selectedSpiritBookKey: null,
+	};
+	if (route === "dashboard-menu") {
+		return {
+			...next,
+			active: "Dashboard",
+			mobileMenuOpen: true,
+			mindMode: "grid",
+			selectedCompendiumId: null,
+			selectedSectionId: null,
+		};
+	}
+	if (DASHBOARD_LABELS.includes(route)) {
+		return {
+			...next,
+			active: route,
+			mindMode: route === "Mind" ? "grid" : state.mindMode,
+			selectedCompendiumId: route === "Mind" ? null : state.selectedCompendiumId,
+			selectedSectionId: route === "Mind" ? null : state.selectedSectionId,
+		};
+	}
+	return {
+		...next,
+		active: "Dashboard",
+		mindMode: "grid",
+		selectedCompendiumId: null,
+		selectedSectionId: null,
+	};
+}
+
+function setNavigationTourStep(index) {
+	const maxIndex = NAVIGATION_TOUR_STEPS.length - 1;
+	const nextIndex = Math.max(0, Math.min(Number(index) || 0, maxIndex));
+	const step = NAVIGATION_TOUR_STEPS[nextIndex];
+	setState({
+		...navigationTourRouteState(step.route),
+		navigationTour: {
+			active: true,
+			index: nextIndex,
+		},
+	});
+}
+
+function startNavigationTour() {
+	setNavigationTourStep(0);
+}
+
+function stopNavigationTour() {
+	hideGuidedTip();
+	setState({ navigationTour: null });
+}
+
+function advanceNavigationTour() {
+	const currentIndex = Number(state.navigationTour?.index) || 0;
+	if (currentIndex >= NAVIGATION_TOUR_STEPS.length - 1) {
+		stopNavigationTour();
+		return;
+	}
+	setNavigationTourStep(currentIndex + 1);
 }
 
 function isElementVisible(element) {
@@ -15902,23 +16081,24 @@ function isElementVisible(element) {
 }
 
 function activeGuidedTip() {
-	const dismissed = new Set(state.dismissedTips || []);
-	for (const tip of GUIDED_TIP_SEQUENCE) {
-		if (dismissed.has(tip.id) || (tip.when && !tip.when())) {
-			continue;
-		}
-		const target = app.querySelector(tip.selector);
-		if (isElementVisible(target)) {
-			return { ...tip, target };
-		}
+	if (!state.navigationTour?.active) {
+		return null;
 	}
-	return null;
-}
-
-function advanceGuidedTip(tipId) {
-	rememberDismissedTip(tipId);
-	hideGuidedTip();
-	render();
+	const index = Math.max(
+		0,
+		Math.min(
+			Number(state.navigationTour.index) || 0,
+			NAVIGATION_TOUR_STEPS.length - 1,
+		),
+	);
+	const step = NAVIGATION_TOUR_STEPS[index];
+	const target = app.querySelector(step.selector);
+	return {
+		...step,
+		index,
+		total: NAVIGATION_TOUR_STEPS.length,
+		target: isElementVisible(target) ? target : app.querySelector(".content-stage"),
+	};
 }
 
 function showGuidedTip(tip) {
@@ -15927,26 +16107,34 @@ function showGuidedTip(tip) {
 	}
 	hideThoughtTooltip();
 	hideGuidedTip();
-	const bubble = document.createElement("button");
+	const bubble = document.createElement("div");
 	bubble.className = "guided-tip-bubble";
-	bubble.type = "button";
-	bubble.innerHTML = `<span>${escapeHtml(simpleTooltipText(tip.label))}</span><i aria-hidden="true"></i>`;
+	bubble.setAttribute("role", "dialog");
+	bubble.innerHTML = `
+    <span>${escapeHtml(simpleTooltipText(tip.label, 18))}</span>
+    <small>${escapeHtml(`${tip.index + 1}/${tip.total}`)}</small>
+    <button class="guided-tip-stop" data-navigation-tour-stop type="button">Stop</button>
+  `;
 	bubble.setAttribute(
 		"aria-label",
-		`${simpleTooltipText(tip.label)}. Next tip.`,
+		`${simpleTooltipText(tip.label, 18)}. Step ${tip.index + 1} of ${tip.total}.`,
 	);
-	bubble.addEventListener("click", () => advanceGuidedTip(tip.id));
 	document.body.append(bubble);
 	tip.target.classList.add("is-guided-tip-target");
 	guidedTipTarget = tip.target;
-	guidedTipTargetClickHandler = () => {
-		rememberDismissedTip(tip.id);
-		hideGuidedTip();
+	guidedTipDocumentClickHandler = (event) => {
+		if (!state.navigationTour?.active) {
+			return;
+		}
+		event.preventDefault();
+		event.stopPropagation();
+		if (event.target?.closest?.("[data-navigation-tour-stop]")) {
+			stopNavigationTour();
+			return;
+		}
+		advanceNavigationTour();
 	};
-	tip.target.addEventListener("click", guidedTipTargetClickHandler, {
-		capture: true,
-		once: true,
-	});
+	document.addEventListener("click", guidedTipDocumentClickHandler, true);
 
 	const update = () => {
 		computePosition(tip.target, bubble, {
@@ -17847,6 +18035,14 @@ function handleAction(element) {
 		void restoreSpaceDefaults(element.dataset.space || WORK_SPACE_ID);
 		return;
 	}
+	if (action === "start-navigation-tour") {
+		startNavigationTour();
+		return;
+	}
+	if (action === "stop-navigation-tour") {
+		stopNavigationTour();
+		return;
+	}
 	const keepMenuOpenActions = new Set([
 		"toggle-mobile-menu",
 		"toggle-sidebar-section",
@@ -18040,9 +18236,6 @@ function handleAction(element) {
 	}
 	if (action === "clear-app-data") {
 		clearAppData();
-	}
-	if (action === "reset-tips") {
-		resetTips();
 	}
 	if (action === "dismiss-tip") {
 		dismissTip(element.dataset.tip, element);

@@ -4063,11 +4063,11 @@ select option:checked {
 	left: 0;
 	z-index: 10001;
 	display: inline-grid;
-	grid-template-columns: minmax(0, 1fr) auto;
+	grid-template-columns: minmax(0, 1fr) auto auto;
 	align-items: center;
 	gap: 7px;
 	width: max-content;
-	max-width: min(214px, calc(100vw - 24px));
+	max-width: min(320px, calc(100vw - 24px));
 	border: 1px solid
 		color-mix(in srgb, var(--tooltip-dot) 70%, var(--tooltip-border));
 	border-radius: 999px;
@@ -4108,13 +4108,36 @@ select option:checked {
 	overflow-wrap: anywhere;
 }
 
-.guided-tip-bubble i {
-	display: block;
-	width: 7px;
-	height: 7px;
+.guided-tip-bubble small {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 38px;
+	color: var(--tooltip-text);
+	font-size: 0.68rem;
+	font-weight: 950;
+	letter-spacing: 0.05em;
+	opacity: 0.78;
+}
+
+.guided-tip-stop {
+	min-height: 24px;
+	border: 1px solid color-mix(in srgb, var(--tooltip-text) 42%, transparent);
 	border-radius: 999px;
-	background: var(--tooltip-dot);
-	box-shadow: 0 0 16px var(--tooltip-dot);
+	background: color-mix(in srgb, var(--tooltip-text) 10%, transparent);
+	color: var(--tooltip-text);
+	padding: 3px 8px;
+	font-family: var(--font-label);
+	font-size: 0.66rem;
+	font-weight: 950;
+	line-height: 1;
+}
+
+.guided-tip-stop:hover,
+.guided-tip-stop:focus-visible {
+	border-color: var(--tooltip-text);
+	background: color-mix(in srgb, var(--tooltip-text) 18%, transparent);
+	outline: none;
 }
 
 .is-guided-tip-target {
