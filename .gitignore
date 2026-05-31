@@ -18,6 +18,7 @@ mobile/ios/DerivedData/
 /mobile
 /scripts
 /artifacts
+/.agent/logs
 /.local
 /.firebase
 /.mobile
