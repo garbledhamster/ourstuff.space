@@ -5235,6 +5235,23 @@ select option:checked {
 		transform 0.16s ease;
 }
 
+.content-stage.is-header-snapped .dashboard-orbs-panel,
+.content-stage.is-header-snapped .dashboard-pie,
+.content-stage.is-header-snapped .dashboard-bar-chart,
+.content-stage.is-header-snapped .dashboard-pie-wrap > strong {
+	display: none;
+}
+
+.content-stage.is-header-snapped .dashboard-analytics {
+	padding-top: 0;
+	padding-bottom: 6px;
+}
+
+.content-stage.is-header-snapped .dashboard-pie-wrap,
+.content-stage.is-header-snapped .dashboard-analytics-body {
+	gap: 0;
+}
+
 .content-stage.is-header-snapped .panel > .scroll-area,
 .content-stage.is-header-snapped .panel > .reader-panel,
 .content-stage.is-header-snapped .panel > .reader-book,
