@@ -1256,6 +1256,47 @@ select option:checked {
 	overflow: hidden;
 }
 
+.dashboard-space-switcher {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+	gap: 8px;
+	width: min(100%, 420px);
+	margin: 0 auto 2px;
+	transition:
+		max-height 0.16s ease,
+		margin 0.16s ease,
+		opacity 0.12s ease,
+		transform 0.16s ease;
+}
+
+.dashboard-space-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 0;
+	min-height: 34px;
+	border: 1px solid var(--border-soft);
+	border-radius: 10px;
+	background: var(--theme-control);
+	color: var(--muted);
+	padding: 6px 10px;
+	font-family: var(--font-label);
+	font-size: 0.76rem;
+	font-weight: 900;
+	line-height: 1.1;
+	text-align: center;
+	white-space: normal;
+}
+
+.dashboard-space-button:hover,
+.dashboard-space-button:focus-visible,
+.dashboard-space-button.is-active {
+	border-color: var(--accent);
+	background: color-mix(in srgb, var(--accent) 18%, var(--theme-control));
+	color: var(--text);
+	outline: none;
+}
+
 .dashboard-grid {
 	display: grid;
 	grid-template-columns: repeat(4, var(--dashboard-card-size));
@@ -1598,12 +1639,13 @@ select option:checked {
 }
 
 .dashboard-card-name {
-	display: inline-block;
+	display: block;
 	max-width: 100%;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: clip;
+	overflow-wrap: anywhere;
+	text-align: center;
+	white-space: normal;
 	font-size: var(--name-size, 1.12rem);
+	line-height: 1.05;
 }
 
 .dashboard-card-icon {
@@ -1806,7 +1848,10 @@ select option:checked {
 	font-size: 0.72rem;
 	font-weight: 900;
 	letter-spacing: 0.1em;
+	line-height: 1.1;
+	text-align: center;
 	text-transform: uppercase;
+	white-space: normal;
 	cursor: grab;
 }
 
@@ -5173,6 +5218,23 @@ select option:checked {
 		transform 0.16s ease;
 }
 
+.content-stage.is-header-snapped .dashboard-space-switcher,
+.content-stage.is-header-snapped .dashboard-analytics-header,
+.content-stage.is-header-snapped .dashboard-period-slider {
+	max-height: 0;
+	margin-top: 0;
+	margin-bottom: 0;
+	opacity: 0;
+	overflow: hidden;
+	pointer-events: none;
+	transform: translateY(-10px);
+	transition:
+		max-height 0.16s ease,
+		margin 0.16s ease,
+		opacity 0.12s ease,
+		transform 0.16s ease;
+}
+
 .content-stage.is-header-snapped .panel > .scroll-area,
 .content-stage.is-header-snapped .panel > .reader-panel,
 .content-stage.is-header-snapped .panel > .reader-book,
@@ -5349,6 +5411,9 @@ select option:checked {
 	gap: 8px;
 	min-height: 40px;
 	padding: 8px 14px;
+	line-height: 1.1;
+	text-align: center;
+	white-space: normal;
 }
 
 .button-icon {
@@ -5371,6 +5436,8 @@ select option:checked {
 .button-label,
 .body-mode-label {
 	min-width: 0;
+	overflow-wrap: anywhere;
+	white-space: normal;
 }
 
 .primary-button {
@@ -6126,6 +6193,9 @@ select option:checked {
 	color: var(--muted);
 	font-weight: 900;
 	font-size: 0.9rem;
+	line-height: 1.1;
+	text-align: center;
+	white-space: normal;
 }
 
 .page-tool-switcher .body-mode-button,
@@ -10615,7 +10685,7 @@ button.life-event-row:hover {
 		overflow: visible;
 	}
 
-	.panel:has(> .dashboard-home) {
+	.panel:has(.dashboard-home) {
 		padding: 4px 6px 22px;
 	}
 

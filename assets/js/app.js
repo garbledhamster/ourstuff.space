@@ -158,6 +158,7 @@ const GOAL_SETTINGS_KEY = scopedStorageKey("ourstuff.goals.v1");
 const DASHBOARD_IDENTITY_KEY = scopedStorageKey("ourstuff.dashboardIdentity.v1");
 const DASHBOARD_CHART_TABS_KEY = scopedStorageKey("ourstuff.dashboardChartTabs.v1");
 const SIDEBAR_WIDTH_KEY = "ourstuff.sidebarWidth.v1";
+const ENABLED_DATA_SPACES_KEY = "ourstuff.enabledDataSpaces.v1";
 const THEME_KEY = scopedStorageKey("ourstuff.theme.v1");
 const COLOR_MODE_KEY = scopedStorageKey("ourstuff.colorMode.v1");
 const TIMER_STATE_KEY = scopedStorageKey("ourstuff.timerState.v1");
@@ -3655,9 +3656,11 @@ function hasStoredLocalData() {
 
 const initialPyxdiaLocalState = loadPyxdiaLocalState();
 const initialDashboardChartTabs = loadDashboardChartTabs();
+const initialEnabledSpaceIds = loadEnabledSpaceIds();
 
 const state = {
 	activeSpace: activeSpace(),
+	enabledSpaceIds: initialEnabledSpaceIds,
 	spaceLockError: "",
 	active: "Dashboard",
 	flipped: null,
@@ -4467,10 +4470,8 @@ function dashboardTitleHtml(dashboard) {
 		);
 	}
 	const displayLabel = dashboardDisplayLabel(dashboard).toUpperCase();
-	const overflowCount = Math.max(0, displayLabel.length - 10);
-	const fontSize = Math.max(0.62, 1.12 - overflowCount * 0.055);
 	labelParts.push(
-		`<span class="dashboard-card-name" style="--name-size: ${fontSize.toFixed(3)}rem;">${escapeHtml(displayLabel)}</span>`,
+		`<span class="dashboard-card-name">${escapeHtml(displayLabel)}</span>`,
 	);
 	parts.push(
 		`<span class="dashboard-card-label">${labelParts.join("")}</span>`,
@@ -10675,6 +10676,11 @@ function render() {
 		return;
 	}
 
+	if (!isSpaceEnabled(activeSpaceId())) {
+		switchSpace(PERSONAL_SPACE_ID);
+		return;
+	}
+
 	if (!isSpaceUnlocked(activeSpaceId())) {
 		app.innerHTML = spaceLockHtml();
 		bindActions();
@@ -11746,7 +11752,12 @@ function contentHtml(compendium, section) {
 }
 
 function dashboardGridHtml() {
-	return `
+	return panelHtml(`
+    ${headerHtml(
+			"Ourstuff.space",
+			`${activeSpaceLabel()} dashboard for ${dashboardDisplayNameList()}.`,
+		)}
+    ${dashboardSpaceSwitcherHtml()}
     <div class="dashboard-home">
       ${dashboardAnalyticsHtml()}
       <div class="dashboard-divider" aria-hidden="true"></div>
@@ -11767,7 +11778,7 @@ function dashboardGridHtml() {
 				).join("")}
       </div>
     </div>
-  `;
+  `);
 }
 
 function dashboardPeriodSliderHtml(extraClass = "") {
@@ -12444,7 +12455,6 @@ function settingsGettingStartedHtml() {
 	const personalActive = activeSpaceId() === PERSONAL_SPACE_ID;
 	return `
     <div class="settings-tab-panel getting-started-page">
-      ${spaceSwitcherHtml()}
       <section class="getting-started-intro">
         <h3>Build a clear picture of your life</h3>
         <p>This space works best when it becomes a steady record of what you are learning, how you are taking care of yourself, what gives you direction, and what is actually happening day to day. Small entries are enough. The value comes from returning to them and seeing the pattern.</p>
@@ -12564,6 +12574,7 @@ function settingsInterfaceHtml() {
 	const colorMode = normalizeColorMode(state.colorMode);
 	return `
     <div class="settings-tab-panel interface-settings">
+      ${spaceVisibilitySettingsHtml()}
       <section class="interface-settings-section">
         <div class="body-card-heading">
           <div>
@@ -13215,15 +13226,82 @@ function activeSpaceLabel() {
 	return getActiveSpaceLabel();
 }
 
+function normalizeDataSpaceId(value) {
+	const id = String(value || "");
+	return DATA_SPACES[id] ? id : PERSONAL_SPACE_ID;
+}
+
+function normalizeEnabledSpaceIds(value) {
+	const enabled = new Set(
+		(Array.isArray(value) ? value : [])
+			.map(normalizeDataSpaceId)
+			.filter((id) => DATA_SPACES[id]),
+	);
+	enabled.add(PERSONAL_SPACE_ID);
+	return Object.values(DATA_SPACES)
+		.map((space) => space.id)
+		.filter((id) => enabled.has(id));
+}
+
+function loadEnabledSpaceIds() {
+	try {
+		return normalizeEnabledSpaceIds(
+			JSON.parse(window.localStorage.getItem(ENABLED_DATA_SPACES_KEY) || "[]"),
+		);
+	} catch {
+		return normalizeEnabledSpaceIds([]);
+	}
+}
+
+function saveEnabledSpaceIds(spaceIds) {
+	const normalized = normalizeEnabledSpaceIds(spaceIds);
+	try {
+		window.localStorage.setItem(
+			ENABLED_DATA_SPACES_KEY,
+			JSON.stringify(normalized),
+		);
+	} catch {
+		// Visibility preferences are local convenience only.
+	}
+	return normalized;
+}
+
+function enabledSpaceIds() {
+	return normalizeEnabledSpaceIds(state.enabledSpaceIds);
+}
+
+function isSpaceEnabled(spaceId) {
+	return enabledSpaceIds().includes(normalizeDataSpaceId(spaceId));
+}
+
+function visibleDataSpaces() {
+	const enabled = new Set(enabledSpaceIds());
+	return Object.values(DATA_SPACES).filter((space) => enabled.has(space.id));
+}
+
 function activeSpacePillHtml() {
 	const space = activeSpace();
 	return `<span class="cloud-status-pill is-active space-status-pill">${escapeHtml(space.label)} space</span>`;
 }
 
-function spaceSwitcherHtml() {
-	const current = activeSpaceId();
+function spaceToggleButtonsHtml() {
+	const enabled = new Set(enabledSpaceIds());
+	return Object.values(DATA_SPACES)
+		.map((space) => {
+			const checked = enabled.has(space.id);
+			const personal = space.id === PERSONAL_SPACE_ID;
+			return `
+        <button class="dashboard-identity-toggle${checked ? " is-active" : ""}" data-action="toggle-space-enabled" data-space="${escapeHtml(space.id)}" type="button" aria-pressed="${checked ? "true" : "false"}"${personal ? " disabled" : ""}>
+          <span>${escapeHtml(space.label)}</span>
+        </button>
+      `;
+		})
+		.join("");
+}
+
+function spaceVisibilitySettingsHtml() {
 	const defaultActions = Object.values(DATA_SPACES)
-		.filter((space) => space.id !== PERSONAL_SPACE_ID)
+		.filter((space) => space.id !== PERSONAL_SPACE_ID && isSpaceEnabled(space.id))
 		.map((space) => {
 			const config = SPACE_DEFAULTS[space.id] || {};
 			const icon = config.icon || "tabler:database";
@@ -13234,29 +13312,37 @@ function spaceSwitcherHtml() {
 		})
 		.join("");
 	return `
-    <section class="interface-settings-section space-switcher-section">
+    <section class="interface-settings-section space-visibility-section">
       <div class="body-card-heading">
         <div>
-          <h3>Dataset Space</h3>
-          <p>${escapeHtml(DATA_SPACES[current]?.description || "")}</p>
+          <h3>Dataset Spaces</h3>
+          <p>Choose which dataset space switchers appear on the dashboard. Personal stays enabled as the default space.</p>
         </div>
         ${activeSpacePillHtml()}
       </div>
-      <div class="dashboard-identity-toggles" role="group" aria-label="Dataset space">
-        ${Object.values(DATA_SPACES)
+      <div class="dashboard-identity-toggles" role="group" aria-label="Enabled dataset spaces">
+        ${spaceToggleButtonsHtml()}
+      </div>
+      ${defaultActions ? `<div class="action-row body-actions">${defaultActions}</div>` : ""}
+    </section>
+  `;
+}
+
+function dashboardSpaceSwitcherHtml() {
+	const current = activeSpaceId();
+	const spaces = visibleDataSpaces();
+	return `
+    <nav class="dashboard-space-switcher" aria-label="Dataset space">
+      ${spaces
 					.map(
 						(space) => `
-          <button class="dashboard-identity-toggle${current === space.id ? " is-active" : ""}" data-action="switch-space" data-space="${escapeHtml(space.id)}" type="button" aria-pressed="${current === space.id ? "true" : "false"}">
+          <button class="dashboard-space-button${current === space.id ? " is-active" : ""}" data-action="switch-space" data-space="${escapeHtml(space.id)}" type="button" aria-pressed="${current === space.id ? "true" : "false"}">
             <span>${escapeHtml(space.label)}</span>
           </button>
         `,
 					)
 					.join("")}
-      </div>
-      <div class="action-row body-actions">
-        ${defaultActions}
-      </div>
-    </section>
+    </nav>
   `;
 }
 
@@ -13431,7 +13517,7 @@ function spaceLockHtml() {
         ${state.spaceLockError ? `<p class="cloud-status-message cloud-status-message--error">${escapeHtml(state.spaceLockError)}</p>` : ""}
         <div class="action-row body-actions">
           <button class="primary-button" data-action="space-unlock" type="button">${buttonContent("tabler:lock-open", "Unlock")}</button>
-          ${Object.values(DATA_SPACES)
+          ${visibleDataSpaces()
 						.filter((space) => space.id !== activeSpaceId())
 						.map((space) => `<button class="secondary-button" data-action="switch-space" data-space="${escapeHtml(space.id)}" type="button">${buttonContent("tabler:switch-horizontal", `Switch to ${space.label}`)}</button>`)
 						.join("")}
@@ -17976,6 +18062,26 @@ function markLocalAssetReady(element) {
 	delete element.dataset.mediaError;
 }
 
+function toggleSpaceEnabled(spaceId) {
+	const normalized = normalizeDataSpaceId(spaceId);
+	if (normalized === PERSONAL_SPACE_ID) {
+		return;
+	}
+	const enabled = new Set(enabledSpaceIds());
+	if (enabled.has(normalized)) {
+		enabled.delete(normalized);
+	} else {
+		enabled.add(normalized);
+	}
+	const nextEnabled = saveEnabledSpaceIds([...enabled]);
+	state.enabledSpaceIds = nextEnabled;
+	if (!nextEnabled.includes(activeSpaceId())) {
+		switchSpace(PERSONAL_SPACE_ID);
+		return;
+	}
+	render();
+}
+
 function bindLocalAssetImages() {
 	app.querySelectorAll("img[data-local-asset]").forEach(async (image) => {
 		try {
@@ -18032,9 +18138,13 @@ function bindLocalAssetImages() {
 
 function handleAction(element) {
 	const action = element.dataset.action;
+	if (action === "toggle-space-enabled") {
+		toggleSpaceEnabled(element.dataset.space || PERSONAL_SPACE_ID);
+		return;
+	}
 	if (action === "switch-space") {
 		const target = element.dataset.space || PERSONAL_SPACE_ID;
-		if (target !== activeSpaceId()) {
+		if (target !== activeSpaceId() && isSpaceEnabled(target)) {
 			switchSpace(target);
 		}
 		return;
