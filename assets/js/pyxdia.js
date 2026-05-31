@@ -1,4 +1,5 @@
 import { PYXIDA_API_URL } from "./config.js?v=pyxdia-20260525a";
+import { getActiveCloudAppId } from "./space.js";
 
 export const PYXIDA_LETTER_MAX_WORDS = 650;
 export const PYXIDA_LETTER_MAX_CHARS = 3500;
@@ -319,6 +320,7 @@ async function pyxdiaRequest(path, options = {}) {
 			: "";
 	const headers = {
 		accept: "application/json",
+		"x-ourstuff-app-id": getActiveCloudAppId(),
 		...(options.body === undefined
 			? {}
 			: { "content-type": "application/json" }),
@@ -329,7 +331,10 @@ async function pyxdiaRequest(path, options = {}) {
 	const response = await fetch(`${PYXIDA_API_URL}${path}`, {
 		method: options.method || "GET",
 		headers,
-		body: options.body === undefined ? undefined : JSON.stringify(options.body),
+		body:
+			options.body === undefined
+				? undefined
+				: JSON.stringify({ ...options.body, appId: getActiveCloudAppId() }),
 	});
 	const result = await response.json().catch(() => ({}));
 	if (!response.ok) {

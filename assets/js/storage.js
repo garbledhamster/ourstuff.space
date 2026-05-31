@@ -1,4 +1,6 @@
-export const STORAGE_KEY = "ourstuff.artifactStore.v1";
+import { getActiveSpaceId, scopedStorageKey, WORK_SPACE_ID } from "./space.js";
+
+export const STORAGE_KEY = scopedStorageKey("ourstuff.artifactStore.v1");
 export const SCHEMA_VERSION = 1;
 export const SEED_DATA_URL = "/assets/data/artifacts.json";
 
@@ -35,6 +37,9 @@ export async function loadArtifactStore() {
 	try {
 		const raw = window.localStorage.getItem(STORAGE_KEY);
 		if (!raw) {
+			if (getActiveSpaceId() === WORK_SPACE_ID) {
+				return createEmptyStore();
+			}
 			return await loadSeedStore();
 		}
 
@@ -43,11 +48,17 @@ export async function loadArtifactStore() {
 			parsed?.schemaVersion !== SCHEMA_VERSION ||
 			!Array.isArray(parsed.artifacts)
 		) {
+			if (getActiveSpaceId() === WORK_SPACE_ID) {
+				return createEmptyStore();
+			}
 			return await loadSeedStore();
 		}
 
 		return parsed;
 	} catch {
+		if (getActiveSpaceId() === WORK_SPACE_ID) {
+			return createEmptyStore();
+		}
 		return await loadSeedStore();
 	}
 }

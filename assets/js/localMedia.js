@@ -1,13 +1,18 @@
-import { APP_ID, FIREBASE_CONFIG, FIREBASE_SDK_VERSION } from "./config.js";
+import { FIREBASE_CONFIG, FIREBASE_SDK_VERSION } from "./config.js";
+import {
+	getActiveCloudAppId,
+	scopedIndexedDbName,
+	scopedStorageKey,
+} from "./space.js";
 
-const DB_NAME = "ourstuff.localMedia.v1";
+const DB_NAME = scopedIndexedDbName("ourstuff.localMedia.v1");
 const DB_VERSION = 1;
 const STORE_NAME = "files";
 const ASSET_PREFIX = "ourstuff-asset:";
 const MAX_IMAGE_EDGE = 1080;
 const JPEG_QUALITY = 0.84;
 const REMOTE_STORAGE_NAME = "firebase-storage-encrypted";
-const MEDIA_KEY_PREFIX = "ourstuff.mediaCryptoKey.v1.";
+const MEDIA_KEY_PREFIX = scopedStorageKey("ourstuff.mediaCryptoKey.v1");
 
 let dbPromise = null;
 const objectUrlCache = new Map();
@@ -157,7 +162,7 @@ async function sha256Hex(bytes) {
 }
 
 function mediaKeyStorageKey(uid) {
-	return `${MEDIA_KEY_PREFIX}${uid}`;
+	return `${MEDIA_KEY_PREFIX}.${uid}`;
 }
 
 async function mediaCryptoKey(uid, options = {}) {
@@ -428,14 +433,14 @@ function encryptedStoragePath(uid, record) {
 		record.type,
 		record.id || "file",
 	);
-	return `users/${uid}/apps/${APP_ID}/media/${record.id}/${cleanName}.enc`;
+	return `users/${uid}/apps/${getActiveCloudAppId()}/media/${record.id}/${cleanName}.enc`;
 }
 
 function cloudMetadata(record, encryption) {
 	return {
 		contentType: "application/octet-stream",
 		customMetadata: {
-			appId: APP_ID,
+			appId: getActiveCloudAppId(),
 			encrypted: "true",
 			algorithm: encryption.algorithm,
 			keyId: encryption.keyId,

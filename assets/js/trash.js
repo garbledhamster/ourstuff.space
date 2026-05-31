@@ -1,4 +1,5 @@
 import { TRASH_API_URL } from "./config.js?v=trash-20260525a";
+import { getActiveCloudAppId } from "./space.js";
 
 export const DEFAULT_TRASH_SETTINGS = {
 	trashRetentionDays: 30,
@@ -74,6 +75,7 @@ async function trashRequest(path, options = {}) {
 			: "";
 	const headers = {
 		accept: "application/json",
+		"x-ourstuff-app-id": getActiveCloudAppId(),
 		...(options.body === undefined
 			? {}
 			: { "content-type": "application/json" }),
@@ -84,7 +86,10 @@ async function trashRequest(path, options = {}) {
 	const response = await fetch(`${TRASH_API_URL}${path}`, {
 		method: options.method || "GET",
 		headers,
-		body: options.body === undefined ? undefined : JSON.stringify(options.body),
+		body:
+			options.body === undefined
+				? undefined
+				: JSON.stringify({ ...options.body, appId: getActiveCloudAppId() }),
 	});
 	const result = await response.json().catch(() => ({}));
 	if (!response.ok) {

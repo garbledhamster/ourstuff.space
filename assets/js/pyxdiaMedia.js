@@ -2,6 +2,7 @@ import {
 	FIREBASE_CONFIG,
 	FIREBASE_SDK_VERSION,
 } from "./config.js?v=storage-quota-20260523a";
+import { getActiveCloudAppId } from "./space.js";
 
 const PYXIDA_IMAGE_URL_PREFIX = "pyxida-image:";
 
@@ -45,13 +46,14 @@ export async function uploadPyxdiaLetterImage(file, options = {}) {
 		file.name || `${imageId}.${extension}`,
 		file.type,
 	);
-	const storagePath = `users/${uid}/pyxdia/letters/${letterId}/images/${imageId}.${extension}`;
+	const storagePath = `users/${uid}/apps/${getActiveCloudAppId()}/pyxdia/letters/${letterId}/images/${imageId}.${extension}`;
 	const modules = await ensureFirebaseStorage();
 	const ref = modules.ref(firebaseStorage, storagePath);
 	await modules.uploadBytes(ref, file, {
 		contentType: file.type || "application/octet-stream",
 		customMetadata: {
 			owner: uid,
+			appId: getActiveCloudAppId(),
 			letterId,
 			imageId,
 			visibility: "private",

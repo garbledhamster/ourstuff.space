@@ -27,7 +27,7 @@ import {
 	signInWithGoogle,
 	signOutCloud,
 	startCloudSubscription,
-} from "./cloud.js?v=auth-sync-20260525a";
+} from "./cloud.js?v=space-20260531a";
 import { CLOUD_STORAGE_LIMIT_BYTES } from "./config.js?v=storage-quota-20260523a";
 import { today } from "./data.js";
 import { bindDonationFlow, donationModalHtml } from "./donations.js";
@@ -47,7 +47,7 @@ import {
 	storeLocalFile,
 	storeLocalImage,
 	storeLocalImageFromDataUrl,
-} from "./localMedia.js?v=media-key-repair-20260525a";
+} from "./localMedia.js?v=space-20260531a";
 import { escapeHtml, renderMarkdown } from "./markdown.js";
 import {
 	DEFAULT_PYXIDA_SETTINGS,
@@ -66,12 +66,12 @@ import {
 	savePyxdiaDraft,
 	savePyxdiaSettings,
 	sendPyxdiaLetter,
-} from "./pyxdia.js?v=pyxdia-fix-20260526a";
+} from "./pyxdia.js?v=space-20260531a";
 import {
 	pyxdiaImageMarkdown,
 	resolvePyxdiaImageUrl,
 	uploadPyxdiaLetterImage,
-} from "./pyxdiaMedia.js?v=pyxdia-20260525a";
+} from "./pyxdiaMedia.js?v=space-20260531a";
 import {
 	artifactStoreToCompendiums,
 	compendiumsToArtifactStore,
@@ -87,7 +87,24 @@ import {
 	STORAGE_KEY,
 	upsertArtifact,
 	saveArtifactStore as writeArtifactStore,
-} from "./storage.js?v=trash-r3-20260525a";
+} from "./storage.js?v=space-20260531a";
+import {
+	activeSpace,
+	DATA_SPACES,
+	getActiveSpaceId,
+	getActiveSpaceLabel,
+	hasSpacePin,
+	isSpaceUnlocked,
+	lockSpace,
+	migrateLegacyLocalStorageToPersonal,
+	PERSONAL_SPACE_ID,
+	removeSpacePin,
+	scopedStorageKey,
+	setSpacePin,
+	switchSpace,
+	unlockSpace,
+	WORK_SPACE_ID,
+} from "./space.js";
 import {
 	applyThemeVariables as applyThemeSystemVariables,
 	loadTheme as loadThemeSelection,
@@ -106,28 +123,48 @@ import {
 	normalizeTrashSettings,
 	restoreTrashItem,
 	saveTrashSettings,
-} from "./trash.js?v=trash-20260525a";
+} from "./trash.js?v=space-20260531a";
 
 const app = document.getElementById("app");
-const BODY_TRACKER_KEY = "ourstuff.bodyTracker.v1";
-const SPIRIT_PROGRESS_KEY = "ourstuff.spiritPlanProgress.v1";
-const LIFE_PLANNER_KEY = "ourstuff.lifePlanner.v1";
-const TRACKER_SETTINGS_KEY = "ourstuff.thoughts.v1";
-const GOAL_SETTINGS_KEY = "ourstuff.goals.v1";
-const DASHBOARD_IDENTITY_KEY = "ourstuff.dashboardIdentity.v1";
-const DASHBOARD_CHART_TABS_KEY = "ourstuff.dashboardChartTabs.v1";
+const DATASET_STORAGE_BASE_KEYS = [
+	"ourstuff.artifactStore.v1",
+	"ourstuff.bodyTracker.v1",
+	"ourstuff.spiritPlanProgress.v1",
+	"ourstuff.lifePlanner.v1",
+	"ourstuff.thoughts.v1",
+	"ourstuff.goals.v1",
+	"ourstuff.dashboardIdentity.v1",
+	"ourstuff.dashboardChartTabs.v1",
+	"ourstuff.theme.v1",
+	"ourstuff.colorMode.v1",
+	"ourstuff.timerState.v1",
+	"ourstuff.timerSettings.v1",
+	"ourstuff.pyxdiaSettings.v1",
+	"ourstuff.pyxdiaPenpal.v1",
+	"ourstuff.dismissedTips.v1",
+	"ourstuff.localAppUpdatedAt.v1",
+	"ourstuff.localAppOwner.v1",
+];
+migrateLegacyLocalStorageToPersonal(DATASET_STORAGE_BASE_KEYS);
+const BODY_TRACKER_KEY = scopedStorageKey("ourstuff.bodyTracker.v1");
+const SPIRIT_PROGRESS_KEY = scopedStorageKey("ourstuff.spiritPlanProgress.v1");
+const LIFE_PLANNER_KEY = scopedStorageKey("ourstuff.lifePlanner.v1");
+const TRACKER_SETTINGS_KEY = scopedStorageKey("ourstuff.thoughts.v1");
+const GOAL_SETTINGS_KEY = scopedStorageKey("ourstuff.goals.v1");
+const DASHBOARD_IDENTITY_KEY = scopedStorageKey("ourstuff.dashboardIdentity.v1");
+const DASHBOARD_CHART_TABS_KEY = scopedStorageKey("ourstuff.dashboardChartTabs.v1");
 const SIDEBAR_WIDTH_KEY = "ourstuff.sidebarWidth.v1";
-const THEME_KEY = "ourstuff.theme.v1";
-const COLOR_MODE_KEY = "ourstuff.colorMode.v1";
-const TIMER_STATE_KEY = "ourstuff.timerState.v1";
-const TIMER_SETTINGS_KEY = "ourstuff.timerSettings.v1";
-const PYXIDA_SETTINGS_KEY = "ourstuff.pyxdiaSettings.v1";
-const PYXIDA_LOCAL_STATE_KEY = "ourstuff.pyxdiaPenpal.v1";
+const THEME_KEY = scopedStorageKey("ourstuff.theme.v1");
+const COLOR_MODE_KEY = scopedStorageKey("ourstuff.colorMode.v1");
+const TIMER_STATE_KEY = scopedStorageKey("ourstuff.timerState.v1");
+const TIMER_SETTINGS_KEY = scopedStorageKey("ourstuff.timerSettings.v1");
+const PYXIDA_SETTINGS_KEY = scopedStorageKey("ourstuff.pyxdiaSettings.v1");
+const PYXIDA_LOCAL_STATE_KEY = scopedStorageKey("ourstuff.pyxdiaPenpal.v1");
 const PYXIDA_RECENT_NOTE_DAYS = 30;
-const DISMISSED_TIPS_KEY = "ourstuff.dismissedTips.v1";
+const DISMISSED_TIPS_KEY = scopedStorageKey("ourstuff.dismissedTips.v1");
 const ICONIFY_SEARCH_CACHE_KEY = "ourstuff.iconifySearchCache.v1";
-const LOCAL_APP_UPDATED_AT_KEY = "ourstuff.localAppUpdatedAt.v1";
-const LOCAL_APP_OWNER_KEY = "ourstuff.localAppOwner.v1";
+const LOCAL_APP_UPDATED_AT_KEY = scopedStorageKey("ourstuff.localAppUpdatedAt.v1");
+const LOCAL_APP_OWNER_KEY = scopedStorageKey("ourstuff.localAppOwner.v1");
 const CLOUD_SYNC_INTERVAL_MS = 2 * 60 * 1000;
 const CLOUD_SYNC_MIN_INTERVAL_MS = 20 * 1000;
 const CLOUD_SYNC_CLOCK_SKEW_MS = 1000;
@@ -945,6 +982,66 @@ function cloneDefaultGoals() {
 	);
 }
 
+function workTrackerItems(area) {
+	const prefix = area.toLowerCase();
+	return [
+		{ id: `${prefix}-work-notes`, label: "Notes", icon: "tabler:notes" },
+		{ id: `${prefix}-work-tasks`, label: "Tasks", icon: "tabler:checklist" },
+		{
+			id: `${prefix}-work-meetings`,
+			label: "Meetings",
+			icon: "tabler:users-group",
+		},
+		{ id: `${prefix}-work-focus`, label: "Focus", icon: "tabler:focus" },
+	];
+}
+
+function workGoalItems(area) {
+	const prefix = area.toLowerCase();
+	return [
+		{
+			id: `${prefix}-work-deep-work`,
+			label: "Deep Work",
+			icon: "tabler:target-arrow",
+		},
+		{ id: `${prefix}-work-admin`, label: "Admin", icon: "tabler:briefcase" },
+		{
+			id: `${prefix}-work-learning`,
+			label: "Learning",
+			icon: "tabler:school",
+		},
+		{
+			id: `${prefix}-work-follow-up`,
+			label: "Follow Up",
+			icon: "tabler:message-forward",
+		},
+	].map((goal) => ({ ...goal, enabled: true, frequency: "daily", customDays: 10 }));
+}
+
+function cloneWorkDefaultTrackers() {
+	return Object.fromEntries(
+		DASHBOARD_LABELS.map((dashboard) => [dashboard, workTrackerItems(dashboard)]),
+	);
+}
+
+function cloneWorkDefaultGoals() {
+	return Object.fromEntries(
+		DASHBOARD_LABELS.map((dashboard) => [dashboard, workGoalItems(dashboard)]),
+	);
+}
+
+function cloneDefaultTrackersForSpace() {
+	return getActiveSpaceId() === WORK_SPACE_ID
+		? cloneWorkDefaultTrackers()
+		: cloneDefaultTrackers();
+}
+
+function cloneDefaultGoalsForSpace() {
+	return getActiveSpaceId() === WORK_SPACE_ID
+		? cloneWorkDefaultGoals()
+		: cloneDefaultGoals();
+}
+
 function createEmptyTrackerSettings() {
 	return Object.fromEntries(
 		DASHBOARD_LABELS.map((dashboard) => [dashboard, []]),
@@ -1262,8 +1359,7 @@ function normalizeGoalTracker(goal, dashboard, index) {
 	};
 }
 
-function normalizeTrackerSettings(value) {
-	const defaults = cloneDefaultTrackers();
+function normalizeTrackerSettings(value, defaults = cloneDefaultTrackersForSpace()) {
 	return Object.fromEntries(
 		DASHBOARD_LABELS.map((dashboard) => {
 			const trackers = Array.isArray(value?.[dashboard])
@@ -1276,8 +1372,7 @@ function normalizeTrackerSettings(value) {
 	);
 }
 
-function normalizeGoalSettings(value) {
-	const defaults = cloneDefaultGoals();
+function normalizeGoalSettings(value, defaults = cloneDefaultGoalsForSpace()) {
 	return Object.fromEntries(
 		DASHBOARD_LABELS.map((dashboard) => {
 			const normalizedGoals = Array.isArray(value?.[dashboard])
@@ -1306,7 +1401,7 @@ function loadTrackerSettings() {
 		const parsed = raw ? JSON.parse(raw) : null;
 		const normalized = parsed
 			? normalizeTrackerSettings(parsed)
-			: cloneDefaultTrackers();
+			: cloneDefaultTrackersForSpace();
 		if (raw && JSON.stringify(parsed) !== JSON.stringify(normalized)) {
 			window.localStorage.setItem(
 				TRACKER_SETTINGS_KEY,
@@ -1315,7 +1410,7 @@ function loadTrackerSettings() {
 		}
 		return normalized;
 	} catch {
-		return cloneDefaultTrackers();
+		return cloneDefaultTrackersForSpace();
 	}
 }
 
@@ -1333,7 +1428,7 @@ function loadGoalSettings() {
 		const parsed = raw ? JSON.parse(raw) : null;
 		const normalized = parsed
 			? normalizeGoalSettings(parsed)
-			: cloneDefaultGoals();
+			: cloneDefaultGoalsForSpace();
 		if (raw && JSON.stringify(parsed) !== JSON.stringify(normalized)) {
 			window.localStorage.setItem(
 				GOAL_SETTINGS_KEY,
@@ -1342,7 +1437,7 @@ function loadGoalSettings() {
 		}
 		return normalized;
 	} catch {
-		return cloneDefaultGoals();
+		return cloneDefaultGoalsForSpace();
 	}
 }
 
@@ -2577,10 +2672,10 @@ async function restoreImportedAppState(appState) {
 	const trackerSettings = normalizeTrackerSettings(
 		appState?.thoughtSettings ||
 			appState?.trackerSettings ||
-			cloneDefaultTrackers(),
+			cloneDefaultTrackersForSpace(),
 	);
 	const goalSettings = normalizeGoalSettings(
-		appState?.goalSettings || appState?.goals || cloneDefaultGoals(),
+		appState?.goalSettings || appState?.goals || cloneDefaultGoalsForSpace(),
 	);
 	const dashboardIdentity = normalizeDashboardIdentity(
 		appState?.dashboardIdentity || cloneDefaultDashboardIdentity(),
@@ -3295,7 +3390,7 @@ async function syncCloudNow() {
 
 async function loadCloudIntoLocalApp() {
 	const confirmed = window.confirm(
-		"Load the saved Firebase artifacts into this browser? This replaces the current local app state. Export first if you need a backup.",
+		`Load the saved ${activeSpaceLabel()} Firebase artifacts into this browser? This replaces the current local ${activeSpaceLabel()} app state. Export first if you need a backup.`,
 	);
 	if (!confirmed) {
 		return;
@@ -3313,12 +3408,12 @@ async function loadCloudIntoLocalApp() {
 		});
 	}
 	recordCloudSyncAt(nowIso(), "Firebase artifacts loaded.");
-	return { message: "Firebase artifacts loaded." };
+	return { message: `${activeSpaceLabel()} Firebase artifacts loaded.` };
 }
 
 async function deleteCloudData() {
 	const confirmed = window.confirm(
-		"Delete the Firebase artifact collection for this app and reset this browser too? Export first if you need a backup.",
+		`Delete the ${activeSpaceLabel()} Firebase artifact collection and reset this browser's ${activeSpaceLabel()} data too? Export first if you need a backup.`,
 	);
 	if (!confirmed) {
 		return;
@@ -3326,7 +3421,7 @@ async function deleteCloudData() {
 	const result = await deleteCloudStateJson();
 	await withLocalChangeTrackingSuppressed(() => clearAppData({ silent: true }));
 	saveLocalAppUpdatedAt(cloudInfoUpdatedAt(result) || nowIso());
-	return { message: "Firebase artifacts deleted." };
+	return { message: `${activeSpaceLabel()} Firebase artifacts deleted.` };
 }
 
 async function deleteCloudAccountData() {
@@ -3402,6 +3497,8 @@ const initialPyxdiaLocalState = loadPyxdiaLocalState();
 const initialDashboardChartTabs = loadDashboardChartTabs();
 
 const state = {
+	activeSpace: activeSpace(),
+	spaceLockError: "",
 	active: "Dashboard",
 	flipped: null,
 	artifactStore: null,
@@ -8514,7 +8611,7 @@ async function exportArtifacts() {
 	const url = URL.createObjectURL(blob);
 	const link = document.createElement("a");
 	link.href = url;
-	link.download = `ourstuff-artifacts-${dateKey}.json`;
+	link.download = `ourstuff-${activeSpaceId()}-artifacts-${dateKey}.json`;
 	document.body.appendChild(link);
 	link.click();
 	link.remove();
@@ -8541,8 +8638,8 @@ function importArtifacts() {
 			const replaceCloud = cloudHasSyncAccess();
 			const confirmed = window.confirm(
 				replaceCloud
-					? "Import this JSON and rebuild your Firebase artifact collection from it? This wipes the current cloud artifacts for this app first."
-					: "Import this JSON and replace the current local app data?",
+					? `Import this JSON into ${activeSpaceLabel()} and rebuild that Firebase artifact collection from it? This wipes the current ${activeSpaceLabel()} cloud artifacts first.`
+					: `Import this JSON and replace the current local ${activeSpaceLabel()} app data?`,
 			);
 			if (!confirmed) {
 				return;
@@ -8561,7 +8658,7 @@ async function clearAppData(options = {}) {
 	const silent = options?.silent === true;
 	if (!silent) {
 		const confirmed = window.confirm(
-			"Clear everything from this browser, including the mock app data and dismissed tips? This cannot be undone unless you have an export.",
+			`Clear the local ${activeSpaceLabel()} data from this browser, including app data and dismissed tips? This cannot be undone unless you have an export.`,
 		);
 		if (!confirmed) {
 			return;
@@ -8650,6 +8747,10 @@ async function clearAppData(options = {}) {
 }
 
 async function restoreFactoryDefaults() {
+	if (activeSpaceId() !== PERSONAL_SPACE_ID) {
+		window.alert("Self Help Defaults are for the Personal space. Switch to Personal to restore them.");
+		return;
+	}
 	const confirmed = window.confirm(
 		"Restore the Self Help Defaults with the original starter data, tips, orbs, goals, and app structure? This replaces local app data unless you have an export.",
 	);
@@ -10397,6 +10498,20 @@ function render() {
         </section>
       </div>
     `;
+		return;
+	}
+
+	if (!isSpaceUnlocked(activeSpaceId())) {
+		app.innerHTML = spaceLockHtml();
+		bindActions();
+		const pinInput = app.querySelector("#space-unlock-pin");
+		pinInput?.addEventListener("keydown", (event) => {
+			if (event.key === "Enter") {
+				event.preventDefault();
+				void unlockActiveSpaceFromDom();
+			}
+		});
+		pinInput?.focus();
 		return;
 	}
 
@@ -12149,8 +12264,10 @@ function settingsTabsHtml(activeTab) {
 }
 
 function settingsGettingStartedHtml() {
+	const personalActive = activeSpaceId() === PERSONAL_SPACE_ID;
 	return `
     <div class="settings-tab-panel getting-started-page">
+      ${spaceSwitcherHtml()}
       <section class="getting-started-intro">
         <h3>Build a clear picture of your life</h3>
         <p>This space works best when it becomes a steady record of what you are learning, how you are taking care of yourself, what gives you direction, and what is actually happening day to day. Small entries are enough. The value comes from returning to them and seeing the pattern.</p>
@@ -12163,7 +12280,8 @@ function settingsGettingStartedHtml() {
             <p>Start from the supportive default setup with the original sample notes, orbs, goals, tips, and app structure restored. This is the guided starter state for someone using the app to get steady when life feels scattered.</p>
           </div>
         </div>
-        <button class="primary-button" data-action="factory-defaults" type="button">${buttonContent("fluent:person-heart-24-regular", "Use Self Help Defaults")}</button>
+        <button class="primary-button" data-action="factory-defaults" type="button"${personalActive ? "" : " disabled"}>${buttonContent("fluent:person-heart-24-regular", "Use Self Help Defaults")}</button>
+        ${personalActive ? "" : `<p class="cloud-status-message">Self Help Defaults restore the Personal starter dataset. Switch to Personal to use them.</p>`}
       </section>
       <div class="getting-started-grid">
         <article>
@@ -12535,11 +12653,12 @@ function settingsCloudHtml() {
 	const busyAttr = account.busy ? " disabled" : "";
 	return `
     <div class="settings-tab-panel cloud-settings">
+      ${spacePinControlsHtml()}
       <section class="interface-settings-section cloud-account-section">
         <div class="body-card-heading">
           <div>
             <h3>Cloud</h3>
-            <p>Local use is free. Sign in to sync this app across your devices.</p>
+            <p>Local use is free. Sign in to sync the ${escapeHtml(activeSpaceLabel())} space across your devices.</p>
           </div>
           <div class="cloud-heading-controls">
             <span class="cloud-status-pill${isCloud ? " is-active" : ""}" data-cloud-status-pill>${escapeHtml(statusLabel)}</span>
@@ -12576,8 +12695,8 @@ function settingsCloudHtml() {
           ${cloudStorageUsageHtml(state.cloudStorageUsage)}
           <div class="cloud-sync-grid">
             <span><strong>${escapeHtml(formatStorageGb(localBytes))}</strong><small>Current app JSON estimate</small></span>
-            <span data-cloud-local-updated><strong>${escapeHtml(localUpdatedAt ? new Date(localUpdatedAt).toLocaleString() : "No local changes")}</strong><small>Last local change</small></span>
-            <span data-cloud-last-sync><strong>${escapeHtml(account.lastCloudSyncAt ? new Date(account.lastCloudSyncAt).toLocaleString() : "Not synced")}</strong><small>Last sync from this device</small></span>
+            <span data-cloud-local-updated><strong>${escapeHtml(localUpdatedAt ? new Date(localUpdatedAt).toLocaleString() : "No local changes")}</strong><small>${escapeHtml(activeSpaceLabel())} local change</small></span>
+            <span data-cloud-last-sync><strong>${escapeHtml(account.lastCloudSyncAt ? new Date(account.lastCloudSyncAt).toLocaleString() : "Not synced")}</strong><small>${escapeHtml(activeSpaceLabel())} sync from this device</small></span>
             <span data-cloud-auto-sync><strong>${escapeHtml(isCloud ? `Every ${cloudSyncIntervalLabel()}` : "Off")}</strong><small>Artifacts + encrypted media</small></span>
           </div>
           ${
@@ -12609,7 +12728,7 @@ function settingsCloudHtml() {
 					signedIn && isCloud
 						? `
           <div class="cloud-danger-links" aria-label="Destructive cloud actions">
-            <button class="cloud-danger-link" data-action="cloud-delete-data" type="button"${busyAttr}>Delete cloud data</button>
+            <button class="cloud-danger-link" data-action="cloud-delete-data" type="button"${busyAttr}>Delete ${escapeHtml(activeSpaceLabel())} cloud data</button>
             <span class="cloud-danger-separator" aria-hidden="true">|</span>
             <button class="cloud-danger-link" data-action="cloud-delete-account" type="button"${busyAttr}>Delete cloud account</button>
           </div>
@@ -12623,7 +12742,7 @@ function settingsCloudHtml() {
         <div class="body-card-heading">
           <div>
             <h3>Local Data</h3>
-            <p>Clear this browser's saved Ourstuff data from this device.</p>
+            <p>Clear this browser's saved ${escapeHtml(activeSpaceLabel())} data from this device.</p>
           </div>
           <div class="action-row data-controls-actions">
             <button class="secondary-button danger-button" data-action="clear-app-data" type="button">${buttonContent("tabler:database-x", "Clear Data")}</button>
@@ -12635,6 +12754,18 @@ function settingsCloudHtml() {
 }
 
 function obsidianSyncSettingsHtml(account, cloudActive, busyAttr) {
+	if (activeSpaceId() === WORK_SPACE_ID) {
+		return `
+      <section class="interface-settings-section cloud-account-section obsidian-sync-section">
+        <div class="body-card-heading">
+          <div>
+            <h3>Obsidian Sync</h3>
+            <p>Obsidian Sync is Personal-only until the Worker supports the Work app id.</p>
+          </div>
+        </div>
+      </section>
+  `;
+	}
 	if (account.mode !== "signed-in" || !account.user) {
 		return "";
 	}
@@ -12809,6 +12940,231 @@ function _settingsComingSoonHtml(label) {
       ${emptyStateHtml("Coming Soon", `${label} settings will live here.`)}
     </div>
   `;
+}
+
+function activeSpaceId() {
+	return getActiveSpaceId();
+}
+
+function activeSpaceLabel() {
+	return getActiveSpaceLabel();
+}
+
+function activeSpacePillHtml() {
+	const space = activeSpace();
+	return `<span class="cloud-status-pill is-active space-status-pill">${escapeHtml(space.label)} space</span>`;
+}
+
+function spaceSwitcherHtml() {
+	const current = activeSpaceId();
+	return `
+    <section class="interface-settings-section space-switcher-section">
+      <div class="body-card-heading">
+        <div>
+          <h3>Dataset Space</h3>
+          <p>${escapeHtml(DATA_SPACES[current]?.description || "")}</p>
+        </div>
+        ${activeSpacePillHtml()}
+      </div>
+      <div class="dashboard-identity-toggles" role="group" aria-label="Dataset space">
+        ${Object.values(DATA_SPACES)
+					.map(
+						(space) => `
+          <button class="dashboard-identity-toggle${current === space.id ? " is-active" : ""}" data-action="switch-space" data-space="${escapeHtml(space.id)}" type="button" aria-pressed="${current === space.id ? "true" : "false"}">
+            <span>${escapeHtml(space.label)}</span>
+          </button>
+        `,
+					)
+					.join("")}
+      </div>
+      <div class="action-row body-actions">
+        <button class="secondary-button" data-action="create-empty-work-space" type="button">${buttonContent("tabler:briefcase", "Create empty Work space")}</button>
+        <button class="secondary-button" data-action="restore-work-defaults" type="button">${buttonContent("tabler:restore", "Restore Work Defaults")}</button>
+      </div>
+    </section>
+  `;
+}
+
+function spacePinControlsHtml() {
+	const current = activeSpaceId();
+	const locked = hasSpacePin(current);
+	return `
+    <section class="interface-settings-section data-controls-section">
+      <div class="body-card-heading">
+        <div>
+          <h3>Space PIN</h3>
+          <p>Local-only convenience lock for the ${escapeHtml(activeSpaceLabel())} space on this browser. It is not account auth or encrypted-at-rest protection.</p>
+        </div>
+        ${activeSpacePillHtml()}
+      </div>
+      <div class="action-row data-controls-actions">
+        <button class="secondary-button" data-action="space-pin-set" type="button">${buttonContent("tabler:key", locked ? "Change PIN" : "Set PIN")}</button>
+        ${
+					locked
+						? `<button class="secondary-button" data-action="space-lock-now" type="button">${buttonContent("tabler:lock", "Lock now")}</button>
+            <button class="secondary-button danger-button" data-action="space-pin-remove" type="button">${buttonContent("tabler:lock-open", "Remove PIN")}</button>`
+						: ""
+				}
+      </div>
+      <p class="cloud-status-message">The PIN hash stays on this device. Clearing browser data removes the lock for this browser.</p>
+    </section>
+  `;
+}
+
+function resetSpaceDatasetStorage(spaceId, { workDefaults = false } = {}) {
+	DATASET_STORAGE_BASE_KEYS.forEach((key) => {
+		try {
+			window.localStorage.removeItem(scopedStorageKey(key, spaceId));
+		} catch {
+			// Continue clearing the rest of the dataset keys.
+		}
+	});
+	try {
+		window.indexedDB?.deleteDatabase?.(scopedStorageKey("ourstuff.localMedia.v1", spaceId));
+	} catch {
+		// IndexedDB cleanup is best effort.
+	}
+	if (spaceId !== WORK_SPACE_ID) {
+		return;
+	}
+	const store = createEmptyStore();
+	window.localStorage.setItem(
+		scopedStorageKey("ourstuff.artifactStore.v1", spaceId),
+		JSON.stringify(store),
+	);
+	window.localStorage.setItem(
+		scopedStorageKey("ourstuff.bodyTracker.v1", spaceId),
+		JSON.stringify(createDefaultBodyTracker()),
+	);
+	window.localStorage.setItem(
+		scopedStorageKey("ourstuff.spiritPlanProgress.v1", spaceId),
+		JSON.stringify({}),
+	);
+	window.localStorage.setItem(
+		scopedStorageKey("ourstuff.lifePlanner.v1", spaceId),
+		JSON.stringify(createDefaultLifePlanner()),
+	);
+	window.localStorage.setItem(
+		scopedStorageKey("ourstuff.thoughts.v1", spaceId),
+		JSON.stringify(workDefaults ? cloneWorkDefaultTrackers() : createEmptyTrackerSettings()),
+	);
+	window.localStorage.setItem(
+		scopedStorageKey("ourstuff.goals.v1", spaceId),
+		JSON.stringify(workDefaults ? cloneWorkDefaultGoals() : createEmptyTrackerSettings()),
+	);
+	window.localStorage.setItem(
+		scopedStorageKey("ourstuff.dashboardIdentity.v1", spaceId),
+		JSON.stringify(cloneDefaultDashboardIdentity()),
+	);
+	window.localStorage.setItem(
+		scopedStorageKey("ourstuff.dashboardChartTabs.v1", spaceId),
+		JSON.stringify([...DEFAULT_DASHBOARD_CHART_TABS]),
+	);
+	window.localStorage.setItem(scopedStorageKey("ourstuff.theme.v1", spaceId), "default");
+	window.localStorage.setItem(scopedStorageKey("ourstuff.colorMode.v1", spaceId), "standard");
+	window.localStorage.setItem(
+		scopedStorageKey("ourstuff.pyxdiaSettings.v1", spaceId),
+		JSON.stringify(normalizePyxdiaSettings(DEFAULT_PYXIDA_SETTINGS)),
+	);
+	window.localStorage.setItem(
+		scopedStorageKey("ourstuff.pyxdiaPenpal.v1", spaceId),
+		JSON.stringify(createEmptyPyxdiaLocalState()),
+	);
+}
+
+async function createEmptyWorkSpace() {
+	const confirmed = window.confirm(
+		"Create an empty Work space on this browser? This replaces only the local Work dataset. Personal stays unchanged.",
+	);
+	if (!confirmed) {
+		return;
+	}
+	resetSpaceDatasetStorage(WORK_SPACE_ID, { workDefaults: false });
+	switchSpace(WORK_SPACE_ID);
+}
+
+async function restoreWorkDefaults() {
+	const confirmed = window.confirm(
+		"Restore Work-safe defaults? This replaces only the local Work dataset with empty notes, empty logs, and work-safe orbs.",
+	);
+	if (!confirmed) {
+		return;
+	}
+	resetSpaceDatasetStorage(WORK_SPACE_ID, { workDefaults: true });
+	switchSpace(WORK_SPACE_ID);
+}
+
+async function setSpacePinAction() {
+	const label = activeSpaceLabel();
+	const pin = window.prompt(`Enter a local PIN for the ${label} space. Use at least 4 digits.`);
+	if (pin === null) {
+		return;
+	}
+	const confirmPin = window.prompt("Re-enter the PIN.");
+	if (confirmPin === null) {
+		return;
+	}
+	if (pin !== confirmPin) {
+		window.alert("The PINs did not match.");
+		return;
+	}
+	try {
+		await setSpacePin(activeSpaceId(), pin);
+		window.alert(`${label} is locked. Unlock it with the PIN after reload or manual lock.`);
+		setState({ spaceLockError: "" });
+	} catch (error) {
+		window.alert(error instanceof Error ? error.message : "Could not save PIN.");
+	}
+}
+
+async function removeSpacePinAction() {
+	const label = activeSpaceLabel();
+	const confirmed = window.confirm(`Remove the local PIN for the ${label} space on this browser?`);
+	if (!confirmed) {
+		return;
+	}
+	removeSpacePin(activeSpaceId());
+	setState({ spaceLockError: "" });
+}
+
+function lockActiveSpaceNow() {
+	lockSpace(activeSpaceId());
+	setState({ spaceLockError: "" });
+}
+
+function spaceLockHtml() {
+	const label = activeSpaceLabel();
+	return `
+    <div class="space-lock-screen">
+      <section class="panel space-lock-panel">
+        <div class="empty-state">
+          <span class="empty-state-icon" aria-hidden="true">${iconHtml("tabler:lock")}</span>
+          <div>
+            <h3>${escapeHtml(label)} is locked</h3>
+            <p>Enter the local PIN for this browser. This lock is a local convenience, not account authentication.</p>
+          </div>
+        </div>
+        <label class="body-field">PIN
+          <input id="space-unlock-pin" type="password" inputmode="numeric" autocomplete="current-password" autofocus>
+        </label>
+        ${state.spaceLockError ? `<p class="cloud-status-message cloud-status-message--error">${escapeHtml(state.spaceLockError)}</p>` : ""}
+        <div class="action-row body-actions">
+          <button class="primary-button" data-action="space-unlock" type="button">${buttonContent("tabler:lock-open", "Unlock")}</button>
+          <button class="secondary-button" data-action="switch-space" data-space="${activeSpaceId() === WORK_SPACE_ID ? PERSONAL_SPACE_ID : WORK_SPACE_ID}" type="button">${buttonContent("tabler:switch-horizontal", `Switch to ${activeSpaceId() === WORK_SPACE_ID ? "Personal" : "Work"}`)}</button>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+async function unlockActiveSpaceFromDom() {
+	const pin = document.getElementById("space-unlock-pin")?.value || "";
+	const ok = await unlockSpace(activeSpaceId(), pin);
+	if (!ok) {
+		setState({ spaceLockError: "That PIN did not unlock this space." });
+		return;
+	}
+	setState({ spaceLockError: "" });
 }
 
 function formatStorageGb(size) {
@@ -17392,6 +17748,37 @@ function bindLocalAssetImages() {
 
 function handleAction(element) {
 	const action = element.dataset.action;
+	if (action === "switch-space") {
+		const target = element.dataset.space || PERSONAL_SPACE_ID;
+		if (target !== activeSpaceId()) {
+			switchSpace(target);
+		}
+		return;
+	}
+	if (action === "space-unlock") {
+		void unlockActiveSpaceFromDom();
+		return;
+	}
+	if (action === "space-pin-set") {
+		void setSpacePinAction();
+		return;
+	}
+	if (action === "space-pin-remove") {
+		void removeSpacePinAction();
+		return;
+	}
+	if (action === "space-lock-now") {
+		lockActiveSpaceNow();
+		return;
+	}
+	if (action === "create-empty-work-space") {
+		void createEmptyWorkSpace();
+		return;
+	}
+	if (action === "restore-work-defaults") {
+		void restoreWorkDefaults();
+		return;
+	}
 	const keepMenuOpenActions = new Set([
 		"toggle-mobile-menu",
 		"toggle-sidebar-section",

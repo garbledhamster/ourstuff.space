@@ -1,5 +1,4 @@
 import {
-	APP_ID,
 	CLOUD_STORAGE_LIMIT_BYTES,
 	FIREBASE_CONFIG,
 	FIREBASE_SDK_VERSION,
@@ -8,11 +7,13 @@ import {
 	PAYMENTS_WORKER_URL,
 	SITE_ID,
 } from "./config.js?v=storage-quota-20260523a";
+import { getActiveCloudAppId, getActiveSpaceLabel, scopedStorageKey } from "./space.js";
 
 const DEVICE_ID_KEY = "ourstuff.cloudDeviceId.v1";
-const LAST_SYNC_KEY = "ourstuff.lastCloudSyncAt.v1";
+const LAST_SYNC_KEY = scopedStorageKey("ourstuff.lastCloudSyncAt.v1");
 const LOCAL_DEMO_SESSION_KEY = "ourstuff.localCloudDemoSession.v1";
-const LOCAL_DEMO_STATE_KEY = "ourstuff.localCloudDemoState.v1";
+const LOCAL_DEMO_STATE_KEY = scopedStorageKey("ourstuff.localCloudDemoState.v1");
+const CLOUD_APP_ID = getActiveCloudAppId();
 const CLOUD_STORAGE_VERSION = 2;
 const CLOUD_SCHEMA_VERSION = 1;
 const CLOUD_ARTIFACTS_COLLECTION = "artifacts";
@@ -253,7 +254,7 @@ export async function startCloudSubscription(returnUrl = currentReturnUrl()) {
 			},
 			body: JSON.stringify({
 				site: SITE_ID,
-				appId: APP_ID,
+				appId: CLOUD_APP_ID,
 				returnUrl,
 			}),
 		},
@@ -459,7 +460,7 @@ export async function saveCloudStateJson(json, options = {}) {
 		window.localStorage.setItem(
 			LOCAL_DEMO_STATE_KEY,
 			JSON.stringify({
-				appId: APP_ID,
+				appId: CLOUD_APP_ID,
 				version: 1,
 				updatedAt: savedAt,
 				deviceId: getDeviceId(),
@@ -475,7 +476,7 @@ export async function saveCloudStateJson(json, options = {}) {
 		emitCloudState(
 			{
 				lastCloudSyncAt: savedAt,
-				message: "Local demo cloud state saved.",
+				message: `${getActiveSpaceLabel()} local demo cloud state saved.`,
 				error: "",
 			},
 			{ quiet: options.quiet === true },
@@ -495,7 +496,7 @@ export async function saveCloudStateJson(json, options = {}) {
 	emitCloudState(
 		{
 			lastCloudSyncAt: syncedAt,
-			message: "Firebase artifacts saved.",
+			message: `${getActiveSpaceLabel()} Firebase artifacts saved.`,
 			error: "",
 		},
 		{ quiet: options.quiet === true },
@@ -511,9 +512,9 @@ export async function loadCloudStateJson() {
 			window.localStorage.getItem(LOCAL_DEMO_STATE_KEY) || "null",
 		);
 		if (!parsed?.json) {
-			throw new Error("No local demo cloud state has been saved yet.");
+			throw new Error(`No ${getActiveSpaceLabel()} local demo cloud state has been saved yet.`);
 		}
-		emitCloudState({ message: "Local demo cloud state loaded.", error: "" });
+		emitCloudState({ message: `${getActiveSpaceLabel()} local demo cloud state loaded.`, error: "" });
 		return parsed.json;
 	}
 
@@ -525,10 +526,10 @@ export async function loadCloudStateJson() {
 	if (!data.exists) {
 		throw new Error("No cloud state has been saved yet.");
 	}
-	if (!data?.json || data.appId !== APP_ID) {
+	if (!data?.json || data.appId !== CLOUD_APP_ID) {
 		throw new Error("Saved cloud state is not valid for this app.");
 	}
-	emitCloudState({ message: "Firebase artifacts loaded.", error: "" });
+	emitCloudState({ message: `${getActiveSpaceLabel()} Firebase artifacts loaded.`, error: "" });
 	return data.json;
 }
 
@@ -540,7 +541,7 @@ export async function getCloudStateInfo() {
 			window.localStorage.getItem(LOCAL_DEMO_STATE_KEY) || "null",
 		);
 		return {
-			appId: APP_ID,
+			appId: CLOUD_APP_ID,
 			exists: Boolean(parsed?.json),
 			deleted: false,
 			deviceId: parsed?.deviceId || null,
@@ -577,7 +578,7 @@ export async function deleteCloudStateJson() {
 
 	if (cloudState.isLocalDemo) {
 		window.localStorage.removeItem(LOCAL_DEMO_STATE_KEY);
-		emitCloudState({ message: "Local demo cloud state deleted.", error: "" });
+		emitCloudState({ message: `${getActiveSpaceLabel()} local demo cloud state deleted.`, error: "" });
 		return { deleted: true };
 	}
 
@@ -586,7 +587,7 @@ export async function deleteCloudStateJson() {
 		updatedAt: new Date().toISOString(),
 		deviceId: getDeviceId(),
 	});
-	emitCloudState({ message: "Firebase artifacts deleted.", error: "" });
+	emitCloudState({ message: `${getActiveSpaceLabel()} Firebase artifacts deleted.`, error: "" });
 	return result;
 }
 
@@ -644,7 +645,7 @@ async function replaceCloudArtifactCollection(uid, json, options = {}) {
 	await modules.setDoc(appDoc, usageResult.appDoc, { merge: true });
 
 	return {
-		appId: APP_ID,
+		appId: CLOUD_APP_ID,
 		exists: true,
 		deleted: false,
 		storage: "firestore-artifacts",
@@ -669,7 +670,7 @@ async function readCloudArtifactCollection(uid) {
 	const updatedAt = normalizeSyncTimestampFromFirestore(appData?.updatedAt);
 	if (appData?.deleted === true) {
 		return {
-			appId: APP_ID,
+			appId: CLOUD_APP_ID,
 			exists: false,
 			deleted: true,
 			storage: "firestore-artifacts",
@@ -694,7 +695,7 @@ async function readCloudArtifactCollection(uid) {
 	const json = exists ? cloudArtifactDocsToAppJson(docs, appData) : null;
 	const firebaseBytes = estimateFirestorePayloadBytes(appData, docs);
 	return {
-		appId: APP_ID,
+		appId: CLOUD_APP_ID,
 		exists,
 		deleted: false,
 		storage: "firestore-artifacts",
@@ -722,7 +723,7 @@ async function deleteCloudArtifactCollection(uid, options = {}) {
 	await modules.setDoc(
 		userAppDocRef(modules, uid),
 		{
-			appId: APP_ID,
+			appId: CLOUD_APP_ID,
 			version: CLOUD_STORAGE_VERSION,
 			schemaVersion: CLOUD_SCHEMA_VERSION,
 			storage: "firestore-artifacts",
@@ -739,7 +740,7 @@ async function deleteCloudArtifactCollection(uid, options = {}) {
 		{ merge: true },
 	);
 	return {
-		appId: APP_ID,
+		appId: CLOUD_APP_ID,
 		exists: false,
 		deleted: true,
 		storage: "firestore-artifacts",
@@ -752,7 +753,7 @@ async function deleteCloudArtifactCollection(uid, options = {}) {
 }
 
 function userAppDocRef(modules, uid) {
-	return modules.doc(firebaseDb, "users", uid, "apps", APP_ID);
+	return modules.doc(firebaseDb, "users", uid, "apps", CLOUD_APP_ID);
 }
 
 function userAppArtifactsCollectionRef(modules, uid) {
@@ -761,7 +762,7 @@ function userAppArtifactsCollectionRef(modules, uid) {
 		"users",
 		uid,
 		"apps",
-		APP_ID,
+		CLOUD_APP_ID,
 		CLOUD_ARTIFACTS_COLLECTION,
 	);
 }
@@ -863,7 +864,7 @@ export function estimateCloudStateStorageUsage(json, options = {}) {
 
 function cloudAppDocBase(json, docs, context = {}) {
 	return {
-		appId: APP_ID,
+		appId: CLOUD_APP_ID,
 		version: CLOUD_STORAGE_VERSION,
 		schemaVersion: json.schemaVersion,
 		storage: "firestore-artifacts",
@@ -1027,7 +1028,7 @@ function localArtifactToCloudDoc(artifact, uid, context = {}) {
 		uid,
 		type,
 		title,
-		tags: uniqueStrings(["ourstuff", APP_ID, dashboard.toLowerCase(), type]),
+		tags: uniqueStrings(["ourstuff", CLOUD_APP_ID, dashboard.toLowerCase(), type]),
 		status,
 		deleted,
 		deletedAt: safeArtifact.deletedAt || null,
@@ -1046,7 +1047,7 @@ function localArtifactToCloudDoc(artifact, uid, context = {}) {
 			core: {
 				text: String(safeArtifact.body || ""),
 				context: {
-					appId: APP_ID,
+					appId: CLOUD_APP_ID,
 					dashboard,
 					parentId: safeArtifact.parentId || null,
 					childIds: Array.isArray(safeArtifact.childIds)
@@ -1068,7 +1069,7 @@ function localArtifactToCloudDoc(artifact, uid, context = {}) {
 			extraAttribute2: type,
 			extraAttribute3: status,
 			extraAttribute4: Boolean(safeArtifact.parentId),
-			extraAttribute5: APP_ID,
+			extraAttribute5: CLOUD_APP_ID,
 		},
 	});
 }
@@ -1081,7 +1082,7 @@ function appStateToCloudDoc(stateKey, value, uid, context = {}) {
 		uid,
 		type: "app_state",
 		title,
-		tags: uniqueStrings(["ourstuff", APP_ID, "settings", stateKey]),
+		tags: uniqueStrings(["ourstuff", CLOUD_APP_ID, "settings", stateKey]),
 		status: "active",
 		createdAt: updatedAt,
 		updatedAt,
@@ -1089,7 +1090,7 @@ function appStateToCloudDoc(stateKey, value, uid, context = {}) {
 		data: {
 			core: {
 				text: title,
-				context: { appId: APP_ID, stateKey },
+				context: { appId: CLOUD_APP_ID, stateKey },
 			},
 			ourstuff: {
 				kind: "appState",
@@ -1103,7 +1104,7 @@ function appStateToCloudDoc(stateKey, value, uid, context = {}) {
 			extraAttribute2: stateKey,
 			extraAttribute3: "",
 			extraAttribute4: false,
-			extraAttribute5: APP_ID,
+			extraAttribute5: CLOUD_APP_ID,
 		},
 	});
 }
@@ -1125,7 +1126,7 @@ function localFileToCloudDoc(file, uid, context = {}) {
 		title: String(safeFile.name || safeFile.id || "Local file"),
 		tags: uniqueStrings([
 			"ourstuff",
-			APP_ID,
+			CLOUD_APP_ID,
 			"local-file",
 			String(safeFile.type || "").split("/")[0],
 		]),
@@ -1137,7 +1138,7 @@ function localFileToCloudDoc(file, uid, context = {}) {
 			core: {
 				text: String(safeFile.name || safeFile.id || "Local file"),
 				context: {
-					appId: APP_ID,
+					appId: CLOUD_APP_ID,
 					stateKey: "localFiles",
 					type: safeFile.type || "",
 					size: Number(safeFile.size) || 0,
@@ -1155,7 +1156,7 @@ function localFileToCloudDoc(file, uid, context = {}) {
 			extraAttribute2: "localFiles",
 			extraAttribute3: safeFile.type || "",
 			extraAttribute4: false,
-			extraAttribute5: APP_ID,
+			extraAttribute5: CLOUD_APP_ID,
 		},
 	});
 }
@@ -1445,7 +1446,7 @@ async function handleFirebaseAuthChange(user) {
 	const profile = await readUserProfile(user.uid).catch(() => null);
 	const entitlement = resolveEntitlement({ claims, profile, bootstrap });
 	const obsidianKey =
-		entitlement.cloud || entitlement.admin
+		(getActiveCloudAppId() === "ourstuff-main") && (entitlement.cloud || entitlement.admin)
 			? await readObsidianSyncKey(user).catch(() => null)
 			: null;
 
