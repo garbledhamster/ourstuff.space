@@ -119,6 +119,8 @@ const DASHBOARD_CHART_TABS_KEY = "ourstuff.dashboardChartTabs.v1";
 const SIDEBAR_WIDTH_KEY = "ourstuff.sidebarWidth.v1";
 const THEME_KEY = "ourstuff.theme.v1";
 const COLOR_MODE_KEY = "ourstuff.colorMode.v1";
+const TIMER_STATE_KEY = "ourstuff.timerState.v1";
+const TIMER_SETTINGS_KEY = "ourstuff.timerSettings.v1";
 const PYXIDA_SETTINGS_KEY = "ourstuff.pyxdiaSettings.v1";
 const PYXIDA_LOCAL_STATE_KEY = "ourstuff.pyxdiaPenpal.v1";
 const PYXIDA_RECENT_NOTE_DAYS = 30;
@@ -202,6 +204,20 @@ const ICON_PICKER_DEFAULT_ICONS = [
 	"mdi:book-open-page-variant",
 ];
 const RING_CIRCUMFERENCE = 502.6548245743669;
+const MENU_TIMER_DEFAULT_SECONDS = 25 * 60;
+const MENU_TIMER_MAX_SECONDS = 99 * 60 + 59;
+const MENU_TIMER_PRESETS = [
+	{ label: "25 min", seconds: 25 * 60 },
+	{ label: "10 min", seconds: 10 * 60 },
+	{ label: "5 min", seconds: 5 * 60 },
+	{ label: "1 min", seconds: 60 },
+];
+const MENU_TIMER_ALARMS = [
+	{ id: "bell", label: "Bell" },
+	{ id: "chime", label: "Chime" },
+	{ id: "beep", label: "Beep" },
+	{ id: "ding", label: "Ding" },
+];
 const SIDEBAR_DEFAULT_WIDTH = 270;
 const SIDEBAR_MIN_WIDTH = 220;
 const SIDEBAR_MAX_WIDTH = 540;
@@ -1081,6 +1097,98 @@ function saveColorMode(mode = state.colorMode) {
 	} catch {
 		// Accessibility mode is a view preference; localStorage failure should not block the app.
 	}
+}
+
+function clampTimerSeconds(value, fallback = MENU_TIMER_DEFAULT_SECONDS) {
+	const number = Math.round(Number(value));
+	if (!Number.isFinite(number)) {
+		return fallback;
+	}
+	return Math.min(Math.max(number, 0), MENU_TIMER_MAX_SECONDS);
+}
+
+function normalizeTimerState(value) {
+	const original = Math.max(
+		1,
+		clampTimerSeconds(value?.original, MENU_TIMER_DEFAULT_SECONDS),
+	);
+	let remaining = clampTimerSeconds(value?.remaining, original);
+	const savedAt = Number(value?.savedAt || 0);
+	if (value?.running && savedAt > 0) {
+		const elapsed = Math.max(0, Math.floor((Date.now() - savedAt) / 1000));
+		remaining = Math.max(0, remaining - elapsed);
+	}
+	return {
+		remaining,
+		original,
+		running: Boolean(value?.running && remaining > 0),
+		savedAt: value?.running && remaining > 0 ? Date.now() : null,
+	};
+}
+
+function loadTimerState() {
+	try {
+		const raw = window.localStorage.getItem(TIMER_STATE_KEY);
+		const parsed = raw ? JSON.parse(raw) : null;
+		const normalized = normalizeTimerState(parsed);
+		if (raw && JSON.stringify(parsed) !== JSON.stringify(normalized)) {
+			window.localStorage.setItem(TIMER_STATE_KEY, JSON.stringify(normalized));
+		}
+		return normalized;
+	} catch {
+		return normalizeTimerState();
+	}
+}
+
+function saveTimerState(timerState = state.timerState, options = {}) {
+	const normalized = normalizeTimerState(timerState);
+	try {
+		window.localStorage.setItem(TIMER_STATE_KEY, JSON.stringify(normalized));
+		if (options.markChanged !== false) {
+			markLocalAppChanged();
+		}
+	} catch {
+		// Timer persistence is local convenience; a blocked write should not break the app.
+	}
+	return normalized;
+}
+
+function normalizeTimerSettings(value) {
+	const alarmIds = new Set(MENU_TIMER_ALARMS.map((alarm) => alarm.id));
+	const alarm = alarmIds.has(value?.alarm) ? value.alarm : "bell";
+	const volume = Math.min(
+		100,
+		Math.max(0, Math.round(Number(value?.volume ?? 70))),
+	);
+	return { alarm, volume };
+}
+
+function loadTimerSettings() {
+	try {
+		const raw = window.localStorage.getItem(TIMER_SETTINGS_KEY);
+		const parsed = raw ? JSON.parse(raw) : null;
+		const normalized = normalizeTimerSettings(parsed);
+		if (raw && JSON.stringify(parsed) !== JSON.stringify(normalized)) {
+			window.localStorage.setItem(
+				TIMER_SETTINGS_KEY,
+				JSON.stringify(normalized),
+			);
+		}
+		return normalized;
+	} catch {
+		return normalizeTimerSettings();
+	}
+}
+
+function saveTimerSettings(settings = state.timerSettings) {
+	const normalized = normalizeTimerSettings(settings);
+	try {
+		window.localStorage.setItem(TIMER_SETTINGS_KEY, JSON.stringify(normalized));
+		markLocalAppChanged();
+	} catch {
+		// Timer settings can fall back to in-memory values if localStorage is blocked.
+	}
+	return normalized;
 }
 
 function normalizeTracker(tracker, dashboard, index, fallbackType = "Thought") {
@@ -2121,6 +2229,8 @@ function removeLocalAppStorageKeys() {
 		DASHBOARD_CHART_TABS_KEY,
 		THEME_KEY,
 		COLOR_MODE_KEY,
+		TIMER_STATE_KEY,
+		TIMER_SETTINGS_KEY,
 		ICONIFY_SEARCH_CACHE_KEY,
 		LOCAL_APP_UPDATED_AT_KEY,
 	].forEach((key) => {
@@ -2147,6 +2257,9 @@ async function resetLocalAppForAccountSwitch(ownerId) {
 	state.dashboardIdentity = cloneDefaultDashboardIdentity();
 	state.theme = "default";
 	state.colorMode = "standard";
+	state.timerState = normalizeTimerState();
+	state.timerSettings = normalizeTimerSettings();
+	state.timerOpen = false;
 	state.localAppUpdatedAt = "";
 	state.settingsTab = "getting-started";
 	state.trackerAddArea = "";
@@ -2421,6 +2534,8 @@ async function exportAppState(options = {}) {
 		),
 		theme: normalizeTheme(state.theme),
 		colorMode: normalizeColorMode(state.colorMode),
+		timerState: normalizeTimerState(state.timerState),
+		timerSettings: normalizeTimerSettings(state.timerSettings),
 		cloudMediaKey: await exportCloudMediaKey(),
 		localFiles: await exportLocalFiles({
 			includeData: options.includeLocalFileData !== false,
@@ -2475,6 +2590,10 @@ async function restoreImportedAppState(appState) {
 	);
 	const theme = normalizeTheme(appState?.theme || state.theme);
 	const colorMode = normalizeColorMode(appState?.colorMode || state.colorMode);
+	const timerState = normalizeTimerState(appState?.timerState || state.timerState);
+	const timerSettings = normalizeTimerSettings(
+		appState?.timerSettings || state.timerSettings,
+	);
 
 	state.bodyTracker = bodyTracker;
 	state.spiritProgress = spiritProgress;
@@ -2487,6 +2606,8 @@ async function restoreImportedAppState(appState) {
 		dashboardChartTabs[0] || DEFAULT_DASHBOARD_CHART_TABS[0];
 	state.theme = theme;
 	state.colorMode = colorMode;
+	state.timerState = timerState;
+	state.timerSettings = timerSettings;
 	saveBodyTracker();
 	saveSpiritProgress();
 	saveLifePlannerStore(lifePlanner);
@@ -2496,6 +2617,13 @@ async function restoreImportedAppState(appState) {
 	saveDashboardChartTabs(dashboardChartTabs);
 	saveTheme(theme);
 	saveColorMode(colorMode);
+	saveTimerState(timerState);
+	saveTimerSettings(timerSettings);
+	if (timerState.running) {
+		startTimerInterval();
+	} else {
+		stopTimerInterval();
+	}
 	if (appState.cloudMediaKey) {
 		importCloudMediaKey(appState.cloudMediaKey);
 	}
@@ -3258,7 +3386,9 @@ function hasStoredAppState() {
 			window.localStorage.getItem(PYXIDA_SETTINGS_KEY) ||
 			window.localStorage.getItem(PYXIDA_LOCAL_STATE_KEY) ||
 			window.localStorage.getItem(THEME_KEY) ||
-			window.localStorage.getItem(COLOR_MODE_KEY),
+			window.localStorage.getItem(COLOR_MODE_KEY) ||
+			window.localStorage.getItem(TIMER_STATE_KEY) ||
+			window.localStorage.getItem(TIMER_SETTINGS_KEY),
 	);
 }
 
@@ -3328,6 +3458,9 @@ const state = {
 	dashboardChartTabs: initialDashboardChartTabs,
 	dashboardChartType:
 		initialDashboardChartTabs[0] || DEFAULT_DASHBOARD_CHART_TABS[0],
+	timerOpen: false,
+	timerState: loadTimerState(),
+	timerSettings: loadTimerSettings(),
 	bodyTracker: loadBodyTracker(),
 	trackerSettings: loadTrackerSettings(),
 	goalSettings: loadGoalSettings(),
@@ -3374,6 +3507,8 @@ const state = {
 };
 
 let skipNextRenderScrollCapture = false;
+let menuTimerInterval = null;
+let menuTimerAudioContext = null;
 
 function contentScrollKey(source = state) {
 	const active = source.active || "Dashboard";
@@ -3666,6 +3801,360 @@ function cameraClosedState() {
 		cameraBusy: false,
 		cameraSaveToDevice: false,
 	};
+}
+
+function padTimerUnit(value) {
+	return String(Math.max(0, Math.floor(Number(value) || 0))).padStart(2, "0");
+}
+
+function formatTimerDisplay(seconds) {
+	const normalized = clampTimerSeconds(seconds, 0);
+	return `${padTimerUnit(normalized / 60)}:${padTimerUnit(normalized % 60)}`;
+}
+
+function timerButtonLabel(timerState = state.timerState) {
+	if (timerState.running) {
+		return "Pause";
+	}
+	if (timerState.remaining < timerState.original && timerState.remaining > 0) {
+		return "Resume";
+	}
+	return "Start";
+}
+
+function updateTimerDom() {
+	const timerState = state.timerState || normalizeTimerState();
+	const display = app.querySelector("[data-timer-display]");
+	if (display) {
+		display.textContent = formatTimerDisplay(timerState.remaining);
+		display.classList.toggle("is-running", Boolean(timerState.running));
+	}
+	const startButton = app.querySelector("[data-timer-start-pause]");
+	if (startButton) {
+		const label = timerButtonLabel(timerState);
+		startButton.innerHTML = buttonContent(
+			timerState.running ? "tabler:player-pause" : "tabler:player-play",
+			label,
+		);
+		startButton.setAttribute("aria-label", `${label} timer`);
+	}
+	app.querySelectorAll("[data-menu-timer-button]").forEach((button) => {
+		button.classList.toggle("is-active", Boolean(timerState.running));
+	});
+}
+
+function stopTimerInterval() {
+	if (menuTimerInterval) {
+		window.clearInterval(menuTimerInterval);
+		menuTimerInterval = null;
+	}
+}
+
+function startTimerInterval() {
+	stopTimerInterval();
+	menuTimerInterval = window.setInterval(tickMenuTimer, 1000);
+}
+
+function setTimerState(next, options = {}) {
+	state.timerState = normalizeTimerState({
+		...(state.timerState || normalizeTimerState()),
+		...next,
+		savedAt: next?.running ? Date.now() : next?.savedAt,
+	});
+	saveTimerState(state.timerState, { markChanged: options.markChanged });
+	updateTimerDom();
+	if (options.render) {
+		render();
+	}
+}
+
+function tickMenuTimer() {
+	const current = state.timerState || normalizeTimerState();
+	if (!current.running) {
+		stopTimerInterval();
+		return;
+	}
+	const remaining = Math.max(0, current.remaining - 1);
+	state.timerState = normalizeTimerState({
+		...current,
+		remaining,
+		running: remaining > 0,
+		savedAt: remaining > 0 ? Date.now() : null,
+	});
+	updateTimerDom();
+	if (remaining > 0) {
+		return;
+	}
+	stopTimerInterval();
+	saveTimerState(state.timerState);
+	playTimerAlarm();
+	notifyTimerDone();
+	render();
+}
+
+function openTimer() {
+	setState({ timerOpen: true });
+}
+
+function closeTimer(options = {}) {
+	if (options.render === false) {
+		state.timerOpen = false;
+		return;
+	}
+	setState({ timerOpen: false });
+}
+
+function toggleTimerRunning() {
+	const current = state.timerState || normalizeTimerState();
+	if (current.remaining <= 0) {
+		return;
+	}
+	if (current.running) {
+		setTimerState({ ...current, running: false, savedAt: null }, { render: true });
+		stopTimerInterval();
+		return;
+	}
+	setTimerState({ ...current, running: true, savedAt: Date.now() }, { render: true });
+	startTimerInterval();
+}
+
+function resetTimer() {
+	const current = state.timerState || normalizeTimerState();
+	stopTimerInterval();
+	setTimerState(
+		{
+			remaining: current.original || MENU_TIMER_DEFAULT_SECONDS,
+			original: current.original || MENU_TIMER_DEFAULT_SECONDS,
+			running: false,
+			savedAt: null,
+		},
+		{ render: true },
+	);
+}
+
+function setTimerDuration(seconds) {
+	const duration = Math.max(
+		1,
+		clampTimerSeconds(seconds, MENU_TIMER_DEFAULT_SECONDS),
+	);
+	stopTimerInterval();
+	setTimerState(
+		{
+			remaining: duration,
+			original: duration,
+			running: false,
+			savedAt: null,
+		},
+		{ render: true },
+	);
+}
+
+function setCustomTimerFromDom() {
+	const mins = Math.min(
+		99,
+		Math.max(
+			0,
+			Math.round(Number(app.querySelector("[data-timer-custom-mins]")?.value) || 0),
+		),
+	);
+	const secs = Math.min(
+		59,
+		Math.max(
+			0,
+			Math.round(Number(app.querySelector("[data-timer-custom-secs]")?.value) || 0),
+		),
+	);
+	const total = mins * 60 + secs;
+	if (total > 0) {
+		setTimerDuration(total);
+	}
+}
+
+function updateTimerSettingsFromDom(options = {}) {
+	const settings = normalizeTimerSettings({
+		alarm:
+			app.querySelector("[data-timer-alarm-select]")?.value ||
+			state.timerSettings?.alarm,
+		volume:
+			app.querySelector("[data-timer-volume-slider]")?.value ??
+			state.timerSettings?.volume,
+	});
+	state.timerSettings = settings;
+	const volumeLabel = app.querySelector("[data-timer-volume-label]");
+	if (volumeLabel) {
+		volumeLabel.textContent = `${settings.volume}%`;
+	}
+	if (options.persist) {
+		saveTimerSettings(settings);
+	}
+}
+
+function getTimerAudioContext() {
+	if (!menuTimerAudioContext) {
+		const AudioCtor = window.AudioContext || window.webkitAudioContext;
+		if (!AudioCtor) {
+			return null;
+		}
+		menuTimerAudioContext = new AudioCtor();
+	}
+	if (menuTimerAudioContext.state === "suspended") {
+		void menuTimerAudioContext.resume();
+	}
+	return menuTimerAudioContext;
+}
+
+function timerVolume() {
+	return Math.max(
+		0,
+		Math.min(1, Number(state.timerSettings?.volume ?? 70) / 100),
+	);
+}
+
+function playTimerBell(ctx, vol, when) {
+	const osc = ctx.createOscillator();
+	const gain = ctx.createGain();
+	osc.connect(gain);
+	gain.connect(ctx.destination);
+	osc.type = "sine";
+	osc.frequency.setValueAtTime(880, when);
+	osc.frequency.exponentialRampToValueAtTime(440, when + 1.2);
+	gain.gain.setValueAtTime(vol, when);
+	gain.gain.exponentialRampToValueAtTime(0.001, when + 1.8);
+	osc.start(when);
+	osc.stop(when + 1.8);
+}
+
+function playTimerChime(ctx, vol, when) {
+	[
+		[523, 0],
+		[659, 0.25],
+		[784, 0.5],
+		[1047, 0.75],
+	].forEach(([freq, offsetValue]) => {
+		const osc = ctx.createOscillator();
+		const gain = ctx.createGain();
+		const time = when + offsetValue;
+		osc.connect(gain);
+		gain.connect(ctx.destination);
+		osc.type = "triangle";
+		osc.frequency.value = freq;
+		gain.gain.setValueAtTime(vol, time);
+		gain.gain.exponentialRampToValueAtTime(0.001, time + 0.8);
+		osc.start(time);
+		osc.stop(time + 0.8);
+	});
+}
+
+function playTimerBeep(ctx, vol, when) {
+	[0, 0.35, 0.7].forEach((offsetValue) => {
+		const osc = ctx.createOscillator();
+		const gain = ctx.createGain();
+		const time = when + offsetValue;
+		osc.connect(gain);
+		gain.connect(ctx.destination);
+		osc.type = "square";
+		osc.frequency.value = 1000;
+		gain.gain.setValueAtTime(vol * 0.3, time);
+		gain.gain.exponentialRampToValueAtTime(0.001, time + 0.18);
+		osc.start(time);
+		osc.stop(time + 0.2);
+	});
+}
+
+function playTimerDing(ctx, vol, when) {
+	const osc = ctx.createOscillator();
+	const gain = ctx.createGain();
+	osc.connect(gain);
+	gain.connect(ctx.destination);
+	osc.type = "sine";
+	osc.frequency.setValueAtTime(1318, when);
+	gain.gain.setValueAtTime(vol, when);
+	gain.gain.exponentialRampToValueAtTime(0.001, when + 1.4);
+	osc.start(when);
+	osc.stop(when + 1.4);
+}
+
+function playTimerAlarm() {
+	try {
+		updateTimerSettingsFromDom({ persist: false });
+		const ctx = getTimerAudioContext();
+		if (!ctx) {
+			return;
+		}
+		const vol = timerVolume();
+		const when = ctx.currentTime + 0.05;
+		const alarm = state.timerSettings?.alarm || "bell";
+		if (alarm === "chime") {
+			playTimerChime(ctx, vol, when);
+		} else if (alarm === "beep") {
+			playTimerBeep(ctx, vol, when);
+		} else if (alarm === "ding") {
+			playTimerDing(ctx, vol, when);
+		} else {
+			playTimerBell(ctx, vol, when);
+		}
+	} catch {
+		// Audio is optional and can be blocked by browser policy.
+	}
+}
+
+function notifyTimerDone() {
+	if (typeof Notification === "undefined") {
+		return;
+	}
+	if (Notification.permission === "granted") {
+		try {
+			new Notification("Timer done");
+		} catch {
+			// Notifications are optional.
+		}
+		return;
+	}
+	if (Notification.permission !== "denied") {
+		void Notification.requestPermission().then((permission) => {
+			if (permission === "granted") {
+				try {
+					new Notification("Timer done");
+				} catch {
+					// Notifications are optional.
+				}
+			}
+		});
+	}
+}
+
+function bindTimerControls() {
+	const modal = app.querySelector("[data-timer-modal]");
+	if (!modal || !state.timerOpen) {
+		updateTimerDom();
+		return;
+	}
+	modal.addEventListener("click", (event) => {
+		if (event.target === modal) {
+			closeTimer();
+		}
+	});
+	modal.addEventListener("keydown", (event) => {
+		if (event.key === "Escape") {
+			event.preventDefault();
+			closeTimer();
+		}
+	});
+	modal.querySelector("[data-timer-volume-slider]")?.addEventListener("input", () => {
+		updateTimerSettingsFromDom({ persist: false });
+	});
+	modal
+		.querySelector("[data-timer-volume-slider]")
+		?.addEventListener("change", () => {
+			updateTimerSettingsFromDom({ persist: true });
+		});
+	modal
+		.querySelector("[data-timer-alarm-select]")
+		?.addEventListener("change", () => {
+			updateTimerSettingsFromDom({ persist: true });
+		});
+	modal.focus();
+	updateTimerDom();
 }
 
 function dashboardIdentityItem(dashboard) {
@@ -8092,6 +8581,8 @@ async function clearAppData(options = {}) {
 		window.localStorage.removeItem(SIDEBAR_WIDTH_KEY);
 		window.localStorage.removeItem(THEME_KEY);
 		window.localStorage.removeItem(COLOR_MODE_KEY);
+		window.localStorage.removeItem(TIMER_STATE_KEY);
+		window.localStorage.removeItem(TIMER_SETTINGS_KEY);
 		window.localStorage.removeItem(ICONIFY_SEARCH_CACHE_KEY);
 		window.localStorage.removeItem(LOCAL_APP_UPDATED_AT_KEY);
 		clearDismissedTips();
@@ -8109,6 +8600,9 @@ async function clearAppData(options = {}) {
 		state.dashboardChartType = DEFAULT_DASHBOARD_CHART_TABS[0];
 		state.theme = "default";
 		state.colorMode = "standard";
+		state.timerState = normalizeTimerState();
+		state.timerSettings = normalizeTimerSettings();
+		state.timerOpen = false;
 		state.localAppUpdatedAt = "";
 		state.pyxdiaSettings = normalizePyxdiaSettings(DEFAULT_PYXIDA_SETTINGS);
 		state.pyxdiaThreads = [];
@@ -8127,6 +8621,7 @@ async function clearAppData(options = {}) {
 		state.trashStatus = "";
 		state.trashError = "";
 		state.trashBusy = false;
+		stopTimerInterval();
 		state.settingsTab = "getting-started";
 		state.trackerAddArea = "";
 		state.trackerEditKey = "";
@@ -8175,6 +8670,8 @@ async function restoreFactoryDefaults() {
 	window.localStorage.removeItem(SIDEBAR_WIDTH_KEY);
 	window.localStorage.removeItem(THEME_KEY);
 	window.localStorage.removeItem(COLOR_MODE_KEY);
+	window.localStorage.removeItem(TIMER_STATE_KEY);
+	window.localStorage.removeItem(TIMER_SETTINGS_KEY);
 	window.localStorage.removeItem(ICONIFY_SEARCH_CACHE_KEY);
 	window.localStorage.removeItem(LOCAL_APP_UPDATED_AT_KEY);
 	clearDismissedTips();
@@ -8193,11 +8690,15 @@ async function restoreFactoryDefaults() {
 	state.dashboardChartType = DEFAULT_DASHBOARD_CHART_TABS[0];
 	state.theme = "default";
 	state.colorMode = "standard";
+	state.timerState = normalizeTimerState();
+	state.timerSettings = normalizeTimerSettings();
+	state.timerOpen = false;
 	state.pyxdiaSettings = normalizePyxdiaSettings(DEFAULT_PYXIDA_SETTINGS);
 	state.pyxdiaThreads = [];
 	state.pyxdiaLetters = [];
 	state.pyxdiaDraft = createEmptyPyxdiaDraft();
 	state.pyxdiaMemory = createEmptyPyxdiaMemory();
+	stopTimerInterval();
 	state.pyxdiaExpanded = false;
 	state.pyxdiaView = "input";
 	state.pyxdiaActiveThreadId = "";
@@ -9935,6 +10436,7 @@ function render() {
     ${thoughtToastHtml()}
     ${iconPickerOverlayHtml()}
     ${cameraModalHtml()}
+    ${timerModalHtml()}
   `;
 	const sidebarScroll = app.querySelector(".sidebar-list-scroll");
 	if (sidebarScroll) {
@@ -9946,6 +10448,7 @@ function render() {
 	}
 	bindActions();
 	bindCameraControls();
+	bindTimerControls();
 	bindDashboardIdentityAutoSave();
 	bindTrackerEditorAutoSave();
 	bindHeaderActionTooltips();
@@ -10604,6 +11107,9 @@ function sidebarHtml(_compendium) {
             ${iconHtml(collapseMode ? "tabler:chevrons-up" : "tabler:chevrons-down")}
           </button>
           ${dashboardPeriodSliderHtml("sidebar-period-slider")}
+          <button class="sidebar-menu-nav-button sidebar-menu-nav-timer${state.timerState?.running ? " is-active" : ""}" data-action="open-timer" data-menu-timer-button type="button" aria-label="Open Timer" title="Timer">
+            ${iconHtml("tabler:clock")}
+          </button>
           <button class="sidebar-menu-nav-button sidebar-menu-nav-trash" data-action="open-trash" type="button" aria-label="Open Trash" title="Trash">
             ${iconHtml("tabler:trash")}
           </button>
@@ -12022,6 +12528,8 @@ function settingsCloudHtml() {
 			dashboardChartTabs: state.dashboardChartTabs,
 			theme: state.theme,
 			colorMode: state.colorMode,
+			timerState: state.timerState,
+			timerSettings: state.timerSettings,
 		},
 	});
 	const busyAttr = account.busy ? " disabled" : "";
@@ -14837,6 +15345,66 @@ function cameraModalHtml() {
   `;
 }
 
+function timerModalHtml() {
+	if (!state.timerOpen) {
+		return "";
+	}
+	const timerState = state.timerState || normalizeTimerState();
+	const settings = normalizeTimerSettings(state.timerSettings);
+	const customMins = Math.floor((timerState.original || MENU_TIMER_DEFAULT_SECONDS) / 60);
+	const customSecs = (timerState.original || MENU_TIMER_DEFAULT_SECONDS) % 60;
+	return `
+    <div class="timer-modal" data-timer-modal role="dialog" aria-modal="true" aria-labelledby="timer-modal-title" tabindex="-1">
+      <section class="timer-panel${timerState.running ? " is-running" : ""}">
+        <header class="timer-panel-header">
+          <div>
+            <h2 id="timer-modal-title">Timer</h2>
+            <p>Set a focused countdown from the side menu.</p>
+          </div>
+          <button class="icon-button" data-action="close-timer" type="button" aria-label="Close timer" title="Close timer">${iconHtml("tabler:x")}</button>
+        </header>
+        <div class="timer-display${timerState.running ? " is-running" : ""}" data-timer-display aria-live="polite">${escapeHtml(formatTimerDisplay(timerState.remaining))}</div>
+        <div class="timer-presets" aria-label="Timer presets">
+          ${MENU_TIMER_PRESETS.map(
+						(preset) => `
+          <button class="secondary-button timer-preset-button${timerState.original === preset.seconds ? " is-active" : ""}" data-action="timer-set-preset" data-seconds="${preset.seconds}" type="button">${escapeHtml(preset.label)}</button>
+        `,
+					).join("")}
+        </div>
+        <div class="timer-custom-row">
+          <label class="timer-field-label" for="timer-custom-mins">Custom</label>
+          <input id="timer-custom-mins" data-timer-custom-mins type="number" min="0" max="99" inputmode="numeric" value="${customMins}" aria-label="Timer minutes">
+          <span>min</span>
+          <input data-timer-custom-secs type="number" min="0" max="59" inputmode="numeric" value="${customSecs}" aria-label="Timer seconds">
+          <span>sec</span>
+          <button class="secondary-button" data-action="timer-set-custom" type="button">${buttonContent("tabler:check", "Set")}</button>
+        </div>
+        <div class="timer-settings-grid">
+          <label class="timer-field">
+            <span>Alarm</span>
+            <select data-timer-alarm-select aria-label="Alarm sound">
+              ${MENU_TIMER_ALARMS.map(
+								(alarm) =>
+									`<option value="${escapeHtml(alarm.id)}"${settings.alarm === alarm.id ? " selected" : ""}>${escapeHtml(alarm.label)}</option>`,
+							).join("")}
+            </select>
+          </label>
+          <button class="secondary-button timer-test-button" data-action="timer-test-sound" type="button">${buttonContent("tabler:volume", "Test sound")}</button>
+          <label class="timer-field timer-volume-field">
+            <span>Volume</span>
+            <input data-timer-volume-slider type="range" min="0" max="100" value="${settings.volume}" aria-label="Alarm volume">
+            <strong data-timer-volume-label>${settings.volume}%</strong>
+          </label>
+        </div>
+        <div class="timer-actions">
+          <button class="primary-button" data-action="timer-start-pause" data-timer-start-pause type="button" aria-label="${escapeHtml(timerButtonLabel(timerState))} timer">${buttonContent(timerState.running ? "tabler:player-pause" : "tabler:player-play", timerButtonLabel(timerState))}</button>
+          <button class="secondary-button" data-action="timer-reset" type="button">${buttonContent("tabler:rotate-clockwise", "Reset")}</button>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
 function emptyStateHtml(title, body) {
 	return `
     <div class="empty-state">
@@ -16846,6 +17414,28 @@ function handleAction(element) {
 	if (action === "capture-camera") {
 		void captureCameraPhoto();
 	}
+	if (action === "open-timer") {
+		openTimer();
+	}
+	if (action === "close-timer") {
+		closeTimer();
+	}
+	if (action === "timer-start-pause") {
+		toggleTimerRunning();
+	}
+	if (action === "timer-reset") {
+		resetTimer();
+	}
+	if (action === "timer-set-preset") {
+		setTimerDuration(Number(element.dataset.seconds));
+	}
+	if (action === "timer-set-custom") {
+		setCustomTimerFromDom();
+	}
+	if (action === "timer-test-sound") {
+		updateTimerSettingsFromDom({ persist: true });
+		playTimerAlarm();
+	}
 	if (action === "home") {
 		goHome();
 	}
@@ -17588,10 +18178,16 @@ function updateBodyTimerDom() {
 	});
 }
 
-window.addEventListener("pagehide", () => stopCameraStream());
+window.addEventListener("pagehide", () => {
+	saveTimerState(state.timerState, { markChanged: false });
+	stopCameraStream();
+});
 document.addEventListener("visibilitychange", () => {
 	if (document.hidden && state.cameraOpen) {
 		closeCamera();
+	}
+	if (document.hidden) {
+		saveTimerState(state.timerState, { markChanged: false });
 	}
 });
 ["pointerdown", "keydown", "wheel", "touchstart", "input"].forEach(
@@ -17604,6 +18200,9 @@ document.addEventListener("visibilitychange", () => {
 );
 
 applyEnvironmentClasses();
+if (state.timerState?.running) {
+	startTimerInterval();
+}
 render();
 void initCloudAccount((cloud) => {
 	const previousSignature = cloudUiSignature(state.cloud);

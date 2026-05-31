@@ -222,6 +222,7 @@ select option:checked {
 .spirit-detail-card,
 .donation-panel,
 .camera-panel,
+.timer-panel,
 .life-fullcalendar.fc,
 .life-fullcalendar .fc {
 	font-family: var(--font-body);
@@ -232,6 +233,7 @@ select option:checked {
 .reader-heading h2,
 .donation-panel h2,
 .camera-panel h2,
+.timer-panel h2,
 .empty-state h3,
 .markdown-body h1,
 .markdown-body h2,
@@ -371,6 +373,12 @@ select option:checked {
 :root.theme-consolas .compendium-tile,
 :root.theme-consolas .compendium-picker-popover,
 :root.theme-consolas .compendium-picker-tile,
+:root.theme-consolas .camera-panel,
+:root.theme-consolas .camera-preview,
+:root.theme-consolas .timer-panel,
+:root.theme-consolas .timer-display,
+:root.theme-consolas .timer-custom-row,
+:root.theme-consolas .timer-field,
 :root.theme-consolas .section-row,
 :root.theme-consolas .body-card,
 :root.theme-consolas .spirit-detail-card,
@@ -394,6 +402,10 @@ select option:checked {
 :root.theme-consolas .dashboard-chart-switcher button,
 :root.theme-consolas .compendium-new-button,
 :root.theme-consolas .dashboard-period-slider,
+:root.theme-consolas .timer-preset-button,
+:root.theme-consolas .timer-custom-row input,
+:root.theme-consolas .timer-field select,
+:root.theme-consolas .timer-field input,
 :root.theme-consolas .theme-choice {
 	border-color: var(--border-soft);
 	background: #050505;
@@ -412,6 +424,12 @@ select option:checked {
 :root.theme-consolas .compendium-new-button:hover,
 :root.theme-consolas .compendium-new-button:focus-visible,
 :root.theme-consolas .dashboard-period-slider:focus-within,
+:root.theme-consolas .timer-preset-button:hover,
+:root.theme-consolas .timer-preset-button:focus-visible,
+:root.theme-consolas .timer-preset-button.is-active,
+:root.theme-consolas .timer-panel .secondary-button:hover,
+:root.theme-consolas .timer-panel .secondary-button:focus-visible,
+:root.theme-consolas .timer-field:focus-within,
 :root.theme-consolas .theme-choice:hover,
 :root.theme-consolas .theme-choice:focus-visible,
 :root.theme-consolas .theme-choice.is-active {
@@ -528,9 +546,9 @@ select option:checked {
 
 .sidebar-menu-nav {
 	display: grid;
-	grid-template-columns: var(--tracker-orb-size) minmax(0, 1fr) var(
-			--tracker-orb-size
-		);
+	grid-template-columns:
+		var(--tracker-orb-size) minmax(0, 1fr) var(--tracker-orb-size)
+		var(--tracker-orb-size);
 	align-items: center;
 	gap: 8px;
 	margin-bottom: 14px;
@@ -582,6 +600,13 @@ select option:checked {
 .sidebar-menu-nav-trash .button-icon {
 	width: 1.65rem;
 	height: 1.65rem;
+}
+
+.sidebar-menu-nav-timer.is-active {
+	border-color: var(--accent);
+	background: var(--accent);
+	color: var(--on-accent);
+	box-shadow: 0 0 0 3px var(--theme-ring);
 }
 
 .sidebar-period-slider {
@@ -1126,17 +1151,18 @@ select option:checked {
 	margin-left: 0;
 	border: 1px solid var(--border-soft);
 	border-radius: 10px;
-	background: rgba(15, 23, 42, 0.82);
-	color: #e2e8f0;
+	background: var(--theme-control);
+	color: var(--text);
 	text-decoration: none;
 }
 
 .path-bar .path-camera-button:hover,
 .path-bar .path-camera-button:focus-visible {
-	border-color: #94a3b8;
-	background: #1e293b;
-	color: #fff;
+	border-color: var(--accent);
+	background: var(--theme-control-hover);
+	color: var(--text);
 	outline: none;
+	box-shadow: 0 0 0 3px var(--theme-ring);
 }
 
 .path-camera-button .button-icon {
@@ -8663,45 +8689,59 @@ button.life-event-row:hover {
 	box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
 }
 
-.camera-modal {
+.camera-modal,
+.timer-modal {
 	position: fixed;
 	inset: 0;
 	z-index: 30;
 	display: grid;
 	place-items: center;
 	padding: 20px;
-	background: rgba(2, 6, 23, 0.78);
+	background: color-mix(in srgb, var(--bg) 78%, transparent);
 	backdrop-filter: blur(8px);
 }
 
-.camera-panel {
+.camera-panel,
+.timer-panel {
 	display: grid;
-	grid-template-rows: auto minmax(0, 1fr) auto auto;
 	gap: 14px;
-	width: min(100%, 680px);
-	max-height: min(720px, calc(100vh - 40px));
 	border: 1px solid var(--border);
-	border-radius: 16px;
-	background: #0f172a;
-	color: #e2e8f0;
+	border-radius: 8px;
+	background: var(--panel);
+	color: var(--text);
 	padding: 18px;
-	box-shadow: 0 24px 70px rgba(0, 0, 0, 0.46);
+	box-shadow: 0 24px 70px var(--theme-shadow);
 }
 
-.camera-panel-header {
+.camera-panel {
+	grid-template-rows: auto minmax(0, 1fr) auto auto;
+	width: min(100%, 680px);
+	max-height: min(720px, calc(100vh - 40px));
+}
+
+.timer-panel {
+	width: min(100%, 460px);
+	max-height: min(720px, calc(100vh - 40px));
+	overflow-y: auto;
+}
+
+.camera-panel-header,
+.timer-panel-header {
 	display: flex;
 	align-items: flex-start;
 	justify-content: space-between;
 	gap: 16px;
 }
 
-.camera-panel h2 {
+.camera-panel h2,
+.timer-panel h2 {
 	margin: 0 0 4px;
 	font-size: 1.45rem;
 	line-height: 1.15;
 }
 
-.camera-panel p {
+.camera-panel p,
+.timer-panel p {
 	margin: 0;
 	color: var(--muted);
 }
@@ -8713,8 +8753,8 @@ button.life-event-row:hover {
 	min-height: 240px;
 	overflow: hidden;
 	border: 1px solid var(--border-soft);
-	border-radius: 14px;
-	background: #020617;
+	border-radius: 8px;
+	background: var(--surface);
 }
 
 .camera-preview video {
@@ -8724,7 +8764,7 @@ button.life-event-row:hover {
 	max-height: 56vh;
 	aspect-ratio: 16 / 9;
 	object-fit: contain;
-	background: #020617;
+	background: var(--surface);
 }
 
 .camera-placeholder {
@@ -8757,6 +8797,184 @@ button.life-event-row:hover {
 	flex-wrap: wrap;
 	justify-content: flex-end;
 	gap: 10px;
+}
+
+.timer-display {
+	display: grid;
+	place-items: center;
+	min-height: 116px;
+	border: 1px solid var(--border-soft);
+	border-radius: 8px;
+	background: var(--surface);
+	color: var(--text);
+	font-family: var(--font-mono);
+	font-size: clamp(3rem, 14vw, 5rem);
+	font-weight: 800;
+	line-height: 1;
+	letter-spacing: 0;
+}
+
+.timer-display.is-running {
+	border-color: var(--accent);
+	background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+	box-shadow: 0 0 0 3px var(--theme-ring);
+}
+
+.timer-presets {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 8px;
+}
+
+.timer-preset-button {
+	min-width: 0;
+	justify-content: center;
+	padding-inline: 8px;
+	white-space: nowrap;
+}
+
+.timer-preset-button.is-active {
+	border-color: var(--accent);
+	background: var(--theme-control-hover);
+	color: var(--text);
+}
+
+.timer-custom-row,
+.timer-settings-grid,
+.timer-actions {
+	display: grid;
+	gap: 10px;
+}
+
+.timer-custom-row {
+	grid-template-columns: auto minmax(0, 78px) auto minmax(0, 78px) auto auto;
+	align-items: center;
+	border: 1px solid var(--border-soft);
+	border-radius: 8px;
+	background: var(--surface);
+	padding: 10px;
+}
+
+.timer-custom-row span,
+.timer-field-label,
+.timer-field span,
+.timer-volume-field strong {
+	color: var(--muted);
+	font-family: var(--font-label);
+	font-size: 0.78rem;
+	font-weight: 800;
+}
+
+.timer-custom-row input,
+.timer-field select,
+.timer-field input[type="range"] {
+	width: 100%;
+	min-width: 0;
+	border: 1px solid var(--border-soft);
+	border-radius: 8px;
+	background: var(--theme-control);
+	color: var(--text);
+}
+
+.timer-custom-row input,
+.timer-field select {
+	min-height: 40px;
+	padding: 8px 10px;
+}
+
+.timer-custom-row input:focus,
+.timer-field select:focus,
+.timer-field input[type="range"]:focus-visible {
+	border-color: var(--accent);
+	outline: none;
+	box-shadow: 0 0 0 3px var(--theme-ring);
+}
+
+.timer-settings-grid {
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: end;
+}
+
+.timer-field {
+	display: grid;
+	gap: 6px;
+	min-width: 0;
+}
+
+.timer-volume-field {
+	grid-column: 1 / -1;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: center;
+	border: 1px solid var(--border-soft);
+	border-radius: 8px;
+	background: var(--surface);
+	padding: 10px;
+}
+
+.timer-volume-field span {
+	color: var(--text);
+}
+
+.timer-volume-field input[type="range"] {
+	accent-color: var(--accent);
+}
+
+.timer-actions {
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+:root.theme-palette:not(.theme-consolas) .camera-modal,
+:root.theme-palette:not(.theme-consolas) .timer-modal {
+	background: color-mix(in srgb, var(--bg) 78%, transparent);
+}
+
+:root.theme-palette:not(.theme-consolas) .camera-panel,
+:root.theme-palette:not(.theme-consolas) .timer-panel {
+	border-color: var(--border);
+	background: var(--panel);
+	color: var(--text);
+	box-shadow: 0 24px 70px var(--theme-shadow);
+}
+
+:root.theme-palette:not(.theme-consolas) .camera-preview,
+:root.theme-palette:not(.theme-consolas) .camera-preview video,
+:root.theme-palette:not(.theme-consolas) .timer-display,
+:root.theme-palette:not(.theme-consolas) .timer-custom-row,
+:root.theme-palette:not(.theme-consolas) .timer-volume-field {
+	background: var(--surface);
+	color: var(--text);
+}
+
+:root.theme-palette:not(.theme-consolas) .timer-custom-row input,
+:root.theme-palette:not(.theme-consolas) .timer-field select,
+:root.theme-palette:not(.theme-consolas) .timer-field input[type="range"] {
+	border-color: var(--border-soft);
+	background: var(--theme-control);
+	color: var(--text);
+}
+
+:root.theme-palette:not(.theme-consolas) .timer-preset-button:hover,
+:root.theme-palette:not(.theme-consolas) .timer-preset-button:focus-visible,
+:root.theme-palette:not(.theme-consolas) .timer-preset-button.is-active {
+	border-color: var(--accent);
+	background: var(--theme-control-hover);
+	color: var(--text);
+}
+
+:root.theme-consolas .camera-modal,
+:root.theme-consolas .timer-modal {
+	background: rgba(5, 5, 5, 0.86);
+}
+
+:root.theme-consolas .camera-preview video {
+	background: #050505;
+}
+
+:root.theme-consolas .timer-display.is-running,
+:root.theme-consolas .sidebar-menu-nav-timer.is-active {
+	border-color: var(--border);
+	background: var(--text);
+	color: var(--on-accent);
 }
 
 .donation-panel-header {
@@ -10330,8 +10548,29 @@ button.life-event-row:hover {
 		padding: 14px;
 	}
 
+	.timer-panel {
+		width: 100%;
+		max-height: calc(var(--app-height) - 24px);
+		padding: 14px;
+	}
+
 	.camera-preview {
 		min-height: 210px;
+	}
+
+	.timer-presets,
+	.timer-actions,
+	.timer-settings-grid {
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	}
+
+	.timer-custom-row {
+		grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+	}
+
+	.timer-custom-row .timer-field-label,
+	.timer-custom-row .secondary-button {
+		grid-column: 1 / -1;
 	}
 
 	.camera-actions .primary-button,
