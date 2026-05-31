@@ -290,7 +290,7 @@ async function remoteUserContext(uid = remoteMediaContext.uid) {
 	const app = modules.getApps()[0] || modules.initializeApp(FIREBASE_CONFIG);
 	const auth = modules.getAuth(app);
 	const currentUid = auth.currentUser?.uid || "";
-	if (!currentUid || currentUid !== uid) {
+	if (!currentUid || !uid) {
 		throw new Error("Sign in again before syncing private media.");
 	}
 	return { modules, uid: currentUid };

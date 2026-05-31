@@ -1,4 +1,4 @@
-import { getActiveSpaceId, scopedStorageKey, WORK_SPACE_ID } from "./space.js";
+import { getActiveSpaceId, PERSONAL_SPACE_ID, scopedStorageKey } from "./space.js";
 
 export const STORAGE_KEY = scopedStorageKey("ourstuff.artifactStore.v1");
 export const SCHEMA_VERSION = 1;
@@ -37,7 +37,7 @@ export async function loadArtifactStore() {
 	try {
 		const raw = window.localStorage.getItem(STORAGE_KEY);
 		if (!raw) {
-			if (getActiveSpaceId() === WORK_SPACE_ID) {
+			if (getActiveSpaceId() !== PERSONAL_SPACE_ID) {
 				return createEmptyStore();
 			}
 			return await loadSeedStore();
@@ -48,7 +48,7 @@ export async function loadArtifactStore() {
 			parsed?.schemaVersion !== SCHEMA_VERSION ||
 			!Array.isArray(parsed.artifacts)
 		) {
-			if (getActiveSpaceId() === WORK_SPACE_ID) {
+			if (getActiveSpaceId() !== PERSONAL_SPACE_ID) {
 				return createEmptyStore();
 			}
 			return await loadSeedStore();
@@ -56,7 +56,7 @@ export async function loadArtifactStore() {
 
 		return parsed;
 	} catch {
-		if (getActiveSpaceId() === WORK_SPACE_ID) {
+		if (getActiveSpaceId() !== PERSONAL_SPACE_ID) {
 			return createEmptyStore();
 		}
 		return await loadSeedStore();

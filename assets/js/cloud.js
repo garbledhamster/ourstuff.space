@@ -1,5 +1,6 @@
 import {
 	CLOUD_STORAGE_LIMIT_BYTES,
+	FAMILY_API_URL,
 	FIREBASE_CONFIG,
 	FIREBASE_SDK_VERSION,
 	LOCAL_CLOUD_DEMO_CONFIG_URL,
@@ -7,7 +8,13 @@ import {
 	PAYMENTS_WORKER_URL,
 	SITE_ID,
 } from "./config.js?v=storage-quota-20260523a";
-import { getActiveCloudAppId, getActiveSpaceLabel, scopedStorageKey } from "./space.js";
+import {
+	FAMILY_SPACE_ID,
+	getActiveCloudAppId,
+	getActiveSpaceId,
+	getActiveSpaceLabel,
+	scopedStorageKey,
+} from "./space.js";
 
 const DEVICE_ID_KEY = "ourstuff.cloudDeviceId.v1";
 const LAST_SYNC_KEY = scopedStorageKey("ourstuff.lastCloudSyncAt.v1");
@@ -45,6 +52,10 @@ const CLOUD_APP_STATE_TITLES = {
 	colorMode: "Color mode",
 };
 
+function activeSpaceIsFamily() {
+	return getActiveSpaceId() === FAMILY_SPACE_ID;
+}
+
 const INACTIVE_ENTITLEMENT = {
 	role: "member",
 	cloud: false,
@@ -80,6 +91,9 @@ let cloudState = {
 	billingCapable: false,
 	obsidianKey: null,
 	obsidianKeyCopyAvailable: false,
+	spaceRole: "owner",
+	cloudOwnerUid: "",
+	sharedSpace: null,
 };
 
 export function getCloudAccountState() {
@@ -88,6 +102,7 @@ export function getCloudAccountState() {
 		user: cloudState.user ? { ...cloudState.user } : null,
 		entitlement: { ...cloudState.entitlement },
 		obsidianKey: cloudState.obsidianKey ? { ...cloudState.obsidianKey } : null,
+		sharedSpace: cloudState.sharedSpace ? { ...cloudState.sharedSpace } : null,
 	};
 }
 
@@ -446,6 +461,7 @@ export async function copyLatestObsidianApiKey() {
 
 export async function saveCloudStateJson(json, options = {}) {
 	requireCloudEntitlement();
+	requireCloudWriteAccess();
 	const jsonBytes = estimateJsonBytes(json);
 
 	if (cloudState.isLocalDemo) {
@@ -485,14 +501,15 @@ export async function saveCloudStateJson(json, options = {}) {
 	}
 
 	const user = requireSignedInFirebaseUser();
+	const dataUid = currentCloudDataUid();
 	const savedAt = new Date().toISOString();
-	const result = await replaceCloudArtifactCollection(user.uid, json, {
+	const result = await replaceCloudArtifactCollection(dataUid, json, {
 		updatedAt: savedAt,
 		deviceId: getDeviceId(),
 		storageBytes: options.storageBytes,
 	});
 	const syncedAt = normalizeSyncTimestamp(result?.updatedAt || savedAt);
-	saveLastCloudSyncAt(syncedAt, user.uid);
+	saveLastCloudSyncAt(syncedAt, dataUid);
 	emitCloudState(
 		{
 			lastCloudSyncAt: syncedAt,
@@ -518,8 +535,8 @@ export async function loadCloudStateJson() {
 		return parsed.json;
 	}
 
-	const user = requireSignedInFirebaseUser();
-	const data = await readCloudArtifactCollection(user.uid);
+	requireSignedInFirebaseUser();
+	const data = await readCloudArtifactCollection(currentCloudDataUid());
 	if (data.deleted) {
 		throw new Error("Cloud state has been deleted.");
 	}
@@ -555,8 +572,8 @@ export async function getCloudStateInfo() {
 		};
 	}
 
-	const user = requireSignedInFirebaseUser();
-	return await readCloudArtifactCollection(user.uid);
+	requireSignedInFirebaseUser();
+	return await readCloudArtifactCollection(currentCloudDataUid());
 }
 
 export function recordCloudSyncAt(
@@ -575,6 +592,7 @@ export function recordCloudSyncAt(
 
 export async function deleteCloudStateJson() {
 	requireCloudEntitlement();
+	requireCloudOwnerAccess();
 
 	if (cloudState.isLocalDemo) {
 		window.localStorage.removeItem(LOCAL_DEMO_STATE_KEY);
@@ -582,8 +600,8 @@ export async function deleteCloudStateJson() {
 		return { deleted: true };
 	}
 
-	const user = requireSignedInFirebaseUser();
-	const result = await deleteCloudArtifactCollection(user.uid, {
+	requireSignedInFirebaseUser();
+	const result = await deleteCloudArtifactCollection(currentCloudDataUid(), {
 		updatedAt: new Date().toISOString(),
 		deviceId: getDeviceId(),
 	});
@@ -600,7 +618,7 @@ export async function deleteCloudAccount() {
 	}
 
 	const user = requireSignedInFirebaseUser();
-	await deleteCloudArtifactCollection(user.uid, {
+	await deleteCloudArtifactCollection(currentCloudDataUid(), {
 		updatedAt: new Date().toISOString(),
 		deviceId: getDeviceId(),
 	});
@@ -614,6 +632,56 @@ export async function deleteCloudAccount() {
 		throw new Error(result?.error?.message || "Cloud account delete failed.");
 	}
 	emitCloudState(signedOutState("Cloud account deletion requested."));
+	return result;
+}
+
+export async function refreshFamilySharingState() {
+	const user = requireSignedInFirebaseUser();
+	const sharedSpace = await readFamilySpaceState(user);
+	emitCloudState({
+		sharedSpace,
+		spaceRole: sharedSpace.role,
+		cloudOwnerUid: sharedSpace.ownerUid || user.uid,
+		message: "Family sharing refreshed.",
+		error: "",
+	});
+	return sharedSpace;
+}
+
+export async function addFamilyMember(email, role = "reader") {
+	return familyMemberRequest("POST", "/members", { email, role });
+}
+
+export async function updateFamilyMember(uid, role = "reader") {
+	return familyMemberRequest("PATCH", `/members/${encodeURIComponent(uid)}`, {
+		role,
+	});
+}
+
+export async function removeFamilyMember(uid) {
+	return familyMemberRequest("DELETE", `/members/${encodeURIComponent(uid)}`);
+}
+
+async function familyMemberRequest(method, path, payload = {}) {
+	requireCloudOwnerAccess();
+	const user = requireSignedInFirebaseUser();
+	const idToken = await user.getIdToken();
+	const response = await fetch(`${FAMILY_API_URL}${path}`, {
+		method,
+		headers: {
+			accept: "application/json",
+			authorization: `Bearer ${idToken}`,
+			...(method === "DELETE" ? {} : { "content-type": "application/json" }),
+		},
+		body: method === "DELETE" ? undefined : JSON.stringify(payload),
+	});
+	const result = await response.json().catch(() => ({}));
+	if (!response.ok) {
+		throw new Error(
+			result?.error?.message || result?.message || "Family sharing update failed.",
+		);
+	}
+	await refreshFamilySharingState();
 	return result;
 }
 
@@ -845,7 +913,7 @@ export function estimateCloudStateStorageUsage(json, options = {}) {
 	const deviceId =
 		options.deviceId || json?.metadata?.deviceId || getDeviceId();
 	const uid = String(
-		options.uid || cloudState.user?.uid || "storage-estimate-user",
+		options.uid || currentCloudDataUid() || "storage-estimate-user",
 	);
 	const normalized = normalizeExportJson(json, { updatedAt, deviceId });
 	assertNoBase64MediaForCloud(normalized);
@@ -1445,6 +1513,16 @@ async function handleFirebaseAuthChange(user) {
 	const claims = tokenResult?.claims || {};
 	const profile = await readUserProfile(user.uid).catch(() => null);
 	const entitlement = resolveEntitlement({ claims, profile, bootstrap });
+	const sharedSpace = activeSpaceIsFamily()
+		? await readFamilySpaceState(user).catch((error) => ({
+				role: "owner",
+				ownerUid: user.uid,
+				members: [],
+				error: errorMessage(error),
+			}))
+		: null;
+	const cloudOwnerUid = sharedSpace?.ownerUid || user.uid;
+	const spaceRole = sharedSpace?.role || "owner";
 	const obsidianKey =
 		(getActiveCloudAppId() === "ourstuff-main") && (entitlement.cloud || entitlement.admin)
 			? await readObsidianSyncKey(user).catch(() => null)
@@ -1461,11 +1539,17 @@ async function handleFirebaseAuthChange(user) {
 		firebaseAvailable: true,
 		isLocalDemo: false,
 		billingCapable: Boolean(entitlement.cloud && !entitlement.admin),
-		lastCloudSyncAt: loadLastCloudSyncAt(user.uid),
+		lastCloudSyncAt: loadLastCloudSyncAt(cloudOwnerUid),
 		obsidianKey,
 		obsidianKeyCopyAvailable: Boolean(latestObsidianApiKey),
-		message: "Cloud sync active.",
-		error: bootstrap?.error || "",
+		spaceRole,
+		cloudOwnerUid,
+		sharedSpace,
+		message:
+			activeSpaceIsFamily() && spaceRole !== "owner"
+				? `Family space joined as ${spaceRole}.`
+				: "Cloud sync active.",
+		error: bootstrap?.error || sharedSpace?.error || "",
 	});
 }
 
@@ -1505,6 +1589,38 @@ async function readObsidianSyncKey(user) {
 		throw new Error(result?.error?.message || "Could not load Obsidian sync key.");
 	}
 	return result.key || null;
+}
+
+async function readFamilySpaceState(user) {
+	const idToken = await user.getIdToken();
+	const response = await fetch(`${FAMILY_API_URL}/state`, {
+		method: "GET",
+		headers: { authorization: `Bearer ${idToken}` },
+	});
+	const result = await response.json().catch(() => ({}));
+	if (!response.ok) {
+		throw new Error(
+			result?.error?.message || result?.message || "Could not load Family sharing.",
+		);
+	}
+	return normalizeSharedSpace(result);
+}
+
+function normalizeSharedSpace(value = {}) {
+	const ownerUid = String(value.ownerUid || value.owner || "").trim();
+	const role = ["owner", "editor", "reader"].includes(value.role)
+		? value.role
+		: "owner";
+	return {
+		spaceId: FAMILY_SPACE_ID,
+		appId: getActiveCloudAppId(),
+		ownerUid,
+		role,
+		canEdit: role === "owner" || role === "editor",
+		canManageMembers: role === "owner",
+		canDeleteCloud: role === "owner",
+		members: Array.isArray(value.members) ? value.members : [],
+	};
 }
 
 function resolveEntitlement({ claims = {}, profile = null, bootstrap = null }) {
@@ -1551,6 +1667,9 @@ function localDemoState(user, message) {
 		billingCapable: false,
 		obsidianKey: null,
 		obsidianKeyCopyAvailable: false,
+		spaceRole: "owner",
+		cloudOwnerUid: user?.uid || "",
+		sharedSpace: null,
 		message,
 		error: "",
 		lastCloudSyncAt: loadLastCloudSyncAt(user?.uid),
@@ -1573,6 +1692,9 @@ function signedOutState(message = "") {
 		billingCapable: false,
 		obsidianKey: null,
 		obsidianKeyCopyAvailable: false,
+		spaceRole: "owner",
+		cloudOwnerUid: "",
+		sharedSpace: null,
 		message,
 		error: "",
 	};
@@ -1620,6 +1742,25 @@ function requireSignedInFirebaseUser() {
 function requireCloudEntitlement() {
 	if (cloudState.mode !== "signed-in" || !cloudState.user) {
 		throw new Error("Sign in before using Cloud.");
+	}
+}
+
+function currentCloudDataUid() {
+	return (
+		String(cloudState.cloudOwnerUid || "").trim() ||
+		String(cloudState.user?.uid || "").trim()
+	);
+}
+
+function requireCloudWriteAccess() {
+	if (cloudState.spaceRole === "reader") {
+		throw new Error(`${getActiveSpaceLabel()} readers can view and export only.`);
+	}
+}
+
+function requireCloudOwnerAccess() {
+	if (cloudState.spaceRole && cloudState.spaceRole !== "owner") {
+		throw new Error(`Only the ${getActiveSpaceLabel()} owner can do that.`);
 	}
 }
 

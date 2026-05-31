@@ -1,5 +1,6 @@
 export const PERSONAL_SPACE_ID = "personal";
 export const WORK_SPACE_ID = "work";
+export const FAMILY_SPACE_ID = "family";
 export const ACTIVE_SPACE_KEY = "ourstuff.activeSpace.v1";
 export const SPACE_MIGRATION_KEY = "ourstuff.spaceMigration.v1";
 
@@ -12,17 +13,46 @@ export const DATA_SPACES = Object.freeze({
 		label: "Personal",
 		cloudAppId: "ourstuff-main",
 		description: "Personal notes, trackers, PYXIDA, themes, and local media.",
+		shareable: false,
+		dashboardLabels: Object.freeze({
+			Mind: "Mind",
+			Body: "Body",
+			Spirit: "Spirit",
+			Life: "Life",
+		}),
 	}),
 	[WORK_SPACE_ID]: Object.freeze({
 		id: WORK_SPACE_ID,
 		label: "Work",
 		cloudAppId: "ourstuff-main-work",
 		description: "Work-only notes, trackers, PYXIDA, themes, and local media.",
+		shareable: false,
+		dashboardLabels: Object.freeze({
+			Mind: "Knowledge",
+			Body: "Movement",
+			Spirit: "Mindfulness",
+			Life: "Productivity",
+		}),
+	}),
+	[FAMILY_SPACE_ID]: Object.freeze({
+		id: FAMILY_SPACE_ID,
+		label: "Family",
+		cloudAppId: "ourstuff-main-family",
+		description:
+			"Shared family memories, routines, study notes, planning, PYXIDA, and media.",
+		shareable: true,
+		dashboardLabels: Object.freeze({
+			Mind: "Memories",
+			Body: "Exercise",
+			Spirit: "Study",
+			Life: "Family Planner",
+		}),
 	}),
 });
 
 export function normalizeSpaceId(value) {
-	return value === WORK_SPACE_ID ? WORK_SPACE_ID : PERSONAL_SPACE_ID;
+	const spaceId = String(value || "");
+	return DATA_SPACES[spaceId] ? spaceId : PERSONAL_SPACE_ID;
 }
 
 export function getActiveSpaceId() {
@@ -49,6 +79,10 @@ export function getActiveSpaceLabel() {
 
 export function getActiveCloudAppId() {
 	return activeSpace().cloudAppId;
+}
+
+export function isShareableSpace(spaceId = getActiveSpaceId()) {
+	return DATA_SPACES[normalizeSpaceId(spaceId)]?.shareable === true;
 }
 
 export function scopedStorageKey(baseKey, spaceId = getActiveSpaceId()) {

@@ -6,6 +6,7 @@ import {
 	shift,
 } from "https://cdn.jsdelivr.net/npm/@floating-ui/dom@1.7.5/+esm";
 import {
+	addFamilyMember,
 	copyLatestObsidianApiKey,
 	createOrRotateObsidianSyncKey,
 	deleteCloudAccount,
@@ -21,12 +22,14 @@ import {
 	openBillingPortal,
 	recordCloudSyncAt,
 	refreshObsidianSyncKey,
+	removeFamilyMember,
 	saveCloudStateJson,
 	signInToCloud,
 	signInWithEmailPassword,
 	signInWithGoogle,
 	signOutCloud,
 	startCloudSubscription,
+	updateFamilyMember,
 } from "./cloud.js?v=space-20260531a";
 import { CLOUD_STORAGE_LIMIT_BYTES } from "./config.js?v=storage-quota-20260523a";
 import { today } from "./data.js";
@@ -91,6 +94,7 @@ import {
 import {
 	activeSpace,
 	DATA_SPACES,
+	FAMILY_SPACE_ID,
 	getActiveSpaceId,
 	getActiveSpaceLabel,
 	hasSpacePin,
@@ -1018,28 +1022,136 @@ function workGoalItems(area) {
 	].map((goal) => ({ ...goal, enabled: true, frequency: "daily", customDays: 10 }));
 }
 
-function cloneWorkDefaultTrackers() {
+function familyTrackerItems(area) {
+	const prefix = area.toLowerCase();
+	const labels = {
+		Mind: [
+			["memory", "Memory", "tabler:photo-heart"],
+			["story", "Story", "tabler:book"],
+			["question", "Question", "tabler:message-question"],
+			["milestone", "Milestone", "tabler:flag-heart"],
+		],
+		Body: [
+			["walk", "Walk", "tabler:walk"],
+			["meal", "Family Meal", "tabler:tools-kitchen-2"],
+			["outdoor", "Outdoor Time", "tabler:trees"],
+			["rest", "Rest", "tabler:moon"],
+		],
+		Spirit: [
+			["study", "Study", "tabler:school"],
+			["reading", "Reading", "tabler:book-2"],
+			["reflection", "Reflection", "tabler:message-circle"],
+			["gratitude", "Gratitude", "tabler:heart"],
+		],
+		Life: [
+			["plan", "Plan", "tabler:calendar"],
+			["chore", "Chore", "tabler:home-cog"],
+			["event", "Event", "tabler:calendar-event"],
+			["check-in", "Check-in", "tabler:users"],
+		],
+	};
+	return (labels[area] || labels.Life).map(([id, label, icon]) => ({
+		id: `${prefix}-family-${id}`,
+		label,
+		icon,
+	}));
+}
+
+function familyGoalItems(area) {
+	const prefix = area.toLowerCase();
+	const labels = {
+		Mind: [
+			["archive", "Archive", "tabler:archive"],
+			["share-story", "Share Story", "tabler:message-heart"],
+			["organize", "Organize", "tabler:folders"],
+			["learn", "Learn", "tabler:school"],
+		],
+		Body: [
+			["move", "Move Together", "tabler:run"],
+			["hydrate", "Hydrate", "tabler:droplet"],
+			["sleep", "Sleep", "tabler:moon"],
+			["cook", "Cook", "tabler:tools-kitchen-2"],
+		],
+		Spirit: [
+			["read", "Read", "tabler:book"],
+			["practice", "Practice", "tabler:yoga"],
+			["serve", "Serve", "tabler:heart-handshake"],
+			["reflect", "Reflect", "tabler:message-circle"],
+		],
+		Life: [
+			["plan-week", "Plan Week", "tabler:calendar-week"],
+			["budget", "Budget", "tabler:coins"],
+			["reset-home", "Reset Home", "tabler:sparkles"],
+			["connect", "Connect", "tabler:users"],
+		],
+	};
+	return (labels[area] || labels.Life).map(([id, label, icon]) => ({
+		id: `${prefix}-family-${id}`,
+		label,
+		icon,
+		enabled: true,
+		frequency: "weekly",
+		customDays: 7,
+	}));
+}
+
+const SPACE_DEFAULTS = {
+	[WORK_SPACE_ID]: {
+		icon: "tabler:briefcase",
+		emptyLabel: "Create empty Work space",
+		defaultLabel: "Restore Work Defaults",
+		emptyConfirm:
+			"Create an empty Work space on this browser? This replaces only the local Work dataset. Personal and Family stay unchanged.",
+		defaultConfirm:
+			"Restore Work-safe defaults? This replaces only the local Work dataset with empty notes, empty logs, and work-safe orbs.",
+		trackers: workTrackerItems,
+		goals: workGoalItems,
+	},
+	[FAMILY_SPACE_ID]: {
+		icon: "tabler:users-group",
+		emptyLabel: "Create empty Family space",
+		defaultLabel: "Restore Family Defaults",
+		emptyConfirm:
+			"Create an empty Family space on this browser? This replaces only the local Family dataset. Personal and Work stay unchanged.",
+		defaultConfirm:
+			"Restore Family defaults? This replaces only the local Family dataset with empty notes, empty logs, and family-focused orbs.",
+		trackers: familyTrackerItems,
+		goals: familyGoalItems,
+	},
+};
+
+function cloneSpaceTrackers(spaceId = activeSpaceId(), { empty = false } = {}) {
+	if (empty) {
+		return createEmptyTrackerSettings();
+	}
+	const config = SPACE_DEFAULTS[spaceId];
+	if (!config?.trackers) {
+		return cloneDefaultTrackers();
+	}
 	return Object.fromEntries(
-		DASHBOARD_LABELS.map((dashboard) => [dashboard, workTrackerItems(dashboard)]),
+		DASHBOARD_LABELS.map((dashboard) => [dashboard, config.trackers(dashboard)]),
 	);
 }
 
-function cloneWorkDefaultGoals() {
+function cloneSpaceGoals(spaceId = activeSpaceId(), { empty = false } = {}) {
+	if (empty) {
+		return createEmptyTrackerSettings();
+	}
+	const config = SPACE_DEFAULTS[spaceId];
+	if (!config?.goals) {
+		return cloneDefaultGoals();
+	}
 	return Object.fromEntries(
-		DASHBOARD_LABELS.map((dashboard) => [dashboard, workGoalItems(dashboard)]),
+		DASHBOARD_LABELS.map((dashboard) => [dashboard, config.goals(dashboard)]),
 	);
 }
 
 function cloneDefaultTrackersForSpace() {
-	return getActiveSpaceId() === WORK_SPACE_ID
-		? cloneWorkDefaultTrackers()
-		: cloneDefaultTrackers();
+	return cloneSpaceTrackers(getActiveSpaceId());
 }
 
 function cloneDefaultGoalsForSpace() {
-	return getActiveSpaceId() === WORK_SPACE_ID
-		? cloneWorkDefaultGoals()
-		: cloneDefaultGoals();
+	return cloneSpaceGoals(getActiveSpaceId());
 }
 
 function createEmptyTrackerSettings() {
@@ -1048,7 +1160,8 @@ function createEmptyTrackerSettings() {
 	);
 }
 
-function cloneDefaultDashboardIdentity() {
+function cloneDefaultDashboardIdentityForSpace(spaceId = activeSpaceId()) {
+	const spaceLabels = DATA_SPACES[spaceId]?.dashboardLabels || {};
 	return {
 		displayMode: DEFAULT_DASHBOARD_IDENTITY.displayMode,
 		showNumbers: DEFAULT_DASHBOARD_IDENTITY.showNumbers,
@@ -1056,10 +1169,19 @@ function cloneDefaultDashboardIdentity() {
 		items: Object.fromEntries(
 			DASHBOARD_LABELS.map((dashboard) => [
 				dashboard,
-				{ ...DEFAULT_DASHBOARD_IDENTITY.items[dashboard] },
+				{
+					...DEFAULT_DASHBOARD_IDENTITY.items[dashboard],
+					label:
+						spaceLabels[dashboard] ||
+						DEFAULT_DASHBOARD_IDENTITY.items[dashboard].label,
+				},
 			]),
 		),
 	};
+}
+
+function cloneDefaultDashboardIdentity() {
+	return cloneDefaultDashboardIdentityForSpace(activeSpaceId());
 }
 
 function normalizeIconSource(value) {
@@ -1668,6 +1790,17 @@ function normalizePyxdiaLetter(value = {}) {
 		id: String(value.id || ""),
 		threadId: String(value.threadId || ""),
 		owner: String(value.owner || ""),
+		createdBy: String(value.createdBy || value.owner || ""),
+		updatedBy: String(value.updatedBy || ""),
+		authorDisplayName: String(value.authorDisplayName || ""),
+		authorEmail: String(value.authorEmail || ""),
+		authorLabel: String(
+			value.authorLabel ||
+				value.safeAuthorDisplay ||
+				value.authorDisplayName ||
+				value.authorEmail ||
+				"",
+		),
 		state: String(value.state || "draft"),
 		inputText: String(value.inputText || ""),
 		scrubbedInputText: String(value.scrubbedInputText || ""),
@@ -2780,6 +2913,14 @@ function cloudHasSyncAccess(cloud = state.cloud) {
 	);
 }
 
+function cloudCanWriteActiveSpace(cloud = state.cloud) {
+	return cloudHasSyncAccess(cloud) && cloud?.spaceRole !== "reader";
+}
+
+function cloudCanOwnActiveSpace(cloud = state.cloud) {
+	return cloudHasSyncAccess(cloud) && (!cloud?.spaceRole || cloud.spaceRole === "owner");
+}
+
 function cloudMediaSyncAccess(cloud = state.cloud) {
 	return Boolean(
 		cloud?.mode === "signed-in" && cloud.user?.uid && !cloud.isLocalDemo,
@@ -2788,7 +2929,7 @@ function cloudMediaSyncAccess(cloud = state.cloud) {
 
 function configureMediaCloudContext(cloud = state.cloud) {
 	configureCloudMedia({
-		uid: cloud?.user?.uid || "",
+		uid: cloud?.cloudOwnerUid || cloud?.user?.uid || "",
 		enabled: cloudMediaSyncAccess(cloud),
 	});
 }
@@ -3467,6 +3608,25 @@ async function signInWithEmailForm(options = {}) {
 	const email = document.getElementById("cloud-email")?.value || "";
 	const password = document.getElementById("cloud-password")?.value || "";
 	await signInWithEmailPassword(email, password, options);
+}
+
+async function addFamilyMemberFromDom() {
+	const email = document.getElementById("family-member-email")?.value || "";
+	const role = document.getElementById("family-member-role")?.value || "reader";
+	return await addFamilyMember(email, role);
+}
+
+async function removeFamilyMemberAction(uid) {
+	if (!uid) {
+		return null;
+	}
+	const confirmed = window.confirm(
+		"Remove this member from the Family space? Their joined Family cloud cache will be cleared on next refresh.",
+	);
+	if (!confirmed) {
+		return null;
+	}
+	return await removeFamilyMember(uid);
 }
 
 function hasStoredAppState() {
@@ -6822,6 +6982,9 @@ function cloudStatusLabel(account = state.cloud || getCloudAccountState()) {
 	if (entitlement.admin) {
 		return "Admin / Cloud enabled";
 	}
+	if (activeSpaceId() === FAMILY_SPACE_ID && account.spaceRole) {
+		return `Family ${account.spaceRole}`;
+	}
 	return signedIn ? "Cloud sync active" : "Cloud sync inactive";
 }
 
@@ -6839,6 +7002,9 @@ function cloudUiSignature(account = {}) {
 		localDemoAvailable: Boolean(account.localDemoAvailable),
 		obsidianKeyId: account.obsidianKey?.id || "",
 		obsidianKeyCopyAvailable: Boolean(account.obsidianKeyCopyAvailable),
+		spaceRole: account.spaceRole || "",
+		cloudOwnerUid: account.cloudOwnerUid || "",
+		sharedMemberCount: account.sharedSpace?.members?.length || 0,
 	});
 }
 
@@ -7463,6 +7629,13 @@ async function savePyxdiaDraftAction() {
 }
 
 async function sendPyxdiaLetterAction() {
+	if (activeSpaceId() === FAMILY_SPACE_ID && state.cloud?.spaceRole === "reader") {
+		setState({
+			pyxdiaStatus: "",
+			pyxdiaError: "Family readers can view PYXIDA letters but cannot send.",
+		});
+		return;
+	}
 	const draft = savePyxdiaDraftLocal(pyxdiaDraftFromDom(), { render: false });
 	const settings = normalizePyxdiaSettings(state.pyxdiaSettings);
 	const validation = validatePyxdiaDraft(draft, settings);
@@ -10400,6 +10573,7 @@ function setColorMode(mode) {
 
 function saveDashboardIdentitySettings() {
 	const current = normalizeDashboardIdentity(state.dashboardIdentity);
+	const defaults = cloneDefaultDashboardIdentity();
 	const displayMode =
 		document.querySelector("input[name='dashboard-display-mode']:checked")
 			?.value === "icons"
@@ -10414,23 +10588,23 @@ function saveDashboardIdentitySettings() {
 				const label =
 					document
 						.getElementById(`dashboard-identity-${dashboard}-label`)
-						?.value.trim() || DEFAULT_DASHBOARD_IDENTITY.items[dashboard].label;
+						?.value.trim() || defaults.items[dashboard].label;
 				const icon =
 					document
 						.getElementById(`dashboard-identity-${dashboard}-icon`)
 						?.value.trim() ||
 					current.items[dashboard]?.icon ||
-					DEFAULT_DASHBOARD_IDENTITY.items[dashboard].icon;
+					defaults.items[dashboard].icon;
 				const color = normalizeHexColor(
 					document.getElementById(`dashboard-identity-${dashboard}-color`)
 						?.value,
 					current.items[dashboard]?.color ||
-						DEFAULT_DASHBOARD_IDENTITY.items[dashboard].color,
+						defaults.items[dashboard].color,
 				);
 				return [
 					dashboard,
 					{
-						...DEFAULT_DASHBOARD_IDENTITY.items[dashboard],
+						...defaults.items[dashboard],
 						label,
 						icon: normalizeIconSource(icon),
 						color,
@@ -10448,7 +10622,7 @@ function resetDashboardIdentityItem(dashboard) {
 	if (!DASHBOARD_LABELS.includes(dashboard)) {
 		return;
 	}
-	const fallback = DEFAULT_DASHBOARD_IDENTITY.items[dashboard];
+	const fallback = cloneDefaultDashboardIdentity().items[dashboard];
 	const labelInput = document.getElementById(
 		`dashboard-identity-${dashboard}-label`,
 	);
@@ -11788,7 +11962,8 @@ function pyxdiaInputHtml() {
 		size.chars > settings.letterMaxChars;
 	const metadataBudget = pyxdiaNoteMetadataBudget(draft);
 	const metadataError = pyxdiaNoteMetadataBudgetError(metadataBudget);
-	const sendDisabled = state.pyxdiaBusy || Boolean(metadataError);
+	const readOnly = activeSpaceId() === FAMILY_SPACE_ID && state.cloud?.spaceRole === "reader";
+	const sendDisabled = state.pyxdiaBusy || Boolean(metadataError) || readOnly;
 	return `
     <section class="pyxdia-letter-editor">
       <div class="pyxdia-letter-main">
@@ -11837,7 +12012,7 @@ function pyxdiaInputHtml() {
         </label>
       </section>
       <div class="editor-footer-actions pyxdia-letter-actions">
-        <button class="secondary-button" data-action="pyxdia-save-draft" type="button"${state.pyxdiaBusy ? " disabled" : ""}>${buttonContent("tabler:device-floppy", "Save Draft")}</button>
+        <button class="secondary-button" data-action="pyxdia-save-draft" type="button"${state.pyxdiaBusy || readOnly ? " disabled" : ""}>${buttonContent("tabler:device-floppy", "Save Draft")}</button>
         <button class="primary-button" data-action="pyxdia-send-letter" type="button"${sendDisabled ? " disabled" : ""}>${buttonContent("tabler:send-2", "Send Letter")}</button>
       </div>
     </section>
@@ -12053,7 +12228,7 @@ function pyxdiaLastLetterHtml(options = {}) {
       <div class="body-card-heading">
         <div>
           <h3>${escapeHtml(pending ? "Reply Pending" : "Latest Reply")}</h3>
-          <p>${escapeHtml(pyxdiaStatusText(latest))}</p>
+          <p>${escapeHtml([latest.authorLabel, pyxdiaStatusText(latest)].filter(Boolean).join(" / "))}</p>
         </div>
         ${actions}
       </div>
@@ -12072,6 +12247,7 @@ function pyxdiaLastLetterHtml(options = {}) {
 function pyxdiaThreadHtml() {
 	const thread = selectedPyxdiaThread();
 	const letters = selectedPyxdiaThreadLetters();
+	const readOnly = activeSpaceId() === FAMILY_SPACE_ID && state.cloud?.spaceRole === "reader";
 	if (!thread) {
 		return emptyStateHtml(
 			"No PYXIDA conversations yet",
@@ -12086,7 +12262,7 @@ function pyxdiaThreadHtml() {
           <p>${escapeHtml(`${letters.length} letter${letters.length === 1 ? "" : "s"} / ${thread.latestState}`)}</p>
         </div>
 						<div class="action-row">
-          <button class="secondary-button" data-action="pyxdia-reply-thread" data-id="${escapeHtml(thread.id)}" type="button">${buttonContent("tabler:message-reply", "Reply")}</button>
+          <button class="secondary-button" data-action="pyxdia-reply-thread" data-id="${escapeHtml(thread.id)}" type="button"${readOnly ? " disabled" : ""}>${buttonContent("tabler:message-reply", "Reply")}</button>
         </div>
       </div>
       <div class="pyxdia-thread-list">
@@ -12096,13 +12272,14 @@ function pyxdiaThreadHtml() {
           <article class="pyxdia-thread-letter">
             <header>
               <strong>${escapeHtml(formatActivityTimestamp(letter.submittedAt || letter.createdAt))}</strong>
+              ${letter.authorLabel ? `<span>${escapeHtml(letter.authorLabel)}</span>` : ""}
               <span>${escapeHtml(pyxdiaStatusText(letter))}</span>
               ${
 								isTemplatePyxdiaReply(letter)
-									? `<button class="secondary-button" data-action="pyxdia-retry-letter" data-id="${escapeHtml(letter.id)}" type="button">${buttonContent("tabler:refresh", "Regenerate Reply")}</button>`
+									? `<button class="secondary-button" data-action="pyxdia-retry-letter" data-id="${escapeHtml(letter.id)}" type="button"${readOnly ? " disabled" : ""}>${buttonContent("tabler:refresh", "Regenerate Reply")}</button>`
 									: ""
 							}
-              <button class="secondary-button danger-button" data-action="pyxdia-delete-letter" data-id="${escapeHtml(letter.id)}" type="button">${buttonContent("tabler:trash", "Move to Trash")}</button>
+              <button class="secondary-button danger-button" data-action="pyxdia-delete-letter" data-id="${escapeHtml(letter.id)}" type="button"${readOnly ? " disabled" : ""}>${buttonContent("tabler:trash", "Move to Trash")}</button>
             </header>
             <div class="pyxdia-thread-input markdown-body">${renderPyxdiaLetterMarkdown(letter.inputText, letter.imageRefs)}</div>
             ${
@@ -12631,6 +12808,10 @@ function settingsCloudHtml() {
 		? account.user.displayName || account.user.email || "Signed in"
 		: "";
 	const statusLabel = cloudStatusLabel(account);
+	const canWriteSpace = cloudCanWriteActiveSpace(account);
+	const canOwnSpace = cloudCanOwnActiveSpace(account);
+	const writeDisabledAttr = !canWriteSpace || account.busy ? " disabled" : "";
+	const ownerDisabledAttr = !canOwnSpace || account.busy ? " disabled" : "";
 	const localUpdatedAt = localAppUpdatedAt({ persistDerived: false });
 	const localBytes = estimateJsonBytes({
 		schemaVersion: SCHEMA_VERSION,
@@ -12667,7 +12848,7 @@ function settingsCloudHtml() {
 									signedIn && isCloud
 										? `
                 <div class="cloud-heading-action-row">
-                  <button class="primary-button" data-action="cloud-sync-now" type="button"${busyAttr}>${buttonContent("tabler:cloud-up", "Sync now")}</button>
+                  <button class="primary-button" data-action="cloud-sync-now" type="button"${writeDisabledAttr}>${buttonContent("tabler:cloud-up", "Sync now")}</button>
                   <button class="secondary-button" data-action="cloud-load" type="button"${busyAttr}>${buttonContent("tabler:cloud-down", "Load cloud")}</button>
                   <button class="secondary-button" data-action="cloud-sign-out" type="button"${busyAttr}>${buttonContent("tabler:logout", "Sign out")}</button>
                 </div>
@@ -12675,7 +12856,7 @@ function settingsCloudHtml() {
 										: ""
 								}
                 <div class="cloud-heading-action-row">
-                  <button class="secondary-button" data-action="import-artifacts" type="button">${buttonContent("tabler:file-import", "Import")}</button>
+                  <button class="secondary-button" data-action="import-artifacts" type="button"${signedIn && !canWriteSpace ? " disabled" : ""}>${buttonContent("tabler:file-import", "Import")}</button>
                   <button class="secondary-button" data-action="export-artifacts" type="button">${buttonContent("tabler:file-export", "Export")}</button>
                   <button class="secondary-button" data-action="reset-tips" type="button">${buttonContent("tabler:bulb", "Reset tips")}</button>
                 </div>
@@ -12698,6 +12879,11 @@ function settingsCloudHtml() {
             <span data-cloud-local-updated><strong>${escapeHtml(localUpdatedAt ? new Date(localUpdatedAt).toLocaleString() : "No local changes")}</strong><small>${escapeHtml(activeSpaceLabel())} local change</small></span>
             <span data-cloud-last-sync><strong>${escapeHtml(account.lastCloudSyncAt ? new Date(account.lastCloudSyncAt).toLocaleString() : "Not synced")}</strong><small>${escapeHtml(activeSpaceLabel())} sync from this device</small></span>
             <span data-cloud-auto-sync><strong>${escapeHtml(isCloud ? `Every ${cloudSyncIntervalLabel()}` : "Off")}</strong><small>Artifacts + encrypted media</small></span>
+            ${
+							activeSpaceId() === FAMILY_SPACE_ID
+								? `<span><strong>${escapeHtml(account.spaceRole || "owner")}</strong><small>Family role</small></span>`
+								: ""
+						}
           </div>
           ${
 						account.billingCapable
@@ -12728,7 +12914,7 @@ function settingsCloudHtml() {
 					signedIn && isCloud
 						? `
           <div class="cloud-danger-links" aria-label="Destructive cloud actions">
-            <button class="cloud-danger-link" data-action="cloud-delete-data" type="button"${busyAttr}>Delete ${escapeHtml(activeSpaceLabel())} cloud data</button>
+            <button class="cloud-danger-link" data-action="cloud-delete-data" type="button"${ownerDisabledAttr}>Delete ${escapeHtml(activeSpaceLabel())} cloud data</button>
             <span class="cloud-danger-separator" aria-hidden="true">|</span>
             <button class="cloud-danger-link" data-action="cloud-delete-account" type="button"${busyAttr}>Delete cloud account</button>
           </div>
@@ -12738,6 +12924,7 @@ function settingsCloudHtml() {
         <div data-cloud-status-region>${cloudStatusRegionHtml(account)}</div>
       </section>
       ${obsidianSyncSettingsHtml(account, cloudActive, busyAttr)}
+      ${familySharingSettingsHtml(account, busyAttr)}
       <section class="interface-settings-section data-controls-section">
         <div class="body-card-heading">
           <div>
@@ -12754,13 +12941,13 @@ function settingsCloudHtml() {
 }
 
 function obsidianSyncSettingsHtml(account, cloudActive, busyAttr) {
-	if (activeSpaceId() === WORK_SPACE_ID) {
+	if (activeSpaceId() !== PERSONAL_SPACE_ID) {
 		return `
       <section class="interface-settings-section cloud-account-section obsidian-sync-section">
         <div class="body-card-heading">
           <div>
             <h3>Obsidian Sync</h3>
-            <p>Obsidian Sync is Personal-only until the Worker supports the Work app id.</p>
+            <p>Obsidian Sync is Personal-only until the sync backend supports shared and alternate app ids.</p>
           </div>
         </div>
       </section>
@@ -12813,6 +13000,84 @@ function obsidianSyncSettingsHtml(account, cloudActive, busyAttr) {
 						: `<p class="cloud-status-message">${escapeHtml(cloudActive ? "No Obsidian sync key exists yet." : "A Cloud subscription is required before creating an Obsidian sync key.")}</p>`
 				}
       </section>
+  `;
+}
+
+function familySharingSettingsHtml(account, busyAttr) {
+	if (activeSpaceId() !== FAMILY_SPACE_ID) {
+		return "";
+	}
+	const signedIn = account.mode === "signed-in" && account.user;
+	if (!signedIn) {
+		return `
+      <section class="interface-settings-section cloud-account-section">
+        <div class="body-card-heading">
+          <div>
+            <h3>Family Sharing</h3>
+            <p>Sign in to invite existing Firebase accounts into this Family space.</p>
+          </div>
+        </div>
+      </section>
+    `;
+	}
+	const role = account.spaceRole || "owner";
+	const owner = role === "owner";
+	const members = Array.isArray(account.sharedSpace?.members)
+		? account.sharedSpace.members
+		: [];
+	return `
+      <section class="interface-settings-section cloud-account-section">
+        <div class="body-card-heading">
+          <div>
+            <h3>Family Sharing</h3>
+            <p>${escapeHtml(owner ? "Invite existing Firebase accounts as editors or readers." : `You are a ${role}. Readers can view and export; editors can edit and sync.`)}</p>
+          </div>
+          <span class="cloud-status-pill is-active">${escapeHtml(role)}</span>
+        </div>
+        ${
+					owner
+						? `
+          <div class="cloud-email-form" aria-label="Family member invite">
+            <label class="body-field">Member email<input id="family-member-email" type="email" autocomplete="off" placeholder="person@example.com"></label>
+            <label class="body-field">Role
+              <select id="family-member-role">
+                <option value="editor">Editor</option>
+                <option value="reader">Reader</option>
+              </select>
+            </label>
+            <div class="action-row cloud-actions">
+              <button class="primary-button" data-action="family-member-add" type="button"${busyAttr}>${buttonContent("tabler:user-plus", "Add member")}</button>
+            </div>
+          </div>
+        `
+						: ""
+				}
+        <div class="cloud-sync-grid">
+          ${members.length ? members.map((member) => familyMemberRowHtml(member, owner, busyAttr)).join("") : `<span><strong>No members</strong><small>${owner ? "Only you can access this Family space." : "Ask the owner to add members."}</small></span>`}
+        </div>
+      </section>
+  `;
+}
+
+function familyMemberRowHtml(member, owner, busyAttr) {
+	const uid = String(member.uid || "");
+	const label = member.displayName || member.email || uid || "Family member";
+	const role = member.role === "editor" ? "editor" : "reader";
+	return `
+    <span>
+      <strong>${escapeHtml(label)}</strong>
+      <small>
+        ${escapeHtml(role)}
+        ${
+					owner && uid
+						? `
+          <button class="cloud-danger-link" data-action="family-member-role" data-uid="${escapeHtml(uid)}" data-role="${role === "editor" ? "reader" : "editor"}" type="button"${busyAttr}>Make ${role === "editor" ? "reader" : "editor"}</button>
+          <button class="cloud-danger-link" data-action="family-member-remove" data-uid="${escapeHtml(uid)}" type="button"${busyAttr}>Remove</button>
+        `
+						: ""
+				}
+      </small>
+    </span>
   `;
 }
 
@@ -12957,6 +13222,17 @@ function activeSpacePillHtml() {
 
 function spaceSwitcherHtml() {
 	const current = activeSpaceId();
+	const defaultActions = Object.values(DATA_SPACES)
+		.filter((space) => space.id !== PERSONAL_SPACE_ID)
+		.map((space) => {
+			const config = SPACE_DEFAULTS[space.id] || {};
+			const icon = config.icon || "tabler:database";
+			return `
+        <button class="secondary-button" data-action="create-empty-space" data-space="${escapeHtml(space.id)}" type="button">${buttonContent(icon, config.emptyLabel || `Create empty ${space.label} space`)}</button>
+        <button class="secondary-button" data-action="restore-space-defaults" data-space="${escapeHtml(space.id)}" type="button">${buttonContent("tabler:restore", config.defaultLabel || `Restore ${space.label} Defaults`)}</button>
+      `;
+		})
+		.join("");
 	return `
     <section class="interface-settings-section space-switcher-section">
       <div class="body-card-heading">
@@ -12978,8 +13254,7 @@ function spaceSwitcherHtml() {
 					.join("")}
       </div>
       <div class="action-row body-actions">
-        <button class="secondary-button" data-action="create-empty-work-space" type="button">${buttonContent("tabler:briefcase", "Create empty Work space")}</button>
-        <button class="secondary-button" data-action="restore-work-defaults" type="button">${buttonContent("tabler:restore", "Restore Work Defaults")}</button>
+        ${defaultActions}
       </div>
     </section>
   `;
@@ -13011,7 +13286,7 @@ function spacePinControlsHtml() {
   `;
 }
 
-function resetSpaceDatasetStorage(spaceId, { workDefaults = false } = {}) {
+function resetSpaceDatasetStorage(spaceId, { defaults = false } = {}) {
 	DATASET_STORAGE_BASE_KEYS.forEach((key) => {
 		try {
 			window.localStorage.removeItem(scopedStorageKey(key, spaceId));
@@ -13024,7 +13299,7 @@ function resetSpaceDatasetStorage(spaceId, { workDefaults = false } = {}) {
 	} catch {
 		// IndexedDB cleanup is best effort.
 	}
-	if (spaceId !== WORK_SPACE_ID) {
+	if (spaceId === PERSONAL_SPACE_ID) {
 		return;
 	}
 	const store = createEmptyStore();
@@ -13046,15 +13321,15 @@ function resetSpaceDatasetStorage(spaceId, { workDefaults = false } = {}) {
 	);
 	window.localStorage.setItem(
 		scopedStorageKey("ourstuff.thoughts.v1", spaceId),
-		JSON.stringify(workDefaults ? cloneWorkDefaultTrackers() : createEmptyTrackerSettings()),
+		JSON.stringify(cloneSpaceTrackers(spaceId, { empty: !defaults })),
 	);
 	window.localStorage.setItem(
 		scopedStorageKey("ourstuff.goals.v1", spaceId),
-		JSON.stringify(workDefaults ? cloneWorkDefaultGoals() : createEmptyTrackerSettings()),
+		JSON.stringify(cloneSpaceGoals(spaceId, { empty: !defaults })),
 	);
 	window.localStorage.setItem(
 		scopedStorageKey("ourstuff.dashboardIdentity.v1", spaceId),
-		JSON.stringify(cloneDefaultDashboardIdentity()),
+		JSON.stringify(cloneDefaultDashboardIdentityForSpace(spaceId)),
 	);
 	window.localStorage.setItem(
 		scopedStorageKey("ourstuff.dashboardChartTabs.v1", spaceId),
@@ -13072,26 +13347,32 @@ function resetSpaceDatasetStorage(spaceId, { workDefaults = false } = {}) {
 	);
 }
 
-async function createEmptyWorkSpace() {
+async function createEmptySpace(spaceId) {
+	const normalized = DATA_SPACES[spaceId]?.id || WORK_SPACE_ID;
+	const config = SPACE_DEFAULTS[normalized] || {};
 	const confirmed = window.confirm(
-		"Create an empty Work space on this browser? This replaces only the local Work dataset. Personal stays unchanged.",
+		config.emptyConfirm ||
+			`Create an empty ${DATA_SPACES[normalized].label} space on this browser? This replaces only that local dataset.`,
 	);
 	if (!confirmed) {
 		return;
 	}
-	resetSpaceDatasetStorage(WORK_SPACE_ID, { workDefaults: false });
-	switchSpace(WORK_SPACE_ID);
+	resetSpaceDatasetStorage(normalized, { defaults: false });
+	switchSpace(normalized);
 }
 
-async function restoreWorkDefaults() {
+async function restoreSpaceDefaults(spaceId) {
+	const normalized = DATA_SPACES[spaceId]?.id || WORK_SPACE_ID;
+	const config = SPACE_DEFAULTS[normalized] || {};
 	const confirmed = window.confirm(
-		"Restore Work-safe defaults? This replaces only the local Work dataset with empty notes, empty logs, and work-safe orbs.",
+		config.defaultConfirm ||
+			`Restore ${DATA_SPACES[normalized].label} defaults? This replaces only that local dataset.`,
 	);
 	if (!confirmed) {
 		return;
 	}
-	resetSpaceDatasetStorage(WORK_SPACE_ID, { workDefaults: true });
-	switchSpace(WORK_SPACE_ID);
+	resetSpaceDatasetStorage(normalized, { defaults: true });
+	switchSpace(normalized);
 }
 
 async function setSpacePinAction() {
@@ -13150,7 +13431,10 @@ function spaceLockHtml() {
         ${state.spaceLockError ? `<p class="cloud-status-message cloud-status-message--error">${escapeHtml(state.spaceLockError)}</p>` : ""}
         <div class="action-row body-actions">
           <button class="primary-button" data-action="space-unlock" type="button">${buttonContent("tabler:lock-open", "Unlock")}</button>
-          <button class="secondary-button" data-action="switch-space" data-space="${activeSpaceId() === WORK_SPACE_ID ? PERSONAL_SPACE_ID : WORK_SPACE_ID}" type="button">${buttonContent("tabler:switch-horizontal", `Switch to ${activeSpaceId() === WORK_SPACE_ID ? "Personal" : "Work"}`)}</button>
+          ${Object.values(DATA_SPACES)
+						.filter((space) => space.id !== activeSpaceId())
+						.map((space) => `<button class="secondary-button" data-action="switch-space" data-space="${escapeHtml(space.id)}" type="button">${buttonContent("tabler:switch-horizontal", `Switch to ${space.label}`)}</button>`)
+						.join("")}
         </div>
       </section>
     </div>
@@ -16602,7 +16886,7 @@ async function uploadPyxdiaImagesAndInsert(files, options = {}) {
 		return fail("Sign in with Cloud before adding images to PYXIDA letters.");
 	}
 	const input = document.getElementById("pyxdia-letter-input");
-	const uid = state.cloud?.user?.uid || "";
+	const uid = state.cloud?.cloudOwnerUid || state.cloud?.user?.uid || "";
 	const letterId = pyxdiaCurrentClientLetterId();
 	const currentDraft = normalizePyxdiaDraft(state.pyxdiaDraft);
 	const currentText = input ? input.value : currentDraft.inputText;
@@ -17771,12 +18055,12 @@ function handleAction(element) {
 		lockActiveSpaceNow();
 		return;
 	}
-	if (action === "create-empty-work-space") {
-		void createEmptyWorkSpace();
+	if (action === "create-empty-space") {
+		void createEmptySpace(element.dataset.space || WORK_SPACE_ID);
 		return;
 	}
-	if (action === "restore-work-defaults") {
-		void restoreWorkDefaults();
+	if (action === "restore-space-defaults") {
+		void restoreSpaceDefaults(element.dataset.space || WORK_SPACE_ID);
 		return;
 	}
 	const keepMenuOpenActions = new Set([
@@ -18181,6 +18465,19 @@ function handleAction(element) {
 	if (action === "cloud-delete-account") {
 		void runCloudAction("Deleting Cloud account...", () =>
 			deleteCloudAccountData(),
+		);
+	}
+	if (action === "family-member-add") {
+		void runCloudAction("Adding Family member...", () => addFamilyMemberFromDom());
+	}
+	if (action === "family-member-role") {
+		void runCloudAction("Updating Family member...", () =>
+			updateFamilyMember(element.dataset.uid || "", element.dataset.role || "reader"),
+		);
+	}
+	if (action === "family-member-remove") {
+		void runCloudAction("Removing Family member...", () =>
+			removeFamilyMemberAction(element.dataset.uid || ""),
 		);
 	}
 	if (action === "obsidian-create-key" || action === "obsidian-refresh-key") {
