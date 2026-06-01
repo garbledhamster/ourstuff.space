@@ -12464,59 +12464,9 @@ function pyxdiaHtml() {
 		)}
     <div class="pyxdia-page">
       ${pyxdiaStatusHtml(settings)}
-      ${pyxdiaCorrespondentTabsHtml()}
       ${body}
     </div>
   `);
-}
-
-function pyxdiaCorrespondentTabsHtml() {
-	const family = familyPenPalCorrespondents();
-	const selected = pyxdiaSelectedRecipient();
-	const tabs = [
-		{
-			recipientType: "pyxdia",
-			recipientUid: "pyxdia",
-			label: "PYXIDA",
-			unreadCount: activePyxdiaLetters()
-				.filter((letter) => normalizePyxdiaRecipientType(letter.recipientType) !== "family")
-				.filter((letter) => letter.state === "completed")
-				.filter((letter) => {
-					const readAt = Date.parse(letter.readBy?.[pyxdiaActorUid()] || "");
-					const unreadAt = Date.parse(letter.completedAt || letter.updatedAt || "") || 0;
-					return !readAt || readAt < unreadAt;
-				}).length,
-		},
-		...family.map((member) => ({
-			...member,
-			unreadCount: activePyxdiaLetters()
-				.filter((letter) => pyxdiaFamilyLetterPeerUid(letter) === member.uid)
-				.filter((letter) => {
-					const readAt = Date.parse(letter.readBy?.[pyxdiaActorUid()] || "");
-					const unreadAt = Date.parse(letter.submittedAt || letter.createdAt || "") || 0;
-					return letter.toUid === pyxdiaActorUid() && (!readAt || readAt < unreadAt);
-				}).length,
-		})),
-	];
-	return `
-    <div class="pyxdia-correspondent-tabs" role="tablist" aria-label="Pen Pal conversations">
-      ${tabs
-				.map((tab) => {
-					const active =
-						selected.recipientType === tab.recipientType &&
-						(selected.recipientType !== "family" ||
-							selected.recipientUid === tab.uid);
-					const uid = tab.uid || tab.recipientUid || "pyxdia";
-					return `
-        <button class="pyxdia-correspondent-tab${active ? " is-active" : ""}" data-action="pyxdia-select-correspondent" data-recipient-type="${escapeHtml(tab.recipientType)}" data-recipient-uid="${escapeHtml(uid)}" type="button" role="tab" aria-selected="${active ? "true" : "false"}">
-          <span>${escapeHtml(tab.label)}</span>
-          ${tab.unreadCount ? `<i>${escapeHtml(tab.unreadCount > 9 ? "9+" : String(tab.unreadCount))}</i>` : ""}
-        </button>
-      `;
-				})
-				.join("")}
-    </div>
-  `;
 }
 
 function pyxdiaFamilyLetterPeerUid(letter = {}) {
