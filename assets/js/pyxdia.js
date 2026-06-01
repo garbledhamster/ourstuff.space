@@ -274,6 +274,10 @@ export async function fetchPyxdiaState(options = {}) {
 	return pyxdiaRequest("/state", { method: "GET", ...options });
 }
 
+export async function fetchPyxdiaUnreadSummary(options = {}) {
+	return pyxdiaRequest("/unread-summary", { method: "GET", ...options });
+}
+
 export async function savePyxdiaDraft(payload, options = {}) {
 	return pyxdiaRequest("/draft", {
 		method: "POST",
@@ -292,6 +296,13 @@ export async function sendPyxdiaLetter(payload, options = {}) {
 
 export async function retryPyxdiaLetter(letterId, options = {}) {
 	return pyxdiaRequest(`/letters/${encodeURIComponent(letterId)}/retry`, {
+		method: "POST",
+		...options,
+	});
+}
+
+export async function markPyxdiaThreadRead(threadId, options = {}) {
+	return pyxdiaRequest(`/threads/${encodeURIComponent(threadId)}/read`, {
 		method: "POST",
 		...options,
 	});
@@ -339,7 +350,7 @@ async function pyxdiaRequest(path, options = {}) {
 	const result = await response.json().catch(() => ({}));
 	if (!response.ok) {
 		throw new Error(
-			result?.error?.message || result?.message || "PYXIDA request failed.",
+			result?.error?.message || result?.message || "Pen Pal request failed.",
 		);
 	}
 	return result;
