@@ -17810,10 +17810,14 @@ function supportsHeaderSnap(contentStage) {
 	return Boolean(contentStage && !contentStage.querySelector(".pyxdia-page"));
 }
 
+function panelSnapChrome(panel) {
+	return panel?.querySelector(".panel-header, .reader-topbar") || null;
+}
+
 function applyHeaderSnapState() {
 	const contentStage = app.querySelector(".content-stage");
 	const panel = contentStage?.querySelector(".panel");
-	if (!contentStage || !panel?.querySelector(".panel-header")) {
+	if (!contentStage || !panelSnapChrome(panel)) {
 		return;
 	}
 	const snapped = Boolean(state.headerSnapped && supportsHeaderSnap(contentStage));
@@ -17827,12 +17831,13 @@ function applyHeaderSnapState() {
 function bindHeaderSnap() {
 	const contentStage = app.querySelector(".content-stage");
 	const panel = contentStage?.querySelector(".panel");
-	const header = panel?.querySelector(".panel-header");
-	if (!contentStage || !panel || !header) {
+	const snapChrome = panelSnapChrome(panel);
+	if (!contentStage || !panel || !snapChrome) {
 		return;
 	}
 	if (
-		window.matchMedia("(max-width: 860px)").matches ||
+		(window.matchMedia("(max-width: 860px)").matches &&
+			!snapChrome.classList.contains("reader-topbar")) ||
 		!supportsHeaderSnap(contentStage)
 	) {
 		setHeaderSnapped(false);
@@ -17935,6 +17940,9 @@ function bindHeaderSnap() {
 	contentStage.addEventListener(
 		"scroll",
 		() => {
+			if (snapChrome.classList.contains("reader-topbar")) {
+				return;
+			}
 			if (isSnapped() && contentStage.scrollTop <= 2) {
 				setHeaderSnapped(false);
 			}
