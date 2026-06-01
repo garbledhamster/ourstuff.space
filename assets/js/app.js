@@ -17,6 +17,7 @@ import {
 	estimateJsonBytes,
 	getCloudAccountState,
 	getCloudIdToken,
+	getCloudSpaceStates,
 	getCloudStateInfo,
 	initCloudAccount,
 	leaveFamilySpace,
@@ -33,7 +34,7 @@ import {
 	signOutCloud,
 	startCloudSubscription,
 	updateFamilyMember,
-} from "./cloud.js?v=space-20260531d";
+} from "./cloud.js?v=space-sync-20260601a";
 import { CLOUD_STORAGE_LIMIT_BYTES } from "./config.js?v=storage-quota-20260523a";
 import { today } from "./data.js";
 import { bindDonationFlow, donationModalHtml } from "./donations.js";
@@ -158,6 +159,21 @@ const DATASET_STORAGE_BASE_KEYS = [
 	"ourstuff.dismissedTips.v1",
 	"ourstuff.localAppUpdatedAt.v1",
 	"ourstuff.localAppOwner.v1",
+];
+const APP_STATE_STORAGE_BASE_KEYS = [
+	"ourstuff.bodyTracker.v1",
+	"ourstuff.spiritPlanProgress.v1",
+	"ourstuff.lifePlanner.v1",
+	"ourstuff.thoughts.v1",
+	"ourstuff.goals.v1",
+	"ourstuff.dashboardIdentity.v1",
+	"ourstuff.dashboardChartTabs.v1",
+	"ourstuff.pyxdiaSettings.v1",
+	"ourstuff.pyxdiaPenpal.v1",
+	"ourstuff.theme.v1",
+	"ourstuff.colorMode.v1",
+	"ourstuff.timerState.v1",
+	"ourstuff.timerSettings.v1",
 ];
 migrateLegacyLocalStorageToPersonal(DATASET_STORAGE_BASE_KEYS);
 const BODY_TRACKER_KEY = scopedStorageKey("ourstuff.bodyTracker.v1");
@@ -285,6 +301,7 @@ const COMPENDIUM_ONE_QUERY = "(max-width: 520px)";
 const COMPENDIUM_ROWS_PER_PAGE = 2;
 const DASHBOARD_LABELS = ["Mind", "Body", "Spirit", "Life"];
 const SIMPLE_TOOLTIP_WORD_LIMIT = 7;
+const HEADER_SNAP_DISABLE_DELAY_MS = 260;
 const NAVIGATION_TOUR_STEPS = [
 	{
 		id: "menu-button",
@@ -515,6 +532,10 @@ let guidedTipDocumentClickHandler = null;
 let guidedTipDocumentKeyHandler = null;
 let navigationTourReturnFocusElement = null;
 let dashboardPeriodGlowTimer = null;
+let headerSnapChromeDisabled = false;
+let headerSnapChromeDisableTimer = null;
+let headerSnapChromeTransitionCleanup = null;
+let headerSnapChromeTransitionToken = 0;
 let localChangeTrackingSuppressed = 0;
 let cloudSyncInFlight = null;
 let cloudAutoSyncTimer = null;
@@ -3088,6 +3109,185 @@ async function importAppStateJson(json, options = {}) {
 	}
 }
 
+function storageKeyForSpace(baseKey, spaceId) {
+	return scopedStorageKey(baseKey, normalizeDataSpaceId(spaceId));
+}
+
+function setSpaceStorageJson(spaceId, baseKey, value) {
+	window.localStorage.setItem(
+		storageKeyForSpace(baseKey, spaceId),
+		JSON.stringify(value),
+	);
+}
+
+function setSpaceStorageText(spaceId, baseKey, value) {
+	window.localStorage.setItem(storageKeyForSpace(baseKey, spaceId), String(value));
+}
+
+function loadLocalAppUpdatedAtForSpace(spaceId) {
+	try {
+		return normalizeIsoTimestamp(
+			window.localStorage.getItem(
+				storageKeyForSpace("ourstuff.localAppUpdatedAt.v1", spaceId),
+			),
+		);
+	} catch {
+		return "";
+	}
+}
+
+function saveLocalAppUpdatedAtForSpace(spaceId, value = nowIso()) {
+	const normalized = normalizeIsoTimestamp(value) || nowIso();
+	setSpaceStorageText(spaceId, "ourstuff.localAppUpdatedAt.v1", normalized);
+	return normalized;
+}
+
+function saveLocalAppOwnerForSpace(spaceId, ownerId = localCloudOwnerId()) {
+	const normalized = String(ownerId || "").trim();
+	const key = storageKeyForSpace("ourstuff.localAppOwner.v1", spaceId);
+	if (normalized) {
+		window.localStorage.setItem(key, normalized);
+	} else {
+		window.localStorage.removeItem(key);
+	}
+	return normalized;
+}
+
+function hasStoredAppStateForSpace(spaceId) {
+	return APP_STATE_STORAGE_BASE_KEYS.some((baseKey) =>
+		Boolean(window.localStorage.getItem(storageKeyForSpace(baseKey, spaceId))),
+	);
+}
+
+function hasStoredLocalDataForSpace(spaceId) {
+	return Boolean(
+		window.localStorage.getItem(
+			storageKeyForSpace("ourstuff.artifactStore.v1", spaceId),
+		) || hasStoredAppStateForSpace(spaceId),
+	);
+}
+
+function cloudSpaceOwnerMarker(info, cloud = state.cloud) {
+	const uid = String(cloud?.user?.uid || info?.cloudOwnerUid || "").trim();
+	if (!uid) {
+		return "";
+	}
+	return `${cloud?.isLocalDemo ? "local-demo" : "firebase"}:${uid}`;
+}
+
+async function importAppStateJsonForSpace(spaceId, json, options = {}) {
+	const normalizedSpaceId = normalizeDataSpaceId(spaceId);
+	if (
+		json?.schemaVersion !== SCHEMA_VERSION ||
+		!Array.isArray(json.artifacts)
+	) {
+		throw new Error("Cloud state is not a valid Ourstuff app export.");
+	}
+	const appState = json.appState || {};
+	const sourceUpdatedAt = normalizeIsoTimestamp(options.sourceUpdatedAt);
+	const appliedAt =
+		sourceUpdatedAt ||
+		normalizeIsoTimestamp(json?.metadata?.localUpdatedAt) ||
+		nowIso();
+
+	setSpaceStorageJson(normalizedSpaceId, "ourstuff.artifactStore.v1", {
+		schemaVersion: json.schemaVersion,
+		rootId: json.rootId || "ourstuff-root",
+		artifacts: json.artifacts,
+	});
+	setSpaceStorageJson(
+		normalizedSpaceId,
+		"ourstuff.bodyTracker.v1",
+		appState.bodyTracker
+			? normalizeBodyTracker(appState.bodyTracker)
+			: createDefaultBodyTracker(),
+	);
+	setSpaceStorageJson(
+		normalizedSpaceId,
+		"ourstuff.spiritPlanProgress.v1",
+		appState.spiritProgress && typeof appState.spiritProgress === "object"
+			? appState.spiritProgress
+			: {},
+	);
+	setSpaceStorageJson(
+		normalizedSpaceId,
+		"ourstuff.lifePlanner.v1",
+		normalizeLifePlanner(appState.lifePlanner || createDefaultLifePlanner()),
+	);
+	setSpaceStorageJson(
+		normalizedSpaceId,
+		"ourstuff.thoughts.v1",
+		normalizeTrackerSettings(
+			appState.thoughtSettings ||
+				appState.trackerSettings ||
+				cloneSpaceTrackers(normalizedSpaceId),
+		),
+	);
+	setSpaceStorageJson(
+		normalizedSpaceId,
+		"ourstuff.goals.v1",
+		normalizeGoalSettings(
+			appState.goalSettings ||
+				appState.goals ||
+				cloneSpaceGoals(normalizedSpaceId),
+		),
+	);
+	setSpaceStorageJson(
+		normalizedSpaceId,
+		"ourstuff.dashboardIdentity.v1",
+		normalizeDashboardIdentity(
+			appState.dashboardIdentity ||
+				cloneDefaultDashboardIdentityForSpace(normalizedSpaceId),
+		),
+	);
+	setSpaceStorageJson(
+		normalizedSpaceId,
+		"ourstuff.dashboardChartTabs.v1",
+		normalizeDashboardChartTabs(
+			appState.dashboardChartTabs || DEFAULT_DASHBOARD_CHART_TABS,
+		),
+	);
+	setSpaceStorageText(
+		normalizedSpaceId,
+		"ourstuff.theme.v1",
+		normalizeTheme(appState.theme || "default"),
+	);
+	setSpaceStorageText(
+		normalizedSpaceId,
+		"ourstuff.colorMode.v1",
+		normalizeColorMode(appState.colorMode),
+	);
+	setSpaceStorageJson(
+		normalizedSpaceId,
+		"ourstuff.timerState.v1",
+		normalizeTimerState(appState.timerState),
+	);
+	setSpaceStorageJson(
+		normalizedSpaceId,
+		"ourstuff.timerSettings.v1",
+		normalizeTimerSettings(appState.timerSettings),
+	);
+	if (appState.pyxdiaSettings) {
+		setSpaceStorageJson(
+			normalizedSpaceId,
+			"ourstuff.pyxdiaSettings.v1",
+			normalizePyxdiaSettings(appState.pyxdiaSettings),
+		);
+	}
+	if (appState.pyxdiaLocalState || appState.pyxdiaPenpal) {
+		setSpaceStorageJson(
+			normalizedSpaceId,
+			"ourstuff.pyxdiaPenpal.v1",
+			normalizePyxdiaLocalState(
+				appState.pyxdiaLocalState || appState.pyxdiaPenpal,
+			),
+		);
+	}
+	saveLocalAppUpdatedAtForSpace(normalizedSpaceId, appliedAt);
+	saveLocalAppOwnerForSpace(normalizedSpaceId, options.ownerId);
+	return { updatedAt: appliedAt };
+}
+
 function cloudReturnUrl() {
 	return `${window.location.origin}${window.location.pathname}`;
 }
@@ -3806,7 +4006,65 @@ async function maybePromptCloudImport(cloud) {
 		return;
 	}
 	cloudAutoSyncPrimedFor = userKey;
+	await restoreInactiveCloudSpacesOnSignIn(cloud).catch((error) => {
+		setCloudStatus({
+			...getCloudAccountState(),
+			busy: false,
+			message: "Signed in. Some spaces could not be checked.",
+			error:
+				error instanceof Error
+					? error.message
+					: "Could not restore all spaces.",
+		});
+	});
 	await triggerCloudAutoSync("sign-in", { force: true });
+}
+
+function shouldImportCloudSpace(info) {
+	if (!info?.exists || !info?.json || info.deleted) {
+		return false;
+	}
+	if (info.spaceId === activeSpaceId()) {
+		return false;
+	}
+	if (!hasStoredLocalDataForSpace(info.spaceId)) {
+		return true;
+	}
+	const cloudUpdatedAt = cloudInfoUpdatedAt(info);
+	const localUpdatedAt = loadLocalAppUpdatedAtForSpace(info.spaceId);
+	return _compareIsoTimestamps(cloudUpdatedAt, localUpdatedAt) > 0;
+}
+
+async function restoreInactiveCloudSpacesOnSignIn(cloud = state.cloud) {
+	if (!cloudHasSyncAccess(cloud)) {
+		return { imported: 0, enabled: 0 };
+	}
+	const infos = await getCloudSpaceStates(Object.keys(DATA_SPACES));
+	let imported = 0;
+	const enabled = new Set(enabledSpaceIds());
+	for (const info of infos) {
+		if (info?.exists && !info.deleted) {
+			enabled.add(info.spaceId);
+		}
+		if (!shouldImportCloudSpace(info)) {
+			continue;
+		}
+		await importAppStateJsonForSpace(info.spaceId, info.json, {
+			sourceUpdatedAt: cloudInfoUpdatedAt(info),
+			ownerId: cloudSpaceOwnerMarker(info, cloud),
+		});
+		imported += 1;
+	}
+	const nextEnabled = saveEnabledSpaceIds([...enabled]);
+	const enabledChanged =
+		JSON.stringify(nextEnabled) !== JSON.stringify(state.enabledSpaceIds);
+	if (enabledChanged) {
+		state.enabledSpaceIds = nextEnabled;
+		if (!isUserEditingInterface()) {
+			render();
+		}
+	}
+	return { imported, enabled: nextEnabled.length };
 }
 
 async function signInWithEmailForm(options = {}) {
@@ -17998,18 +18256,108 @@ function panelSnapChrome(panel) {
 	return panel?.querySelector(".panel-header, .reader-topbar") || null;
 }
 
+function headerSnapChromeElements(panel) {
+	return Array.from(
+		panel?.querySelectorAll(
+			":scope > .panel-header, :scope .dashboard-orb-nav, :scope > .reader-topbar",
+		) || [],
+	);
+}
+
+function clearHeaderSnapChromeDisableTimer() {
+	if (headerSnapChromeDisableTimer) {
+		window.clearTimeout(headerSnapChromeDisableTimer);
+		headerSnapChromeDisableTimer = null;
+	}
+	if (headerSnapChromeTransitionCleanup) {
+		headerSnapChromeTransitionCleanup();
+		headerSnapChromeTransitionCleanup = null;
+	}
+}
+
+function setHeaderSnapChromeDisabled(panel, disabled) {
+	headerSnapChromeDisabled = Boolean(disabled);
+	headerSnapChromeElements(panel).forEach((element) => {
+		element.hidden = headerSnapChromeDisabled;
+		element.toggleAttribute("inert", headerSnapChromeDisabled);
+		if (headerSnapChromeDisabled) {
+			element.setAttribute("aria-hidden", "true");
+		} else {
+			element.removeAttribute("aria-hidden");
+		}
+	});
+}
+
+function scheduleHeaderSnapChromeDisable(panel) {
+	clearHeaderSnapChromeDisableTimer();
+	const token = ++headerSnapChromeTransitionToken;
+	const elements = headerSnapChromeElements(panel);
+	if (!elements.length) {
+		return;
+	}
+	const disableCurrentChrome = () => {
+		if (token !== headerSnapChromeTransitionToken) {
+			return;
+		}
+		const contentStage = app.querySelector(".content-stage");
+		const currentPanel = contentStage?.querySelector(".panel");
+		if (contentStage?.classList.contains("is-header-snapped") && currentPanel) {
+			setHeaderSnapChromeDisabled(currentPanel, true);
+		}
+	};
+	const transitionProperties = new Set(["max-height", "height", "transform"]);
+	const onTransitionEnd = (event) => {
+		if (
+			!elements.includes(event.target) ||
+			!transitionProperties.has(event.propertyName)
+		) {
+			return;
+		}
+		clearHeaderSnapChromeDisableTimer();
+		disableCurrentChrome();
+	};
+	elements.forEach((element) => {
+		element.addEventListener("transitionend", onTransitionEnd);
+	});
+	headerSnapChromeTransitionCleanup = () => {
+		elements.forEach((element) => {
+			element.removeEventListener("transitionend", onTransitionEnd);
+		});
+	};
+	headerSnapChromeDisableTimer = window.setTimeout(() => {
+		clearHeaderSnapChromeDisableTimer();
+		headerSnapChromeDisableTimer = null;
+		disableCurrentChrome();
+	}, HEADER_SNAP_DISABLE_DELAY_MS);
+}
+
 function applyHeaderSnapState() {
 	const contentStage = app.querySelector(".content-stage");
 	const panel = contentStage?.querySelector(".panel");
 	if (!contentStage || !panelSnapChrome(panel)) {
+		clearHeaderSnapChromeDisableTimer();
 		return;
 	}
 	const snapped = Boolean(state.headerSnapped && supportsHeaderSnap(contentStage));
 	if (snapped && contentStage.scrollTop > 0) {
 		contentStage.scrollTop = 0;
 	}
+	if (!snapped || !headerSnapChromeDisabled) {
+		setHeaderSnapChromeDisabled(panel, false);
+	}
 	contentStage.classList.toggle("is-header-snapped", snapped);
 	panel.classList.toggle("is-header-snapped", snapped);
+	if (snapped) {
+		if (headerSnapChromeDisabled) {
+			setHeaderSnapChromeDisabled(panel, true);
+		} else {
+			scheduleHeaderSnapChromeDisable(panel);
+		}
+	} else {
+		clearHeaderSnapChromeDisableTimer();
+		headerSnapChromeTransitionToken++;
+		setHeaderSnapChromeDisabled(panel, false);
+	}
 }
 
 function bindHeaderSnap() {

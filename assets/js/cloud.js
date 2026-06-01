@@ -9,10 +9,12 @@ import {
 	SITE_ID,
 } from "./config.js?v=storage-quota-20260523a";
 import {
+	DATA_SPACES,
 	FAMILY_SPACE_ID,
 	getActiveCloudAppId,
 	getActiveSpaceId,
 	getActiveSpaceLabel,
+	normalizeSpaceId,
 	scopedStorageKey,
 } from "./space.js";
 
@@ -21,7 +23,6 @@ const CLOUD_AUTH_REDIRECT_PENDING_KEY = "ourstuff.cloudAuthRedirectPending.v1";
 const LAST_SYNC_KEY = scopedStorageKey("ourstuff.lastCloudSyncAt.v1");
 const LOCAL_DEMO_SESSION_KEY = "ourstuff.localCloudDemoSession.v1";
 const LOCAL_DEMO_STATE_KEY = scopedStorageKey("ourstuff.localCloudDemoState.v1");
-const CLOUD_APP_ID = getActiveCloudAppId();
 const CLOUD_STORAGE_VERSION = 2;
 const CLOUD_SCHEMA_VERSION = 1;
 const CLOUD_ARTIFACTS_COLLECTION = "artifacts";
@@ -55,6 +56,20 @@ const CLOUD_APP_STATE_TITLES = {
 
 function activeSpaceIsFamily() {
 	return getActiveSpaceId() === FAMILY_SPACE_ID;
+}
+
+function cloudContext(options = {}) {
+	const spaceId =
+		options.spaceId === undefined ? getActiveSpaceId() : normalizeSpaceId(options.spaceId);
+	const appId =
+		options.appId ||
+		DATA_SPACES[spaceId]?.cloudAppId ||
+		getActiveCloudAppId();
+	return { spaceId, appId };
+}
+
+function activeCloudAppId() {
+	return cloudContext().appId;
 }
 
 const INACTIVE_ENTITLEMENT = {
@@ -292,7 +307,7 @@ export async function startCloudSubscription(returnUrl = currentReturnUrl()) {
 			},
 			body: JSON.stringify({
 				site: SITE_ID,
-				appId: CLOUD_APP_ID,
+				appId: activeCloudAppId(),
 				returnUrl,
 			}),
 		},
@@ -485,6 +500,7 @@ export async function copyLatestObsidianApiKey() {
 export async function saveCloudStateJson(json, options = {}) {
 	requireCloudEntitlement();
 	requireCloudWriteAccess();
+	const context = cloudContext(options);
 	const jsonBytes = estimateJsonBytes(json);
 
 	if (cloudState.isLocalDemo) {
@@ -499,7 +515,7 @@ export async function saveCloudStateJson(json, options = {}) {
 		window.localStorage.setItem(
 			LOCAL_DEMO_STATE_KEY,
 			JSON.stringify({
-				appId: CLOUD_APP_ID,
+				appId: context.appId,
 				version: 1,
 				updatedAt: savedAt,
 				deviceId: getDeviceId(),
@@ -527,6 +543,7 @@ export async function saveCloudStateJson(json, options = {}) {
 	const dataUid = currentCloudDataUid();
 	const savedAt = new Date().toISOString();
 	const result = await replaceCloudArtifactCollection(dataUid, json, {
+		...context,
 		updatedAt: savedAt,
 		deviceId: getDeviceId(),
 		storageBytes: options.storageBytes,
@@ -544,8 +561,9 @@ export async function saveCloudStateJson(json, options = {}) {
 	return { ...result, updatedAt: syncedAt, jsonBytes };
 }
 
-export async function loadCloudStateJson() {
+export async function loadCloudStateJson(options = {}) {
 	requireCloudEntitlement();
+	const context = cloudContext(options);
 
 	if (cloudState.isLocalDemo) {
 		const parsed = JSON.parse(
@@ -559,29 +577,30 @@ export async function loadCloudStateJson() {
 	}
 
 	requireSignedInFirebaseUser();
-	const data = await readCloudArtifactCollection(currentCloudDataUid());
+	const data = await readCloudArtifactCollection(currentCloudDataUid(), context);
 	if (data.deleted) {
 		throw new Error("Cloud state has been deleted.");
 	}
 	if (!data.exists) {
 		throw new Error("No cloud state has been saved yet.");
 	}
-	if (!data?.json || data.appId !== CLOUD_APP_ID) {
+	if (!data?.json || data.appId !== context.appId) {
 		throw new Error("Saved cloud state is not valid for this app.");
 	}
 	emitCloudState({ message: `${getActiveSpaceLabel()} Cloud records loaded.`, error: "" });
 	return data.json;
 }
 
-export async function getCloudStateInfo() {
+export async function getCloudStateInfo(options = {}) {
 	requireCloudEntitlement();
+	const context = cloudContext(options);
 
 	if (cloudState.isLocalDemo) {
 		const parsed = JSON.parse(
 			window.localStorage.getItem(LOCAL_DEMO_STATE_KEY) || "null",
 		);
 		return {
-			appId: CLOUD_APP_ID,
+			appId: context.appId,
 			exists: Boolean(parsed?.json),
 			deleted: false,
 			deviceId: parsed?.deviceId || null,
@@ -596,7 +615,80 @@ export async function getCloudStateInfo() {
 	}
 
 	requireSignedInFirebaseUser();
-	return await readCloudArtifactCollection(currentCloudDataUid());
+	return await readCloudArtifactCollection(currentCloudDataUid(), context);
+}
+
+export async function getCloudSpaceStates(spaceIds = Object.keys(DATA_SPACES)) {
+	requireCloudEntitlement();
+	const normalizedSpaceIds = [...new Set(
+		(Array.isArray(spaceIds) ? spaceIds : Object.keys(DATA_SPACES)).map(
+			(spaceId) => normalizeSpaceId(spaceId),
+		),
+	)];
+
+	if (cloudState.isLocalDemo) {
+		const activeInfo = await getCloudStateInfo();
+		return normalizedSpaceIds.map((spaceId) => ({
+			...activeInfo,
+			spaceId,
+			appId: cloudContext({ spaceId }).appId,
+			cloudOwnerUid: cloudState.user?.uid || "",
+			spaceRole: "owner",
+			exists: spaceId === getActiveSpaceId() && activeInfo.exists,
+			json: spaceId === getActiveSpaceId() ? activeInfo.json : null,
+		}));
+	}
+
+	const user = requireSignedInFirebaseUser();
+	let familyState = null;
+	if (normalizedSpaceIds.includes(FAMILY_SPACE_ID)) {
+		familyState = await readFamilySpaceState(user).catch((error) => ({
+			role: "owner",
+			ownerUid: user.uid,
+			members: [],
+			invites: [],
+			error: errorMessage(error),
+		}));
+	}
+
+	return await Promise.all(
+		normalizedSpaceIds.map(async (spaceId) => {
+			const context = cloudContext({ spaceId });
+			const cloudOwnerUid =
+				spaceId === FAMILY_SPACE_ID
+					? String(familyState?.ownerUid || user.uid)
+					: user.uid;
+			try {
+				const info = await readCloudArtifactCollection(cloudOwnerUid, context);
+				return {
+					...info,
+					spaceId,
+					appId: context.appId,
+					cloudOwnerUid,
+					spaceRole:
+						spaceId === FAMILY_SPACE_ID ? familyState?.role || "owner" : "owner",
+					sharedSpace: spaceId === FAMILY_SPACE_ID ? familyState : null,
+					error: spaceId === FAMILY_SPACE_ID ? familyState?.error || "" : "",
+				};
+			} catch (error) {
+				return {
+					spaceId,
+					appId: context.appId,
+					cloudOwnerUid,
+					spaceRole:
+						spaceId === FAMILY_SPACE_ID ? familyState?.role || "owner" : "owner",
+					sharedSpace: spaceId === FAMILY_SPACE_ID ? familyState : null,
+					exists: false,
+					deleted: false,
+					updatedAt: "",
+					docCount: 0,
+					artifactCount: 0,
+					json: null,
+					error: errorMessage(error),
+				};
+			}
+		}),
+	);
 }
 
 export function recordCloudSyncAt(
@@ -616,6 +708,7 @@ export function recordCloudSyncAt(
 export async function deleteCloudStateJson() {
 	requireCloudEntitlement();
 	requireCloudOwnerAccess();
+	const context = cloudContext();
 
 	if (cloudState.isLocalDemo) {
 		window.localStorage.removeItem(LOCAL_DEMO_STATE_KEY);
@@ -625,6 +718,7 @@ export async function deleteCloudStateJson() {
 
 	requireSignedInFirebaseUser();
 	const result = await deleteCloudArtifactCollection(currentCloudDataUid(), {
+		...context,
 		updatedAt: new Date().toISOString(),
 		deviceId: getDeviceId(),
 	});
@@ -642,6 +736,7 @@ export async function deleteCloudAccount() {
 
 	const user = requireSignedInFirebaseUser();
 	await deleteCloudArtifactCollection(currentCloudDataUid(), {
+		...cloudContext(),
 		updatedAt: new Date().toISOString(),
 		deviceId: getDeviceId(),
 	});
@@ -756,12 +851,14 @@ async function familyApiRequest(method, path, payload = {}) {
 
 async function replaceCloudArtifactCollection(uid, json, options = {}) {
 	const modules = await ensureFirebase();
+	const context = cloudContext(options);
 	const updatedAt =
 		normalizeSyncTimestamp(options.updatedAt) || new Date().toISOString();
 	const deviceId = options.deviceId || getDeviceId();
 	const normalized = normalizeExportJson(json, { updatedAt, deviceId });
 	assertNoBase64MediaForCloud(normalized);
 	const docs = appJsonToCloudArtifactDocs(normalized, uid, {
+		...context,
 		updatedAt,
 		deviceId,
 	});
@@ -774,15 +871,15 @@ async function replaceCloudArtifactCollection(uid, json, options = {}) {
 	});
 	assertStorageUsageWithinLimit(usageResult.storageUsage);
 
-	const collectionRef = userAppArtifactsCollectionRef(modules, uid);
+	const collectionRef = userAppArtifactsCollectionRef(modules, uid, context);
 	await deleteCollectionDocs(modules, collectionRef);
 	await writeCollectionDocs(modules, collectionRef, docs);
 
-	const appDoc = userAppDocRef(modules, uid);
+	const appDoc = userAppDocRef(modules, uid, context);
 	await modules.setDoc(appDoc, usageResult.appDoc, { merge: true });
 
 	return {
-		appId: CLOUD_APP_ID,
+		appId: context.appId,
 		exists: true,
 		deleted: false,
 		storage: "cloud-records",
@@ -800,14 +897,15 @@ async function replaceCloudArtifactCollection(uid, json, options = {}) {
 	};
 }
 
-async function readCloudArtifactCollection(uid) {
+async function readCloudArtifactCollection(uid, options = {}) {
 	const modules = await ensureFirebase();
-	const appSnapshot = await modules.getDoc(userAppDocRef(modules, uid));
+	const context = cloudContext(options);
+	const appSnapshot = await modules.getDoc(userAppDocRef(modules, uid, context));
 	const appData = appSnapshot.exists() ? appSnapshot.data() : {};
 	const updatedAt = normalizeSyncTimestampFromFirestore(appData?.updatedAt);
 	if (appData?.deleted === true) {
 		return {
-			appId: CLOUD_APP_ID,
+			appId: context.appId,
 			exists: false,
 			deleted: true,
 			storage: "cloud-records",
@@ -822,7 +920,7 @@ async function readCloudArtifactCollection(uid) {
 	}
 
 	const snapshot = await modules.getDocs(
-		userAppArtifactsCollectionRef(modules, uid),
+		userAppArtifactsCollectionRef(modules, uid, context),
 	);
 	const docs = snapshot.docs.map((docSnapshot) => ({
 		id: docSnapshot.id,
@@ -832,7 +930,7 @@ async function readCloudArtifactCollection(uid) {
 	const json = exists ? cloudArtifactDocsToAppJson(docs, appData) : null;
 	const firebaseBytes = estimateFirestorePayloadBytes(appData, docs);
 	return {
-		appId: CLOUD_APP_ID,
+		appId: context.appId,
 		exists,
 		deleted: false,
 		storage: "cloud-records",
@@ -852,15 +950,16 @@ async function readCloudArtifactCollection(uid) {
 
 async function deleteCloudArtifactCollection(uid, options = {}) {
 	const modules = await ensureFirebase();
+	const context = cloudContext(options);
 	const updatedAt =
 		normalizeSyncTimestamp(options.updatedAt) || new Date().toISOString();
 	const deviceId = options.deviceId || getDeviceId();
-	const collectionRef = userAppArtifactsCollectionRef(modules, uid);
+	const collectionRef = userAppArtifactsCollectionRef(modules, uid, context);
 	const deletedDocs = await deleteCollectionDocs(modules, collectionRef);
 	await modules.setDoc(
-		userAppDocRef(modules, uid),
+		userAppDocRef(modules, uid, context),
 		{
-			appId: CLOUD_APP_ID,
+			appId: context.appId,
 			version: CLOUD_STORAGE_VERSION,
 			schemaVersion: CLOUD_SCHEMA_VERSION,
 			storage: "cloud-records",
@@ -877,7 +976,7 @@ async function deleteCloudArtifactCollection(uid, options = {}) {
 		{ merge: true },
 	);
 	return {
-		appId: CLOUD_APP_ID,
+		appId: context.appId,
 		exists: false,
 		deleted: true,
 		storage: "cloud-records",
@@ -889,17 +988,19 @@ async function deleteCloudArtifactCollection(uid, options = {}) {
 	};
 }
 
-function userAppDocRef(modules, uid) {
-	return modules.doc(firebaseDb, "users", uid, "apps", CLOUD_APP_ID);
+function userAppDocRef(modules, uid, options = {}) {
+	const context = cloudContext(options);
+	return modules.doc(firebaseDb, "users", uid, "apps", context.appId);
 }
 
-function userAppArtifactsCollectionRef(modules, uid) {
+function userAppArtifactsCollectionRef(modules, uid, options = {}) {
+	const context = cloudContext(options);
 	return modules.collection(
 		firebaseDb,
 		"users",
 		uid,
 		"apps",
-		CLOUD_APP_ID,
+		context.appId,
 		CLOUD_ARTIFACTS_COLLECTION,
 	);
 }
@@ -975,6 +1076,7 @@ function normalizeExportJson(json, context = {}) {
 }
 
 export function estimateCloudStateStorageUsage(json, options = {}) {
+	const context = cloudContext(options);
 	const updatedAt =
 		normalizeSyncTimestamp(
 			options.updatedAt || json?.metadata?.localUpdatedAt,
@@ -987,11 +1089,13 @@ export function estimateCloudStateStorageUsage(json, options = {}) {
 	const normalized = normalizeExportJson(json, { updatedAt, deviceId });
 	assertNoBase64MediaForCloud(normalized);
 	const docs = appJsonToCloudArtifactDocs(normalized, uid, {
+		...context,
 		updatedAt,
 		deviceId,
 	});
 	assertCloudDocsWithinLimit(docs);
 	return cloudStorageUsageResult(normalized, docs, {
+		...context,
 		uid,
 		updatedAt,
 		deviceId,
@@ -1000,8 +1104,9 @@ export function estimateCloudStateStorageUsage(json, options = {}) {
 }
 
 function cloudAppDocBase(json, docs, context = {}) {
+	const { appId } = cloudContext(context);
 	return {
-		appId: CLOUD_APP_ID,
+		appId,
 		version: CLOUD_STORAGE_VERSION,
 		schemaVersion: json.schemaVersion,
 		storage: "cloud-records",
@@ -1102,6 +1207,7 @@ function assertStorageUsageWithinLimit(usage) {
 }
 
 function appJsonToCloudArtifactDocs(json, uid, context = {}) {
+	const cloudContextValue = cloudContext(context);
 	const updatedAt =
 		normalizeSyncTimestamp(context.updatedAt) || new Date().toISOString();
 	const docs = [];
@@ -1109,6 +1215,7 @@ function appJsonToCloudArtifactDocs(json, uid, context = {}) {
 	json.artifacts.forEach((artifact, index) => {
 		docs.push(
 			localArtifactToCloudDoc(artifact, uid, {
+				...cloudContextValue,
 				order: index,
 				rootId: json.rootId,
 				updatedAt,
@@ -1122,6 +1229,7 @@ function appJsonToCloudArtifactDocs(json, uid, context = {}) {
 		}
 		docs.push(
 			appStateToCloudDoc(stateKey, json.appState[stateKey], uid, {
+				...cloudContextValue,
 				order: index,
 				updatedAt,
 			}),
@@ -1134,6 +1242,7 @@ function appJsonToCloudArtifactDocs(json, uid, context = {}) {
 	localFiles.forEach((file, index) => {
 		docs.push(
 			localFileToCloudDoc(file, uid, {
+				...cloudContextValue,
 				order: index,
 				updatedAt,
 			}),
@@ -1144,6 +1253,7 @@ function appJsonToCloudArtifactDocs(json, uid, context = {}) {
 }
 
 function localArtifactToCloudDoc(artifact, uid, context = {}) {
+	const { appId } = cloudContext(context);
 	const safeArtifact = jsonSafe(artifact || {});
 	const dashboard = String(safeArtifact.dashboard || "Dashboard");
 	const type = String(safeArtifact.type || "note");
@@ -1165,7 +1275,7 @@ function localArtifactToCloudDoc(artifact, uid, context = {}) {
 		uid,
 		type,
 		title,
-		tags: uniqueStrings(["ourstuff", CLOUD_APP_ID, dashboard.toLowerCase(), type]),
+		tags: uniqueStrings(["ourstuff", appId, dashboard.toLowerCase(), type]),
 		status,
 		deleted,
 		deletedAt: safeArtifact.deletedAt || null,
@@ -1184,7 +1294,7 @@ function localArtifactToCloudDoc(artifact, uid, context = {}) {
 			core: {
 				text: String(safeArtifact.body || ""),
 				context: {
-					appId: CLOUD_APP_ID,
+					appId,
 					dashboard,
 					parentId: safeArtifact.parentId || null,
 					childIds: Array.isArray(safeArtifact.childIds)
@@ -1206,12 +1316,13 @@ function localArtifactToCloudDoc(artifact, uid, context = {}) {
 			extraAttribute2: type,
 			extraAttribute3: status,
 			extraAttribute4: Boolean(safeArtifact.parentId),
-			extraAttribute5: CLOUD_APP_ID,
+			extraAttribute5: appId,
 		},
 	});
 }
 
 function appStateToCloudDoc(stateKey, value, uid, context = {}) {
+	const { appId } = cloudContext(context);
 	const updatedAt = context.updatedAt || new Date().toISOString();
 	const title = CLOUD_APP_STATE_TITLES[stateKey] || `${stateKey} state`;
 	return cloudDocBase({
@@ -1219,7 +1330,7 @@ function appStateToCloudDoc(stateKey, value, uid, context = {}) {
 		uid,
 		type: "app_state",
 		title,
-		tags: uniqueStrings(["ourstuff", CLOUD_APP_ID, "settings", stateKey]),
+		tags: uniqueStrings(["ourstuff", appId, "settings", stateKey]),
 		status: "active",
 		createdAt: updatedAt,
 		updatedAt,
@@ -1227,7 +1338,7 @@ function appStateToCloudDoc(stateKey, value, uid, context = {}) {
 		data: {
 			core: {
 				text: title,
-				context: { appId: CLOUD_APP_ID, stateKey },
+				context: { appId, stateKey },
 			},
 			ourstuff: {
 				kind: "appState",
@@ -1241,12 +1352,13 @@ function appStateToCloudDoc(stateKey, value, uid, context = {}) {
 			extraAttribute2: stateKey,
 			extraAttribute3: "",
 			extraAttribute4: false,
-			extraAttribute5: CLOUD_APP_ID,
+			extraAttribute5: appId,
 		},
 	});
 }
 
 function localFileToCloudDoc(file, uid, context = {}) {
+	const { appId } = cloudContext(context);
 	const safeFile = cloudSafeLocalFile(file);
 	const fileId = firestoreDocId(
 		safeFile.id,
@@ -1263,7 +1375,7 @@ function localFileToCloudDoc(file, uid, context = {}) {
 		title: String(safeFile.name || safeFile.id || "Local file"),
 		tags: uniqueStrings([
 			"ourstuff",
-			CLOUD_APP_ID,
+			appId,
 			"local-file",
 			String(safeFile.type || "").split("/")[0],
 		]),
@@ -1275,7 +1387,7 @@ function localFileToCloudDoc(file, uid, context = {}) {
 			core: {
 				text: String(safeFile.name || safeFile.id || "Local file"),
 				context: {
-					appId: CLOUD_APP_ID,
+					appId,
 					stateKey: "localFiles",
 					type: safeFile.type || "",
 					size: Number(safeFile.size) || 0,
@@ -1293,7 +1405,7 @@ function localFileToCloudDoc(file, uid, context = {}) {
 			extraAttribute2: "localFiles",
 			extraAttribute3: safeFile.type || "",
 			extraAttribute4: false,
-			extraAttribute5: CLOUD_APP_ID,
+			extraAttribute5: appId,
 		},
 	});
 }

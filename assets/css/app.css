@@ -5447,6 +5447,12 @@ select option:checked {
 	flex: 0 0 auto;
 }
 
+.panel-header[hidden],
+.dashboard-orb-nav[hidden],
+.reader-topbar[hidden] {
+	display: none !important;
+}
+
 .panel > .scroll-area,
 .panel > .reader-panel,
 .panel > .reader-book,
