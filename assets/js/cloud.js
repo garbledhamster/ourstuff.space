@@ -17,6 +17,7 @@ import {
 } from "./space.js";
 
 const DEVICE_ID_KEY = "ourstuff.cloudDeviceId.v1";
+const CLOUD_AUTH_REDIRECT_PENDING_KEY = "ourstuff.cloudAuthRedirectPending.v1";
 const LAST_SYNC_KEY = scopedStorageKey("ourstuff.lastCloudSyncAt.v1");
 const LOCAL_DEMO_SESSION_KEY = "ourstuff.localCloudDemoSession.v1";
 const LOCAL_DEMO_STATE_KEY = scopedStorageKey("ourstuff.localCloudDemoState.v1");
@@ -71,6 +72,7 @@ let firebaseDb = null;
 let authUnsubscribe = null;
 let currentFirebaseUser = null;
 let latestObsidianApiKey = "";
+let googleSignInPromise = null;
 
 const listeners = new Set();
 let cloudState = {
@@ -149,6 +151,7 @@ export async function initCloudAccount(listener) {
 				void handleFirebaseAuthChange(user);
 			},
 		);
+		await consumeFirebaseRedirectResult(firebaseModules);
 	} catch (error) {
 		emitCloudState({
 			ready: true,
@@ -170,14 +173,30 @@ export async function signInToCloud() {
 
 export async function signInWithGoogle() {
 	const modules = await ensureFirebase();
+	if (currentFirebaseUser) {
+		return getCloudAccountState();
+	}
+	if (googleSignInPromise) {
+		return googleSignInPromise;
+	}
 	emitCloudState({
 		busy: true,
-		message: "Opening Google sign-in...",
+		message: "Redirecting to Google sign-in...",
 		error: "",
 	});
 	const provider = new modules.GoogleAuthProvider();
 	provider.setCustomParameters({ prompt: "select_account" });
-	await modules.signInWithPopup(firebaseAuth, provider);
+	markAuthRedirectPending();
+	googleSignInPromise = modules
+		.signInWithRedirect(firebaseAuth, provider)
+		.catch((error) => {
+			clearAuthRedirectPending();
+			throw error;
+		})
+		.finally(() => {
+			googleSignInPromise = null;
+		});
+	await googleSignInPromise;
 	return getCloudAccountState();
 }
 
@@ -1531,6 +1550,60 @@ function emitCloudState(patch, options = {}) {
 	listeners.forEach((listener) => {
 		listener(getCloudAccountState());
 	});
+}
+
+function markAuthRedirectPending() {
+	try {
+		window.sessionStorage.setItem(CLOUD_AUTH_REDIRECT_PENDING_KEY, "1");
+	} catch {
+		// Redirect sign-in still works if sessionStorage is blocked.
+	}
+}
+
+function clearAuthRedirectPending() {
+	try {
+		window.sessionStorage.removeItem(CLOUD_AUTH_REDIRECT_PENDING_KEY);
+	} catch {
+		// Optional redirect marker cleanup.
+	}
+}
+
+function hasAuthRedirectPending() {
+	try {
+		return window.sessionStorage.getItem(CLOUD_AUTH_REDIRECT_PENDING_KEY) === "1";
+	} catch {
+		return false;
+	}
+}
+
+async function consumeFirebaseRedirectResult(modules) {
+	if (!modules?.getRedirectResult || !firebaseAuth) {
+		return null;
+	}
+	const pending = hasAuthRedirectPending();
+	if (pending) {
+		emitCloudState({
+			ready: true,
+			busy: true,
+			message: "Finishing Google sign-in...",
+			error: "",
+		});
+	}
+	try {
+		const result = await modules.getRedirectResult(firebaseAuth);
+		if (result?.user || pending) {
+			clearAuthRedirectPending();
+		}
+		return result;
+	} catch (error) {
+		clearAuthRedirectPending();
+		emitCloudState({
+			...signedOutState("Google sign-in did not finish."),
+			firebaseAvailable: true,
+			error: errorMessage(error),
+		});
+		return null;
+	}
 }
 
 async function handleFirebaseAuthChange(user) {

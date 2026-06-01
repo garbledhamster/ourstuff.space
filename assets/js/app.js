@@ -33,7 +33,7 @@ import {
 	signOutCloud,
 	startCloudSubscription,
 	updateFamilyMember,
-} from "./cloud.js?v=space-20260531c";
+} from "./cloud.js?v=space-20260531d";
 import { CLOUD_STORAGE_LIMIT_BYTES } from "./config.js?v=storage-quota-20260523a";
 import { today } from "./data.js";
 import { bindDonationFlow, donationModalHtml } from "./donations.js";
@@ -7162,6 +7162,9 @@ function patchVisibleCloudStatus() {
 }
 
 async function runCloudAction(message, action) {
+	if (state.cloud?.busy) {
+		return;
+	}
 	setCloudStatus({ busy: true, message, error: "" });
 	try {
 		const result = await action();
@@ -10778,11 +10781,6 @@ function render() {
 		return;
 	}
 
-	if (!isSpaceEnabled(activeSpaceId())) {
-		switchSpace(PERSONAL_SPACE_ID);
-		return;
-	}
-
 	if (!isSpaceUnlocked(activeSpaceId())) {
 		app.innerHTML = spaceLockHtml();
 		bindActions();
@@ -13481,6 +13479,7 @@ function isSpaceEnabled(spaceId) {
 
 function visibleDataSpaces() {
 	const enabled = new Set(enabledSpaceIds());
+	enabled.add(activeSpaceId());
 	return Object.values(DATA_SPACES).filter((space) => enabled.has(space.id));
 }
 
