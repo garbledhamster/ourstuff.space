@@ -360,7 +360,7 @@ const NAVIGATION_TOUR_STEPS = [
 		id: "done",
 		route: "dashboard",
 		selector: ".dashboard-home",
-		label: "Navigation tour complete. Click once more to close it.",
+		label: "Navigation tour complete.",
 		placement: "top",
 	},
 ];
@@ -512,6 +512,8 @@ let guidedTipCleanup = null;
 let guidedTipTarget = null;
 let guidedTipTargetClickHandler = null;
 let guidedTipDocumentClickHandler = null;
+let guidedTipDocumentKeyHandler = null;
+let navigationTourReturnFocusElement = null;
 let dashboardPeriodGlowTimer = null;
 let localChangeTrackingSuppressed = 0;
 let cloudSyncInFlight = null;
@@ -7433,6 +7435,13 @@ function pyxdiaSelectedRecipient() {
 		};
 	}
 	const family = familyPenPalCorrespondents();
+	if (!family.length) {
+		return {
+			recipientType: "pyxdia",
+			recipientUid: "pyxdia",
+			recipientLabel: "PYXIDA",
+		};
+	}
 	const selected =
 		family.find((item) => item.uid === state.pyxdiaRecipientUid) || family[0];
 	return selected
@@ -8034,12 +8043,15 @@ async function markSelectedPyxdiaThreadRead() {
 }
 
 function selectPyxdiaCorrespondent(type, uid = "") {
-	const recipientType = normalizePyxdiaRecipientType(type);
+	let recipientType = normalizePyxdiaRecipientType(type);
 	const family = familyPenPalCorrespondents();
 	const selected =
 		recipientType === "family"
 			? family.find((item) => item.uid === uid) || family[0]
 			: null;
+	if (recipientType === "family" && !selected) {
+		recipientType = "pyxdia";
+	}
 	const patch = {
 		pyxdiaRecipientType: recipientType,
 		pyxdiaRecipientUid: selected?.uid || "pyxdia",
@@ -12640,11 +12652,15 @@ function pyxdiaInputHtml() {
 function pyxdiaRecipientSelectorHtml(draft) {
 	const selected = pyxdiaSelectedRecipient();
 	const family = familyPenPalCorrespondents();
-	const familyDisabled = !isFamilyPenPalAvailable() || family.length === 0;
-	const familyInviteCopy =
-		activeSpaceId() === FAMILY_SPACE_ID
-			? "Invite people in Family settings. Click here to go to invites."
-			: "Switch to Family to invite people for shared letters.";
+	const hasFamilyRecipients = isFamilyPenPalAvailable() && family.length > 0;
+	if (!hasFamilyRecipients) {
+		return `
+    <fieldset class="pyxdia-recipient-selector pyxdia-recipient-selector--single">
+      <legend>Send to</legend>
+      <span class="pyxdia-recipient-static">${escapeHtml(selected.recipientLabel || "PYXIDA")}</span>
+    </fieldset>
+  `;
+	}
 	return `
     <fieldset class="pyxdia-recipient-selector">
       <legend>Send to</legend>
@@ -12653,12 +12669,12 @@ function pyxdiaRecipientSelectorHtml(draft) {
         <span>PYXIDA</span>
       </label>
       <label class="dashboard-identity-toggle">
-        <input data-pyxdia-recipient-control name="pyxdia-recipient-type" value="family" type="radio"${selected.recipientType === "family" ? " checked" : ""}${familyDisabled ? " disabled" : ""}>
+        <input data-pyxdia-recipient-control name="pyxdia-recipient-type" value="family" type="radio"${selected.recipientType === "family" ? " checked" : ""}>
         <span>Family</span>
       </label>
       <label class="body-field pyxdia-family-recipient">
         <span>Family member</span>
-        <select id="pyxdia-family-recipient" data-pyxdia-recipient-control${selected.recipientType === "family" && !familyDisabled ? "" : " disabled"}>
+        <select id="pyxdia-family-recipient" data-pyxdia-recipient-control${selected.recipientType === "family" ? "" : " disabled"}>
           ${family
 						.map(
 							(member) =>
@@ -12667,7 +12683,6 @@ function pyxdiaRecipientSelectorHtml(draft) {
 						.join("")}
         </select>
       </label>
-      ${familyDisabled ? `<button class="text-button pyxdia-invite-link" data-action="open-family-invites" type="button">${escapeHtml(familyInviteCopy)}</button>` : ""}
     </fieldset>
   `;
 }
@@ -13144,7 +13159,7 @@ function settingsGettingStartedHtml() {
           <span class="getting-started-defaults-icon" aria-hidden="true">${iconHtml("tabler:route")}</span>
           <div>
             <h3>User Interface (UI) Walkthrough</h3>
-            <p>Start a guided walkthrough when you want it. Each click advances to the next page; Stop closes the guide.</p>
+            <p>Start a guided walkthrough when you want it. Use Back, Next, and Skip to move through the guide.</p>
           </div>
         </div>
         <button class="primary-button" data-action="start-navigation-tour" type="button">${buttonContent("tabler:route", "UI Walkthrough")}</button>
@@ -16624,6 +16639,10 @@ function hideGuidedTip() {
 		guidedTipTarget = null;
 		guidedTipTargetClickHandler = null;
 	}
+	if (guidedTipDocumentKeyHandler) {
+		document.removeEventListener("keydown", guidedTipDocumentKeyHandler, true);
+		guidedTipDocumentKeyHandler = null;
+	}
 	document.querySelector(".guided-tip-bubble")?.remove();
 	app.querySelectorAll(".is-guided-tip-target").forEach((element) => {
 		element.classList.remove("is-guided-tip-target");
@@ -16679,13 +16698,50 @@ function setNavigationTourStep(index) {
 	});
 }
 
-function startNavigationTour() {
+function startNavigationTour(launcherElement = null) {
+	navigationTourReturnFocusElement =
+		launcherElement ||
+		(document.activeElement instanceof HTMLElement ? document.activeElement : null);
 	setNavigationTourStep(0);
 }
 
-function stopNavigationTour() {
+function focusNavigationTourLauncher() {
+	window.requestAnimationFrame(() => {
+		const target =
+			(navigationTourReturnFocusElement?.isConnected &&
+				navigationTourReturnFocusElement) ||
+			app.querySelector("[data-action='start-navigation-tour']") ||
+			app.querySelector("[data-tab='getting-started']") ||
+			app.querySelector(".content-stage");
+		navigationTourReturnFocusElement = null;
+		if (target && typeof target.focus === "function") {
+			target.focus({ preventScroll: true });
+		}
+	});
+}
+
+function stopNavigationTour({ restoreFocus = true } = {}) {
 	hideGuidedTip();
-	setState({ navigationTour: null });
+	const canRestoreDirectly =
+		restoreFocus && navigationTourReturnFocusElement?.isConnected;
+	const nextState = canRestoreDirectly
+		? { navigationTour: null }
+		: {
+				navigationTour: null,
+				active: "Settings",
+				settingsTab: "getting-started",
+				mobileMenuOpen: false,
+				flipped: null,
+				artifactMode: "grid",
+				selectedArtifactId: null,
+				selectedCompendiumId: null,
+				selectedSectionId: null,
+				selectedSpiritBookKey: null,
+			};
+	setState(nextState);
+	if (restoreFocus) {
+		focusNavigationTourLauncher();
+	}
 }
 
 function advanceNavigationTour() {
@@ -16695,6 +16751,11 @@ function advanceNavigationTour() {
 		return;
 	}
 	setNavigationTourStep(currentIndex + 1);
+}
+
+function retreatNavigationTour() {
+	const currentIndex = Number(state.navigationTour?.index) || 0;
+	setNavigationTourStep(currentIndex - 1);
 }
 
 function isElementVisible(element) {
@@ -16734,6 +16795,77 @@ function activeGuidedTip() {
 	};
 }
 
+function cssPixelVar(name, fallback = 0) {
+	const raw = window
+		.getComputedStyle(document.documentElement)
+		.getPropertyValue(name)
+		.trim();
+	const value = Number.parseFloat(raw);
+	return Number.isFinite(value) ? value : fallback;
+}
+
+function navigationTourSafePadding() {
+	const contentPad = cssPixelVar("--content-pad", 16);
+	const safeTop = cssPixelVar("--safe-top", 0);
+	const safeRight = cssPixelVar("--safe-right", 0);
+	const safeBottom = cssPixelVar("--safe-bottom", 0);
+	const safeLeft = cssPixelVar("--safe-left", 0);
+	const mobile = window.matchMedia(MOBILE_MENU_QUERY).matches;
+	const mobileMenuHeight =
+		app.querySelector(".mobile-menu-toggle")?.getBoundingClientRect().height || 0;
+	const side = Math.max(16, Math.min(contentPad, 28));
+	return {
+		top: Math.max(18, safeTop + side),
+		right: Math.max(16, safeRight + side),
+		bottom: Math.max(
+			18,
+			safeBottom + side + (mobile ? mobileMenuHeight + contentPad : 0),
+		),
+		left: Math.max(16, safeLeft + side),
+	};
+}
+
+function navigationTourPlacement(tip) {
+	const mobile = window.matchMedia(MOBILE_MENU_QUERY).matches;
+	if (tip.id === "menu-button") {
+		return "top";
+	}
+	if (mobile && ["menu-open", "menu-groups"].includes(tip.id)) {
+		return "left-start";
+	}
+	if (["mind", "body", "spirit", "life", "dashboard-orbs"].includes(tip.id)) {
+		return "bottom-start";
+	}
+	return tip.placement || "top";
+}
+
+function focusGuidedTip(bubble, tip) {
+	window.requestAnimationFrame(() => {
+		const primary = bubble.querySelector(
+			tip.index >= tip.total - 1
+				? "[data-navigation-tour-action='done']"
+				: "[data-navigation-tour-action='next']",
+		);
+		(primary || bubble).focus({ preventScroll: true });
+	});
+}
+
+function handleNavigationTourControl(action) {
+	if (action === "back") {
+		retreatNavigationTour();
+		return;
+	}
+	if (action === "skip" || action === "done") {
+		stopNavigationTour();
+		return;
+	}
+	advanceNavigationTour();
+}
+
+function isNavigationTourTargetClick(event, target) {
+	return Boolean(target && event.target?.closest?.(".is-guided-tip-target"));
+}
+
 function showGuidedTip(tip) {
 	if (!tip?.target) {
 		return;
@@ -16743,10 +16875,18 @@ function showGuidedTip(tip) {
 	const bubble = document.createElement("div");
 	bubble.className = "guided-tip-bubble";
 	bubble.setAttribute("role", "dialog");
+	bubble.setAttribute("tabindex", "-1");
+	bubble.setAttribute("aria-labelledby", "guided-tip-copy");
 	bubble.innerHTML = `
-    <span>${escapeHtml(simpleTooltipText(tip.label, 18))}</span>
-    <small>${escapeHtml(`${tip.index + 1}/${tip.total}`)}</small>
-    <button class="guided-tip-stop" data-navigation-tour-stop type="button">Stop</button>
+    <div class="guided-tip-copy" id="guided-tip-copy">${escapeHtml(simpleTooltipText(tip.label, 18))}</div>
+    <div class="guided-tip-footer">
+      <span class="guided-tip-count">${escapeHtml(`Step ${tip.index + 1} of ${tip.total}`)}</span>
+      <div class="guided-tip-controls" aria-label="Walkthrough controls">
+        <button class="guided-tip-action" data-navigation-tour-action="back" type="button"${tip.index <= 0 ? " disabled" : ""}>Back</button>
+        <button class="guided-tip-action guided-tip-action--primary" data-navigation-tour-action="${tip.index >= tip.total - 1 ? "done" : "next"}" type="button">${tip.index >= tip.total - 1 ? "Done" : "Next"}</button>
+        <button class="guided-tip-action" data-navigation-tour-action="skip" type="button">Skip</button>
+      </div>
+    </div>
   `;
 	bubble.setAttribute(
 		"aria-label",
@@ -16759,21 +16899,45 @@ function showGuidedTip(tip) {
 		if (!state.navigationTour?.active) {
 			return;
 		}
-		event.preventDefault();
-		event.stopPropagation();
-		if (event.target?.closest?.("[data-navigation-tour-stop]")) {
-			stopNavigationTour();
+		const control = event.target?.closest?.("[data-navigation-tour-action]");
+		if (control) {
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			handleNavigationTourControl(control.dataset.navigationTourAction);
 			return;
 		}
-		advanceNavigationTour();
+		if (event.target?.closest?.(".guided-tip-bubble")) {
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			return;
+		}
+		event.preventDefault();
+		event.stopImmediatePropagation();
+		if (isNavigationTourTargetClick(event, tip.target)) {
+			advanceNavigationTour();
+		}
 	};
 	document.addEventListener("click", guidedTipDocumentClickHandler, true);
+	guidedTipDocumentKeyHandler = (event) => {
+		if (!state.navigationTour?.active || event.key !== "Escape") {
+			return;
+		}
+		event.preventDefault();
+		event.stopImmediatePropagation();
+		stopNavigationTour();
+	};
+	document.addEventListener("keydown", guidedTipDocumentKeyHandler, true);
 
 	const update = () => {
+		const safePadding = navigationTourSafePadding();
 		computePosition(tip.target, bubble, {
-			placement: tip.placement || "top",
+			placement: navigationTourPlacement(tip),
 			strategy: "fixed",
-			middleware: [offset(12), flip(), shift({ padding: 10 })],
+			middleware: [
+				offset(14),
+				flip({ padding: safePadding }),
+				shift({ padding: safePadding, crossAxis: true }),
+			],
 		}).then(({ x, y, placement }) => {
 			Object.assign(bubble.style, {
 				left: `${x}px`,
@@ -16785,6 +16949,7 @@ function showGuidedTip(tip) {
 	};
 	guidedTipCleanup = autoUpdate(tip.target, bubble, update);
 	update();
+	focusGuidedTip(bubble, tip);
 }
 
 function bindGuidedTips() {
@@ -17801,6 +17966,25 @@ function isChildScroller(scroller, root) {
 	return Boolean(scroller && scroller !== root);
 }
 
+const HEADER_SNAP_LOCK_SELECTOR = [
+	".panel-header",
+	".dashboard-orb-nav",
+	".reader-topbar",
+	".path-bar",
+	".sidebar",
+	".mobile-menu-toggle",
+	".settings-tabs",
+	".body-mode-switcher",
+	".body-nutrition-switcher",
+	".life-mode-switcher",
+	".dashboard-chart-switcher",
+	".dashboard-period-slider",
+	".tracker-page-controls",
+	".compendium-rotator-edge",
+	".reader-slider-edge",
+	"[data-header-snap-lock]",
+].join(", ");
+
 function setHeaderSnapped(snapped) {
 	state.headerSnapped = Boolean(snapped);
 	applyHeaderSnapState();
@@ -17835,11 +18019,7 @@ function bindHeaderSnap() {
 	if (!contentStage || !panel || !snapChrome) {
 		return;
 	}
-	if (
-		(window.matchMedia("(max-width: 860px)").matches &&
-			!snapChrome.classList.contains("reader-topbar")) ||
-		!supportsHeaderSnap(contentStage)
-	) {
+	if (!supportsHeaderSnap(contentStage)) {
 		setHeaderSnapped(false);
 		return;
 	}
@@ -17849,6 +18029,23 @@ function bindHeaderSnap() {
 	const isSnapped = () => contentStage.classList.contains("is-header-snapped");
 	const clearChildSnapHandoff = () => {
 		childSnapHandoff = null;
+	};
+	const panelBodyRootForSnapTarget = (target) => {
+		const element = target?.closest?.("*");
+		if (!element) {
+			return null;
+		}
+		if (element.closest(HEADER_SNAP_LOCK_SELECTOR)) {
+			return null;
+		}
+		if (
+			element === panel ||
+			element === contentStage ||
+			element === snapSurface
+		) {
+			return panel;
+		}
+		return null;
 	};
 	const shouldHoldChildSnapHandoff = (scroller, direction, mode) => {
 		if (!isChildScroller(scroller, contentStage) || !direction) {
@@ -17873,6 +18070,10 @@ function bindHeaderSnap() {
 	};
 	const handleSnapIntent = (target, deltaY, mode = "wheel") => {
 		if (Math.abs(deltaY) < 8) {
+			return false;
+		}
+		if (!panelBodyRootForSnapTarget(target)) {
+			clearChildSnapHandoff();
 			return false;
 		}
 		const scroller = nearestVerticalScroller(target, contentStage);
@@ -18686,7 +18887,7 @@ function handleAction(element) {
 		return;
 	}
 	if (action === "start-navigation-tour") {
-		startNavigationTour();
+		startNavigationTour(element);
 		return;
 	}
 	if (action === "stop-navigation-tour") {

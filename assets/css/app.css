@@ -1208,7 +1208,7 @@ select option:checked {
 	top: 100%;
 	width: 12px;
 	height: 12px;
-	background: var(--tooltip-bg);
+	background: color-mix(in srgb, var(--surface) 94%, var(--bg));
 	border-right: 1px solid var(--tooltip-border);
 	border-bottom: 1px solid var(--tooltip-border);
 	transform: translateY(-6px) rotate(45deg);
@@ -2820,6 +2820,25 @@ select option:checked {
 	font-weight: 900;
 }
 
+.pyxdia-recipient-selector--single {
+	grid-template-columns: max-content;
+}
+
+.pyxdia-recipient-static {
+	display: inline-flex;
+	align-items: center;
+	width: max-content;
+	min-height: 34px;
+	border: 1px solid var(--border);
+	border-radius: 999px;
+	background: var(--theme-control);
+	color: var(--text);
+	padding: 0 12px;
+	font-family: var(--font-label);
+	font-size: 0.82rem;
+	font-weight: 900;
+}
+
 .pyxdia-family-recipient {
 	margin: 0;
 	min-width: 0;
@@ -4206,34 +4225,30 @@ select option:checked {
 	top: 0;
 	left: 0;
 	z-index: 10001;
-	display: inline-grid;
-	grid-template-columns: minmax(0, 1fr) auto auto;
-	align-items: center;
-	gap: 7px;
-	width: max-content;
-	max-width: min(320px, calc(100vw - 24px));
+	display: grid;
+	gap: 12px;
+	width: min(360px, calc(100vw - 32px));
+	max-width: calc(100vw - 32px);
 	border: 1px solid
-		color-mix(in srgb, var(--tooltip-dot) 70%, var(--tooltip-border));
-	border-radius: 999px;
-	background: var(--tooltip-bg);
+		color-mix(in srgb, var(--tooltip-dot) 54%, var(--tooltip-border));
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--surface) 94%, var(--bg));
 	color: var(--tooltip-text);
-	padding: 8px 10px 8px 12px;
-	font-family: var(--font-label);
-	font-size: 0.74rem;
-	font-weight: 950;
-	line-height: 1.1;
+	padding: 14px;
+	font-family: var(--font-body);
+	font-size: 0.94rem;
+	font-weight: 650;
+	line-height: 1.38;
 	text-align: left;
 	box-shadow:
-		0 14px 36px var(--tooltip-shadow),
-		0 0 0 1px color-mix(in srgb, var(--tooltip-dot) 24%, transparent) inset,
-		0 0 26px color-mix(in srgb, var(--tooltip-dot) 52%, transparent);
+		0 18px 44px var(--tooltip-shadow),
+		0 0 0 1px color-mix(in srgb, var(--tooltip-dot) 18%, transparent) inset;
 	opacity: 0;
 	transform: translateY(2px) scale(0.98);
 	transition:
 		opacity 0.14s ease,
 		transform 0.14s ease,
 		border-color 0.14s ease;
-	animation: guided-tip-bubble-glow 1.55s ease-in-out infinite;
 }
 
 .guided-tip-bubble[data-ready="true"] {
@@ -4244,61 +4259,89 @@ select option:checked {
 .guided-tip-bubble:hover,
 .guided-tip-bubble:focus-visible {
 	border-color: var(--tooltip-text);
-	outline: none;
+	outline: 3px solid var(--tooltip-ring);
+	outline-offset: 2px;
 }
 
-.guided-tip-bubble span {
+.guided-tip-copy {
 	min-width: 0;
-	overflow-wrap: anywhere;
+	overflow-wrap: break-word;
+	text-wrap: pretty;
 }
 
-.guided-tip-bubble small {
-	display: inline-flex;
+.guided-tip-footer {
+	display: flex;
 	align-items: center;
-	justify-content: center;
-	min-width: 38px;
-	color: var(--tooltip-text);
-	font-size: 0.68rem;
-	font-weight: 950;
-	letter-spacing: 0.05em;
-	opacity: 0.78;
+	justify-content: space-between;
+	gap: 10px;
+	min-width: 0;
 }
 
-.guided-tip-stop {
-	min-height: 24px;
+.guided-tip-count {
+	flex: 0 0 auto;
+	color: color-mix(in srgb, var(--tooltip-text) 72%, transparent);
+	font-family: var(--font-label);
+	font-size: 0.72rem;
+	font-weight: 850;
+	line-height: 1.2;
+	white-space: nowrap;
+}
+
+.guided-tip-controls {
+	display: flex;
+	flex: 1 1 auto;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 7px;
+	min-width: 0;
+}
+
+.guided-tip-action {
+	min-width: 54px;
+	min-height: 40px;
 	border: 1px solid color-mix(in srgb, var(--tooltip-text) 42%, transparent);
-	border-radius: 999px;
+	border-radius: 8px;
 	background: color-mix(in srgb, var(--tooltip-text) 10%, transparent);
 	color: var(--tooltip-text);
-	padding: 3px 8px;
+	padding: 0 12px;
 	font-family: var(--font-label);
-	font-size: 0.66rem;
-	font-weight: 950;
+	font-size: 0.76rem;
+	font-weight: 900;
 	line-height: 1;
 }
 
-.guided-tip-stop:hover,
-.guided-tip-stop:focus-visible {
+.guided-tip-action--primary {
+	border-color: var(--tooltip-text);
+	background: color-mix(in srgb, var(--tooltip-text) 92%, transparent);
+	color: var(--tooltip-bg);
+}
+
+.guided-tip-action:hover:not(:disabled),
+.guided-tip-action:focus-visible {
 	border-color: var(--tooltip-text);
 	background: color-mix(in srgb, var(--tooltip-text) 18%, transparent);
-	outline: none;
+	outline: 3px solid var(--tooltip-ring);
+	outline-offset: 2px;
+}
+
+.guided-tip-action--primary:hover:not(:disabled),
+.guided-tip-action--primary:focus-visible {
+	background: var(--tooltip-text);
+	color: var(--tooltip-bg);
+}
+
+.guided-tip-action:disabled {
+	cursor: default;
+	opacity: 0.48;
 }
 
 .is-guided-tip-target {
 	outline: 2px solid
-		color-mix(in srgb, var(--tooltip-dot) 86%, var(--tooltip-text));
-	outline-offset: 4px;
+		color-mix(in srgb, var(--tooltip-dot) 76%, var(--tooltip-text));
+	outline-offset: 5px;
 	box-shadow:
-		0 0 0 5px color-mix(in srgb, var(--tooltip-dot) 18%, transparent),
-		0 0 26px color-mix(in srgb, var(--tooltip-dot) 55%, transparent) !important;
-}
-
-.tracker-orb.is-guided-tip-target,
-.reader-page-indicator.is-guided-tip-target,
-.dashboard-card.is-guided-tip-target,
-.body-mode-button.is-guided-tip-target,
-.sidebar-group-toggle.is-guided-tip-target {
-	animation: guided-tip-target-glow 1.55s ease-in-out infinite;
+		0 0 0 5px color-mix(in srgb, var(--tooltip-dot) 14%, transparent),
+		0 0 20px color-mix(in srgb, var(--tooltip-dot) 36%, transparent) !important;
 }
 
 @keyframes guided-tip-bubble-glow {
@@ -6885,6 +6928,23 @@ select option:checked {
 	padding: 10px 12px;
 }
 
+.life-projects-view .life-quick-add input {
+	min-height: 40px;
+	background: color-mix(in srgb, var(--surface-2) 76%, var(--bg));
+	font-size: 0.88rem;
+}
+
+.life-projects-view .life-quick-add input::placeholder {
+	color: color-mix(in srgb, var(--muted) 82%, var(--text));
+	opacity: 1;
+}
+
+.life-projects-view .life-quick-add input:focus {
+	border-color: var(--accent);
+	outline: 3px solid var(--theme-ring);
+	outline-offset: 1px;
+}
+
 .life-todo-board {
 	display: grid;
 	grid-template-columns: minmax(0, 1.35fr) minmax(180px, 0.85fr);
@@ -7142,18 +7202,27 @@ select option:checked {
 .life-projects-view {
 	display: grid;
 	grid-template-rows: auto minmax(0, 1fr);
-	gap: var(--dashboard-density-gap);
+	gap: 14px;
 	min-height: 0;
 }
 
 .life-project-overview {
-	display: flex;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
 	align-items: center;
-	justify-content: space-between;
-	gap: var(--dashboard-density-gap);
+	gap: 16px;
 	min-width: 0;
-	border-bottom: 1px solid var(--border-soft);
-	padding-bottom: 10px;
+	border: 1px solid var(--border-soft);
+	border-radius: 14px;
+	background:
+		linear-gradient(
+			135deg,
+			color-mix(in srgb, var(--accent) 8%, transparent),
+			transparent 44%
+		),
+		color-mix(in srgb, var(--surface) 88%, var(--bg));
+	padding: 14px 16px;
+	box-shadow: 0 1px 0 color-mix(in srgb, var(--text) 8%, transparent) inset;
 }
 
 .life-project-overview h3,
@@ -7162,22 +7231,27 @@ select option:checked {
 }
 
 .life-project-overview h3 {
-	color: #fff;
-	font-family: var(--font-display);
-	font-size: var(--dashboard-section-title-size);
+	color: var(--text);
+	font-family: var(--font-body);
+	font-size: 1.08rem;
+	font-weight: 720;
+	letter-spacing: 0;
 	line-height: 1.15;
+	text-wrap: balance;
 }
 
 .life-project-overview p {
-	margin-top: 3px;
+	max-width: 64ch;
+	margin-top: 4px;
 	color: var(--muted);
-	font-size: var(--dashboard-body-size);
-	line-height: 1.35;
+	font-size: 0.86rem;
+	line-height: 1.45;
+	text-wrap: pretty;
 }
 
 .life-project-stats {
 	display: grid;
-	grid-template-columns: repeat(3, minmax(58px, auto));
+	grid-template-columns: repeat(3, minmax(64px, auto));
 	gap: 8px;
 }
 
@@ -7185,25 +7259,26 @@ select option:checked {
 	display: grid;
 	place-items: center;
 	min-width: 0;
-	border: 1px solid var(--border-soft);
-	border-radius: 10px;
-	background: rgba(2, 6, 23, 0.36);
-	padding: 6px 8px;
+	border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--bg) 44%, transparent);
+	padding: 7px 10px;
 }
 
 .life-project-stats strong {
-	color: #fff;
-	font-family: var(--font-display);
-	font-size: 0.92rem;
+	color: var(--text);
+	font-family: var(--font-body);
+	font-size: 1rem;
+	font-weight: 720;
 	line-height: 1;
 }
 
 .life-project-stats small {
-	color: var(--faint);
+	color: var(--muted);
 	font-family: var(--font-label);
-	font-size: 0.58rem;
-	font-weight: 900;
-	letter-spacing: 0.1em;
+	font-size: 0.62rem;
+	font-weight: 800;
+	letter-spacing: 0.06em;
 	line-height: 1;
 	margin-top: 4px;
 	text-transform: uppercase;
@@ -7211,12 +7286,12 @@ select option:checked {
 
 .life-project-shell {
 	display: grid;
-	grid-template-columns: minmax(210px, 260px) minmax(0, 1fr);
+	grid-template-columns: minmax(210px, 0.82fr) minmax(0, 1.28fr);
 	grid-template-rows: auto minmax(0, 1fr);
 	grid-template-areas:
 		"projects detail"
 		"workflow detail";
-	gap: var(--dashboard-density-gap);
+	gap: 12px;
 	height: 100%;
 	min-height: 0;
 }
@@ -7233,16 +7308,22 @@ select option:checked {
 .life-project-workflow {
 	display: grid;
 	align-content: start;
-	gap: 10px;
-	border: 1px solid var(--border-soft);
+	gap: 12px;
+	border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
 	border-radius: 14px;
-	background: rgba(2, 6, 23, 0.22);
-	padding: 10px;
+	background:
+		linear-gradient(
+			180deg,
+			color-mix(in srgb, var(--surface-2) 72%, transparent),
+			color-mix(in srgb, var(--bg) 32%, transparent)
+		),
+		var(--surface);
+	padding: 12px;
+	box-shadow: 0 1px 0 color-mix(in srgb, var(--text) 6%, transparent) inset;
 }
 
 .life-project-sidebar {
 	grid-area: projects;
-	border-right: 1px solid var(--border-soft);
 }
 
 .life-project-workflow {
@@ -7251,10 +7332,17 @@ select option:checked {
 
 .life-project-body {
 	grid-area: detail;
-	border: 1px solid var(--border-soft);
+	border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
 	border-radius: 14px;
-	background: rgba(2, 6, 23, 0.18);
-	padding: 12px;
+	background:
+		linear-gradient(
+			180deg,
+			color-mix(in srgb, var(--surface) 92%, var(--bg)),
+			color-mix(in srgb, var(--surface-2) 78%, var(--bg))
+		),
+		var(--surface);
+	padding: 16px;
+	box-shadow: 0 1px 0 color-mix(in srgb, var(--text) 7%, transparent) inset;
 }
 
 .life-project-workflow .empty-state,
@@ -7267,7 +7355,10 @@ select option:checked {
 
 .life-project-workflow .empty-state h3,
 .life-project-body .empty-state h3 {
+	font-family: var(--font-body);
 	font-size: 1rem;
+	font-weight: 720;
+	letter-spacing: 0;
 }
 
 .life-project-workflow .empty-state p,
@@ -7279,33 +7370,65 @@ select option:checked {
 
 .life-project-nav-section {
 	display: grid;
-	gap: 7px;
+	gap: 8px;
 	min-width: 0;
+}
+
+.life-project-sidebar .life-quick-add {
+	grid-template-columns: minmax(96px, 1fr) auto;
+}
+
+.life-project-nav-section h4 {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	min-height: 20px;
+	color: var(--muted);
+	font-size: 0.68rem;
+	letter-spacing: 0.08em;
 }
 
 .life-project-nav-button {
 	display: grid;
-	gap: 3px;
+	gap: 5px;
 	width: 100%;
 	min-width: 0;
-	border: 1px solid var(--border-soft);
-	border-radius: 10px;
-	background: rgba(15, 23, 42, 0.56);
+	border: 1px solid color-mix(in srgb, var(--border-soft) 82%, transparent);
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--surface-2) 68%, var(--bg));
 	color: var(--text);
-	padding: 8px 9px;
+	padding: 10px 11px;
 	text-align: left;
 	transition:
 		border-color 0.16s ease,
 		background 0.16s ease,
+		color 0.16s ease,
 		transform 0.16s ease;
 }
 
-.life-project-nav-button:hover,
-.life-project-nav-button.is-active {
-	border-color: var(--border);
-	background: #1e293b;
-	color: #fff;
+.life-project-nav-button:hover {
+	border-color: color-mix(in srgb, var(--border) 86%, var(--accent));
+	background: color-mix(in srgb, var(--theme-control-hover) 76%, var(--bg));
 	transform: translateY(-1px);
+}
+
+.life-project-nav-button:focus-visible {
+	border-color: var(--accent);
+	outline: 3px solid var(--theme-ring);
+	outline-offset: 2px;
+}
+
+.life-project-nav-button.is-active {
+	border-color: var(--border-accent-soft);
+	background:
+		linear-gradient(
+			135deg,
+			color-mix(in srgb, var(--accent) 18%, transparent),
+			color-mix(in srgb, var(--theme-control-hover) 72%, var(--bg))
+		);
+	color: var(--text);
+	box-shadow: 0 0 0 1px
+		color-mix(in srgb, var(--accent) 22%, transparent) inset;
 }
 
 .life-project-nav-button strong,
@@ -7317,19 +7440,45 @@ select option:checked {
 }
 
 .life-project-nav-button small {
-	color: var(--faint);
-	font-size: 0.68rem;
-	font-weight: 800;
+	color: var(--muted);
+	font-size: 0.7rem;
+	font-weight: 700;
+	line-height: 1.25;
 }
 
 .life-project-nav-button strong {
-	font-size: 0.84rem;
-	line-height: 1.2;
+	color: var(--text);
+	font-size: 0.9rem;
+	font-weight: 680;
+	letter-spacing: 0;
+	line-height: 1.22;
 }
 
 .life-project-detail {
 	display: grid;
-	gap: var(--dashboard-density-gap);
+	gap: 14px;
+}
+
+.life-project-detail > .body-card-heading {
+	align-items: center;
+	gap: 12px;
+	border-bottom: 1px solid var(--border-soft);
+	margin: -2px 0 2px;
+	padding-bottom: 12px;
+}
+
+.life-project-detail > .body-card-heading h3 {
+	font-family: var(--font-body);
+	font-size: 1.02rem;
+	font-weight: 720;
+	letter-spacing: 0;
+}
+
+.life-project-detail > .body-card-heading p {
+	max-width: 60ch;
+	color: var(--muted);
+	font-size: 0.84rem;
+	line-height: 1.35;
 }
 
 .life-project-form {
@@ -7342,11 +7491,34 @@ select option:checked {
 	grid-column: 1 / -1;
 }
 
+.life-project-detail .body-field {
+	gap: 7px;
+	color: var(--muted);
+	font-size: 0.76rem;
+	font-weight: 800;
+	letter-spacing: 0.04em;
+}
+
+.life-project-detail .body-field input,
+.life-project-detail .body-field select,
+.life-project-detail .body-field textarea {
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--bg) 38%, var(--surface));
+}
+
+.life-project-detail .body-field textarea {
+	min-height: 176px;
+	line-height: 1.48;
+	resize: vertical;
+}
+
 .life-attachments {
 	display: grid;
 	gap: 10px;
-	border-top: 1px solid var(--border-soft);
-	padding-top: 14px;
+	border: 1px solid var(--border-soft);
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--bg) 30%, transparent);
+	padding: 12px;
 }
 
 .life-attachment-list {
@@ -7359,16 +7531,17 @@ select option:checked {
 	grid-template-columns: minmax(0, 1fr) auto auto;
 	gap: 8px;
 	align-items: center;
-	border: 1px solid var(--border-soft);
+	border: 1px solid color-mix(in srgb, var(--border-soft) 82%, transparent);
 	border-radius: 10px;
-	background: rgba(15, 23, 42, 0.48);
+	background: color-mix(in srgb, var(--surface-2) 62%, var(--bg));
 	padding: 8px 10px;
 }
 
 .life-attachment-item a {
 	min-width: 0;
 	overflow: hidden;
-	color: #bfdbfe;
+	color: color-mix(in srgb, var(--accent) 72%, var(--text));
+	font-weight: 650;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
@@ -8778,6 +8951,19 @@ button.life-event-row:hover {
 	cursor: default;
 }
 
+.reader-slider-edge:disabled iconify-icon {
+	opacity: 0;
+}
+
+.reader-slider-edge:disabled::after {
+	content: "";
+	width: 12px;
+	height: 2px;
+	border-radius: 999px;
+	background: var(--accent);
+	opacity: 0.78;
+}
+
 .reader-page-indicator {
 	display: flex;
 	align-items: center;
@@ -9951,6 +10137,729 @@ button.life-event-row:hover {
 	color: var(--accent);
 }
 
+:root.theme-palette:not(.theme-consolas) .dashboard-space-button,
+:root.theme-palette:not(.theme-consolas) .dashboard-bar-button,
+:root.theme-palette:not(.theme-consolas) .dashboard-bar-track,
+:root.theme-palette:not(.theme-consolas) .dashboard-orb-empty,
+:root.theme-palette:not(.theme-consolas) .dashboard-period-slider-value,
+:root.theme-palette:not(.theme-consolas) .pyxdia-status-strip,
+:root.theme-palette:not(.theme-consolas) .pyxdia-status-strip span,
+:root.theme-palette:not(.theme-consolas) .pyxdia-letter-main,
+:root.theme-palette:not(.theme-consolas) .pyxdia-letter-side,
+:root.theme-palette:not(.theme-consolas) .pyxdia-context-card,
+:root.theme-palette:not(.theme-consolas) .pyxdia-output,
+:root.theme-palette:not(.theme-consolas) .pyxdia-thread,
+:root.theme-palette:not(.theme-consolas) .pyxdia-memory-card,
+:root.theme-palette:not(.theme-consolas) .pyxdia-recipient-selector,
+:root.theme-palette:not(.theme-consolas) .pyxdia-recipient-static,
+:root.theme-palette:not(.theme-consolas) .pyxdia-letter-preview,
+:root.theme-palette:not(.theme-consolas) .pyxdia-output-text,
+:root.theme-palette:not(.theme-consolas) .pyxdia-pending-card,
+:root.theme-palette:not(.theme-consolas) .pyxdia-note-ref,
+:root.theme-palette:not(.theme-consolas) .pyxdia-thread-letter,
+:root.theme-palette:not(.theme-consolas) .pyxdia-memory-entry,
+:root.theme-palette:not(.theme-consolas) .trash-item,
+:root.theme-palette:not(.theme-consolas) .trash-item-type,
+:root.theme-palette:not(.theme-consolas) .data-controls-group,
+:root.theme-palette:not(.theme-consolas) .cloud-account-avatar,
+:root.theme-palette:not(.theme-consolas) .cloud-usage-heading > span,
+:root.theme-palette:not(.theme-consolas) .cloud-usage-meter,
+:root.theme-palette:not(.theme-consolas) .gallery-toolbar,
+:root.theme-palette:not(.theme-consolas) .gallery-card,
+:root.theme-palette:not(.theme-consolas) .gallery-select,
+:root.theme-palette:not(.theme-consolas) .gallery-image-link,
+:root.theme-palette:not(.theme-consolas) .compendium-list-view,
+:root.theme-palette:not(.theme-consolas) .compendium-list-item,
+:root.theme-palette:not(.theme-consolas) .compendium-picker-empty,
+:root.theme-palette:not(.theme-consolas) .compendium-picker-actions,
+:root.theme-palette:not(.theme-consolas) .compendium-grid-tooltip,
+:root.theme-palette:not(.theme-consolas) .reader-gallery-edge,
+:root.theme-palette:not(.theme-consolas) .themed-child-viewer blockquote,
+:root.theme-palette:not(.theme-consolas) .dashboard-identity-input-row input[type="text"],
+:root.theme-palette:not(.theme-consolas) .tracker-title-icon-row input[type="text"],
+:root.theme-palette:not(.theme-consolas) .tracker-add-form,
+:root.theme-palette:not(.theme-consolas) .tracker-edit-form,
+:root.theme-palette:not(.theme-consolas) .tracker-enabled-toggle i,
+:root.theme-palette:not(.theme-consolas) .tracker-remove-button,
+:root.theme-palette:not(.theme-consolas) .icon-picker-overlay,
+:root.theme-palette:not(.theme-consolas) .icon-picker-header,
+:root.theme-palette:not(.theme-consolas) .icon-picker-current,
+:root.theme-palette:not(.theme-consolas) .icon-picker-save,
+:root.theme-palette:not(.theme-consolas) .icon-picker-search input,
+:root.theme-palette:not(.theme-consolas) .icon-picker-hex,
+:root.theme-palette:not(.theme-consolas) .icon-picker-swatch,
+:root.theme-palette:not(.theme-consolas) .life-tracker-empty,
+:root.theme-palette:not(.theme-consolas) .sidebar-group--pyxdia,
+:root.theme-palette:not(.theme-consolas) .sidebar-page-controls button {
+	border-color: var(--border-soft);
+	background: var(--surface);
+	color: var(--text);
+}
+
+:root.theme-palette:not(.theme-consolas) .dashboard-space-button,
+:root.theme-palette:not(.theme-consolas) .pyxdia-status-strip span,
+:root.theme-palette:not(.theme-consolas) .pyxdia-recipient-static,
+:root.theme-palette:not(.theme-consolas) .pyxdia-note-ref,
+:root.theme-palette:not(.theme-consolas) .pyxdia-thread-letter,
+:root.theme-palette:not(.theme-consolas) .pyxdia-memory-entry,
+:root.theme-palette:not(.theme-consolas) .trash-item-type,
+:root.theme-palette:not(.theme-consolas) .gallery-select,
+:root.theme-palette:not(.theme-consolas) .compendium-list-item,
+:root.theme-palette:not(.theme-consolas) .reader-gallery-edge,
+:root.theme-palette:not(.theme-consolas) .dashboard-identity-input-row input[type="text"],
+:root.theme-palette:not(.theme-consolas) .tracker-title-icon-row input[type="text"],
+:root.theme-palette:not(.theme-consolas) .icon-picker-search input,
+:root.theme-palette:not(.theme-consolas) .icon-picker-hex,
+:root.theme-palette:not(.theme-consolas) .sidebar-page-controls button {
+	background: var(--theme-control);
+}
+
+:root.theme-palette:not(.theme-consolas) .dashboard-space-button:hover,
+:root.theme-palette:not(.theme-consolas) .dashboard-space-button:focus-visible,
+:root.theme-palette:not(.theme-consolas) .dashboard-space-button.is-active,
+:root.theme-palette:not(.theme-consolas) .dashboard-bar-button:hover,
+:root.theme-palette:not(.theme-consolas) .dashboard-bar-button:focus-visible,
+:root.theme-palette:not(.theme-consolas) .dashboard-bar-button.is-linked-hover,
+:root.theme-palette:not(.theme-consolas) .compendium-list-item:hover,
+:root.theme-palette:not(.theme-consolas) .compendium-list-item:focus-visible,
+:root.theme-palette:not(.theme-consolas) .reader-gallery-edge.is-available:hover,
+:root.theme-palette:not(.theme-consolas) .gallery-card.is-selected,
+:root.theme-palette:not(.theme-consolas) .gallery-card.is-selected .gallery-select,
+:root.theme-palette:not(.theme-consolas) .tracker-remove-button:hover,
+:root.theme-palette:not(.theme-consolas) .tracker-remove-button:focus-visible,
+:root.theme-palette:not(.theme-consolas) .sidebar-page-controls button:not(:disabled):hover {
+	border-color: var(--border-accent);
+	background: var(--theme-control-hover);
+	color: var(--text);
+}
+
+:root.theme-palette:not(.theme-consolas) .dashboard-pie::after {
+	border-color: var(--border-soft);
+	background: var(--surface);
+}
+
+:root.theme-palette:not(.theme-consolas) .dashboard-divider {
+	background: var(--border);
+}
+
+:root.theme-palette:not(.theme-consolas) .dashboard-space-unread {
+	border-color: var(--surface);
+	background: var(--danger);
+	color: var(--on-danger);
+	box-shadow: 0 8px 18px var(--theme-shadow);
+}
+
+:root.theme-palette:not(.theme-consolas) .dashboard-period-range::-webkit-slider-runnable-track {
+	border-color: var(--border-soft);
+	background: linear-gradient(
+		90deg,
+		var(--accent) 0 var(--period-progress),
+		var(--surface-2) var(--period-progress) 100%
+	);
+}
+
+:root.theme-palette:not(.theme-consolas) .dashboard-period-range::-moz-range-track {
+	border-color: var(--border-soft);
+	background: linear-gradient(
+		90deg,
+		var(--accent) 0 var(--period-progress),
+		var(--surface-2) var(--period-progress) 100%
+	);
+}
+
+:root.theme-palette:not(.theme-consolas) .dashboard-period-range::-webkit-slider-thumb {
+	border-color: var(--on-accent);
+	background: var(--accent);
+	box-shadow:
+		0 0 0 1px var(--border-accent-soft),
+		0 4px 10px var(--theme-shadow);
+}
+
+:root.theme-palette:not(.theme-consolas) .dashboard-period-range::-moz-range-thumb {
+	border-color: var(--on-accent);
+	background: var(--accent);
+	box-shadow:
+		0 0 0 1px var(--border-accent-soft),
+		0 4px 10px var(--theme-shadow);
+}
+
+:root.theme-palette:not(.theme-consolas) .dashboard-bar-track,
+:root.theme-palette:not(.theme-consolas) .pyxdia-letter-preview,
+:root.theme-palette:not(.theme-consolas) .pyxdia-output-text,
+:root.theme-palette:not(.theme-consolas) .gallery-image-link,
+:root.theme-palette:not(.theme-consolas) .compendium-list-view {
+	background: var(--surface-2);
+}
+
+:root.theme-palette:not(.theme-consolas) .pyxdia-status-strip.has-error,
+:root.theme-palette:not(.theme-consolas) .cloud-usage-card.is-over-limit {
+	border-color: color-mix(in srgb, var(--danger) 70%, var(--border-soft));
+}
+
+:root.theme-palette:not(.theme-consolas) .pyxdia-error,
+:root.theme-palette:not(.theme-consolas) .pyxdia-letter-counter.is-over-limit,
+:root.theme-palette:not(.theme-consolas) .pyxdia-note-summary.is-over-limit,
+:root.theme-palette:not(.theme-consolas) .pyxdia-context-warning,
+:root.theme-palette:not(.theme-consolas) .cloud-status-message--error {
+	color: var(--danger);
+}
+
+:root.theme-palette:not(.theme-consolas) .pyxdia-pending-card {
+	border-style: dashed;
+	background: var(--theme-control);
+}
+
+:root.theme-palette:not(.theme-consolas) .pyxdia-pending-card strong,
+:root.theme-palette:not(.theme-consolas) .pyxdia-output-text,
+:root.theme-palette:not(.theme-consolas) .pyxdia-thread-output,
+:root.theme-palette:not(.theme-consolas) .pyxdia-memory-entry strong,
+:root.theme-palette:not(.theme-consolas) .trash-item h3,
+:root.theme-palette:not(.theme-consolas) .data-controls-group h4,
+:root.theme-palette:not(.theme-consolas) .cloud-account-card strong,
+:root.theme-palette:not(.theme-consolas) .cloud-sync-grid strong,
+:root.theme-palette:not(.theme-consolas) .cloud-usage-heading strong,
+:root.theme-palette:not(.theme-consolas) .compendium-picker-header strong,
+:root.theme-palette:not(.theme-consolas) .compendium-picker-empty strong,
+:root.theme-palette:not(.theme-consolas) .compendium-list-title,
+:root.theme-palette:not(.theme-consolas) .reader-gallery-edge.is-available,
+:root.theme-palette:not(.theme-consolas) .page-content-title,
+:root.theme-palette:not(.theme-consolas) .page-content-media-title,
+:root.theme-palette:not(.theme-consolas) .body-ring-value-text {
+	color: var(--text);
+}
+
+:root.theme-palette:not(.theme-consolas) .pyxdia-status-strip p,
+:root.theme-palette:not(.theme-consolas) .pyxdia-letter-counter,
+:root.theme-palette:not(.theme-consolas) .pyxdia-note-summary,
+:root.theme-palette:not(.theme-consolas) .pyxdia-note-filter-empty,
+:root.theme-palette:not(.theme-consolas) .pyxdia-note-ref small,
+:root.theme-palette:not(.theme-consolas) .pyxdia-pending-card span,
+:root.theme-palette:not(.theme-consolas) .pyxdia-memory-card p,
+:root.theme-palette:not(.theme-consolas) .pyxdia-memory-entry small,
+:root.theme-palette:not(.theme-consolas) .trash-item p,
+:root.theme-palette:not(.theme-consolas) .trash-item small,
+:root.theme-palette:not(.theme-consolas) .data-controls-group p,
+:root.theme-palette:not(.theme-consolas) .cloud-account-card small,
+:root.theme-palette:not(.theme-consolas) .cloud-sync-grid small,
+:root.theme-palette:not(.theme-consolas) .cloud-usage-heading small,
+:root.theme-palette:not(.theme-consolas) .cloud-usage-updated,
+:root.theme-palette:not(.theme-consolas) .cloud-danger-links,
+:root.theme-palette:not(.theme-consolas) .cloud-status-message,
+:root.theme-palette:not(.theme-consolas) .gallery-toolbar > span,
+:root.theme-palette:not(.theme-consolas) .gallery-toolbar label span,
+:root.theme-palette:not(.theme-consolas) .compendium-picker-header p,
+:root.theme-palette:not(.theme-consolas) .compendium-picker-empty,
+:root.theme-palette:not(.theme-consolas) .reader-gallery-edge,
+:root.theme-palette:not(.theme-consolas) .reader-gallery-label,
+:root.theme-palette:not(.theme-consolas) .reader-page-label,
+:root.theme-palette:not(.theme-consolas) .page-number-overlay,
+:root.theme-palette:not(.theme-consolas) .body-ring-label,
+:root.theme-palette:not(.theme-consolas) .body-ring-sub,
+:root.theme-palette:not(.theme-consolas) .life-tracker-empty,
+:root.theme-palette:not(.theme-consolas) .sidebar-page-controls,
+:root.theme-palette:not(.theme-consolas) .sidebar-page-controls button:disabled {
+	color: var(--muted);
+}
+
+:root.theme-palette:not(.theme-consolas) .cloud-danger-separator {
+	color: var(--border-soft);
+}
+
+:root.theme-palette:not(.theme-consolas) .cloud-account-avatar {
+	background: color-mix(in srgb, var(--accent) 20%, var(--surface));
+	color: var(--accent);
+}
+
+:root.theme-palette:not(.theme-consolas) .cloud-usage-meter {
+	background: color-mix(in srgb, var(--surface-2) 78%, var(--bg));
+}
+
+:root.theme-palette:not(.theme-consolas) .gallery-card.is-selected {
+	box-shadow: inset 0 0 0 1px var(--border-accent-soft);
+}
+
+:root.theme-palette:not(.theme-consolas) .gallery-image-link.is-missing,
+:root.theme-palette:not(.theme-consolas) .gallery-image-link img.is-missing {
+	opacity: 0.45;
+}
+
+:root.theme-palette:not(.theme-consolas) .reader-page-dot {
+	background: color-mix(in srgb, var(--muted) 42%, transparent);
+	box-shadow: 0 0 0 1px color-mix(in srgb, var(--border-soft) 48%, transparent);
+}
+
+:root.theme-palette:not(.theme-consolas) .reader-page-dot--side.is-available {
+	background: color-mix(in srgb, var(--accent) 58%, var(--text));
+	box-shadow: 0 0 14px var(--border-accent-soft);
+}
+
+:root.theme-palette:not(.theme-consolas) .reader-page-dot--current {
+	background: var(--text);
+	box-shadow: 0 0 18px var(--border-accent-soft);
+}
+
+:root.theme-palette:not(.theme-consolas) .body-ring-track {
+	stroke: var(--border-soft);
+}
+
+:root.theme-palette:not(.theme-consolas) .body-ring-value {
+	stroke: var(--accent);
+}
+
+:root.theme-palette:not(.theme-consolas) .body-ring-value--nutrition {
+	stroke: var(--accent-2);
+}
+
+:root.theme-palette:not(.theme-consolas) .tracker-remove-button {
+	border-color: color-mix(in srgb, var(--danger) 58%, var(--border-soft));
+	background: color-mix(in srgb, var(--danger) 12%, var(--theme-control));
+	color: var(--danger);
+}
+
+:root.theme-palette:not(.theme-consolas) .tracker-enabled-toggle input:checked + i {
+	background: color-mix(
+		in srgb,
+		var(--thought-color, var(--accent)) 24%,
+		var(--theme-control)
+	);
+}
+
+:root.theme-palette:not(.theme-consolas) .tracker-enabled-toggle i::before {
+	background: var(--muted);
+}
+
+:root.theme-palette:not(.theme-consolas)
+	.tracker-enabled-toggle
+	input:checked
+	+ i::before {
+	background: var(--thought-color, var(--accent));
+}
+
+:root.theme-palette:not(.theme-consolas) .icon-picker-overlay {
+	background: color-mix(in srgb, var(--bg) 72%, transparent);
+}
+
+:root.theme-palette:not(.theme-consolas) .icon-picker-header {
+	border-bottom-color: var(--border-soft);
+	background: var(--surface);
+}
+
+:root.theme-palette:not(.theme-consolas) .icon-picker-save:hover,
+:root.theme-palette:not(.theme-consolas) .icon-picker-save:focus-visible,
+:root.theme-palette:not(.theme-consolas) .icon-picker-swatch:hover,
+:root.theme-palette:not(.theme-consolas) .icon-picker-swatch:focus-visible,
+:root.theme-palette:not(.theme-consolas) .icon-picker-swatch.is-selected {
+	border-color: var(--icon-picker-color, var(--accent));
+	background: color-mix(
+		in srgb,
+		var(--icon-picker-color, var(--accent)) 20%,
+		var(--theme-control-hover)
+	);
+}
+
+:root.theme-palette:not(.theme-consolas) .sidebar-group--pyxdia {
+	border-color: var(--border-accent-soft);
+	background: color-mix(in srgb, var(--surface) 78%, transparent);
+}
+
+:root.theme-palette:not(.theme-consolas) .thought-tooltip,
+:root.theme-palette:not(.theme-consolas) .guided-tip-bubble {
+	border-color: var(--tooltip-border);
+	background: color-mix(in srgb, var(--surface) 94%, var(--bg));
+	color: var(--tooltip-text);
+}
+
+:root.theme-palette:not(.theme-consolas) .dashboard-space-switcher,
+:root.theme-palette:not(.theme-consolas) .dashboard-chart-controls,
+:root.theme-palette:not(.theme-consolas) .dashboard-analytics-body,
+:root.theme-palette:not(.theme-consolas) .dashboard-pie-wrap,
+:root.theme-palette:not(.theme-consolas) .dashboard-pie-wrap--orbs,
+:root.theme-palette:not(.theme-consolas) .dashboard-orbs-panel,
+:root.theme-palette:not(.theme-consolas) .dashboard-orb-nav,
+:root.theme-palette:not(.theme-consolas) .dashboard-orb-scroll,
+:root.theme-palette:not(.theme-consolas) .dashboard-orb-scroll-track,
+:root.theme-palette:not(.theme-consolas) .dashboard-orb-quick-item,
+:root.theme-palette:not(.theme-consolas) .dashboard-identity-grid,
+:root.theme-palette:not(.theme-consolas) .dashboard-identity-toggles,
+:root.theme-palette:not(.theme-consolas) .dashboard-identity-input-row,
+:root.theme-palette:not(.theme-consolas) .dashboard-card-back,
+:root.theme-palette:not(.theme-consolas) .pyxdia-page,
+:root.theme-palette:not(.theme-consolas) .pyxdia-settings,
+:root.theme-palette:not(.theme-consolas) .pyxdia-mode-switcher,
+:root.theme-palette:not(.theme-consolas) .pyxdia-letter-editor,
+:root.theme-palette:not(.theme-consolas) .pyxdia-letter-field,
+:root.theme-palette:not(.theme-consolas) .pyxdia-letter-actions,
+:root.theme-palette:not(.theme-consolas) .pyxdia-editor-toggle,
+:root.theme-palette:not(.theme-consolas) .pyxdia-family-recipient,
+:root.theme-palette:not(.theme-consolas) .pyxdia-note-selector,
+:root.theme-palette:not(.theme-consolas) .pyxdia-note-filter-grid,
+:root.theme-palette:not(.theme-consolas) .pyxdia-note-filter-toggles,
+:root.theme-palette:not(.theme-consolas) .pyxdia-note-bulk-actions,
+:root.theme-palette:not(.theme-consolas) .pyxdia-note-ref-list,
+:root.theme-palette:not(.theme-consolas) .pyxdia-thread-list,
+:root.theme-palette:not(.theme-consolas) .pyxdia-memory-entry-list,
+:root.theme-palette:not(.theme-consolas) .pyxdia-settings-toggles,
+:root.theme-palette:not(.theme-consolas) .pyxdia-delay-grid,
+:root.theme-palette:not(.theme-consolas) .pyxdia-range-field,
+:root.theme-palette:not(.theme-consolas) .pyxdia-sidebar-items,
+:root.theme-palette:not(.theme-consolas) .pyxdia-sidebar-conversations,
+:root.theme-palette:not(.theme-consolas) .trash-page,
+:root.theme-palette:not(.theme-consolas) .trash-list,
+:root.theme-palette:not(.theme-consolas) .trash-retention-grid,
+:root.theme-palette:not(.theme-consolas) .trash-item-actions,
+:root.theme-palette:not(.theme-consolas) .cloud-settings,
+:root.theme-palette:not(.theme-consolas) .cloud-account-section,
+:root.theme-palette:not(.theme-consolas) .cloud-heading-controls,
+:root.theme-palette:not(.theme-consolas) .cloud-heading-actions,
+:root.theme-palette:not(.theme-consolas) .cloud-heading-action-row,
+:root.theme-palette:not(.theme-consolas) .cloud-actions,
+:root.theme-palette:not(.theme-consolas) .cloud-email-form,
+:root.theme-palette:not(.theme-consolas) .cloud-usage-breakdown,
+:root.theme-palette:not(.theme-consolas) .data-controls-section,
+:root.theme-palette:not(.theme-consolas) .data-controls-actions,
+:root.theme-palette:not(.theme-consolas) .gallery-page,
+:root.theme-palette:not(.theme-consolas) .gallery-grid,
+:root.theme-palette:not(.theme-consolas) .compendium-list-scroll,
+:root.theme-palette:not(.theme-consolas) .compendium-grid-controls,
+:root.theme-palette:not(.theme-consolas) .compendium-picker-grid,
+:root.theme-palette:not(.theme-consolas) .reader-gallery-carousel,
+:root.theme-palette:not(.theme-consolas) .reader-gallery-frame,
+:root.theme-palette:not(.theme-consolas) .reader-gallery-controls,
+:root.theme-palette:not(.theme-consolas) .reader-page-dots,
+:root.theme-palette:not(.theme-consolas) .body-ring-wrap,
+:root.theme-palette:not(.theme-consolas) .body-ring-wrap--small,
+:root.theme-palette:not(.theme-consolas) .body-ring,
+:root.theme-palette:not(.theme-consolas) .body-ring-center,
+:root.theme-palette:not(.theme-consolas) .sidebar-groups,
+:root.theme-palette:not(.theme-consolas) .sidebar-group,
+:root.theme-palette:not(.theme-consolas) .sidebar-group-items,
+:root.theme-palette:not(.theme-consolas) .sidebar-group-page,
+:root.theme-palette:not(.theme-consolas) .tracker-add-form--embedded,
+:root.theme-palette:not(.theme-consolas) .tracker-edit-actions,
+:root.theme-palette:not(.theme-consolas) .tracker-edit-heading,
+:root.theme-palette:not(.theme-consolas) .tracker-edit-heading-actions,
+:root.theme-palette:not(.theme-consolas) .tracker-edit-preview,
+:root.theme-palette:not(.theme-consolas) .tracker-enabled-toggle--inline,
+:root.theme-palette:not(.theme-consolas) .icon-picker-body-field,
+:root.theme-palette:not(.theme-consolas) .icon-picker-color,
+:root.theme-palette:not(.theme-consolas) .icon-picker-color-top,
+:root.theme-palette:not(.theme-consolas) .icon-picker-header-actions,
+:root.theme-palette:not(.theme-consolas) .icon-picker-results,
+:root.theme-palette:not(.theme-consolas) .icon-picker-grid,
+:root.theme-palette:not(.theme-consolas) .icon-picker-swatches {
+	color: var(--text);
+}
+
+:root.theme-palette:not(.theme-consolas) .dashboard-space-switcher,
+:root.theme-palette:not(.theme-consolas) .dashboard-orb-scroll,
+:root.theme-palette:not(.theme-consolas) .pyxdia-note-ref-list,
+:root.theme-palette:not(.theme-consolas) .gallery-grid,
+:root.theme-palette:not(.theme-consolas) .compendium-list-scroll,
+:root.theme-palette:not(.theme-consolas) .reader-gallery-carousel {
+	scrollbar-color: var(--border) transparent;
+}
+
+:root.theme-palette:not(.theme-consolas) .sidebar-group-toggle,
+:root.theme-palette:not(.theme-consolas) .pyxdia-sidebar-toggle {
+	color: var(--muted);
+}
+
+:root.theme-palette:not(.theme-consolas) .sidebar-group-toggle:hover,
+:root.theme-palette:not(.theme-consolas) .pyxdia-sidebar-toggle:hover {
+	color: var(--text);
+}
+
+:root.theme-consolas .dashboard-space-button,
+:root.theme-consolas .dashboard-space-unread,
+:root.theme-consolas .dashboard-bar-button,
+:root.theme-consolas .dashboard-bar-track,
+:root.theme-consolas .dashboard-pie::after,
+:root.theme-consolas .pyxdia-status-strip,
+:root.theme-consolas .pyxdia-status-strip span,
+:root.theme-consolas .pyxdia-letter-main,
+:root.theme-consolas .pyxdia-letter-side,
+:root.theme-consolas .pyxdia-context-card,
+:root.theme-consolas .pyxdia-output,
+:root.theme-consolas .pyxdia-thread,
+:root.theme-consolas .pyxdia-memory-card,
+:root.theme-consolas .pyxdia-recipient-selector,
+:root.theme-consolas .pyxdia-recipient-static,
+:root.theme-consolas .pyxdia-letter-preview,
+:root.theme-consolas .pyxdia-output-text,
+:root.theme-consolas .pyxdia-pending-card,
+:root.theme-consolas .pyxdia-note-ref,
+:root.theme-consolas .pyxdia-thread-letter,
+:root.theme-consolas .pyxdia-memory-entry,
+:root.theme-consolas .trash-item,
+:root.theme-consolas .trash-item-type,
+:root.theme-consolas .data-controls-group,
+:root.theme-consolas .cloud-account-avatar,
+:root.theme-consolas .cloud-usage-heading > span,
+:root.theme-consolas .cloud-usage-meter,
+:root.theme-consolas .gallery-toolbar,
+:root.theme-consolas .gallery-card,
+:root.theme-consolas .gallery-select,
+:root.theme-consolas .gallery-image-link,
+:root.theme-consolas .compendium-list-view,
+:root.theme-consolas .compendium-list-item,
+:root.theme-consolas .compendium-picker-empty,
+:root.theme-consolas .compendium-picker-actions,
+:root.theme-consolas .compendium-grid-tooltip,
+:root.theme-consolas .reader-gallery-edge,
+:root.theme-consolas .themed-child-viewer blockquote,
+:root.theme-consolas .dashboard-identity-input-row input[type="text"],
+:root.theme-consolas .tracker-title-icon-row input[type="text"],
+:root.theme-consolas .tracker-add-form,
+:root.theme-consolas .tracker-edit-form,
+:root.theme-consolas .tracker-enabled-toggle i,
+:root.theme-consolas .tracker-remove-button,
+:root.theme-consolas .icon-picker-overlay,
+:root.theme-consolas .icon-picker-header,
+:root.theme-consolas .icon-picker-current,
+:root.theme-consolas .icon-picker-save,
+:root.theme-consolas .icon-picker-search input,
+:root.theme-consolas .icon-picker-hex,
+:root.theme-consolas .icon-picker-swatch,
+:root.theme-consolas .life-tracker-empty,
+:root.theme-consolas .sidebar-group--pyxdia,
+:root.theme-consolas .sidebar-page-controls button {
+	border-color: var(--border-soft);
+	background: #050505;
+	color: var(--text);
+	box-shadow: none;
+}
+
+:root.theme-consolas .dashboard-space-button:hover,
+:root.theme-consolas .dashboard-space-button:focus-visible,
+:root.theme-consolas .dashboard-space-button.is-active,
+:root.theme-consolas .dashboard-bar-button:hover,
+:root.theme-consolas .dashboard-bar-button:focus-visible,
+:root.theme-consolas .dashboard-bar-button.is-linked-hover,
+:root.theme-consolas .compendium-list-item:hover,
+:root.theme-consolas .compendium-list-item:focus-visible,
+:root.theme-consolas .reader-gallery-edge.is-available:hover,
+:root.theme-consolas .gallery-card.is-selected,
+:root.theme-consolas .gallery-card.is-selected .gallery-select,
+:root.theme-consolas .tracker-remove-button:hover,
+:root.theme-consolas .tracker-remove-button:focus-visible,
+:root.theme-consolas .sidebar-page-controls button:not(:disabled):hover {
+	border-color: var(--border);
+	background: #111;
+	color: var(--text);
+}
+
+:root.theme-consolas .dashboard-divider,
+:root.theme-consolas .cloud-danger-separator {
+	background: var(--border-soft);
+	color: var(--border-soft);
+}
+
+:root.theme-consolas .dashboard-period-range::-webkit-slider-runnable-track {
+	border-color: var(--border-soft);
+	background: linear-gradient(
+		90deg,
+		var(--text) 0 var(--period-progress),
+		#111 var(--period-progress) 100%
+	);
+}
+
+:root.theme-consolas .dashboard-period-range::-moz-range-track {
+	border-color: var(--border-soft);
+	background: linear-gradient(
+		90deg,
+		var(--text) 0 var(--period-progress),
+		#111 var(--period-progress) 100%
+	);
+}
+
+:root.theme-consolas .dashboard-period-range::-webkit-slider-thumb {
+	border-color: #050505;
+	background: var(--text);
+	box-shadow: 0 0 0 1px var(--border);
+}
+
+:root.theme-consolas .dashboard-period-range::-moz-range-thumb {
+	border-color: #050505;
+	background: var(--text);
+	box-shadow: 0 0 0 1px var(--border);
+}
+
+:root.theme-consolas .dashboard-space-unread {
+	border-color: #050505;
+	background: var(--danger);
+	color: var(--on-danger);
+}
+
+:root.theme-consolas .pyxdia-status-strip.has-error,
+:root.theme-consolas .cloud-usage-card.is-over-limit {
+	border-color: var(--danger);
+}
+
+:root.theme-consolas .pyxdia-error,
+:root.theme-consolas .pyxdia-letter-counter.is-over-limit,
+:root.theme-consolas .pyxdia-note-summary.is-over-limit,
+:root.theme-consolas .pyxdia-context-warning,
+:root.theme-consolas .cloud-status-message--error,
+:root.theme-consolas .tracker-remove-button {
+	color: var(--danger);
+}
+
+:root.theme-consolas .pyxdia-status-strip p,
+:root.theme-consolas .pyxdia-letter-counter,
+:root.theme-consolas .pyxdia-note-summary,
+:root.theme-consolas .pyxdia-note-filter-empty,
+:root.theme-consolas .pyxdia-note-ref small,
+:root.theme-consolas .pyxdia-pending-card span,
+:root.theme-consolas .pyxdia-memory-card p,
+:root.theme-consolas .pyxdia-memory-entry small,
+:root.theme-consolas .trash-item p,
+:root.theme-consolas .trash-item small,
+:root.theme-consolas .data-controls-group p,
+:root.theme-consolas .cloud-account-card small,
+:root.theme-consolas .cloud-sync-grid small,
+:root.theme-consolas .cloud-usage-heading small,
+:root.theme-consolas .cloud-usage-updated,
+:root.theme-consolas .cloud-danger-links,
+:root.theme-consolas .cloud-status-message,
+:root.theme-consolas .gallery-toolbar > span,
+:root.theme-consolas .gallery-toolbar label span,
+:root.theme-consolas .compendium-picker-empty,
+:root.theme-consolas .reader-gallery-edge,
+:root.theme-consolas .reader-gallery-label,
+:root.theme-consolas .reader-page-label,
+:root.theme-consolas .page-number-overlay,
+:root.theme-consolas .body-ring-label,
+:root.theme-consolas .body-ring-sub,
+:root.theme-consolas .life-tracker-empty,
+:root.theme-consolas .sidebar-page-controls,
+:root.theme-consolas .sidebar-page-controls button:disabled {
+	color: var(--muted);
+}
+
+:root.theme-consolas .body-ring-track {
+	stroke: var(--border-soft);
+}
+
+:root.theme-consolas .body-ring-value,
+:root.theme-consolas .body-ring-value--nutrition {
+	stroke: var(--text);
+}
+
+:root.theme-consolas .reader-page-dot {
+	background: rgba(214, 211, 201, 0.42);
+	box-shadow: 0 0 0 1px rgba(239, 238, 231, 0.1);
+}
+
+:root.theme-consolas .reader-page-dot--side.is-available {
+	background: rgba(214, 211, 201, 0.72);
+	box-shadow: 0 0 14px rgba(239, 238, 231, 0.18);
+}
+
+:root.theme-consolas .reader-page-dot--current {
+	background: var(--text);
+	box-shadow: 0 0 18px rgba(239, 238, 231, 0.34);
+}
+
+:root.theme-consolas .dashboard-space-switcher,
+:root.theme-consolas .dashboard-chart-controls,
+:root.theme-consolas .dashboard-analytics-body,
+:root.theme-consolas .dashboard-pie-wrap,
+:root.theme-consolas .dashboard-pie-wrap--orbs,
+:root.theme-consolas .dashboard-orbs-panel,
+:root.theme-consolas .dashboard-orb-nav,
+:root.theme-consolas .dashboard-orb-scroll,
+:root.theme-consolas .dashboard-orb-scroll-track,
+:root.theme-consolas .dashboard-orb-quick-item,
+:root.theme-consolas .dashboard-identity-grid,
+:root.theme-consolas .dashboard-identity-toggles,
+:root.theme-consolas .dashboard-identity-input-row,
+:root.theme-consolas .dashboard-card-back,
+:root.theme-consolas .pyxdia-page,
+:root.theme-consolas .pyxdia-settings,
+:root.theme-consolas .pyxdia-mode-switcher,
+:root.theme-consolas .pyxdia-letter-editor,
+:root.theme-consolas .pyxdia-letter-field,
+:root.theme-consolas .pyxdia-letter-actions,
+:root.theme-consolas .pyxdia-editor-toggle,
+:root.theme-consolas .pyxdia-family-recipient,
+:root.theme-consolas .pyxdia-note-selector,
+:root.theme-consolas .pyxdia-note-filter-grid,
+:root.theme-consolas .pyxdia-note-filter-toggles,
+:root.theme-consolas .pyxdia-note-bulk-actions,
+:root.theme-consolas .pyxdia-note-ref-list,
+:root.theme-consolas .pyxdia-thread-list,
+:root.theme-consolas .pyxdia-memory-entry-list,
+:root.theme-consolas .pyxdia-settings-toggles,
+:root.theme-consolas .pyxdia-delay-grid,
+:root.theme-consolas .pyxdia-range-field,
+:root.theme-consolas .pyxdia-sidebar-items,
+:root.theme-consolas .pyxdia-sidebar-conversations,
+:root.theme-consolas .trash-page,
+:root.theme-consolas .trash-list,
+:root.theme-consolas .trash-retention-grid,
+:root.theme-consolas .trash-item-actions,
+:root.theme-consolas .cloud-settings,
+:root.theme-consolas .cloud-account-section,
+:root.theme-consolas .cloud-heading-controls,
+:root.theme-consolas .cloud-heading-actions,
+:root.theme-consolas .cloud-heading-action-row,
+:root.theme-consolas .cloud-actions,
+:root.theme-consolas .cloud-email-form,
+:root.theme-consolas .cloud-usage-breakdown,
+:root.theme-consolas .data-controls-section,
+:root.theme-consolas .data-controls-actions,
+:root.theme-consolas .gallery-page,
+:root.theme-consolas .gallery-grid,
+:root.theme-consolas .compendium-list-scroll,
+:root.theme-consolas .compendium-grid-controls,
+:root.theme-consolas .compendium-picker-grid,
+:root.theme-consolas .reader-gallery-carousel,
+:root.theme-consolas .reader-gallery-frame,
+:root.theme-consolas .reader-gallery-controls,
+:root.theme-consolas .reader-page-dots,
+:root.theme-consolas .body-ring-wrap,
+:root.theme-consolas .body-ring-wrap--small,
+:root.theme-consolas .body-ring,
+:root.theme-consolas .body-ring-center,
+:root.theme-consolas .sidebar-groups,
+:root.theme-consolas .sidebar-group,
+:root.theme-consolas .sidebar-group-items,
+:root.theme-consolas .sidebar-group-page,
+:root.theme-consolas .tracker-add-form--embedded,
+:root.theme-consolas .tracker-edit-actions,
+:root.theme-consolas .tracker-edit-heading,
+:root.theme-consolas .tracker-edit-heading-actions,
+:root.theme-consolas .tracker-edit-preview,
+:root.theme-consolas .tracker-enabled-toggle--inline,
+:root.theme-consolas .icon-picker-body-field,
+:root.theme-consolas .icon-picker-color,
+:root.theme-consolas .icon-picker-color-top,
+:root.theme-consolas .icon-picker-header-actions,
+:root.theme-consolas .icon-picker-results,
+:root.theme-consolas .icon-picker-grid,
+:root.theme-consolas .icon-picker-swatches {
+	color: var(--text);
+}
+
+:root.theme-consolas .dashboard-space-switcher,
+:root.theme-consolas .dashboard-orb-scroll,
+:root.theme-consolas .pyxdia-note-ref-list,
+:root.theme-consolas .gallery-grid,
+:root.theme-consolas .compendium-list-scroll,
+:root.theme-consolas .reader-gallery-carousel {
+	scrollbar-color: var(--border) transparent;
+}
+
+:root.theme-consolas .sidebar-group-toggle,
+:root.theme-consolas .pyxdia-sidebar-toggle {
+	color: var(--muted);
+}
+
+:root.theme-consolas .sidebar-group-toggle:hover,
+:root.theme-consolas .pyxdia-sidebar-toggle:hover {
+	color: var(--text);
+}
+
 :root.theme-consolas .path-bar,
 :root.theme-consolas .mobile-menu-toggle,
 :root.theme-consolas .sidebar-donate-row,
@@ -10591,6 +11500,97 @@ button.life-event-row:hover {
 
 :root.theme-consolas .life-todo-card.is-complete h4 {
 	text-decoration-color: rgba(239, 238, 231, 0.72);
+}
+
+:root.theme-palette:not(.theme-consolas) .life-project-overview {
+	border-color: var(--border-soft);
+	background:
+		linear-gradient(
+			135deg,
+			color-mix(in srgb, var(--accent) 9%, transparent),
+			transparent 45%
+		),
+		color-mix(in srgb, var(--surface) 92%, var(--bg));
+}
+
+:root.theme-palette:not(.theme-consolas) .life-project-sidebar,
+:root.theme-palette:not(.theme-consolas) .life-project-workflow,
+:root.theme-palette:not(.theme-consolas) .life-project-body {
+	background:
+		linear-gradient(
+			180deg,
+			color-mix(in srgb, var(--surface-2) 72%, transparent),
+			color-mix(in srgb, var(--surface) 88%, var(--bg))
+		),
+		var(--surface);
+}
+
+:root.theme-palette:not(.theme-consolas) .life-project-nav-button {
+	background: color-mix(in srgb, var(--surface-2) 76%, var(--surface));
+}
+
+:root.theme-palette:not(.theme-consolas) .life-project-nav-button:hover {
+	background: color-mix(in srgb, var(--theme-control-hover) 86%, var(--surface));
+}
+
+:root.theme-palette:not(.theme-consolas) .life-project-nav-button.is-active {
+	border-color: var(--border-accent-soft);
+	background:
+		linear-gradient(
+			135deg,
+			color-mix(in srgb, var(--accent) 18%, transparent),
+			color-mix(in srgb, var(--theme-control-hover) 78%, var(--surface))
+		);
+}
+
+:root.theme-palette:not(.theme-consolas) .life-projects-view .life-quick-add input,
+:root.theme-palette:not(.theme-consolas)
+	.life-project-detail
+	.body-field
+	input,
+:root.theme-palette:not(.theme-consolas)
+	.life-project-detail
+	.body-field
+	select,
+:root.theme-palette:not(.theme-consolas)
+	.life-project-detail
+	.body-field
+	textarea,
+:root.theme-palette:not(.theme-consolas) .life-attachments,
+:root.theme-palette:not(.theme-consolas) .life-attachment-item {
+	background: color-mix(in srgb, var(--surface-2) 70%, var(--surface));
+}
+
+:root.theme-consolas .life-project-overview,
+:root.theme-consolas .life-project-sidebar,
+:root.theme-consolas .life-project-workflow,
+:root.theme-consolas .life-project-body,
+:root.theme-consolas .life-project-nav-button,
+:root.theme-consolas .life-attachments,
+:root.theme-consolas .life-attachment-item {
+	box-shadow: none;
+}
+
+:root.theme-consolas .life-project-nav-button.is-active {
+	border-color: var(--border);
+	background: #111;
+}
+
+:root.theme-consolas .life-projects-view .life-quick-add input,
+:root.theme-consolas .life-project-detail .body-field input,
+:root.theme-consolas .life-project-detail .body-field select,
+:root.theme-consolas .life-project-detail .body-field textarea {
+	background: #050505;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.life-project-nav-button {
+		transition: none;
+	}
+
+	.life-project-nav-button:hover {
+		transform: none;
+	}
 }
 
 :root.theme-consolas .life-tracker-pill:has(input:checked) .life-tracker-icon {
@@ -12012,6 +13012,9 @@ button.life-event-row:hover {
 
 	.life-project-overview {
 		display: grid;
+		grid-template-columns: 1fr;
+		gap: 12px;
+		padding: 12px;
 	}
 
 	.life-project-stats {
@@ -12020,7 +13023,7 @@ button.life-event-row:hover {
 
 	.life-project-sidebar,
 	.life-project-workflow {
-		border-right: 1px solid var(--border-soft);
+		border: 1px solid var(--border-soft);
 		padding: 12px;
 	}
 
