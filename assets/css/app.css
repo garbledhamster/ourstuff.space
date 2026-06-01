@@ -977,7 +977,7 @@ select option:checked {
 .pyxdia-sidebar-title .button-icon {
 	width: 18px;
 	height: 18px;
-	color: #7dd3fc;
+	color: var(--accent);
 }
 
 .pyxdia-sidebar-items {
