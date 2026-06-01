@@ -8367,6 +8367,21 @@ button.life-event-row:hover {
 	line-height: 1.35;
 }
 
+.page-content--media {
+	grid-template-rows: auto minmax(0, 1fr) auto;
+	gap: clamp(12px, 2.5vw, 20px);
+}
+
+.page-content-media-title {
+	align-self: end;
+	max-width: min(760px, 100%);
+	margin: 0;
+	color: var(--text);
+	font-family: var(--font-display);
+	font-size: clamp(1.25rem, 3.4vw, 2rem);
+	line-height: 1.08;
+}
+
 .page-number-overlay {
 	position: absolute;
 	right: clamp(10px, 2vw, 18px);
@@ -8406,13 +8421,81 @@ button.life-event-row:hover {
 	box-shadow: 0 18px 54px color-mix(in srgb, var(--bg) 76%, transparent);
 }
 
-.themed-child-viewer--gallery,
 .themed-child-viewer--videos,
 .themed-child-viewer--quotes {
 	grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
 	align-items: center;
 	gap: clamp(12px, 2.6vw, 22px);
 	width: min(100%, 980px);
+}
+
+.reader-gallery-carousel {
+	grid-template-rows: minmax(0, 1fr) auto;
+	align-content: center;
+	gap: clamp(12px, 2.4vw, 20px);
+}
+
+.reader-gallery-frame {
+	display: grid;
+	place-items: center;
+	min-width: 0;
+	min-height: 0;
+	width: 100%;
+}
+
+.reader-gallery-frame figure {
+	width: 100%;
+}
+
+.reader-gallery-controls {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+	min-width: 0;
+}
+
+.reader-gallery-edge {
+	display: inline-grid;
+	place-items: center;
+	width: 38px;
+	height: 38px;
+	min-width: 38px;
+	border: 1px solid rgba(148, 163, 184, 0.28);
+	border-radius: 999px;
+	background: rgba(15, 23, 42, 0.82);
+	color: rgba(226, 232, 240, 0.46);
+	font-family: var(--font-label);
+	font-size: 1.05rem;
+	line-height: 1;
+	transition:
+		border-color 0.18s ease,
+		color 0.18s ease,
+		transform 0.18s ease;
+}
+
+.reader-gallery-edge.is-available {
+	color: rgba(226, 232, 240, 0.92);
+}
+
+.reader-gallery-edge.is-available:hover {
+	border-color: rgba(226, 232, 240, 0.76);
+	color: #fff;
+	transform: scale(1.06);
+}
+
+.reader-gallery-edge:disabled {
+	cursor: default;
+}
+
+.reader-gallery-label {
+	min-width: 92px;
+	color: var(--faint);
+	font-family: var(--font-label);
+	font-size: 0.72rem;
+	letter-spacing: 0;
+	text-align: center;
+	text-transform: uppercase;
 }
 
 .themed-child-viewer figure {
@@ -8725,7 +8808,8 @@ button.life-event-row:hover {
 
 .editor-form--section {
 	padding-top: 54px;
-	grid-template-rows: auto auto minmax(0, 1fr);
+	padding-bottom: clamp(36px, 6vh, 58px);
+	grid-template-rows: auto minmax(0, 1fr);
 }
 
 .section-editor-floating-nav {
@@ -8807,6 +8891,12 @@ button.life-event-row:hover {
 
 .editor-body-wrap textarea {
 	height: 100%;
+}
+
+.editor-form--section .editor-body-wrap {
+	align-self: end;
+	height: min(46vh, 380px);
+	min-height: min(220px, 100%);
 }
 
 .editor-body-wrap.has-image-button textarea {

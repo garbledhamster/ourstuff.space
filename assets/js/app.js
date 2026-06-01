@@ -311,7 +311,7 @@ const NAVIGATION_TOUR_STEPS = [
 		id: "menu-settings",
 		route: "dashboard-menu",
 		selector: ".sidebar-text-link[data-action='open-settings']",
-		label: "Settings is where you tune defaults, orbs, interface, and data.",
+		label: "Settings holds Getting Started, orbs, interface, and data.",
 		placement: "top",
 	},
 	{
@@ -3737,7 +3737,7 @@ async function loadCloudIntoLocalApp() {
 
 async function deleteCloudData() {
 	const confirmed = window.confirm(
-		`Delete the ${activeSpaceLabel()} Firebase artifact collection and reset this browser's ${activeSpaceLabel()} data too? Export first if you need a backup.`,
+		`Clear the ${activeSpaceLabel()} space everywhere? This deletes the ${activeSpaceLabel()} Firebase artifacts and resets this browser's local ${activeSpaceLabel()} data. Export first if you need a backup.`,
 	);
 	if (!confirmed) {
 		return;
@@ -3745,7 +3745,27 @@ async function deleteCloudData() {
 	const result = await deleteCloudStateJson();
 	await withLocalChangeTrackingSuppressed(() => clearAppData({ silent: true }));
 	saveLocalAppUpdatedAt(cloudInfoUpdatedAt(result) || nowIso());
-	return { message: `${activeSpaceLabel()} Firebase artifacts deleted.` };
+	return { message: `${activeSpaceLabel()} space cleared from this browser and Cloud.` };
+}
+
+async function clearActiveSpaceData() {
+	const label = activeSpaceLabel();
+	if (cloudHasSyncAccess()) {
+		if (!cloudCanOwnActiveSpace()) {
+			window.alert(`Only the ${label} owner can clear the shared Cloud space.`);
+			return { message: "" };
+		}
+		return await deleteCloudData();
+	}
+	const confirmed = window.confirm(
+		`Clear the ${label} space from this browser? This cannot be undone unless you have an export. If you also have Cloud data for this space, sign in before clearing so Cloud can be cleared too.`,
+	);
+	if (!confirmed) {
+		return { message: "" };
+	}
+	await withLocalChangeTrackingSuppressed(() => clearAppData({ silent: true }));
+	saveLocalAppUpdatedAt(nowIso());
+	return { message: `${label} space cleared from this browser.` };
 }
 
 async function deleteCloudAccountData() {
@@ -3874,6 +3894,7 @@ const state = {
 	mindCompendiumPage: 0,
 	mindCompendiumPickerOpen: false,
 	compendiumReaderPages: {},
+	readerGalleryPages: {},
 	selectedArtifactId: null,
 	artifactReturnActive: "",
 	mindMode: "grid",
@@ -9778,6 +9799,53 @@ function setCompendiumReaderPage(compendiumId, direction, maxPage) {
 	});
 }
 
+function readerGalleryPage(galleryKey) {
+	return Math.max(0, state.readerGalleryPages?.[galleryKey] || 0);
+}
+
+function setReaderGalleryPage(galleryKey, direction, maxPage) {
+	if (!galleryKey) {
+		return;
+	}
+	const current = readerGalleryPage(galleryKey);
+	const nextPage = direction === "prev" ? current - 1 : current + 1;
+	setState({
+		readerGalleryPages: {
+			...state.readerGalleryPages,
+			[galleryKey]: Math.min(Math.max(nextPage, 0), Math.max(0, maxPage)),
+		},
+	});
+}
+
+function readerPageContext(pageContext, galleryKey) {
+	return {
+		...pageContext,
+		galleryKey,
+		galleryPage: readerGalleryPage(galleryKey),
+	};
+}
+
+function artifactGalleryKey(artifactId) {
+	return `artifact:${artifactId}`;
+}
+
+function compendiumCoverGalleryKey(compendiumId) {
+	return `compendium:${compendiumId}:cover`;
+}
+
+function compendiumSectionGalleryKey(compendiumId, sectionId) {
+	return `compendium:${compendiumId}:section:${sectionId}`;
+}
+
+function sectionGalleryKey(sectionId) {
+	const compendium = state.compendiums.find((item) =>
+		item.sections.some((section) => section.id === sectionId),
+	);
+	return compendium
+		? compendiumSectionGalleryKey(compendium.id, sectionId)
+		: `section:${sectionId}`;
+}
+
 function mindCompendiumColumns() {
 	if (window.matchMedia?.(COMPENDIUM_ONE_QUERY).matches) {
 		return 1;
@@ -13435,9 +13503,8 @@ function settingsCloudHtml() {
 	const canWriteSpace = cloudCanWriteActiveSpace(account);
 	const canOwnSpace = cloudCanOwnActiveSpace(account);
 	const writeDisabledAttr = !canWriteSpace || account.busy ? " disabled" : "";
-	const ownerDisabledAttr = !canOwnSpace || account.busy ? " disabled" : "";
-	const defaultsDisabledAttr =
-		!canManageSpaceDefaults(account) || account.busy ? " disabled" : "";
+	const clearSpaceDisabledAttr =
+		account.busy || (signedIn && isCloud && !canOwnSpace) ? " disabled" : "";
 	const localUpdatedAt = localAppUpdatedAt({ persistDerived: false });
 	const localBytes = estimateJsonBytes({
 		schemaVersion: SCHEMA_VERSION,
@@ -13467,16 +13534,6 @@ function settingsCloudHtml() {
             <p>Manage local and Cloud data for the active ${escapeHtml(activeSpaceLabel())} space.</p>
           </div>
           ${activeSpacePillHtml()}
-        </div>
-        <div class="data-controls-group">
-          <div>
-            <h4>Space Defaults</h4>
-            <p>Create an empty ${escapeHtml(activeSpaceLabel())} space or restore its starter defaults on this browser.</p>
-          </div>
-          <div class="action-row data-controls-actions">
-            <button class="secondary-button" data-action="create-empty-space" data-space="${escapeHtml(activeSpaceId())}" type="button"${defaultsDisabledAttr}>${buttonContent("tabler:database-plus", `Create empty ${activeSpaceLabel()}`)}</button>
-            <button class="secondary-button" data-action="restore-space-defaults" data-space="${escapeHtml(activeSpaceId())}" type="button"${defaultsDisabledAttr}>${buttonContent("tabler:restore", `Restore ${activeSpaceLabel()} Defaults`)}</button>
-          </div>
         </div>
         ${spacePinControlsHtml()}
         <div class="data-controls-group">
@@ -13557,8 +13614,6 @@ function settingsCloudHtml() {
 						signedIn && isCloud
 							? `
             <div class="cloud-danger-links" aria-label="Destructive cloud actions">
-              <button class="cloud-danger-link" data-action="cloud-delete-data" type="button"${ownerDisabledAttr}>Delete ${escapeHtml(activeSpaceLabel())} cloud data</button>
-              <span class="cloud-danger-separator" aria-hidden="true">|</span>
               <button class="cloud-danger-link" data-action="cloud-delete-account" type="button"${busyAttr}>Delete cloud account</button>
             </div>
           `
@@ -13571,25 +13626,17 @@ function settingsCloudHtml() {
         <div class="data-controls-group">
           <div class="body-card-heading">
             <div>
-              <h4>Local Data</h4>
-              <p>Clear this browser's saved ${escapeHtml(activeSpaceLabel())} data from this device.</p>
+              <h4>Clear Space</h4>
+              <p>Clear the ${escapeHtml(activeSpaceLabel())} space from this browser. If Cloud sync is active, this also deletes that space from Cloud first so it cannot sync back.</p>
             </div>
             <div class="action-row data-controls-actions">
-              <button class="secondary-button danger-button" data-action="clear-app-data" type="button"${signedIn && !canWriteSpace ? " disabled" : ""}>${buttonContent("tabler:database-x", "Clear Data")}</button>
+              <button class="secondary-button danger-button" data-action="clear-app-data" type="button"${clearSpaceDisabledAttr}>${buttonContent("tabler:database-x", `Clear ${activeSpaceLabel()} Space`)}</button>
             </div>
           </div>
         </div>
       </section>
     </div>
   `;
-}
-
-function canManageSpaceDefaults(account = state.cloud || getCloudAccountState()) {
-	if (activeSpaceId() !== FAMILY_SPACE_ID) {
-		return true;
-	}
-	const signedIn = account?.mode === "signed-in" && account.user;
-	return !signedIn || account.spaceRole === "owner";
 }
 
 function obsidianSyncSettingsHtml(account, cloudActive, busyAttr) {
@@ -14643,7 +14690,7 @@ function artifactViewerActions(note) {
 function artifactReaderHtml(note, _subtitle) {
 	return panelHtml(`
     <div class="reader-topbar reader-topbar--actions">${artifactViewerActions(note)}</div>
-    <div class="reader-panel">${pageContentHtml(note.title, note.body, { current: 1, total: 1 })}</div>
+    <div class="reader-panel">${pageContentHtml(note.title, note.body, readerPageContext({ current: 1, total: 1 }, artifactGalleryKey(note.id)))}</div>
   `);
 }
 
@@ -15828,7 +15875,7 @@ function mindHtml(compendium, section) {
           ${pageActionButton("manager", "tabler:x", "Close section viewer", { className: "close-viewer-button" })}
         </div>
       </div>
-      <div class="reader-panel">${pageContentHtml(section.title, section.body, pageInfo)}</div>
+      <div class="reader-panel">${pageContentHtml(section.title, section.body, readerPageContext(pageInfo, sectionGalleryKey(section.id)))}</div>
     `);
 	}
 	if (state.mindMode === "reader" && compendium) {
@@ -16067,7 +16114,7 @@ function compendiumReaderHtml(compendium) {
 			key: "cover",
 			body: `
         <section class="reader-section reader-section--cover">
-          ${pageContentHtml(compendium.title, compendium.body, { current: 1, total: totalPages, skipPageNumber: true })}
+          ${pageContentHtml(compendium.title, compendium.body, readerPageContext({ current: 1, total: totalPages, skipPageNumber: true }, compendiumCoverGalleryKey(compendium.id)))}
         </section>
       `,
 		},
@@ -16075,7 +16122,7 @@ function compendiumReaderHtml(compendium) {
 			key: section.id,
 			body: `
         <section class="reader-section">
-          ${pageContentHtml(section.title, section.body, { current: index + 2, total: totalPages, skipPageNumber: true })}
+          ${pageContentHtml(section.title, section.body, readerPageContext({ current: index + 2, total: totalPages, skipPageNumber: true }, compendiumSectionGalleryKey(compendium.id, section.id)))}
         </section>
       `,
 		})),
@@ -18830,7 +18877,16 @@ function handleAction(element) {
 		restoreFactoryDefaults();
 	}
 	if (action === "clear-app-data") {
-		clearAppData();
+		if (cloudHasSyncAccess()) {
+			void runCloudAction("Clearing space...", () => clearActiveSpaceData());
+		} else {
+			void clearActiveSpaceData().catch((error) => {
+				window.alert(
+					error instanceof Error ? error.message : "Could not clear this space.",
+				);
+			});
+		}
+		return;
 	}
 	if (action === "dismiss-tip") {
 		dismissTip(element.dataset.tip, element);
@@ -19043,9 +19099,6 @@ function handleAction(element) {
 		void runCloudAction("Loading Firebase artifacts...", () =>
 			loadCloudIntoLocalApp(),
 		);
-	}
-	if (action === "cloud-delete-data") {
-		void runCloudAction("Deleting Cloud data...", () => deleteCloudData());
 	}
 	if (action === "cloud-delete-account") {
 		void runCloudAction("Deleting Cloud account...", () =>
@@ -19390,6 +19443,13 @@ function handleAction(element) {
 	if (action === "compendium-reader-page") {
 		setCompendiumReaderPage(
 			element.dataset.id,
+			element.dataset.direction,
+			Number(element.dataset.maxPage || 0),
+		);
+	}
+	if (action === "reader-gallery-page") {
+		setReaderGalleryPage(
+			element.dataset.galleryKey,
 			element.dataset.direction,
 			Number(element.dataset.maxPage || 0),
 		);

@@ -121,6 +121,20 @@ function parseMarkdownImageReference(value) {
 	return parsed ? { ...parsed, alt: markdown[1] || "Image" } : null;
 }
 
+function parseImageOnlyBody(body) {
+	const items = nonEmptyPageLines(body).flatMap(splitCommaContent);
+	if (!items.length) {
+		return null;
+	}
+	const images = items.map(parseMarkdownImageReference);
+	if (!images.every(Boolean)) {
+		return null;
+	}
+	return images.length === 1
+		? { type: "image", item: images[0] }
+		: { type: "gallery", items: images };
+}
+
 function blockquoteContentValue(value) {
 	const text = String(value || "").trim();
 	if (!text.startsWith(">")) {
@@ -219,7 +233,7 @@ function youtubeEmbedHtml(video, label = "YouTube video") {
   `;
 }
 
-export function themedChildViewerHtml(parsed) {
+export function themedChildViewerHtml(parsed, options = {}) {
 	if (parsed.type === "image") {
 		return `<div class="themed-child-viewer themed-child-viewer--image">${focusImageHtml(parsed.item)}</div>`;
 	}
@@ -227,9 +241,25 @@ export function themedChildViewerHtml(parsed) {
 		return `<div class="themed-child-viewer themed-child-viewer--video">${youtubeEmbedHtml(parsed.item)}</div>`;
 	}
 	if (parsed.type === "gallery") {
+		const total = Math.max(1, parsed.items.length);
+		const maxPage = Math.max(0, total - 1);
+		const page = Math.min(
+			Math.max(0, Number(options.galleryPage) || 0),
+			maxPage,
+		);
+		const hasPrev = page > 0;
+		const hasNext = page < maxPage;
+		const galleryKey = String(options.galleryKey || "");
 		return `
-      <div class="themed-child-viewer themed-child-viewer--gallery">
-        ${parsed.items.map((item) => `<figure>${focusImageHtml(item)}</figure>`).join("")}
+      <div class="themed-child-viewer themed-child-viewer--gallery reader-gallery-carousel">
+        <div class="reader-gallery-frame">
+          <figure>${focusImageHtml(parsed.items[page])}</figure>
+        </div>
+        <div class="reader-gallery-controls" aria-label="Photo gallery controls">
+          <button class="reader-gallery-edge${hasPrev ? " is-available" : ""}" data-action="reader-gallery-page" data-gallery-key="${escapeHtml(galleryKey)}" data-direction="prev" data-max-page="${maxPage}" type="button" aria-label="Previous photo"${hasPrev && galleryKey ? "" : " disabled"}>&larr;</button>
+          <span class="reader-gallery-label">${escapeHtml(`Photo ${page + 1} of ${total}`)}</span>
+          <button class="reader-gallery-edge${hasNext ? " is-available" : ""}" data-action="reader-gallery-page" data-gallery-key="${escapeHtml(galleryKey)}" data-direction="next" data-max-page="${maxPage}" type="button" aria-label="Next photo"${hasNext && galleryKey ? "" : " disabled"}>&rarr;</button>
+        </div>
       </div>
     `;
 	}
@@ -267,6 +297,16 @@ export function pageContentHtml(title, body, pageContext = {}) {
 	const pageNumber = pageContext.skipPageNumber
 		? ""
 		: pageNumberOverlayHtml(pageContext);
+	const imageOnlyBody = parseImageOnlyBody(body);
+	if (imageOnlyBody) {
+		return `
+      <article class="page-content page-content--focus page-content--media">
+        ${cleanTitle ? `<h2 class="page-content-media-title">${escapeHtml(cleanTitle)}</h2>` : ""}
+        ${themedChildViewerHtml(imageOnlyBody, pageContext)}
+        ${pageNumber}
+      </article>
+    `;
+	}
 	if (mode === "part") {
 		return `
       <article class="page-content page-content--part">
