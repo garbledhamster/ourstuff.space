@@ -11503,7 +11503,6 @@ function sidebarHtml(_compendium) {
           <button class="sidebar-menu-nav-button" data-action="toggle-all-sidebar-sections" type="button" aria-pressed="${collapseMode ? "true" : "false"}" aria-label="${toggleAllLabel}" title="${toggleAllLabel}">
             ${iconHtml(collapseMode ? "tabler:chevrons-up" : "tabler:chevrons-down")}
           </button>
-          ${dashboardPeriodSliderHtml("sidebar-period-slider")}
           <button class="sidebar-menu-nav-button sidebar-menu-nav-timer${state.timerState?.running ? " is-active" : ""}" data-action="open-timer" data-menu-timer-button type="button" aria-label="Open Timer" title="Timer">
             ${iconHtml("tabler:clock")}
           </button>
@@ -11929,10 +11928,6 @@ function dashboardAnalyticsHtml() {
 		cursor += value;
 		return { label, value, start };
 	});
-	const periodLabel =
-		periodOption.id === "day"
-			? "today"
-			: `the last ${periodOption.label.toLowerCase()}`;
 	const ideal = total ? total / labels.length : 0;
 	const imbalance = total
 		? labels
@@ -11981,19 +11976,12 @@ function dashboardAnalyticsHtml() {
     `;
 	return `
     <section class="dashboard-analytics" aria-label="Dashboard analytics">
-      <div class="dashboard-analytics-header">
-        <div>
-          <h2>Balance</h2>
-          <p>${escapeHtml(dashboardDisplayNameList())} activity for ${periodLabel}.</p>
-        </div>
-      </div>
       <div class="dashboard-analytics-body">
         <div class="dashboard-pie-wrap dashboard-pie-wrap--${escapeHtml(chartType)}">
           ${chartHtml}
           ${chartType === "orbs" ? "" : `<strong>${balanceScore}% balanced</strong>`}
           <div class="dashboard-chart-controls">
-            ${dashboardPeriodSliderHtml()}
-            <div class="dashboard-chart-switcher" data-dashboard-chart-switcher role="tablist" aria-label="Balance chart type" style="--dashboard-chart-tab-count: ${chartTabs.length};">
+            <div class="dashboard-chart-switcher" data-dashboard-chart-switcher role="tablist" aria-label="Dashboard chart type" style="--dashboard-chart-tab-count: ${chartTabs.length};">
               ${chartTabs
 								.map((type) => DASHBOARD_CHART_TAB_DEFS[type])
 								.filter(Boolean)
@@ -12577,7 +12565,7 @@ function gettingStartedDefaultActionHtml(spaceId = activeSpaceId()) {
 function gettingStartedSpaceGuideHtml(spaceId = activeSpaceId()) {
 	const guide = gettingStartedGuide(spaceId);
 	return `
-    <section class="getting-started-defaults">
+    <section class="getting-started-defaults getting-started-space-guide">
       <div class="getting-started-defaults-main">
         <span class="getting-started-defaults-icon" aria-hidden="true">${iconHtml(guide.icon)}</span>
         <div>
@@ -12963,6 +12951,8 @@ function settingsCloudHtml() {
 	const canOwnSpace = cloudCanOwnActiveSpace(account);
 	const writeDisabledAttr = !canWriteSpace || account.busy ? " disabled" : "";
 	const ownerDisabledAttr = !canOwnSpace || account.busy ? " disabled" : "";
+	const defaultsDisabledAttr =
+		!canManageSpaceDefaults(account) || account.busy ? " disabled" : "";
 	const localUpdatedAt = localAppUpdatedAt({ persistDerived: false });
 	const localBytes = estimateJsonBytes({
 		schemaVersion: SCHEMA_VERSION,
@@ -12985,15 +12975,33 @@ function settingsCloudHtml() {
 	const busyAttr = account.busy ? " disabled" : "";
 	return `
     <div class="settings-tab-panel cloud-settings">
-      ${spacePinControlsHtml()}
-      <section class="interface-settings-section cloud-account-section">
+      <section class="interface-settings-section data-controls-section cloud-account-section">
         <div class="body-card-heading">
           <div>
-            <h3>Cloud</h3>
-            <p>Local use is free. Sign in to sync the ${escapeHtml(activeSpaceLabel())} space across your devices.</p>
+            <h3>Data Controls</h3>
+            <p>Manage local and Cloud data for the active ${escapeHtml(activeSpaceLabel())} space.</p>
           </div>
-          <div class="cloud-heading-controls">
-            <span class="cloud-status-pill${isCloud ? " is-active" : ""}" data-cloud-status-pill>${escapeHtml(statusLabel)}</span>
+          ${activeSpacePillHtml()}
+        </div>
+        <div class="data-controls-group">
+          <div>
+            <h4>Space Defaults</h4>
+            <p>Create an empty ${escapeHtml(activeSpaceLabel())} space or restore its starter defaults on this browser.</p>
+          </div>
+          <div class="action-row data-controls-actions">
+            <button class="secondary-button" data-action="create-empty-space" data-space="${escapeHtml(activeSpaceId())}" type="button"${defaultsDisabledAttr}>${buttonContent("tabler:database-plus", `Create empty ${activeSpaceLabel()}`)}</button>
+            <button class="secondary-button" data-action="restore-space-defaults" data-space="${escapeHtml(activeSpaceId())}" type="button"${defaultsDisabledAttr}>${buttonContent("tabler:restore", `Restore ${activeSpaceLabel()} Defaults`)}</button>
+          </div>
+        </div>
+        ${spacePinControlsHtml()}
+        <div class="data-controls-group">
+          <div class="body-card-heading">
+            <div>
+              <h4>Cloud</h4>
+              <p>Local use is free. Sign in to sync the ${escapeHtml(activeSpaceLabel())} space across your devices.</p>
+            </div>
+            <div class="cloud-heading-controls">
+              <span class="cloud-status-pill${isCloud ? " is-active" : ""}" data-cloud-status-pill>${escapeHtml(statusLabel)}</span>
               <div class="cloud-heading-actions" aria-label="Cloud sync actions">
                 ${
 									signedIn && isCloud
@@ -13011,78 +13019,79 @@ function settingsCloudHtml() {
                   <button class="secondary-button" data-action="export-artifacts" type="button">${buttonContent("tabler:file-export", "Export")}</button>
                 </div>
               </div>
-          </div>
-        </div>
-        ${
-					signedIn
-						? `
-          <div class="cloud-account-card">
-            <span class="cloud-account-avatar">${iconHtml(account.isLocalDemo ? "tabler:cloud-check" : "tabler:user-circle")}</span>
-            <div>
-              <strong>Signed in as ${escapeHtml(username)}</strong>
-              <small>${escapeHtml(account.isLocalDemo ? "Local subscribed demo" : account.user.email || "Firebase account")}</small>
             </div>
           </div>
-          ${cloudStorageUsageHtml(state.cloudStorageUsage)}
-          <div class="cloud-sync-grid">
-            <span><strong>${escapeHtml(formatStorageGb(localBytes))}</strong><small>Current app JSON estimate</small></span>
-            <span data-cloud-local-updated><strong>${escapeHtml(localUpdatedAt ? new Date(localUpdatedAt).toLocaleString() : "No local changes")}</strong><small>${escapeHtml(activeSpaceLabel())} local change</small></span>
-            <span data-cloud-last-sync><strong>${escapeHtml(account.lastCloudSyncAt ? new Date(account.lastCloudSyncAt).toLocaleString() : "Not synced")}</strong><small>${escapeHtml(activeSpaceLabel())} sync from this device</small></span>
-            <span data-cloud-auto-sync><strong>${escapeHtml(isCloud ? `Every ${cloudSyncIntervalLabel()}` : "Off")}</strong><small>Artifacts + encrypted media</small></span>
+          ${
+						signedIn
+							? `
+            <div class="cloud-account-card">
+              <span class="cloud-account-avatar">${iconHtml(account.isLocalDemo ? "tabler:cloud-check" : "tabler:user-circle")}</span>
+              <div>
+                <strong>Signed in as ${escapeHtml(username)}</strong>
+                <small>${escapeHtml(account.isLocalDemo ? "Local subscribed demo" : account.user.email || "Firebase account")}</small>
+              </div>
+            </div>
+            ${cloudStorageUsageHtml(state.cloudStorageUsage)}
+            <div class="cloud-sync-grid">
+              <span><strong>${escapeHtml(formatStorageGb(localBytes))}</strong><small>Current app JSON estimate</small></span>
+              <span data-cloud-local-updated><strong>${escapeHtml(localUpdatedAt ? new Date(localUpdatedAt).toLocaleString() : "No local changes")}</strong><small>${escapeHtml(activeSpaceLabel())} local change</small></span>
+              <span data-cloud-last-sync><strong>${escapeHtml(account.lastCloudSyncAt ? new Date(account.lastCloudSyncAt).toLocaleString() : "Not synced")}</strong><small>${escapeHtml(activeSpaceLabel())} sync from this device</small></span>
+              <span data-cloud-auto-sync><strong>${escapeHtml(isCloud ? `Every ${cloudSyncIntervalLabel()}` : "Off")}</strong><small>Artifacts + encrypted media</small></span>
+              ${
+								activeSpaceId() === FAMILY_SPACE_ID
+									? `<span><strong>${escapeHtml(account.spaceRole || "owner")}</strong><small>Family role</small></span>`
+									: ""
+							}
+            </div>
             ${
-							activeSpaceId() === FAMILY_SPACE_ID
-								? `<span><strong>${escapeHtml(account.spaceRole || "owner")}</strong><small>Family role</small></span>`
+							account.billingCapable
+								? `
+            <div class="action-row cloud-actions">
+              <button class="secondary-button" data-action="cloud-billing" type="button"${busyAttr}>${buttonContent("tabler:receipt", "Manage Billing")}</button>
+            </div>
+            `
 								: ""
 						}
-          </div>
+          `
+							: `
+            <div class="action-row cloud-actions">
+              <button class="primary-button" data-action="cloud-sign-in" type="button"${busyAttr}>${buttonContent("tabler:login-2", "Sign in")}</button>
+              <button class="secondary-button" data-action="cloud-google-sign-in" type="button"${busyAttr}>${buttonContent("tabler:brand-google", "Google")}</button>
+            </div>
+            <div class="cloud-email-form" aria-label="Email sign in">
+              <label class="body-field">Email<input id="cloud-email" type="email" autocomplete="email" placeholder="you@example.com"></label>
+              <label class="body-field">Password<input id="cloud-password" type="password" autocomplete="current-password" placeholder="Password"></label>
+              <div class="action-row cloud-actions">
+                <button class="secondary-button" data-action="cloud-email-sign-in" type="button"${busyAttr}>${buttonContent("tabler:mail", "Email sign in")}</button>
+                <button class="secondary-button" data-action="cloud-email-create" type="button"${busyAttr}>${buttonContent("tabler:user-plus", "Create account")}</button>
+              </div>
+            </div>
+          `
+					}
           ${
-						account.billingCapable
+						signedIn && isCloud
 							? `
-          <div class="action-row cloud-actions">
-            ${account.billingCapable ? `<button class="secondary-button" data-action="cloud-billing" type="button"${busyAttr}>${buttonContent("tabler:receipt", "Manage Billing")}</button>` : ""}
-          </div>
+            <div class="cloud-danger-links" aria-label="Destructive cloud actions">
+              <button class="cloud-danger-link" data-action="cloud-delete-data" type="button"${ownerDisabledAttr}>Delete ${escapeHtml(activeSpaceLabel())} cloud data</button>
+              <span class="cloud-danger-separator" aria-hidden="true">|</span>
+              <button class="cloud-danger-link" data-action="cloud-delete-account" type="button"${busyAttr}>Delete cloud account</button>
+            </div>
           `
 							: ""
 					}
-        `
-						: `
-          <div class="action-row cloud-actions">
-            <button class="primary-button" data-action="cloud-sign-in" type="button"${busyAttr}>${buttonContent("tabler:login-2", "Sign in")}</button>
-            <button class="secondary-button" data-action="cloud-google-sign-in" type="button"${busyAttr}>${buttonContent("tabler:brand-google", "Google")}</button>
-          </div>
-          <div class="cloud-email-form" aria-label="Email sign in">
-            <label class="body-field">Email<input id="cloud-email" type="email" autocomplete="email" placeholder="you@example.com"></label>
-            <label class="body-field">Password<input id="cloud-password" type="password" autocomplete="current-password" placeholder="Password"></label>
-            <div class="action-row cloud-actions">
-              <button class="secondary-button" data-action="cloud-email-sign-in" type="button"${busyAttr}>${buttonContent("tabler:mail", "Email sign in")}</button>
-              <button class="secondary-button" data-action="cloud-email-create" type="button"${busyAttr}>${buttonContent("tabler:user-plus", "Create account")}</button>
+          <div data-cloud-status-region>${cloudStatusRegionHtml(account)}</div>
+        </div>
+        ${obsidianSyncSettingsHtml(account, cloudActive, busyAttr)}
+        ${familySharingSettingsHtml(account, busyAttr)}
+        <div class="data-controls-group">
+          <div class="body-card-heading">
+            <div>
+              <h4>Local Data</h4>
+              <p>Clear this browser's saved ${escapeHtml(activeSpaceLabel())} data from this device.</p>
             </div>
-          </div>
-        `
-				}
-        ${
-					signedIn && isCloud
-						? `
-          <div class="cloud-danger-links" aria-label="Destructive cloud actions">
-            <button class="cloud-danger-link" data-action="cloud-delete-data" type="button"${ownerDisabledAttr}>Delete ${escapeHtml(activeSpaceLabel())} cloud data</button>
-            <span class="cloud-danger-separator" aria-hidden="true">|</span>
-            <button class="cloud-danger-link" data-action="cloud-delete-account" type="button"${busyAttr}>Delete cloud account</button>
-          </div>
-        `
-						: ""
-				}
-        <div data-cloud-status-region>${cloudStatusRegionHtml(account)}</div>
-      </section>
-      ${obsidianSyncSettingsHtml(account, cloudActive, busyAttr)}
-      ${familySharingSettingsHtml(account, busyAttr)}
-      <section class="interface-settings-section data-controls-section">
-        <div class="body-card-heading">
-          <div>
-            <h3>Local Data</h3>
-            <p>Clear this browser's saved ${escapeHtml(activeSpaceLabel())} data from this device.</p>
-          </div>
-          <div class="action-row data-controls-actions">
-            <button class="secondary-button danger-button" data-action="clear-app-data" type="button">${buttonContent("tabler:database-x", "Clear Data")}</button>
+            <div class="action-row data-controls-actions">
+              <button class="secondary-button danger-button" data-action="clear-app-data" type="button"${signedIn && !canWriteSpace ? " disabled" : ""}>${buttonContent("tabler:database-x", "Clear Data")}</button>
+            </div>
           </div>
         </div>
       </section>
@@ -13090,18 +13099,17 @@ function settingsCloudHtml() {
   `;
 }
 
+function canManageSpaceDefaults(account = state.cloud || getCloudAccountState()) {
+	if (activeSpaceId() !== FAMILY_SPACE_ID) {
+		return true;
+	}
+	const signedIn = account?.mode === "signed-in" && account.user;
+	return !signedIn || account.spaceRole === "owner";
+}
+
 function obsidianSyncSettingsHtml(account, cloudActive, busyAttr) {
 	if (activeSpaceId() !== PERSONAL_SPACE_ID) {
-		return `
-      <section class="interface-settings-section cloud-account-section obsidian-sync-section">
-        <div class="body-card-heading">
-          <div>
-            <h3>Obsidian Sync</h3>
-            <p>Obsidian Sync is Personal-only until the sync backend supports shared and alternate app ids.</p>
-          </div>
-        </div>
-      </section>
-  `;
+		return "";
 	}
 	if (account.mode !== "signed-in" || !account.user) {
 		return "";
@@ -13115,10 +13123,10 @@ function obsidianSyncSettingsHtml(account, cloudActive, busyAttr) {
 		? new Date(key.lastUsedAt).toLocaleString()
 		: "Never";
 	return `
-      <section class="interface-settings-section cloud-account-section obsidian-sync-section">
+      <div class="data-controls-group obsidian-sync-section">
         <div class="body-card-heading">
           <div>
-            <h3>Obsidian Sync</h3>
+            <h4>Obsidian Sync</h4>
             <p>Sync Mind compendiums into your vault as folders and section markdown files.</p>
           </div>
           <div class="action-row data-controls-actions">
@@ -13149,7 +13157,7 @@ function obsidianSyncSettingsHtml(account, cloudActive, busyAttr) {
         `
 						: `<p class="cloud-status-message">${escapeHtml(cloudActive ? "No Obsidian sync key exists yet." : "A Cloud subscription is required before creating an Obsidian sync key.")}</p>`
 				}
-      </section>
+      </div>
   `;
 }
 
@@ -13160,14 +13168,14 @@ function familySharingSettingsHtml(account, busyAttr) {
 	const signedIn = account.mode === "signed-in" && account.user;
 	if (!signedIn) {
 		return `
-      <section class="interface-settings-section cloud-account-section">
+      <div class="data-controls-group">
         <div class="body-card-heading">
           <div>
-            <h3>Family Sharing</h3>
+            <h4>Family Sharing</h4>
             <p>Sign in to invite existing Firebase accounts into this Family space.</p>
           </div>
         </div>
-      </section>
+      </div>
     `;
 	}
 	const role = account.spaceRole || "owner";
@@ -13182,10 +13190,10 @@ function familySharingSettingsHtml(account, busyAttr) {
 		? account.familyInvites
 		: [];
 	return `
-      <section class="interface-settings-section cloud-account-section">
+      <div class="data-controls-group">
         <div class="body-card-heading">
           <div>
-            <h3>Family Sharing</h3>
+            <h4>Family Sharing</h4>
             <p>${escapeHtml(owner ? "Send email invites as editor or reader. Access starts only after acceptance." : `You are a ${role}. Readers can view and export; editors can edit and sync.`)}</p>
           </div>
           <span class="cloud-status-pill is-active">${escapeHtml(role)}</span>
@@ -13236,7 +13244,7 @@ function familySharingSettingsHtml(account, busyAttr) {
         <div class="cloud-sync-grid">
           ${members.length ? members.map((member) => familyMemberRowHtml(member, owner, busyAttr)).join("") : `<span><strong>No accepted members</strong><small>${owner ? "Only you can access this Family space." : "No other accepted members are listed."}</small></span>`}
         </div>
-      </section>
+      </div>
   `;
 }
 
@@ -13497,30 +13505,29 @@ function spaceToggleButtonsHtml() {
 }
 
 function spaceVisibilitySettingsHtml() {
-	const defaultActions = Object.values(DATA_SPACES)
-		.filter((space) => space.id !== PERSONAL_SPACE_ID && isSpaceEnabled(space.id))
-		.map((space) => {
-			const config = SPACE_DEFAULTS[space.id] || {};
-			const icon = config.icon || "tabler:database";
-			return `
-        <button class="secondary-button" data-action="create-empty-space" data-space="${escapeHtml(space.id)}" type="button">${buttonContent(icon, config.emptyLabel || `Create empty ${space.label} space`)}</button>
-        <button class="secondary-button" data-action="restore-space-defaults" data-space="${escapeHtml(space.id)}" type="button">${buttonContent("tabler:restore", config.defaultLabel || `Restore ${space.label} Defaults`)}</button>
-      `;
-		})
-		.join("");
+	const current = activeSpaceId();
+	const description =
+		DATA_SPACES[current]?.description || DATA_SPACES[PERSONAL_SPACE_ID].description;
 	return `
     <section class="interface-settings-section space-visibility-section">
       <div class="body-card-heading">
         <div>
-          <h3>Dataset Spaces</h3>
-          <p>Choose which dataset space switchers appear on the dashboard. Personal stays enabled as the default space.</p>
+          <h3>Spaces</h3>
+          <p>${escapeHtml(description)}</p>
         </div>
         ${activeSpacePillHtml()}
       </div>
-      <div class="dashboard-identity-toggles" role="group" aria-label="Enabled dataset spaces">
-        ${spaceToggleButtonsHtml()}
+      <div class="dashboard-identity-toggles" role="group" aria-label="Spaces">
+        ${Object.values(DATA_SPACES)
+					.map(
+						(space) => `
+          <button class="dashboard-space-button${current === space.id ? " is-active" : ""}" data-action="switch-space" data-space="${escapeHtml(space.id)}" type="button" aria-pressed="${current === space.id ? "true" : "false"}">
+            <span>${escapeHtml(space.label)}</span>
+          </button>
+        `,
+					)
+					.join("")}
       </div>
-      ${defaultActions ? `<div class="action-row body-actions">${defaultActions}</div>` : ""}
     </section>
   `;
 }
@@ -13547,10 +13554,10 @@ function spacePinControlsHtml() {
 	const current = activeSpaceId();
 	const locked = hasSpacePin(current);
 	return `
-    <section class="interface-settings-section data-controls-section">
+    <div class="data-controls-group">
       <div class="body-card-heading">
         <div>
-          <h3>Space PIN</h3>
+          <h4>Space PIN</h4>
           <p>Local-only convenience lock for the ${escapeHtml(activeSpaceLabel())} space on this browser. It is not account auth or encrypted-at-rest protection.</p>
         </div>
         ${activeSpacePillHtml()}
@@ -13565,7 +13572,7 @@ function spacePinControlsHtml() {
 				}
       </div>
       <p class="cloud-status-message">The PIN hash stays on this device. Clearing browser data removes the lock for this browser.</p>
-    </section>
+    </div>
   `;
 }
 
@@ -13581,9 +13588,6 @@ function resetSpaceDatasetStorage(spaceId, { defaults = false } = {}) {
 		window.indexedDB?.deleteDatabase?.(scopedStorageKey("ourstuff.localMedia.v1", spaceId));
 	} catch {
 		// IndexedDB cleanup is best effort.
-	}
-	if (spaceId === PERSONAL_SPACE_ID) {
-		return;
 	}
 	const store = createEmptyStore();
 	window.localStorage.setItem(
@@ -13646,6 +13650,10 @@ async function createEmptySpace(spaceId) {
 
 async function restoreSpaceDefaults(spaceId) {
 	const normalized = DATA_SPACES[spaceId]?.id || WORK_SPACE_ID;
+	if (normalized === PERSONAL_SPACE_ID) {
+		await restoreFactoryDefaults();
+		return;
+	}
 	const config = SPACE_DEFAULTS[normalized] || {};
 	const confirmed = window.confirm(
 		config.defaultConfirm ||
@@ -18090,7 +18098,7 @@ function handleAction(element) {
 	}
 	if (action === "switch-space") {
 		const target = element.dataset.space || PERSONAL_SPACE_ID;
-		if (target !== activeSpaceId() && isSpaceEnabled(target)) {
+		if (target !== activeSpaceId() && DATA_SPACES[target]) {
 			switchSpace(target);
 		}
 		return;

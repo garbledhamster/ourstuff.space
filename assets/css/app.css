@@ -2477,6 +2477,20 @@ select option:checked {
 	gap: 16px;
 }
 
+.getting-started-space-guide {
+	grid-template-columns: minmax(0, 1fr);
+	align-items: stretch;
+}
+
+.getting-started-space-guide .body-actions {
+	width: 100%;
+}
+
+.getting-started-space-guide .body-actions .primary-button,
+.getting-started-space-guide .body-actions .secondary-button {
+	max-width: 100%;
+}
+
 .getting-started-defaults-main {
 	display: grid;
 	grid-template-columns: 46px minmax(0, 1fr);
@@ -3638,6 +3652,26 @@ select option:checked {
 
 .data-controls-section .body-card-heading {
 	align-items: center;
+}
+
+.data-controls-group {
+	display: grid;
+	gap: 12px;
+	border-top: 1px solid var(--border-soft);
+	padding-top: 14px;
+}
+
+.data-controls-group h4 {
+	margin: 0;
+	color: var(--text);
+	font-family: var(--font-display);
+	font-size: 1rem;
+}
+
+.data-controls-group p {
+	margin: 0;
+	color: var(--muted);
+	line-height: 1.45;
 }
 
 .data-controls-actions {
@@ -5224,55 +5258,6 @@ select option:checked {
 .content-stage.is-header-snapped .panel > :last-child {
 	flex: 1 1 auto;
 	min-height: 0;
-}
-
-.content-stage.is-header-snapped .dashboard-orb-nav {
-	max-height: 0;
-	margin-top: 0;
-	margin-bottom: 0;
-	opacity: 0;
-	overflow: hidden;
-	pointer-events: none;
-	transform: translateY(-10px);
-	transition:
-		max-height 0.16s ease,
-		margin 0.16s ease,
-		opacity 0.12s ease,
-		transform 0.16s ease;
-}
-
-.content-stage.is-header-snapped .dashboard-space-switcher,
-.content-stage.is-header-snapped .dashboard-analytics-header,
-.content-stage.is-header-snapped .dashboard-period-slider {
-	max-height: 0;
-	margin-top: 0;
-	margin-bottom: 0;
-	opacity: 0;
-	overflow: hidden;
-	pointer-events: none;
-	transform: translateY(-10px);
-	transition:
-		max-height 0.16s ease,
-		margin 0.16s ease,
-		opacity 0.12s ease,
-		transform 0.16s ease;
-}
-
-.content-stage.is-header-snapped .dashboard-orbs-panel,
-.content-stage.is-header-snapped .dashboard-pie,
-.content-stage.is-header-snapped .dashboard-bar-chart,
-.content-stage.is-header-snapped .dashboard-pie-wrap > strong {
-	display: none;
-}
-
-.content-stage.is-header-snapped .dashboard-analytics {
-	padding-top: 0;
-	padding-bottom: 6px;
-}
-
-.content-stage.is-header-snapped .dashboard-pie-wrap,
-.content-stage.is-header-snapped .dashboard-analytics-body {
-	gap: 0;
 }
 
 .content-stage.is-header-snapped .panel > .scroll-area,
@@ -11163,6 +11148,10 @@ button.life-event-row:hover {
 	}
 
 	.getting-started-defaults .primary-button {
+		width: 100%;
+	}
+
+	.getting-started-space-guide .body-actions .secondary-button {
 		width: 100%;
 	}
 
