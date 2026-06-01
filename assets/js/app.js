@@ -33,7 +33,7 @@ import {
 	signOutCloud,
 	startCloudSubscription,
 	updateFamilyMember,
-} from "./cloud.js?v=space-20260531b";
+} from "./cloud.js?v=space-20260531c";
 import { CLOUD_STORAGE_LIMIT_BYTES } from "./config.js?v=storage-quota-20260523a";
 import { today } from "./data.js";
 import { bindDonationFlow, donationModalHtml } from "./donations.js";
@@ -3689,10 +3689,21 @@ async function signInWithEmailForm(options = {}) {
 	await signInWithEmailPassword(email, password, options);
 }
 
-async function sendFamilyInviteFromDom() {
-	const email = document.getElementById("family-member-email")?.value || "";
-	const role = document.getElementById("family-member-role")?.value || "reader";
-	return await sendFamilyInvite(email, role);
+async function sendFamilyInviteFromDom(sourceElement = null) {
+	const form = sourceElement?.closest?.(".cloud-email-form") || document;
+	const emailInput = form.querySelector?.("#family-member-email") || document.getElementById("family-member-email");
+	const roleInput = form.querySelector?.("#family-member-role") || document.getElementById("family-member-role");
+	const email = String(emailInput?.value || "").trim().toLowerCase();
+	const role = String(roleInput?.value || "reader").trim().toLowerCase();
+	if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+		emailInput?.focus?.();
+		throw new Error("Enter a valid invite email address.");
+	}
+	const result = await sendFamilyInvite(email, role);
+	if (emailInput) {
+		emailInput.value = "";
+	}
+	return result;
 }
 
 async function removeFamilyMemberAction(uid) {
@@ -18518,7 +18529,7 @@ function handleAction(element) {
 		);
 	}
 	if (action === "family-member-add") {
-		void runCloudAction("Sending Family invite...", () => sendFamilyInviteFromDom());
+		void runCloudAction("Sending Family invite...", () => sendFamilyInviteFromDom(element));
 	}
 	if (action === "family-invite-accept") {
 		void runCloudAction("Accepting Family invite...", () =>
