@@ -3079,7 +3079,7 @@ async function importAppStateJson(json, options = {}) {
 		const result = await uploadLocalStateToCloud();
 		recordCloudSyncAt(
 			result.updatedAt || appliedAt,
-			"Imported JSON rebuilt Firebase artifacts.",
+			"Imported JSON rebuilt Cloud records.",
 		);
 	} else if (!sourceUpdatedAt && options.queueCloudSync !== false) {
 		queueCloudSyncAfterLocalChange();
@@ -3189,7 +3189,7 @@ function assertNoCloudBase64Images(json) {
 	const serialized = JSON.stringify(json ?? {});
 	if (/data:image\/[a-z0-9.+-]+;base64,/i.test(serialized)) {
 		throw new Error(
-			"Base64 images must be migrated to encrypted Firebase Storage before Firebase artifact sync.",
+			"Base64 images must be migrated to encrypted Cloud media before Cloud sync.",
 		);
 	}
 }
@@ -3312,7 +3312,7 @@ async function calculateCloudStorageUsage(options = {}) {
 				Number(info?.jsonBytes) ||
 				0,
 			updatedAt: cloudInfoUpdatedAt(info) || storedUsage.updatedAt || "",
-			source: info?.exists ? "firebase-artifacts" : "current-device",
+			source: info?.exists ? "cloud-records" : "current-device",
 		});
 	}
 
@@ -3503,13 +3503,13 @@ async function clearLocalFromCloudDelete(info) {
 function cloudSyncMessage(action, source = "manual") {
 	const prefix = source === "manual" ? "Sync" : "Auto sync";
 	if (action === "uploaded") {
-		return `${prefix} saved this device to Firebase artifacts and encrypted media.`;
+		return `${prefix} saved this device to Cloud records and encrypted media.`;
 	}
 	if (action === "downloaded") {
-		return `${prefix} loaded Firebase artifacts into this device.`;
+		return `${prefix} loaded Cloud records into this device.`;
 	}
 	if (action === "cleared") {
-		return `${prefix} applied the Firebase deletion.`;
+		return `${prefix} applied the Cloud deletion.`;
 	}
 	return `${prefix} checked. Already current.`;
 }
@@ -3714,7 +3714,7 @@ async function syncCloudNow() {
 
 async function loadCloudIntoLocalApp() {
 	const confirmed = window.confirm(
-		`Load the saved ${activeSpaceLabel()} Firebase artifacts into this browser? This replaces the current local ${activeSpaceLabel()} app state. Export first if you need a backup.`,
+		`Load the saved ${activeSpaceLabel()} Cloud records into this browser? This replaces the current local ${activeSpaceLabel()} app state. Export first if you need a backup.`,
 	);
 	if (!confirmed) {
 		return;
@@ -3731,13 +3731,13 @@ async function loadCloudIntoLocalApp() {
 				nowIso(),
 		});
 	}
-	recordCloudSyncAt(nowIso(), "Firebase artifacts loaded.");
-	return { message: `${activeSpaceLabel()} Firebase artifacts loaded.` };
+	recordCloudSyncAt(nowIso(), "Cloud records loaded.");
+	return { message: `${activeSpaceLabel()} Cloud records loaded.` };
 }
 
 async function deleteCloudData() {
 	const confirmed = window.confirm(
-		`Clear the ${activeSpaceLabel()} space everywhere? This deletes the ${activeSpaceLabel()} Firebase artifacts and resets this browser's local ${activeSpaceLabel()} data. Export first if you need a backup.`,
+		`Clear the ${activeSpaceLabel()} space everywhere? This deletes the ${activeSpaceLabel()} Cloud records and resets this browser's local ${activeSpaceLabel()} data. Export first if you need a backup.`,
 	);
 	if (!confirmed) {
 		return;
@@ -3770,7 +3770,7 @@ async function clearActiveSpaceData() {
 
 async function deleteCloudAccountData() {
 	const confirmed = window.confirm(
-		"Fully delete your cloud account and reset this browser? This removes Firebase app artifacts, requests cloud account deletion, and clears local app data. Export first if you need a backup.",
+		"Fully delete your cloud account and reset this browser? This removes Cloud app records, requests cloud account deletion, and clears local app data. Export first if you need a backup.",
 	);
 	if (!confirmed) {
 		return;
@@ -9366,7 +9366,7 @@ function importArtifacts() {
 			const replaceCloud = cloudHasSyncAccess();
 			const confirmed = window.confirm(
 				replaceCloud
-					? `Import this JSON into ${activeSpaceLabel()} and rebuild that Firebase artifact collection from it? This wipes the current ${activeSpaceLabel()} cloud artifacts first.`
+					? `Import this JSON into ${activeSpaceLabel()} and rebuild that Cloud record collection from it? This wipes the current ${activeSpaceLabel()} cloud records first.`
 					: `Import this JSON and replace the current local ${activeSpaceLabel()} app data?`,
 			);
 			if (!confirmed) {
@@ -13135,21 +13135,20 @@ function settingsGettingStartedHtml() {
 	const guide = gettingStartedGuide();
 	return `
     <div class="settings-tab-panel getting-started-page">
-      <section class="getting-started-defaults getting-started-navigation">
-        <div class="getting-started-defaults-main">
-          <span class="getting-started-defaults-icon" aria-hidden="true">${iconHtml("tabler:route")}</span>
-          <div>
-            <h3>Show Navigation</h3>
-            <p>Start a guided walkthrough when you want it. Each click advances to the next page; Stop closes the guide.</p>
-          </div>
-        </div>
-        <button class="primary-button" data-action="start-navigation-tour" type="button">${buttonContent("tabler:route", "Show Navigation")}</button>
-      </section>
       <section class="getting-started-intro">
         <h3>${escapeHtml(activeSpaceLabel())} space</h3>
         <p>${escapeHtml(guide.description)}</p>
       </section>
-      ${gettingStartedSpaceGuideHtml(activeSpaceId())}
+      <section class="getting-started-defaults getting-started-navigation">
+        <div class="getting-started-defaults-main">
+          <span class="getting-started-defaults-icon" aria-hidden="true">${iconHtml("tabler:route")}</span>
+          <div>
+            <h3>User Interface (UI) Walkthrough</h3>
+            <p>Start a guided walkthrough when you want it. Each click advances to the next page; Stop closes the guide.</p>
+          </div>
+        </div>
+        <button class="primary-button" data-action="start-navigation-tour" type="button">${buttonContent("tabler:route", "UI Walkthrough")}</button>
+      </section>
       <div class="getting-started-grid">
         <article>
           <span>${dashboardInlineLabelHtml("Mind")}</span>
@@ -13182,6 +13181,7 @@ function settingsGettingStartedHtml() {
 						.join("")}
         </div>
       </section>
+      ${gettingStartedSpaceGuideHtml(activeSpaceId())}
     </div>
   `;
 }
@@ -13570,7 +13570,7 @@ function settingsCloudHtml() {
               <span class="cloud-account-avatar">${iconHtml(account.isLocalDemo ? "tabler:cloud-check" : "tabler:user-circle")}</span>
               <div>
                 <strong>Signed in as ${escapeHtml(username)}</strong>
-                <small>${escapeHtml(account.isLocalDemo ? "Local subscribed demo" : account.user.email || "Firebase account")}</small>
+                <small>${escapeHtml(account.isLocalDemo ? "Local subscribed demo" : account.user.email || "Cloud account")}</small>
               </div>
             </div>
             ${cloudStorageUsageHtml(state.cloudStorageUsage)}
@@ -13704,7 +13704,7 @@ function familySharingSettingsHtml(account, busyAttr) {
         <div class="body-card-heading">
           <div>
             <h4>Family Sharing</h4>
-            <p>Sign in to invite existing Firebase accounts into this Family space.</p>
+            <p>Sign in to invite existing Cloud accounts into this Family space.</p>
           </div>
         </div>
       </div>
@@ -14310,19 +14310,19 @@ function cloudStorageUsageHtml(usage) {
       <div class="cloud-usage-heading">
         <div>
           <strong>${loading ? "Calculating usage" : `${formatStorageGb(totalBytes)} out of ${formatStorageLimitGb(limitBytes)}`}</strong>
-          <small>${loading ? `Limit: ${formatStorageLimitGb(limitBytes)}` : `${formatStorageGb(storageBytes)} Storage / ${formatStorageGb(firebaseBytes)} Firebase`}</small>
+          <small>${loading ? `Limit: ${formatStorageLimitGb(limitBytes)}` : `${formatStorageGb(storageBytes)} media / ${formatStorageGb(firebaseBytes)} Cloud records`}</small>
         </div>
         <span>${loading ? "--" : `${Math.round(percent * 10) / 10}%`}</span>
       </div>
       <div class="cloud-usage-meter" aria-hidden="true"><i></i></div>
       <div class="cloud-sync-grid cloud-usage-breakdown">
-        <span><strong>${escapeHtml(formatStorageGb(storageBytes))}</strong><small>Storage files</small></span>
-        <span><strong>${escapeHtml(formatStorageGb(firebaseBytes))}</strong><small>Firebase artifacts</small></span>
+        <span><strong>${escapeHtml(formatStorageGb(storageBytes))}</strong><small>Media files</small></span>
+        <span><strong>${escapeHtml(formatStorageGb(firebaseBytes))}</strong><small>Cloud records</small></span>
       </div>
       <p class="cloud-status-message${usage?.error || overLimit ? " cloud-status-message--error" : ""}">
-        ${escapeHtml(usage?.error || (loading ? "Reading Storage and Firebase totals." : overLimit ? `Storage is over the ${formatStorageLimitGb(limitBytes)} limit. Uploads and sync will stop until space is freed.` : `${formatStorageGb(remainingBytes)} remaining before uploads stop.`))}
+        ${escapeHtml(usage?.error || (loading ? "Reading media and Cloud totals." : overLimit ? `Cloud storage is over the ${formatStorageLimitGb(limitBytes)} limit. Uploads and sync will stop until space is freed.` : `${formatStorageGb(remainingBytes)} remaining before uploads stop.`))}
       </p>
-      ${updatedAt ? `<p class="cloud-usage-updated">Firebase usage from ${escapeHtml(updatedAt)}.</p>` : ""}
+      ${updatedAt ? `<p class="cloud-usage-updated">Cloud usage from ${escapeHtml(updatedAt)}.</p>` : ""}
     </div>
   `;
 }
@@ -14339,7 +14339,7 @@ function galleryHtml() {
 	return panelHtml(`
     ${headerHtml(
 			"Gallery",
-			"Browse image uploads from this browser. Cloud media is encrypted before Firebase Storage upload.",
+			"Browse image uploads from this browser. Cloud media is encrypted before upload.",
 			`
       <div class="action-row">
         <button class="secondary-button" data-action="gallery-select-all" type="button"${count ? "" : " disabled"}>${buttonContent("tabler:checks", "Select All")}</button>
@@ -15371,7 +15371,7 @@ function lifeAttachmentsHtml(level, attachments = []) {
       <div class="body-card-heading">
         <div>
           <h3>Attachments</h3>
-          <p>Files stay local offline and sync as encrypted Firebase Storage media when Cloud is active.</p>
+          <p>Files stay local offline and sync as encrypted Cloud media when Cloud is active.</p>
         </div>
         <button class="secondary-button" data-action="upload-life-attachment" data-level="${level}" type="button">${buttonContent("tabler:paperclip", "Upload")}</button>
       </div>
@@ -18545,10 +18545,10 @@ function localAssetErrorMessage(error) {
 	const message =
 		error instanceof Error ? error.message : String(error || "").trim();
 	if (code.includes("storage/unauthorized")) {
-		return "Firebase Storage denied access to this media file.";
+		return "Cloud media denied access to this file.";
 	}
 	if (code.includes("storage/object-not-found")) {
-		return "The synced media file was not found in Firebase Storage.";
+		return "The synced media file was not found in Cloud media.";
 	}
 	if (/private media key/i.test(message)) {
 		return "This browser does not have the private media key for this file.";
@@ -19104,7 +19104,7 @@ function handleAction(element) {
 		void runCloudAction("Syncing to Cloud...", () => syncCloudNow());
 	}
 	if (action === "cloud-load") {
-		void runCloudAction("Loading Firebase artifacts...", () =>
+		void runCloudAction("Loading Cloud records...", () =>
 			loadCloudIntoLocalApp(),
 		);
 	}

@@ -11,7 +11,11 @@ const STORE_NAME = "files";
 const ASSET_PREFIX = "ourstuff-asset:";
 const MAX_IMAGE_EDGE = 1080;
 const JPEG_QUALITY = 0.84;
-const REMOTE_STORAGE_NAME = "firebase-storage-encrypted";
+const REMOTE_STORAGE_NAME = "cloud-media-encrypted";
+const LEGACY_REMOTE_STORAGE_NAMES = new Set([
+	REMOTE_STORAGE_NAME,
+	"firebase-storage-encrypted",
+]);
 const MEDIA_KEY_PREFIX = scopedStorageKey("ourstuff.mediaCryptoKey.v1");
 
 let dbPromise = null;
@@ -458,7 +462,7 @@ async function uploadRecordToCloud(record, options = {}) {
 	if (
 		!options.forceUpload &&
 		record.cloudStoragePath &&
-		record.storage === REMOTE_STORAGE_NAME &&
+		LEGACY_REMOTE_STORAGE_NAMES.has(record.storage) &&
 		record.encryption
 	) {
 		return record;

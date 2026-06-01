@@ -536,7 +536,7 @@ export async function saveCloudStateJson(json, options = {}) {
 	emitCloudState(
 		{
 			lastCloudSyncAt: syncedAt,
-			message: `${getActiveSpaceLabel()} Firebase artifacts saved.`,
+			message: `${getActiveSpaceLabel()} Cloud records saved.`,
 			error: "",
 		},
 		{ quiet: options.quiet === true },
@@ -569,7 +569,7 @@ export async function loadCloudStateJson() {
 	if (!data?.json || data.appId !== CLOUD_APP_ID) {
 		throw new Error("Saved cloud state is not valid for this app.");
 	}
-	emitCloudState({ message: `${getActiveSpaceLabel()} Firebase artifacts loaded.`, error: "" });
+	emitCloudState({ message: `${getActiveSpaceLabel()} Cloud records loaded.`, error: "" });
 	return data.json;
 }
 
@@ -628,7 +628,7 @@ export async function deleteCloudStateJson() {
 		updatedAt: new Date().toISOString(),
 		deviceId: getDeviceId(),
 	});
-	emitCloudState({ message: `${getActiveSpaceLabel()} Firebase artifacts deleted.`, error: "" });
+	emitCloudState({ message: `${getActiveSpaceLabel()} Cloud records deleted.`, error: "" });
 	return result;
 }
 
@@ -785,7 +785,7 @@ async function replaceCloudArtifactCollection(uid, json, options = {}) {
 		appId: CLOUD_APP_ID,
 		exists: true,
 		deleted: false,
-		storage: "firestore-artifacts",
+		storage: "cloud-records",
 		collection: CLOUD_ARTIFACTS_COLLECTION,
 		updatedAt,
 		deviceId,
@@ -810,7 +810,7 @@ async function readCloudArtifactCollection(uid) {
 			appId: CLOUD_APP_ID,
 			exists: false,
 			deleted: true,
-			storage: "firestore-artifacts",
+			storage: "cloud-records",
 			collection: CLOUD_ARTIFACTS_COLLECTION,
 			updatedAt,
 			deviceId: appData?.deviceId || "",
@@ -835,7 +835,7 @@ async function readCloudArtifactCollection(uid) {
 		appId: CLOUD_APP_ID,
 		exists,
 		deleted: false,
-		storage: "firestore-artifacts",
+		storage: "cloud-records",
 		collection: CLOUD_ARTIFACTS_COLLECTION,
 		updatedAt:
 			updatedAt || normalizeSyncTimestamp(json?.metadata?.localUpdatedAt),
@@ -863,7 +863,7 @@ async function deleteCloudArtifactCollection(uid, options = {}) {
 			appId: CLOUD_APP_ID,
 			version: CLOUD_STORAGE_VERSION,
 			schemaVersion: CLOUD_SCHEMA_VERSION,
-			storage: "firestore-artifacts",
+			storage: "cloud-records",
 			collection: CLOUD_ARTIFACTS_COLLECTION,
 			deleted: true,
 			rootId: "ourstuff-root",
@@ -880,7 +880,7 @@ async function deleteCloudArtifactCollection(uid, options = {}) {
 		appId: CLOUD_APP_ID,
 		exists: false,
 		deleted: true,
-		storage: "firestore-artifacts",
+		storage: "cloud-records",
 		collection: CLOUD_ARTIFACTS_COLLECTION,
 		updatedAt,
 		deviceId,
@@ -964,7 +964,7 @@ function normalizeExportJson(json, context = {}) {
 			...jsonSafe(metadata),
 			localUpdatedAt:
 				normalizeSyncTimestamp(metadata.localUpdatedAt) || updatedAt,
-			cloudStorage: "firestore-artifacts",
+			cloudStorage: "cloud-records",
 			deviceId: context.deviceId || metadata.deviceId || "",
 		},
 		appState:
@@ -1004,7 +1004,7 @@ function cloudAppDocBase(json, docs, context = {}) {
 		appId: CLOUD_APP_ID,
 		version: CLOUD_STORAGE_VERSION,
 		schemaVersion: json.schemaVersion,
-		storage: "firestore-artifacts",
+		storage: "cloud-records",
 		collection: CLOUD_ARTIFACTS_COLLECTION,
 		deleted: false,
 		rootId: json.rootId,
@@ -1416,7 +1416,7 @@ function cloudArtifactDocsToAppJson(docs, appData = {}) {
 			localUpdatedAt:
 				normalizeSyncTimestampFromFirestore(appData?.updatedAt) ||
 				new Date().toISOString(),
-			cloudStorage: "firestore-artifacts",
+			cloudStorage: "cloud-records",
 			deviceId: appData?.deviceId || "",
 			docCount: docs.length,
 		},
@@ -1472,7 +1472,7 @@ function assertCloudDocsWithinLimit(docs) {
 		return;
 	}
 	throw new Error(
-		`Firebase artifact "${oversized.title || oversized.id}" is too large to sync as one document.`,
+		`Cloud record "${oversized.title || oversized.id}" is too large to sync as one document.`,
 	);
 }
 
@@ -1480,7 +1480,7 @@ function assertNoBase64MediaForCloud(json) {
 	const serialized = JSON.stringify(json ?? {});
 	if (/data:image\/[a-z0-9.+-]+;base64,/i.test(serialized)) {
 		throw new Error(
-			"Base64 images must be uploaded to encrypted Firebase Storage before Firebase artifact sync.",
+			"Base64 images must be uploaded to encrypted Cloud media before Cloud sync.",
 		);
 	}
 }

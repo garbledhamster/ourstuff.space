@@ -5436,6 +5436,7 @@ select option:checked {
 .dashboard-orb-nav {
 	max-height: 180px;
 	opacity: 1;
+	overflow: hidden;
 	transform: translateY(0);
 	transition:
 		max-height 0.16s ease,
@@ -5449,6 +5450,14 @@ select option:checked {
 	opacity: 0;
 	pointer-events: none;
 	--dashboard-header-offset: 0px;
+}
+
+.panel.is-header-snapped .dashboard-orb-nav {
+	max-height: 0;
+	margin-top: 0;
+	opacity: 0;
+	pointer-events: none;
+	transform: translateY(-8px);
 }
 
 .panel-header-copy {
