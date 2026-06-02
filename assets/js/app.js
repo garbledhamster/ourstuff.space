@@ -387,11 +387,18 @@ const GOAL_FREQUENCY_OPTIONS = [
 	{ id: "yearly", label: "Yearly", days: 365 },
 	{ id: "custom", label: "Custom", days: 10 },
 ];
+const DASHBOARD_DISPLAY_OPTIONS = [
+	{ id: "title", stateKey: "showTitle", label: "Titles" },
+	{ id: "numbers", stateKey: "showNumbers", label: "Numbers" },
+	{ id: "icons", stateKey: "showIcons", label: "Icons" },
+];
+const DEFAULT_DASHBOARD_DISPLAY_OPTION_ORDER = ["numbers", "icons", "title"];
 const DEFAULT_DASHBOARD_IDENTITY = {
 	displayMode: "numbers",
 	showTitle: true,
 	showNumbers: true,
 	showIcons: false,
+	displayOptionOrder: DEFAULT_DASHBOARD_DISPLAY_OPTION_ORDER,
 	colorAlwaysOn: false,
 	items: {
 		Mind: {
@@ -1300,6 +1307,9 @@ function cloneDefaultDashboardIdentityForSpace(spaceId = activeSpaceId()) {
 		showTitle: DEFAULT_DASHBOARD_IDENTITY.showTitle,
 		showNumbers: DEFAULT_DASHBOARD_IDENTITY.showNumbers,
 		showIcons: DEFAULT_DASHBOARD_IDENTITY.showIcons,
+		displayOptionOrder: [
+			...DEFAULT_DASHBOARD_IDENTITY.displayOptionOrder,
+		],
 		colorAlwaysOn: DEFAULT_DASHBOARD_IDENTITY.colorAlwaysOn,
 		items: Object.fromEntries(
 			DASHBOARD_LABELS.map((dashboard) => [
@@ -1340,6 +1350,20 @@ function normalizeHexColor(value, fallback = "") {
 	return fallback;
 }
 
+function normalizeDashboardDisplayOptionOrder(value) {
+	const allowed = new Set(DASHBOARD_DISPLAY_OPTIONS.map((option) => option.id));
+	const source = Array.isArray(value)
+		? value
+		: DEFAULT_DASHBOARD_DISPLAY_OPTION_ORDER;
+	const order = source.filter((id) => allowed.has(id));
+	DEFAULT_DASHBOARD_DISPLAY_OPTION_ORDER.forEach((id) => {
+		if (!order.includes(id)) {
+			order.push(id);
+		}
+	});
+	return order;
+}
+
 function normalizeDashboardIdentity(value) {
 	const defaults = cloneDefaultDashboardIdentity();
 	const legacyDisplayMode = value?.displayMode === "icons" ? "icons" : "numbers";
@@ -1351,6 +1375,10 @@ function normalizeDashboardIdentity(value) {
 		typeof value?.showIcons === "boolean"
 			? value.showIcons
 			: legacyDisplayMode === "icons";
+	const showTitle =
+		typeof value?.showTitle === "boolean"
+			? value.showTitle
+			: DEFAULT_DASHBOARD_IDENTITY.showTitle;
 	const displayMode =
 		showIcons && !showNumbers
 			? "icons"
@@ -1359,9 +1387,12 @@ function normalizeDashboardIdentity(value) {
 			: "custom";
 	return {
 		displayMode,
-		showTitle: true,
+		showTitle,
 		showNumbers,
 		showIcons,
+		displayOptionOrder: normalizeDashboardDisplayOptionOrder(
+			value?.displayOptionOrder,
+		),
 		colorAlwaysOn: value?.colorAlwaysOn === true,
 		items: Object.fromEntries(
 			DASHBOARD_LABELS.map((dashboard) => {
@@ -4982,33 +5013,34 @@ function dashboardDisplayNameList() {
 
 function dashboardTitleHtml(dashboard) {
 	const parts = [];
-	const showNumber = state.dashboardIdentity?.showNumbers;
-	const showIcon = state.dashboardIdentity?.showIcons;
-	if (showNumber || !showIcon) {
-		parts.push(
+	const identity = normalizeDashboardIdentity(state.dashboardIdentity);
+	const optionHtml = {
+		title: () =>
+			`<span class="dashboard-card-name">${escapeHtml(
+				dashboardDisplayLabel(dashboard).toUpperCase(),
+			)}</span>`,
+		numbers: () =>
 			`<span class="dashboard-card-number">${escapeHtml(dashboardDisplayNumber(dashboard))}</span>`,
-		);
-	}
-	const labelParts = [];
-	if (showIcon) {
-		labelParts.push(
+		icons: () =>
 			`<span class="dashboard-card-icon">${iconHtml(dashboardDisplayIcon(dashboard))}</span>`,
-		);
-	}
-	const displayLabel = dashboardDisplayLabel(dashboard).toUpperCase();
-	labelParts.push(
-		`<span class="dashboard-card-name">${escapeHtml(displayLabel)}</span>`,
-	);
-	if (labelParts.length) {
-		parts.push(
-			`<span class="dashboard-card-label">${labelParts.join("")}</span>`,
-		);
+	};
+	identity.displayOptionOrder.forEach((optionId) => {
+		const option = DASHBOARD_DISPLAY_OPTIONS.find((item) => item.id === optionId);
+		if (!option || identity[option.stateKey] !== true) {
+			return;
+		}
+		parts.push(optionHtml[option.id]());
+	});
+	if (!parts.length) {
+		parts.push(optionHtml.numbers());
 	}
 	return parts.join("");
 }
 
 function dashboardInlineLabelHtml(dashboard) {
-	return `<span>${escapeHtml(dashboardDisplayLabel(dashboard))}</span>`;
+	return `<span aria-hidden="true">${iconHtml(dashboardDisplayIcon(dashboard))}</span><span>${escapeHtml(
+		dashboardDisplayLabel(dashboard),
+	)}</span>`;
 }
 
 function dashboardHeaderTitleHtml(dashboard) {
@@ -7026,31 +7058,8 @@ function lifeTrackerSummaryLabels(note) {
 }
 
 function lifeMetaItems(note) {
-	const trackers = lifeNoteTrackerSelections(note);
-	const habits = legacyLifeHabits(note);
-	const mood = note.properties?.mood || "";
-	const energy = note.properties?.energy || "";
-	const habitEmoji = {
-		Move: "\ud83d\udeb6",
-		Read: "\ud83d\udcd6",
-		Create: "\ud83c\udfa8",
-		Clean: "\u2728",
-		Budget: "$",
-		Connect: "\u2661",
-		Pray: "\ud83d\ude4f",
-		Sleep: "\u263e",
-	};
-	const moodEmoji = {
-		great: "\ud83d\ude00",
-		good: "\ud83d\ude42",
-		steady: "\ud83d\ude10",
-		low: "\ud83d\ude41",
-		hard: "!",
-	};
 	return [
-		["Track", trackers[0]?.label || habitEmoji[habits[0]] || "\u2022"],
-		["Mood", moodEmoji[mood] || "\u2022"],
-		["Energy", energy ? energy.slice(0, 1).toUpperCase() : "-"],
+		["Date", note.properties?.dateKey || noteDateLabel(note)],
 		["Words", noteSizeLabel(note)],
 	];
 }
@@ -10542,25 +10551,20 @@ function saveLifeJournalNote(id) {
 	const dateKey = dateKeyFromValue(
 		document.getElementById("life-entry-date")?.value,
 	);
-	const mood = document.getElementById("life-entry-mood")?.value || "steady";
-	const energy =
-		document.getElementById("life-entry-energy")?.value || "medium";
-	const thoughtTrackerIds = Array.from(
-		document.querySelectorAll('[data-life-tracker="thought"]:checked'),
-	).map((input) => input.value);
-	const goalTrackerIds = Array.from(
-		document.querySelectorAll('[data-life-tracker="goal"]:checked'),
-	).map((input) => input.value);
 	const properties = {
 		...(current.properties || {}),
 		role: "life-journal",
 		status: "active",
 		isNewDraft: false,
 		dateKey,
-		mood,
-		energy,
-		thoughtTrackerIds,
-		goalTrackerIds,
+		mood: current.properties?.mood || "steady",
+		energy: current.properties?.energy || "medium",
+		thoughtTrackerIds: Array.isArray(current.properties?.thoughtTrackerIds)
+			? current.properties.thoughtTrackerIds
+			: [],
+		goalTrackerIds: Array.isArray(current.properties?.goalTrackerIds)
+			? current.properties.goalTrackerIds
+			: [],
 	};
 	properties.audit = [
 		...(current.properties?.audit || []).slice(-20),
@@ -11477,8 +11481,15 @@ function saveDashboardIdentitySettings() {
 		document.getElementById("dashboard-show-numbers")?.checked ?? false;
 	const showIcons =
 		document.getElementById("dashboard-show-icons")?.checked ?? false;
+	const showTitle =
+		document.getElementById("dashboard-show-title")?.checked ?? true;
 	const colorAlwaysOn =
 		document.getElementById("dashboard-color-always-on")?.checked ?? false;
+	const displayOptionOrder = normalizeDashboardDisplayOptionOrder(
+		Array.from(
+			document.querySelectorAll("[data-dashboard-display-option-box]"),
+		).map((element) => element.dataset.optionId),
+	);
 	const displayMode =
 		showIcons && !showNumbers
 			? "icons"
@@ -11487,9 +11498,10 @@ function saveDashboardIdentitySettings() {
 				: "custom";
 	const nextIdentity = {
 		displayMode,
-		showTitle: true,
+		showTitle,
 		showNumbers,
 		showIcons,
+		displayOptionOrder,
 		colorAlwaysOn,
 		items: Object.fromEntries(
 			DASHBOARD_LABELS.map((dashboard) => {
@@ -11543,6 +11555,16 @@ function resetDashboardIdentityItem(dashboard) {
 		fallback.color,
 	);
 	saveDashboardIdentitySettings();
+}
+
+function dashboardDisplayOptionToggleHtml(option, identity) {
+	const checked = identity[option.stateKey] === true ? " checked" : "";
+	return `
+          <label class="dashboard-identity-toggle dashboard-display-option-box" data-dashboard-display-option-box data-option-id="${escapeHtml(option.id)}">
+            <span class="dashboard-display-option-handle" data-orderable-drag-handle aria-hidden="true" title="Drag to reorder">${iconHtml("tabler:grip-vertical")}</span>
+            <input id="dashboard-show-${escapeHtml(option.id)}" data-dashboard-display-option type="checkbox"${checked}>
+            <span>${escapeHtml(option.label)}</span>
+          </label>`;
 }
 
 function dismissTip(tip, element) {
@@ -11648,6 +11670,7 @@ function render() {
 	bindCameraControls();
 	bindTimerControls();
 	bindDashboardIdentityAutoSave();
+	bindDashboardDisplayOptionSorting();
 	bindTrackerEditorAutoSave();
 	bindHeaderActionTooltips();
 	applyCoreTooltips();
@@ -13607,15 +13630,14 @@ function settingsInterfaceHtml() {
             <p>Customize each category title, number, icon, and card color.</p>
           </div>
         </div>
-        <div class="dashboard-identity-toggles">
-          <label class="dashboard-identity-toggle">
-            <input id="dashboard-show-numbers" data-dashboard-display-option type="checkbox"${identity.showNumbers ? " checked" : ""}>
-            <span>Numbers</span>
-          </label>
-          <label class="dashboard-identity-toggle">
-            <input id="dashboard-show-icons" data-dashboard-display-option type="checkbox"${identity.showIcons ? " checked" : ""}>
-            <span>Icons</span>
-          </label>
+        <div class="dashboard-identity-toggles" data-dashboard-display-option-list>
+          ${identity.displayOptionOrder
+						.map((optionId) =>
+							DASHBOARD_DISPLAY_OPTIONS.find((option) => option.id === optionId),
+						)
+						.filter(Boolean)
+						.map((option) => dashboardDisplayOptionToggleHtml(option, identity))
+						.join("")}
           <label class="dashboard-identity-toggle">
             <input id="dashboard-color-always-on" data-dashboard-display-option type="checkbox"${identity.colorAlwaysOn ? " checked" : ""}>
             <span>Color always on</span>
@@ -15332,15 +15354,9 @@ function lifeEventRowHtml(event, variant = "") {
 }
 
 function lifeJournalMetaHtml(note) {
-	const trackers = lifeNoteTrackerSelections(note);
-	const habits = trackers.length ? [] : legacyLifeHabits(note);
 	return `
     <div class="life-journal-meta">
       <span>${iconHtml("tabler:calendar")} ${escapeHtml(formatDateLabel(note.properties?.dateKey || note.edited || note.created, { weekday: true, year: true }))}</span>
-      <span>${iconHtml("tabler:mood-smile")} ${escapeHtml(note.properties?.mood || "steady")}</span>
-      <span>${iconHtml("tabler:bolt")} ${escapeHtml(note.properties?.energy || "medium")}</span>
-      ${trackers.map((tracker) => `<span>${trackerIconHtml(tracker.icon)} ${escapeHtml(tracker.label)}</span>`).join("")}
-      ${habits.map((habit) => `<span>${iconHtml("tabler:circle-check")} ${escapeHtml(habit)}</span>`).join("")}
     </div>
   `;
 }
@@ -15907,7 +15923,7 @@ function _lifeNotesHtml() {
       <div class="body-card-heading">
         <div>
           <h3>Journal Notes</h3>
-          <p>Journal entries with mood, energy, orb trackers, and text.</p>
+          <p>Private dated journal entries.</p>
         </div>
         <button class="secondary-button" data-action="new-artifact-note" data-dashboard="Life">${buttonContent("tabler:notes", "New Note")}</button>
       </div>
@@ -15921,7 +15937,7 @@ function _lifeNotesHtml() {
             <button class="section-row" data-action="open-artifact-note" data-id="${noteItem.id}">
               <span>${String(index + 1).padStart(2, "0")}</span>
               <strong>${escapeHtml(noteItem.title)}</strong>
-              <small>${escapeHtml([noteItem.properties?.mood, ...lifeTrackerSummaryLabels(noteItem)].filter(Boolean).join(" / ") || shortSummary(noteItem.body, "No journal text yet"))}</small>
+              <small>${escapeHtml(shortSummary(noteItem.body, "No journal text yet"))}</small>
               <em>${iconHtml("tabler:calendar")} ${escapeHtml(noteItem.properties?.dateKey || noteDateLabel(noteItem))}</em>
             </button>
           `,
@@ -16635,37 +16651,17 @@ function lifeTrackerSelectorHtml(kind, label, selectedIds) {
 
 function lifeJournalEditorHtml(note) {
 	const draftKey = editorDraftKeyFor("save-artifact-note", note.id);
-	const thoughtTrackerIds = editorDraftArrayValues(
-		draftKey,
-		"life-thought-trackers",
-		lifeTrackerIds(note, "thought"),
-	);
-	const goalTrackerIds = editorDraftArrayValues(
-		draftKey,
-		"life-goal-trackers",
-		lifeTrackerIds(note, "goal"),
-	);
 	const dateKey = editorDraftFieldValue(
 		draftKey,
 		"life-entry-date",
 		note.properties?.dateKey || todayDateKey(),
-	);
-	const mood = editorDraftFieldValue(
-		draftKey,
-		"life-entry-mood",
-		note.properties?.mood || "steady",
-	);
-	const energy = editorDraftFieldValue(
-		draftKey,
-		"life-entry-energy",
-		note.properties?.energy || "medium",
 	);
 	const title = editorDraftFieldValue(draftKey, "editor-title", note.title);
 	const body = editorDraftFieldValue(draftKey, "editor-body", note.body);
 	return panelHtml(`
       ${headerHtml(
 				"Edit Life Note",
-				"Journal entry with mood, energy, and orb trackers.",
+				"Private journal entry.",
 				`
       <div class="action-row">
         ${pageActionButton("delete-artifact-note", "tabler:trash", "Delete note", { danger: true, data: { id: note.id } })}
@@ -16679,20 +16675,6 @@ function lifeJournalEditorHtml(note) {
       <input id="editor-title" value="${escapeHtml(title)}" aria-label="Title">
       <div class="life-editor-grid">
         <label class="body-field">Date<input id="life-entry-date" type="date" value="${escapeHtml(dateKey)}"></label>
-        <label class="body-field">Mood
-          <select id="life-entry-mood">
-            ${["great", "good", "steady", "low", "hard"].map((option) => `<option value="${option}"${mood === option ? " selected" : ""}>${option}</option>`).join("")}
-          </select>
-        </label>
-        <label class="body-field">Energy
-          <select id="life-entry-energy">
-            ${["high", "medium", "low"].map((option) => `<option value="${option}"${energy === option ? " selected" : ""}>${option}</option>`).join("")}
-          </select>
-        </label>
-      </div>
-      <div class="life-tracker-fieldsets">
-        ${lifeTrackerSelectorHtml("thought", "Thoughts", thoughtTrackerIds)}
-        ${lifeTrackerSelectorHtml("goal", "Goals", goalTrackerIds)}
       </div>
       <label class="body-field editor-body-field">Journal
         <span class="editor-body-wrap has-image-button">
@@ -18721,6 +18703,156 @@ function bindDashboardPeriodSlider() {
 		input.addEventListener("change", () =>
 			setDashboardPeriodByIndex(input.value),
 		);
+	});
+}
+
+function orderableBoxDropIndex(container, activeItem, pointerX, pointerY) {
+	const items = Array.from(
+		container.querySelectorAll("[data-orderable-box-item]"),
+	).filter((item) => item !== activeItem);
+	const index = items.findIndex((item) => {
+		const rect = item.getBoundingClientRect();
+		const midpointY = rect.top + rect.height / 2;
+		const midpointX = rect.left + rect.width / 2;
+		return pointerY < midpointY || (pointerY < rect.bottom && pointerX < midpointX);
+	});
+	return index === -1 ? items.length : index;
+}
+
+function clearOrderableBoxMarkers(container) {
+	container.querySelectorAll(".is-drop-before, .is-drop-after").forEach((item) => {
+		item.classList.remove("is-drop-before", "is-drop-after");
+	});
+}
+
+function setOrderableBoxMarker(container, activeItem, targetIndex) {
+	clearOrderableBoxMarkers(container);
+	const items = Array.from(
+		container.querySelectorAll("[data-orderable-box-item]"),
+	).filter((item) => item !== activeItem);
+	if (!items.length) {
+		return;
+	}
+	const targetItem = items[targetIndex];
+	if (targetItem) {
+		targetItem.classList.add("is-drop-before");
+	} else {
+		items[items.length - 1].classList.add("is-drop-after");
+	}
+}
+
+function moveOrderableBoxItem(container, activeItem, targetIndex) {
+	const items = Array.from(
+		container.querySelectorAll("[data-orderable-box-item]"),
+	).filter((item) => item !== activeItem);
+	container.insertBefore(activeItem, items[targetIndex] || null);
+}
+
+function bindOrderableBoxSorting({
+	containerSelector,
+	itemSelector,
+	handleSelector,
+	onCommit,
+}) {
+	const container = app.querySelector(containerSelector);
+	if (!container) {
+		return;
+	}
+	container.querySelectorAll(itemSelector).forEach((item) => {
+		item.dataset.orderableBoxItem = "true";
+	});
+	container.querySelectorAll(handleSelector).forEach((handle) => {
+		handle.addEventListener("click", (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+		});
+		handle.addEventListener("pointerdown", (event) => {
+			if (event.button !== undefined && event.button !== 0) {
+				return;
+			}
+			const activeItem = handle.closest(itemSelector);
+			if (!activeItem) {
+				return;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			const startX = event.clientX;
+			const startY = event.clientY;
+			let isDragging = false;
+			let targetIndex = null;
+
+			const startDrag = (moveEvent) => {
+				isDragging = true;
+				container.classList.add("is-reordering");
+				activeItem.classList.add("is-dragging");
+				handle.classList.add("is-active");
+				handle.setPointerCapture?.(event.pointerId);
+				targetIndex = orderableBoxDropIndex(
+					container,
+					activeItem,
+					moveEvent.clientX,
+					moveEvent.clientY,
+				);
+				setOrderableBoxMarker(container, activeItem, targetIndex);
+			};
+
+			const onPointerMove = (moveEvent) => {
+				const moved = Math.hypot(
+					moveEvent.clientX - startX,
+					moveEvent.clientY - startY,
+				);
+				if (!isDragging && moved < 6) {
+					return;
+				}
+				moveEvent.preventDefault();
+				if (!isDragging) {
+					startDrag(moveEvent);
+				}
+				targetIndex = orderableBoxDropIndex(
+					container,
+					activeItem,
+					moveEvent.clientX,
+					moveEvent.clientY,
+				);
+				setOrderableBoxMarker(container, activeItem, targetIndex);
+			};
+
+			const finishDrag = (finishEvent) => {
+				window.removeEventListener("pointermove", onPointerMove);
+				window.removeEventListener("pointerup", finishDrag);
+				window.removeEventListener("pointercancel", finishDrag);
+				if (isDragging) {
+					handle.releasePointerCapture?.(finishEvent.pointerId);
+				}
+				container.classList.remove("is-reordering");
+				activeItem.classList.remove("is-dragging");
+				handle.classList.remove("is-active");
+				clearOrderableBoxMarkers(container);
+				if (!isDragging) {
+					return;
+				}
+				finishEvent.preventDefault();
+				moveOrderableBoxItem(container, activeItem, targetIndex ?? 0);
+				onCommit?.(
+					Array.from(container.querySelectorAll(itemSelector)).map((nextItem) =>
+						nextItem.dataset.optionId,
+					),
+				);
+			};
+
+			window.addEventListener("pointermove", onPointerMove, { passive: false });
+			window.addEventListener("pointerup", finishDrag);
+			window.addEventListener("pointercancel", finishDrag);
+		});
+	});
+}
+
+function bindDashboardDisplayOptionSorting() {
+	bindOrderableBoxSorting({
+		containerSelector: "[data-dashboard-display-option-list]",
+		itemSelector: "[data-dashboard-display-option-box]",
+		handleSelector: "[data-orderable-drag-handle]",
+		onCommit: saveDashboardIdentitySettings,
 	});
 }
 
