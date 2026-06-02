@@ -1,14 +1,14 @@
 {
 	"schema": "ourstuff.themeAdapterCoverage.v1",
-	"generatedAt": "2026-06-02T10:42:57.203Z",
+	"generatedAt": "2026-06-02T11:17:42.573Z",
 	"source": {
 		"cssPath": "assets/css/app.css",
-		"cssSha256": "e3a8d801d733ff3c93bf1ee055c051c82110fe55b05490a02cc837b78cbc636c"
+		"cssSha256": "8aafbe2d91fdee4bbafcb2e2f20687770faf5a0bf206424a3009648b68286f63"
 	},
 	"summary": {
-		"classCount": 444,
+		"classCount": 446,
 		"needsAdapterCount": 26,
-		"coveredCount": 444,
+		"coveredCount": 446,
 		"requiredMissingCount": 0,
 		"highConfidenceMissingCount": 0
 	},
@@ -2818,6 +2818,48 @@
 				".dashboard-chart-switcher button",
 				".dashboard-chart-switcher button.is-drop-before::before, .dashboard-chart-switcher button.is-drop-after::after",
 				".dashboard-chart-switcher button:hover, .dashboard-chart-switcher button.is-active"
+			]
+		},
+		{
+			"className": "dashboard-display-option-box",
+			"confidence": "low",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": true,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": [
+				".dashboard-display-option-box.is-drop-before::before, .dashboard-display-option-box.is-drop-after::after"
+			]
+		},
+		{
+			"className": "dashboard-display-option-handle",
+			"confidence": "low",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": true,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": [
+				".dashboard-display-option-handle"
 			]
 		},
 		{

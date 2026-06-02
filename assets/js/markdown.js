@@ -37,6 +37,33 @@ function renderInlineMarkdown(text) {
 	return output;
 }
 
+function commandArgumentValue(value) {
+	const text = String(value || "").trim();
+	const first = text[0];
+	const last = text[text.length - 1];
+	if (
+		text.length >= 2 &&
+		((first === '"' && last === '"') || (first === "'" && last === "'"))
+	) {
+		return text.slice(1, -1).replaceAll(`\\${first}`, first).trim();
+	}
+	return text;
+}
+
+export function parseOurstuffLineCommand(line) {
+	const text = String(line || "").trim();
+	const match = /^:([a-z][a-z0-9_-]*)(?:\s+(.*))?$/i.exec(text);
+	if (!match) {
+		return null;
+	}
+	const name = match[1].toLowerCase();
+	if (name !== "caption") {
+		return null;
+	}
+	const value = commandArgumentValue(match[2] || "");
+	return value ? { name, value } : null;
+}
+
 export function renderMarkdown(raw) {
 	const lines = String(raw ?? "").split("\n");
 	let html = "";
@@ -108,6 +135,13 @@ export function renderMarkdown(raw) {
 		if (trimmed.startsWith("> ")) {
 			closeList();
 			html += `<blockquote>${renderInlineMarkdown(trimmed.slice(2))}</blockquote>`;
+			return;
+		}
+
+		const command = parseOurstuffLineCommand(trimmed);
+		if (command?.name === "caption") {
+			closeList();
+			html += `<div class="ourstuff-command ourstuff-command--caption"><p>${renderInlineMarkdown(command.value)}</p></div>`;
 			return;
 		}
 

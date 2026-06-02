@@ -1,4 +1,8 @@
-import { escapeHtml, renderMarkdown } from "./markdown.js";
+import {
+	escapeHtml,
+	parseOurstuffLineCommand,
+	renderMarkdown,
+} from "./markdown.js";
 
 export function readerBodyHtml(title, body, emptyText = "No note text yet.") {
 	const text = stripDuplicateTitleLine(title, body || "");
@@ -177,6 +181,10 @@ export function parseSingleLineContent(line) {
 	if (!text) {
 		return { type: "text", text: "" };
 	}
+	const command = parseOurstuffLineCommand(text);
+	if (command?.name === "caption") {
+		return { type: "caption", text: command.value };
+	}
 	const items = splitCommaContent(text);
 	if (items.length > 1) {
 		const images = items.map(parseMarkdownImageReference);
@@ -277,6 +285,9 @@ export function themedChildViewerHtml(parsed, options = {}) {
       </div>
     `;
 	}
+	if (parsed.type === "caption") {
+		return `<div class="themed-child-viewer themed-child-viewer--caption ourstuff-command ourstuff-command--caption"><p>${escapeHtml(parsed.text || "")}</p></div>`;
+	}
 	return `<div class="themed-child-viewer themed-child-viewer--text"><p>${escapeHtml(parsed.text || "")}</p></div>`;
 }
 
@@ -298,6 +309,8 @@ export function pageContentHtml(title, body, pageContext = {}) {
 		? ""
 		: pageNumberOverlayHtml(pageContext);
 	const imageOnlyBody = parseImageOnlyBody(body);
+	const singleLineContent =
+		lines.length === 1 ? parseSingleLineContent(lines[0] || "") : null;
 	if (imageOnlyBody) {
 		return `
       <article class="page-content page-content--focus page-content--media">
@@ -316,6 +329,15 @@ export function pageContentHtml(title, body, pageContext = {}) {
     `;
 	}
 	if (mode === "chapter") {
+		if (singleLineContent?.type === "caption") {
+			return `
+      <article class="page-content page-content--normal">
+        <h2 class="page-content-title">${escapeHtml(cleanTitle)}</h2>
+        ${themedChildViewerHtml(singleLineContent)}
+        ${pageNumber}
+      </article>
+    `;
+		}
 		return `
       <article class="page-content page-content--chapter">
         <h2>${escapeHtml(cleanTitle)}</h2>
