@@ -594,7 +594,6 @@ select option:checked {
 }
 
 .sidebar-menu-nav-trash {
-	border-radius: 8px;
 	color: var(--danger);
 }
 
@@ -603,11 +602,6 @@ select option:checked {
 	border-color: var(--danger);
 	background: color-mix(in srgb, var(--danger) 18%, var(--theme-control));
 	color: var(--danger);
-}
-
-.sidebar-menu-nav-trash .button-icon {
-	width: 1.65rem;
-	height: 1.65rem;
 }
 
 .sidebar-menu-nav-timer.is-active {
@@ -736,7 +730,7 @@ select option:checked {
 	gap: 12px;
 	border: 1px solid var(--border-soft);
 	border-radius: 14px;
-	background: rgba(15, 23, 42, 0.72);
+	background: color-mix(in srgb, var(--surface-2) 72%, var(--surface));
 	padding: 12px;
 }
 
@@ -5053,19 +5047,27 @@ select option:checked {
 
 .icon-picker-swatches {
 	display: grid;
-	grid-template-columns: repeat(8, 8px);
+	grid-template-columns: repeat(8, 18px);
 	justify-content: start;
-	gap: 5px;
+	gap: 7px;
 }
 
 .icon-picker-swatch {
-	width: 8px;
-	height: 8px;
+	width: 18px;
+	height: 18px;
 	aspect-ratio: 1;
 	min-height: 0;
 	border: 1px solid
 		color-mix(in srgb, var(--picked-color) 46%, var(--border-soft));
-	border-radius: 2px;
+	border-radius: 5px;
+	background:
+		linear-gradient(
+			45deg,
+			rgba(255, 255, 255, 0.16) 25%,
+			transparent 25% 75%,
+			rgba(255, 255, 255, 0.16) 75%
+		),
+		var(--picked-color);
 	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
@@ -10607,16 +10609,19 @@ button.life-event-row:hover {
 }
 
 :root.theme-palette:not(.theme-consolas) .icon-picker-save:hover,
-:root.theme-palette:not(.theme-consolas) .icon-picker-save:focus-visible,
-:root.theme-palette:not(.theme-consolas) .icon-picker-swatch:hover,
-:root.theme-palette:not(.theme-consolas) .icon-picker-swatch:focus-visible,
-:root.theme-palette:not(.theme-consolas) .icon-picker-swatch.is-selected {
+:root.theme-palette:not(.theme-consolas) .icon-picker-save:focus-visible {
 	border-color: var(--icon-picker-color, var(--accent));
 	background: color-mix(
 		in srgb,
 		var(--icon-picker-color, var(--accent)) 20%,
 		var(--theme-control-hover)
 	);
+}
+
+:root.theme-palette:not(.theme-consolas) .icon-picker-swatch:hover,
+:root.theme-palette:not(.theme-consolas) .icon-picker-swatch:focus-visible,
+:root.theme-palette:not(.theme-consolas) .icon-picker-swatch.is-selected {
+	border-color: var(--picked-color);
 }
 
 :root.theme-palette:not(.theme-consolas) .sidebar-group--pyxdia {
@@ -10781,7 +10786,6 @@ button.life-event-row:hover {
 :root.theme-consolas .icon-picker-save,
 :root.theme-consolas .icon-picker-search input,
 :root.theme-consolas .icon-picker-hex,
-:root.theme-consolas .icon-picker-swatch,
 :root.theme-consolas .life-tracker-empty,
 :root.theme-consolas .sidebar-group--pyxdia,
 :root.theme-consolas .sidebar-page-controls button {

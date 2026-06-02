@@ -1,9 +1,9 @@
 {
 	"schema": "ourstuff.themeAdapterCoverage.v1",
-	"generatedAt": "2026-06-02T09:56:25.462Z",
+	"generatedAt": "2026-06-02T10:42:57.203Z",
 	"source": {
 		"cssPath": "assets/css/app.css",
-		"cssSha256": "0a41bb5883bf7df58de57334a15be9d00cf2ccadfe0c9b45f7e03a9b7afdc50f"
+		"cssSha256": "e3a8d801d733ff3c93bf1ee055c051c82110fe55b05490a02cc837b78cbc636c"
 	},
 	"summary": {
 		"classCount": 444,
@@ -4459,7 +4459,7 @@
 				"tokenized": true,
 				"selectors": [
 					":root.theme-palette:not(.theme-consolas) .dashboard-space-button, :root.theme-palette:not(.theme-consolas) .dashboard-bar-button, :root.theme-palette:not(.theme-consolas) .dashboard-bar-track, :root.theme-palette:not(.th",
-					":root.theme-palette:not(.theme-consolas) .icon-picker-save:hover, :root.theme-palette:not(.theme-consolas) .icon-picker-save:focus-visible, :root.theme-palette:not(.theme-consolas) .icon-picker-swatch:hover, :root.theme-"
+					":root.theme-palette:not(.theme-consolas) .icon-picker-save:hover, :root.theme-palette:not(.theme-consolas) .icon-picker-save:focus-visible"
 				]
 			},
 			"consolas": {
@@ -4513,7 +4513,6 @@
 				"tokenized": true,
 				"selectors": [
 					":root.theme-palette:not(.theme-consolas) .dashboard-space-button, :root.theme-palette:not(.theme-consolas) .dashboard-bar-button, :root.theme-palette:not(.theme-consolas) .dashboard-bar-track, :root.theme-palette:not(.th",
-					":root.theme-palette:not(.theme-consolas) .icon-picker-save:hover, :root.theme-palette:not(.theme-consolas) .icon-picker-save:focus-visible, :root.theme-palette:not(.theme-consolas) .icon-picker-swatch:hover, :root.theme-",
 					":root.theme-palette:not(.theme-consolas) .dashboard-space-switcher, :root.theme-palette:not(.theme-consolas) .dashboard-chart-controls, :root.theme-palette:not(.theme-consolas) .dashboard-analytics-body, :root.theme-pale"
 				]
 			},
@@ -4521,7 +4520,6 @@
 				"covered": true,
 				"tokenized": true,
 				"selectors": [
-					":root.theme-consolas .dashboard-space-button, :root.theme-consolas .dashboard-space-unread, :root.theme-consolas .dashboard-bar-button, :root.theme-consolas .dashboard-bar-track, :root.theme-consolas .dashboard-pie::afte",
 					":root.theme-consolas .dashboard-space-switcher, :root.theme-consolas .dashboard-chart-controls, :root.theme-consolas .dashboard-analytics-body, :root.theme-consolas .dashboard-pie-wrap, :root.theme-consolas .dashboard-pi"
 				]
 			},

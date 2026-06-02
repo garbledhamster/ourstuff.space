@@ -1343,8 +1343,6 @@ function normalizeHexColor(value, fallback = "") {
 function normalizeDashboardIdentity(value) {
 	const defaults = cloneDefaultDashboardIdentity();
 	const legacyDisplayMode = value?.displayMode === "icons" ? "icons" : "numbers";
-	const showTitle =
-		typeof value?.showTitle === "boolean" ? value.showTitle : true;
 	const showNumbers =
 		typeof value?.showNumbers === "boolean"
 			? value.showNumbers
@@ -1356,12 +1354,12 @@ function normalizeDashboardIdentity(value) {
 	const displayMode =
 		showIcons && !showNumbers
 			? "icons"
-			: showNumbers && !showIcons
-				? "numbers"
-				: "custom";
+		: showNumbers && !showIcons
+			? "numbers"
+			: "custom";
 	return {
 		displayMode,
-		showTitle,
+		showTitle: true,
 		showNumbers,
 		showIcons,
 		colorAlwaysOn: value?.colorAlwaysOn === true,
@@ -4984,23 +4982,23 @@ function dashboardDisplayNameList() {
 
 function dashboardTitleHtml(dashboard) {
 	const parts = [];
-	if (state.dashboardIdentity?.showNumbers) {
+	const showNumber = state.dashboardIdentity?.showNumbers;
+	const showIcon = state.dashboardIdentity?.showIcons;
+	if (showNumber || !showIcon) {
 		parts.push(
 			`<span class="dashboard-card-number">${escapeHtml(dashboardDisplayNumber(dashboard))}</span>`,
 		);
 	}
 	const labelParts = [];
-	if (state.dashboardIdentity?.showIcons) {
+	if (showIcon) {
 		labelParts.push(
 			`<span class="dashboard-card-icon">${iconHtml(dashboardDisplayIcon(dashboard))}</span>`,
 		);
 	}
-	if (state.dashboardIdentity?.showTitle !== false) {
-		const displayLabel = dashboardDisplayLabel(dashboard).toUpperCase();
-		labelParts.push(
-			`<span class="dashboard-card-name">${escapeHtml(displayLabel)}</span>`,
-		);
-	}
+	const displayLabel = dashboardDisplayLabel(dashboard).toUpperCase();
+	labelParts.push(
+		`<span class="dashboard-card-name">${escapeHtml(displayLabel)}</span>`,
+	);
 	if (labelParts.length) {
 		parts.push(
 			`<span class="dashboard-card-label">${labelParts.join("")}</span>`,
@@ -5010,17 +5008,7 @@ function dashboardTitleHtml(dashboard) {
 }
 
 function dashboardInlineLabelHtml(dashboard) {
-	const parts = [];
-	if (state.dashboardIdentity?.showNumbers) {
-		parts.push(`<span>${escapeHtml(dashboardDisplayNumber(dashboard))}</span>`);
-	}
-	if (state.dashboardIdentity?.showIcons) {
-		parts.push(iconHtml(dashboardDisplayIcon(dashboard)));
-	}
-	if (state.dashboardIdentity?.showTitle !== false) {
-		parts.push(`<span>${escapeHtml(dashboardDisplayLabel(dashboard))}</span>`);
-	}
-	return parts.join("");
+	return `<span>${escapeHtml(dashboardDisplayLabel(dashboard))}</span>`;
 }
 
 function dashboardHeaderTitleHtml(dashboard) {
@@ -11485,8 +11473,6 @@ function setColorMode(mode) {
 function saveDashboardIdentitySettings() {
 	const current = normalizeDashboardIdentity(state.dashboardIdentity);
 	const defaults = cloneDefaultDashboardIdentity();
-	const showTitle =
-		document.getElementById("dashboard-show-title")?.checked ?? true;
 	const showNumbers =
 		document.getElementById("dashboard-show-numbers")?.checked ?? false;
 	const showIcons =
@@ -11501,7 +11487,7 @@ function saveDashboardIdentitySettings() {
 				: "custom";
 	const nextIdentity = {
 		displayMode,
-		showTitle,
+		showTitle: true,
 		showNumbers,
 		showIcons,
 		colorAlwaysOn,
@@ -12330,7 +12316,7 @@ function sidebarHtml(_compendium) {
           <button class="sidebar-menu-nav-button sidebar-menu-nav-timer${state.timerState?.running ? " is-active" : ""}" data-action="open-timer" data-menu-timer-button type="button" aria-label="Open Timer" title="Timer">
             ${iconHtml("tabler:clock")}
           </button>
-          <button class="sidebar-menu-nav-button sidebar-menu-nav-trash" data-action="open-trash" type="button" aria-label="Open Trash" title="Trash">
+          <button class="sidebar-menu-nav-button sidebar-menu-nav-trash" data-action="open-trash" data-thought-tooltip="Recycle Bin" type="button" aria-label="Open Recycle Bin" title="Recycle Bin">
             ${iconHtml("tabler:trash")}
           </button>
         </nav>
@@ -13617,15 +13603,11 @@ function settingsInterfaceHtml() {
       <section class="interface-settings-section">
         <div class="body-card-heading">
           <div>
-            <h3>Category Icons</h3>
+            <h3>Category Options</h3>
             <p>Customize each category title, number, icon, and card color.</p>
           </div>
         </div>
         <div class="dashboard-identity-toggles">
-          <label class="dashboard-identity-toggle">
-            <input id="dashboard-show-title" data-dashboard-display-option type="checkbox"${identity.showTitle !== false ? " checked" : ""}>
-            <span>Title</span>
-          </label>
           <label class="dashboard-identity-toggle">
             <input id="dashboard-show-numbers" data-dashboard-display-option type="checkbox"${identity.showNumbers ? " checked" : ""}>
             <span>Numbers</span>
@@ -19788,10 +19770,12 @@ function handleAction(element) {
 		deleteSelectedGalleryImages();
 	}
 	if (action === "open-settings") {
+		const closingSettings =
+			state.mobileMenuOpen && state.sidebarSubmenu === "settings";
 		setState({
 			active: state.active === "Settings" ? "Dashboard" : state.active,
-			mobileMenuOpen: true,
-			sidebarSubmenu: "settings",
+			mobileMenuOpen: !closingSettings,
+			sidebarSubmenu: closingSettings ? "" : "settings",
 			flipped: null,
 			artifactMode: "grid",
 			selectedArtifactId: null,
@@ -19821,7 +19805,7 @@ function handleAction(element) {
 		});
 	}
 	if (action === "close-settings") {
-		setState({ sidebarSubmenu: "", mobileMenuOpen: true });
+		setState({ sidebarSubmenu: "", mobileMenuOpen: false });
 	}
 	if (action === "close-sidebar-submenu") {
 		setState({ sidebarSubmenu: "", mobileMenuOpen: true });
