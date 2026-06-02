@@ -196,48 +196,23 @@ export async function signInWithGoogle() {
 	}
 	emitCloudState({
 		busy: true,
-		message: "Opening Google sign-in...",
+		message: "Redirecting to Google sign-in...",
 		error: "",
 	});
 	const provider = new modules.GoogleAuthProvider();
 	provider.setCustomParameters({ prompt: "select_account" });
-	googleSignInPromise = (async () => {
-		if (typeof modules.signInWithPopup === "function") {
-			try {
-				await modules.signInWithPopup(firebaseAuth, provider);
-				return getCloudAccountState();
-			} catch (error) {
-				if (!shouldFallbackToGoogleRedirect(error)) {
-					throw error;
-				}
-				emitCloudState({
-					busy: true,
-					message: "Popup sign-in was blocked. Redirecting to Google...",
-					error: "",
-				});
-			}
-		}
-		markAuthRedirectPending();
-		try {
-			await modules.signInWithRedirect(firebaseAuth, provider);
-		} catch (error) {
+	markAuthRedirectPending();
+	googleSignInPromise = modules
+		.signInWithRedirect(firebaseAuth, provider)
+		.catch((error) => {
 			clearAuthRedirectPending();
 			throw error;
-		}
-		return getCloudAccountState();
-	})().finally(() => {
-		googleSignInPromise = null;
-	});
+		})
+		.finally(() => {
+			googleSignInPromise = null;
+		});
 	await googleSignInPromise;
 	return getCloudAccountState();
-}
-
-function shouldFallbackToGoogleRedirect(error) {
-	const code = String(error?.code || "");
-	return (
-		code === "auth/popup-blocked" ||
-		code === "auth/operation-not-supported-in-this-environment"
-	);
 }
 
 export async function signInWithEmailPassword(email, password, options = {}) {

@@ -446,6 +446,7 @@ select option:checked {
 }
 
 :root.theme-consolas .sidebar-item.is-active,
+:root.theme-consolas .dashboard-card.is-color-always-on .dashboard-card-face,
 :root.theme-consolas .dashboard-card:hover .dashboard-card-face,
 :root.theme-consolas .dashboard-card:focus-visible .dashboard-card-face,
 :root.theme-consolas .dashboard-card.is-linked-hover .dashboard-card-face,
@@ -718,6 +719,128 @@ select option:checked {
 	gap: 12px;
 	min-width: 0;
 	padding: 8px 0 14px;
+}
+
+.sidebar-submenu {
+	display: grid;
+	align-content: start;
+	gap: 14px;
+	min-width: 0;
+	padding: 8px 0 18px;
+}
+
+.sidebar-submenu-header {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	align-items: center;
+	gap: 12px;
+	border: 1px solid var(--border-soft);
+	border-radius: 14px;
+	background: rgba(15, 23, 42, 0.72);
+	padding: 12px;
+}
+
+.sidebar-submenu-back {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 7px;
+	min-height: 36px;
+	border: 1px solid var(--border-soft);
+	border-radius: 10px;
+	background: var(--theme-control, #0f172a);
+	color: var(--text);
+	padding: 0 11px;
+	font-family: var(--font-label);
+	font-size: 0.78rem;
+	font-weight: 900;
+}
+
+.sidebar-submenu-back:hover,
+.sidebar-submenu-back:focus-visible {
+	border-color: var(--accent);
+	background: var(--theme-control-hover, #1e293b);
+	outline: none;
+}
+
+.sidebar-submenu-back .button-icon {
+	width: 1rem;
+	height: 1rem;
+}
+
+.sidebar-submenu-header h2,
+.sidebar-submenu-header p {
+	margin: 0;
+}
+
+.sidebar-submenu-header h2 {
+	color: var(--text);
+	font-family: var(--font-display);
+	font-size: 1.05rem;
+	line-height: 1.15;
+}
+
+.sidebar-submenu-header p {
+	color: var(--muted);
+	font-size: 0.82rem;
+	line-height: 1.35;
+}
+
+.sidebar-settings-submenu .settings-page {
+	grid-template-rows: auto auto;
+	gap: 12px;
+	height: auto;
+	overflow: visible;
+}
+
+.sidebar-settings-submenu .settings-tabs {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 7px;
+}
+
+.sidebar-settings-submenu .settings-tabs .body-mode-button {
+	min-height: 40px;
+	padding: 0 8px;
+}
+
+.sidebar-settings-submenu .settings-tab-panel {
+	overflow: visible;
+	padding-right: 0;
+}
+
+.sidebar-settings-submenu .getting-started-page {
+	height: auto;
+}
+
+.sidebar-settings-submenu .getting-started-defaults,
+.sidebar-settings-submenu .thoughts-settings-intro {
+	grid-template-columns: minmax(0, 1fr);
+	align-items: stretch;
+}
+
+.sidebar-settings-submenu .getting-started-grid {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.sidebar-settings-submenu .body-actions,
+.sidebar-settings-submenu .cloud-heading-actions {
+	justify-content: stretch;
+}
+
+.sidebar-settings-submenu .primary-button,
+.sidebar-settings-submenu .secondary-button {
+	max-width: 100%;
+}
+
+.sidebar-text-link.is-active {
+	color: var(--text);
+	text-decoration-thickness: 2px;
+}
+
+@media (min-width: 720px) {
+	.sidebar-settings-submenu .settings-tabs {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
 }
 
 .sidebar-group {
@@ -1557,6 +1680,7 @@ select option:checked {
 	transform: rotateY(180deg);
 }
 
+.dashboard-card.is-color-always-on .dashboard-card-face,
 .dashboard-card:hover .dashboard-card-face,
 .dashboard-card:focus-visible .dashboard-card-face {
 	border-color: var(--card-color);
@@ -8630,6 +8754,35 @@ button.life-event-row:hover {
 	box-shadow: 0 18px 54px color-mix(in srgb, var(--bg) 76%, transparent);
 }
 
+.themed-child-viewer img[data-local-asset],
+.themed-child-viewer img.is-loading {
+	width: min(100%, var(--media-width, 720px));
+	aspect-ratio: var(--media-ratio, 4 / 3);
+	background:
+		linear-gradient(
+			90deg,
+			color-mix(in srgb, var(--surface) 86%, var(--border) 14%),
+			color-mix(in srgb, var(--surface) 72%, var(--border) 28%),
+			color-mix(in srgb, var(--surface) 86%, var(--border) 14%)
+		);
+	background-size: 180% 100%;
+	animation: reader-media-placeholder 1.2s ease-in-out infinite;
+}
+
+.themed-child-viewer img:not(.is-loading) {
+	animation: none;
+}
+
+@keyframes reader-media-placeholder {
+	from {
+		background-position: 100% 0;
+	}
+
+	to {
+		background-position: -100% 0;
+	}
+}
+
 .themed-child-viewer iframe {
 	width: min(100%, 900px);
 	aspect-ratio: 16 / 9;
@@ -10067,6 +10220,9 @@ button.life-event-row:hover {
 	color: var(--muted);
 }
 
+:root.theme-palette:not(.theme-consolas)
+	.dashboard-card.is-color-always-on
+	.dashboard-card-face,
 :root.theme-palette:not(.theme-consolas)
 	.dashboard-card:hover
 	.dashboard-card-face,
@@ -11964,6 +12120,7 @@ button.life-event-row:hover {
 	text-shadow: none;
 }
 
+:root.theme-matrix .dashboard-card.is-color-always-on .dashboard-card-face,
 :root.theme-matrix .dashboard-card:hover .dashboard-card-face,
 :root.theme-matrix .dashboard-card:focus-visible .dashboard-card-face,
 :root.theme-matrix .dashboard-card.is-linked-hover .dashboard-card-face,

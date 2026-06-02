@@ -34,3 +34,5 @@ LLM.md
 opencode.json
 /.node
 /.llm_brain
+/.llm_brain
+.llm_brain/dev reference/THEME_ADAPTER_COVERAGE.json

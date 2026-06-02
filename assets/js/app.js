@@ -34,7 +34,7 @@ import {
 	signOutCloud,
 	startCloudSubscription,
 	updateFamilyMember,
-} from "./cloud.js?v=space-sync-20260601b";
+} from "./cloud.js?v=space-sync-20260601c";
 import { CLOUD_STORAGE_LIMIT_BYTES } from "./config.js?v=storage-quota-20260523a";
 import { today } from "./data.js";
 import { bindDonationFlow, donationModalHtml } from "./donations.js";
@@ -50,7 +50,6 @@ import {
 	listLocalImages,
 	migrateLocalMediaToCloud,
 	resolveLocalFile,
-	resolveLocalImageUrl,
 	storeLocalFile,
 	storeLocalImage,
 	storeLocalImageFromDataUrl,
@@ -65,7 +64,6 @@ import {
 	DEFAULT_PYXIDA_SETTINGS,
 	estimatePyxdiaLetterSize,
 	estimatePyxdiaNoteMetadataSize,
-	fetchPyxdiaUnreadSummary,
 	fetchPyxdiaState,
 	markPyxdiaThreadRead,
 	normalizePyxdiaDynamicRetrievalMemory,
@@ -391,8 +389,10 @@ const GOAL_FREQUENCY_OPTIONS = [
 ];
 const DEFAULT_DASHBOARD_IDENTITY = {
 	displayMode: "numbers",
+	showTitle: true,
 	showNumbers: true,
 	showIcons: false,
+	colorAlwaysOn: false,
 	items: {
 		Mind: {
 			number: "01",
@@ -1297,8 +1297,10 @@ function cloneDefaultDashboardIdentityForSpace(spaceId = activeSpaceId()) {
 	const spaceLabels = DATA_SPACES[spaceId]?.dashboardLabels || {};
 	return {
 		displayMode: DEFAULT_DASHBOARD_IDENTITY.displayMode,
+		showTitle: DEFAULT_DASHBOARD_IDENTITY.showTitle,
 		showNumbers: DEFAULT_DASHBOARD_IDENTITY.showNumbers,
 		showIcons: DEFAULT_DASHBOARD_IDENTITY.showIcons,
+		colorAlwaysOn: DEFAULT_DASHBOARD_IDENTITY.colorAlwaysOn,
 		items: Object.fromEntries(
 			DASHBOARD_LABELS.map((dashboard) => [
 				dashboard,
@@ -1340,14 +1342,29 @@ function normalizeHexColor(value, fallback = "") {
 
 function normalizeDashboardIdentity(value) {
 	const defaults = cloneDefaultDashboardIdentity();
+	const legacyDisplayMode = value?.displayMode === "icons" ? "icons" : "numbers";
+	const showTitle =
+		typeof value?.showTitle === "boolean" ? value.showTitle : true;
+	const showNumbers =
+		typeof value?.showNumbers === "boolean"
+			? value.showNumbers
+			: legacyDisplayMode === "numbers";
+	const showIcons =
+		typeof value?.showIcons === "boolean"
+			? value.showIcons
+			: legacyDisplayMode === "icons";
 	const displayMode =
-		value?.displayMode === "icons" || value?.showIcons === true
+		showIcons && !showNumbers
 			? "icons"
-			: "numbers";
+			: showNumbers && !showIcons
+				? "numbers"
+				: "custom";
 	return {
 		displayMode,
-		showNumbers: displayMode === "numbers",
-		showIcons: displayMode === "icons",
+		showTitle,
+		showNumbers,
+		showIcons,
+		colorAlwaysOn: value?.colorAlwaysOn === true,
 		items: Object.fromEntries(
 			DASHBOARD_LABELS.map((dashboard) => {
 				const current = value?.items?.[dashboard] || value?.[dashboard] || {};
@@ -3609,7 +3626,7 @@ function scheduleCloudStorageUsageRefresh(options = {}) {
 
 function applyCloudStorageUsage(usage) {
 	state.cloudStorageUsage = usage;
-	if (state.active === "Settings" && state.settingsTab === "cloud") {
+	if (state.sidebarSubmenu === "settings" && state.settingsTab === "cloud") {
 		const card = app.querySelector(".cloud-usage-card");
 		if (card) {
 			card.outerHTML = cloudStorageUsageHtml(usage);
@@ -4243,6 +4260,7 @@ const state = {
 	gallerySelectedIds: [],
 	galleryThumbSize: 180,
 	mobileMenuOpen: initialMenuOpen(),
+	sidebarSubmenu: "",
 	sidebarWidth: loadSidebarWidth(),
 	suppressNextMenuToggle: false,
 	sidebarExpanded: {
@@ -4977,13 +4995,17 @@ function dashboardTitleHtml(dashboard) {
 			`<span class="dashboard-card-icon">${iconHtml(dashboardDisplayIcon(dashboard))}</span>`,
 		);
 	}
-	const displayLabel = dashboardDisplayLabel(dashboard).toUpperCase();
-	labelParts.push(
-		`<span class="dashboard-card-name">${escapeHtml(displayLabel)}</span>`,
-	);
-	parts.push(
-		`<span class="dashboard-card-label">${labelParts.join("")}</span>`,
-	);
+	if (state.dashboardIdentity?.showTitle !== false) {
+		const displayLabel = dashboardDisplayLabel(dashboard).toUpperCase();
+		labelParts.push(
+			`<span class="dashboard-card-name">${escapeHtml(displayLabel)}</span>`,
+		);
+	}
+	if (labelParts.length) {
+		parts.push(
+			`<span class="dashboard-card-label">${labelParts.join("")}</span>`,
+		);
+	}
 	return parts.join("");
 }
 
@@ -4995,7 +5017,9 @@ function dashboardInlineLabelHtml(dashboard) {
 	if (state.dashboardIdentity?.showIcons) {
 		parts.push(iconHtml(dashboardDisplayIcon(dashboard)));
 	}
-	parts.push(`<span>${escapeHtml(dashboardDisplayLabel(dashboard))}</span>`);
+	if (state.dashboardIdentity?.showTitle !== false) {
+		parts.push(`<span>${escapeHtml(dashboardDisplayLabel(dashboard))}</span>`);
+	}
 	return parts.join("");
 }
 
@@ -5853,7 +5877,7 @@ function transferTrackerKind(area, id, kind = "thought") {
 		trackerDeleteKey: "",
 		trackerAddArea: "",
 		settingsTab:
-			state.active === "Settings"
+			state.sidebarSubmenu === "settings"
 				? targetKind === "goal"
 					? "goals"
 					: "thoughts"
@@ -8133,6 +8157,17 @@ function validatePyxdiaDraft(draft, settings = state.pyxdiaSettings) {
 	return "";
 }
 
+function pyxdiaUnreadBySpaceFromPayload(payload = {}, fallback = {}) {
+	const unread = payload.unread || {};
+	if (unread.bySpaceId && typeof unread.bySpaceId === "object") {
+		return unread.bySpaceId;
+	}
+	if (unread.byAppId && typeof unread.byAppId === "object") {
+		return unread.byAppId;
+	}
+	return fallback;
+}
+
 function applyPyxdiaStatePayload(payload = {}) {
 	const local = normalizePyxdiaLocalState({
 		threads: payload.threads || state.pyxdiaThreads,
@@ -8152,10 +8187,10 @@ function applyPyxdiaStatePayload(payload = {}) {
 	state.pyxdiaCorrespondents = Array.isArray(payload.correspondents)
 		? payload.correspondents.map(normalizePyxdiaCorrespondent).filter(Boolean)
 		: state.pyxdiaCorrespondents;
-	state.pyxdiaUnreadBySpace =
-		payload.unread?.bySpaceId && typeof payload.unread.bySpaceId === "object"
-			? payload.unread.bySpaceId
-			: state.pyxdiaUnreadBySpace;
+	state.pyxdiaUnreadBySpace = pyxdiaUnreadBySpaceFromPayload(
+		payload,
+		state.pyxdiaUnreadBySpace,
+	);
 	savePyxdiaSettingsLocal(settings);
 	savePyxdiaLocalState();
 	return { settings, ...local };
@@ -8252,7 +8287,6 @@ async function refreshPyxdiaState(options = {}) {
 	if (isPyxdiaSignedIn() && !state.cloud?.isLocalDemo) {
 		const payload = await fetchPyxdiaState({ getIdToken: getCloudIdToken });
 		applyPyxdiaStatePayload(payload);
-		await refreshPyxdiaUnreadSummary({ render: false }).catch(() => {});
 		setState({
 			pyxdiaBusy: false,
 			pyxdiaError: "",
@@ -8275,13 +8309,10 @@ async function refreshPyxdiaUnreadSummary(options = {}) {
 	if (!isPyxdiaSignedIn() || state.cloud?.isLocalDemo) {
 		return;
 	}
-	const payload = await fetchPyxdiaUnreadSummary({
+	const payload = await fetchPyxdiaState({
 		getIdToken: getCloudIdToken,
-		optionalToken: true,
 	});
-	const next = payload?.bySpaceId && typeof payload.bySpaceId === "object"
-		? payload.bySpaceId
-		: {};
+	const next = pyxdiaUnreadBySpaceFromPayload(payload, {});
 	if (options.render === false) {
 		state.pyxdiaUnreadBySpace = next;
 		return;
@@ -8408,7 +8439,6 @@ async function sendPyxdiaLetterAction() {
 			{ getIdToken: getCloudIdToken },
 		);
 		applyPyxdiaStatePayload(payload);
-		await refreshPyxdiaUnreadSummary({ render: false }).catch(() => {});
 		setState({
 			pyxdiaBusy: false,
 			pyxdiaStatus: "Letter sent.",
@@ -8536,6 +8566,7 @@ function applyTrashStatePayload(payload = {}) {
 function openTrash() {
 	setState({
 		active: "Trash",
+		sidebarSubmenu: "",
 		flipped: null,
 		artifactMode: "grid",
 		selectedArtifactId: null,
@@ -9473,7 +9504,11 @@ function _setSidebarWidth(width, options = {}) {
 }
 
 function toggleMobileMenu() {
-	setState({ mobileMenuOpen: !state.mobileMenuOpen });
+	const nextOpen = !state.mobileMenuOpen;
+	setState({
+		mobileMenuOpen: nextOpen,
+		sidebarSubmenu: nextOpen ? state.sidebarSubmenu : "",
+	});
 }
 
 function closeMobileMenu() {
@@ -9481,6 +9516,7 @@ function closeMobileMenu() {
 		return false;
 	}
 	state.mobileMenuOpen = false;
+	state.sidebarSubmenu = "";
 	const workspace = app.querySelector(".workspace");
 	const toggle = app.querySelector(".mobile-menu-toggle");
 	workspace?.classList.remove("has-mobile-menu");
@@ -9862,6 +9898,7 @@ async function refreshGalleryImages() {
 function openGallery() {
 	setState({
 		active: "Gallery",
+		sidebarSubmenu: "",
 		flipped: null,
 		artifactMode: "grid",
 		selectedArtifactId: null,
@@ -9877,6 +9914,7 @@ function openGallery() {
 function goHome() {
 	setState({
 		active: "Dashboard",
+		sidebarSubmenu: "",
 		flipped: null,
 		mindMode: "grid",
 		artifactMode: "grid",
@@ -9895,6 +9933,7 @@ function openDashboardCard(section) {
 	}
 	setState({
 		active: section,
+		sidebarSubmenu: "",
 		flipped: null,
 		mindMode: section === "Mind" ? "grid" : state.mindMode,
 		artifactMode: section === "Mind" ? state.artifactMode : "grid",
@@ -11446,15 +11485,26 @@ function setColorMode(mode) {
 function saveDashboardIdentitySettings() {
 	const current = normalizeDashboardIdentity(state.dashboardIdentity);
 	const defaults = cloneDefaultDashboardIdentity();
+	const showTitle =
+		document.getElementById("dashboard-show-title")?.checked ?? true;
+	const showNumbers =
+		document.getElementById("dashboard-show-numbers")?.checked ?? false;
+	const showIcons =
+		document.getElementById("dashboard-show-icons")?.checked ?? false;
+	const colorAlwaysOn =
+		document.getElementById("dashboard-color-always-on")?.checked ?? false;
 	const displayMode =
-		document.querySelector("input[name='dashboard-display-mode']:checked")
-			?.value === "icons"
+		showIcons && !showNumbers
 			? "icons"
-			: "numbers";
+			: showNumbers && !showIcons
+				? "numbers"
+				: "custom";
 	const nextIdentity = {
 		displayMode,
-		showNumbers: displayMode === "numbers",
-		showIcons: displayMode === "icons",
+		showTitle,
+		showNumbers,
+		showIcons,
+		colorAlwaysOn,
 		items: Object.fromEntries(
 			DASHBOARD_LABELS.map((dashboard) => {
 				const label =
@@ -11642,7 +11692,7 @@ function render() {
 	focusThoughtEditor();
 	restoreThoughtToastFocus(thoughtToastFocus);
 	restoreContentScrollPosition(contentScrollRestoreKey);
-	if (state.active === "Settings" && state.settingsTab === "cloud") {
+	if (state.sidebarSubmenu === "settings" && state.settingsTab === "cloud") {
 		scheduleCloudStorageUsageRefresh();
 	}
 }
@@ -12269,6 +12319,7 @@ function sidebarHtml(_compendium) {
 	).length;
 	const collapseMode = expandedCount >= 2;
 	const toggleAllLabel = collapseMode ? "Collapse all" : "Expand all";
+	const submenu = state.sidebarSubmenu === "settings";
 	return `
     <aside class="sidebar">
       <div class="sidebar-fixed-top">
@@ -12285,7 +12336,10 @@ function sidebarHtml(_compendium) {
         </nav>
       </div>
       <div class="sidebar-list-scroll">
-        <div class="sidebar-groups">
+        ${
+					submenu
+						? sidebarSettingsSubmenuHtml()
+						: `<div class="sidebar-groups">
           ${pyxdiaSidebarHtml()}
           ${sectionLabels
 						.map((label) => {
@@ -12349,17 +12403,39 @@ function sidebarHtml(_compendium) {
             `;
 						})
 						.join("")}
-        </div>
+        </div>`
+				}
       </div>
       <div class="sidebar-donate-row">
         <button class="primary-button full-width donate-sidebar" data-action="open-donation" type="button">${buttonContent("tabler:heart-handshake", "Thanks / Donate")}</button>
         <div class="sidebar-footer-links">
-          <button class="sidebar-text-link" data-action="open-settings" type="button">Settings</button>
+          <button class="sidebar-text-link${submenu ? " is-active" : ""}" data-action="open-settings" type="button">Settings</button>
           <span aria-hidden="true">/</span>
           <button class="sidebar-text-link" data-action="open-gallery" type="button">Gallery</button>
         </div>
       </div>
     </aside>
+  `;
+}
+
+function sidebarSettingsSubmenuHtml() {
+	const tab = activeSettingsTab();
+	return `
+    <section class="sidebar-submenu sidebar-settings-submenu" aria-labelledby="sidebar-settings-title">
+      <header class="sidebar-submenu-header">
+        <button class="sidebar-submenu-back" data-action="close-sidebar-submenu" type="button" aria-label="Back to menu">
+          ${buttonContent("tabler:arrow-left", "Menu")}
+        </button>
+        <div>
+          <h2 id="sidebar-settings-title">Settings</h2>
+          <p>Setup, orbs, interface, Pen Pal, and data.</p>
+        </div>
+      </header>
+      <div class="settings-page settings-page--menu">
+        ${settingsTabsHtml(tab)}
+        ${settingsPanelHtml(tab)}
+      </div>
+    </section>
   `;
 }
 
@@ -12601,7 +12677,7 @@ function contentHtml(compendium, section) {
 		return dashboardGridHtml();
 	}
 	if (state.active === "Settings") {
-		return settingsHtml();
+		return dashboardGridHtml();
 	}
 	if (state.active === "Gallery") {
 		return galleryHtml();
@@ -12640,7 +12716,7 @@ function dashboardGridHtml() {
       <div class="dashboard-grid">
         ${DASHBOARD_LABELS.map(
 					(label) => `
-          <button class="dashboard-card${state.flipped === label ? " is-flipped" : ""}" data-action="open-dashboard-card" data-section="${label}" data-balance-key="${label}" style="--card-color: ${dashboardColor(label)};">
+          <button class="dashboard-card${state.flipped === label ? " is-flipped" : ""}${state.dashboardIdentity?.colorAlwaysOn ? " is-color-always-on" : ""}" data-action="open-dashboard-card" data-section="${label}" data-balance-key="${label}" style="--card-color: ${dashboardColor(label)};">
             <span class="dashboard-card-inner">
               <span class="dashboard-card-face dashboard-card-front">
                 <span class="dashboard-card-title">${dashboardTitleHtml(label)}</span>
@@ -13314,9 +13390,20 @@ function trashItemHtml(item) {
 }
 
 function settingsHtml() {
+	const tab = activeSettingsTab();
+	return panelHtml(`
+    ${headerHtml("Settings", "Getting started, Thoughts, Goals, Interface, Pen Pal, and data controls.")}
+    <div class="settings-page">
+      ${settingsTabsHtml(tab)}
+      ${settingsPanelHtml(tab)}
+    </div>
+  `);
+}
+
+function activeSettingsTab() {
 	const requestedTab =
 		state.settingsTab === "dashboard" ? "interface" : state.settingsTab;
-	const tab = [
+	return [
 		"getting-started",
 		"thoughts",
 		"goals",
@@ -13326,21 +13413,19 @@ function settingsHtml() {
 	].includes(requestedTab)
 		? requestedTab
 		: "getting-started";
+}
+
+function settingsPanelHtml(tab = activeSettingsTab()) {
 	const panels = {
-		"getting-started": settingsGettingStartedHtml(),
-		thoughts: settingsThoughtsHtml(),
-		goals: settingsGoalsHtml(),
-		interface: settingsInterfaceHtml(),
-		pyxdia: settingsPyxdiaHtml(),
-		cloud: settingsCloudHtml(),
+		"getting-started": settingsGettingStartedHtml,
+		thoughts: settingsThoughtsHtml,
+		goals: settingsGoalsHtml,
+		interface: settingsInterfaceHtml,
+		pyxdia: settingsPyxdiaHtml,
+		cloud: settingsCloudHtml,
 	};
-	return panelHtml(`
-    ${headerHtml("Settings", "Getting started, Thoughts, Goals, Interface, Pen Pal, and data controls.")}
-    <div class="settings-page">
-      ${settingsTabsHtml(tab)}
-      ${panels[tab]}
-    </div>
-  `);
+	const renderPanel = panels[tab] || panels["getting-started"];
+	return renderPanel();
 }
 
 function settingsTabsHtml(activeTab) {
@@ -13533,17 +13618,25 @@ function settingsInterfaceHtml() {
         <div class="body-card-heading">
           <div>
             <h3>Category Icons</h3>
-            <p>Customize each category title and icon, then choose whether category labels show numbers or icons.</p>
+            <p>Customize each category title, number, icon, and card color.</p>
           </div>
         </div>
         <div class="dashboard-identity-toggles">
           <label class="dashboard-identity-toggle">
-            <input name="dashboard-display-mode" value="numbers" type="radio"${identity.displayMode !== "icons" ? " checked" : ""}>
+            <input id="dashboard-show-title" data-dashboard-display-option type="checkbox"${identity.showTitle !== false ? " checked" : ""}>
+            <span>Title</span>
+          </label>
+          <label class="dashboard-identity-toggle">
+            <input id="dashboard-show-numbers" data-dashboard-display-option type="checkbox"${identity.showNumbers ? " checked" : ""}>
             <span>Numbers</span>
           </label>
           <label class="dashboard-identity-toggle">
-            <input name="dashboard-display-mode" value="icons" type="radio"${identity.displayMode === "icons" ? " checked" : ""}>
+            <input id="dashboard-show-icons" data-dashboard-display-option type="checkbox"${identity.showIcons ? " checked" : ""}>
             <span>Icons</span>
+          </label>
+          <label class="dashboard-identity-toggle">
+            <input id="dashboard-color-always-on" data-dashboard-display-option type="checkbox"${identity.colorAlwaysOn ? " checked" : ""}>
+            <span>Color always on</span>
           </label>
         </div>
         <div class="dashboard-identity-grid">
@@ -16143,6 +16236,7 @@ function mindHtml(compendium, section) {
 		return panelHtml(`
       <div class="reader-topbar reader-topbar--actions">
         <div class="action-row">
+          ${pageActionButton("copy-reader-page", "tabler:copy", "Copy page")}
           ${pageActionButton("edit-section", "tabler:pencil", "Edit section")}
           ${pageActionButton("delete-section", "tabler:trash", "Delete section", { danger: true, data: { id: section.id } })}
           ${pageActionButton("manager", "tabler:x", "Close section viewer", { className: "close-viewer-button" })}
@@ -16407,6 +16501,7 @@ function compendiumReaderHtml(compendium) {
 	return panelHtml(`
     <div class="reader-topbar reader-topbar--actions">
       <div class="action-row">
+        ${pageActionButton("copy-reader-page", "tabler:copy", "Copy page")}
         ${pageActionButton("edit-compendium", "tabler:pencil", "Edit compendium")}
         ${pageActionButton("delete-compendium", "tabler:trash", "Delete compendium", { danger: true, data: { id: compendium.id } })}
         ${pageActionButton("manager", "tabler:x", "Close reader", { className: "close-viewer-button" })}
@@ -16910,6 +17005,7 @@ function hideGuidedTip() {
 function navigationTourRouteState(route) {
 	const next = {
 		mobileMenuOpen: false,
+		sidebarSubmenu: "",
 		flipped: null,
 		artifactMode: "grid",
 		selectedArtifactId: null,
@@ -16986,9 +17082,10 @@ function stopNavigationTour({ restoreFocus = true } = {}) {
 		? { navigationTour: null }
 		: {
 				navigationTour: null,
-				active: "Settings",
+				active: "Dashboard",
 				settingsTab: "getting-started",
-				mobileMenuOpen: false,
+				mobileMenuOpen: true,
+				sidebarSubmenu: "settings",
 				flipped: null,
 				artifactMode: "grid",
 				selectedArtifactId: null,
@@ -18051,7 +18148,7 @@ function bindDashboardIdentityAutoSave() {
 	};
 	panel
 		.querySelectorAll(
-			"input[name='dashboard-display-mode'], .dashboard-identity-input-row input",
+			"[data-dashboard-display-option], .dashboard-identity-input-row input",
 		)
 		.forEach((input) => {
 			input.addEventListener("input", scheduleSave);
@@ -19119,8 +19216,204 @@ function markLocalAssetMissing(element, error) {
 
 function markLocalAssetReady(element) {
 	element.classList.remove("is-missing");
+	element.classList.remove("is-loading");
 	element.removeAttribute("title");
 	delete element.dataset.mediaError;
+}
+
+function blobToDataUrl(blob) {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => resolve(String(reader.result || ""));
+		reader.onerror = () => reject(reader.error);
+		reader.readAsDataURL(blob);
+	});
+}
+
+function readerCopyRootForNode(node) {
+	const element =
+		node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement;
+	return (
+		element?.closest?.(".reader-panel, .reader-book--compendium") || null
+	);
+}
+
+function readerCopyRootFromSelection(selection = window.getSelection()) {
+	if (!selection || selection.isCollapsed || !selection.rangeCount) {
+		return null;
+	}
+	const anchorRoot = readerCopyRootForNode(selection.anchorNode);
+	const focusRoot = readerCopyRootForNode(selection.focusNode);
+	return anchorRoot && anchorRoot === focusRoot ? anchorRoot : null;
+}
+
+function activeReaderCopyRoot() {
+	return (
+		app.querySelector(".reader-book--compendium .reader-slide.is-active") ||
+		app.querySelector(".reader-panel") ||
+		null
+	);
+}
+
+function cloneReaderSelection(selection) {
+	const root = document.createElement("div");
+	for (let index = 0; index < selection.rangeCount; index += 1) {
+		root.append(selection.getRangeAt(index).cloneContents());
+	}
+	return root;
+}
+
+function sanitizeReaderCopyRoot(root) {
+	root
+		.querySelectorAll(
+			[
+				"button",
+				"script",
+				"style",
+				".page-number-overlay",
+				".reader-gallery-controls",
+				".reader-page-indicator",
+				".reader-slider-edge",
+			].join(", "),
+		)
+		.forEach((element) => element.remove());
+	root.querySelectorAll("[class]").forEach((element) => {
+		const className = String(element.className || "");
+		if (
+			/^(page-content|markdown-body|reader-section|themed-child-viewer)/.test(
+				className,
+			)
+		) {
+			return;
+		}
+		element.removeAttribute("class");
+	});
+	return root;
+}
+
+function readerCopyPlainText(root) {
+	const clone = root.cloneNode(true);
+	clone.querySelectorAll("img").forEach((image) => {
+		const label = image.alt ? `[Image: ${image.alt}]` : "[Image]";
+		image.replaceWith(document.createTextNode(`\n${label}\n`));
+	});
+	return clone.textContent
+		.replace(/[ \t]+\n/g, "\n")
+		.replace(/\n{3,}/g, "\n\n")
+		.trim();
+}
+
+function readerCopyHtml(root) {
+	return `
+    <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #111827;">
+      ${root.innerHTML}
+    </div>
+  `;
+}
+
+function applyResolvedImageDimensions(image, resolved = {}) {
+	const width = Number(resolved.width) || Number(image.naturalWidth) || 0;
+	const height = Number(resolved.height) || Number(image.naturalHeight) || 0;
+	if (!width || !height) {
+		return;
+	}
+	image.width = width;
+	image.height = height;
+	image.style.setProperty("--media-width", `${width}px`);
+	image.style.setProperty("--media-height", `${height}px`);
+	image.style.setProperty("--media-ratio", `${width} / ${height}`);
+}
+
+async function localOrBlobImageDataUrl(image) {
+	const localId = image.dataset.localAsset || "";
+	let source = image.currentSrc || image.src || "";
+	let resolved = null;
+	if (localId) {
+		resolved = await resolveLocalFile(localId);
+		applyResolvedImageDimensions(image, resolved);
+		source = resolved.url || source;
+	}
+	if (!source || source.startsWith("data:image/")) {
+		return source;
+	}
+	if (!localId && !source.startsWith("blob:")) {
+		return "";
+	}
+	const response = await fetch(source);
+	if (!response.ok) {
+		return "";
+	}
+	return await blobToDataUrl(await response.blob());
+}
+
+async function inlineReaderCopyImages(root) {
+	const images = [...root.querySelectorAll("img")];
+	for (const image of images) {
+		try {
+			const dataUrl = await localOrBlobImageDataUrl(image);
+			if (dataUrl) {
+				image.src = dataUrl;
+			}
+			image.removeAttribute("data-local-asset");
+			image.classList.remove("is-loading", "is-missing");
+			image.style.maxWidth = "100%";
+			image.style.height = "auto";
+		} catch {
+			image.removeAttribute("src");
+		}
+	}
+}
+
+async function writeReaderClipboard(root) {
+	const cleanRoot = sanitizeReaderCopyRoot(root);
+	await inlineReaderCopyImages(cleanRoot);
+	const html = readerCopyHtml(cleanRoot);
+	const text = readerCopyPlainText(cleanRoot);
+	if (navigator.clipboard?.write && window.ClipboardItem) {
+		await navigator.clipboard.write([
+			new ClipboardItem({
+				"text/html": new Blob([html], { type: "text/html" }),
+				"text/plain": new Blob([text], { type: "text/plain" }),
+			}),
+		]);
+		return true;
+	}
+	if (navigator.clipboard?.writeText) {
+		await navigator.clipboard.writeText(text);
+		return true;
+	}
+	return false;
+}
+
+async function copyActiveReaderPage() {
+	const root = activeReaderCopyRoot();
+	if (!root) {
+		return;
+	}
+	const copyRoot = document.createElement("div");
+	copyRoot.append(root.cloneNode(true));
+	try {
+		await writeReaderClipboard(copyRoot);
+	} catch (error) {
+		console.warn("ourstuff_reader_copy_failed", error);
+		window.alert("Could not copy this reader page.");
+	}
+}
+
+function handleReaderCopy(event) {
+	const selection = window.getSelection();
+	if (!readerCopyRootFromSelection(selection)) {
+		return;
+	}
+	const copyRoot = sanitizeReaderCopyRoot(cloneReaderSelection(selection));
+	const html = readerCopyHtml(copyRoot);
+	const text = readerCopyPlainText(copyRoot);
+	event.preventDefault();
+	event.clipboardData?.setData("text/html", html);
+	event.clipboardData?.setData("text/plain", text);
+	void writeReaderClipboard(copyRoot.cloneNode(true)).catch((error) => {
+		console.warn("ourstuff_reader_copy_upgrade_failed", error);
+	});
 }
 
 function toggleSpaceEnabled(spaceId) {
@@ -19145,11 +19438,18 @@ function toggleSpaceEnabled(spaceId) {
 
 function bindLocalAssetImages() {
 	app.querySelectorAll("img[data-local-asset]").forEach(async (image) => {
+		image.classList.add("is-loading");
 		try {
-			const url = await resolveLocalImageUrl(image.dataset.localAsset);
-			if (url) {
-				image.src = url;
-				markLocalAssetReady(image);
+			const resolved = await resolveLocalFile(image.dataset.localAsset);
+			applyResolvedImageDimensions(image, resolved);
+			if (resolved.url) {
+				image.addEventListener("load", () => markLocalAssetReady(image), {
+					once: true,
+				});
+				image.src = resolved.url;
+				if (image.complete) {
+					markLocalAssetReady(image);
+				}
 			} else {
 				markLocalAssetMissing(image, "No local or cloud media file was found.");
 			}
@@ -19248,6 +19548,10 @@ function handleAction(element) {
 		"toggle-pyxdia-menu",
 		"toggle-all-sidebar-sections",
 		"sidebar-page",
+		"open-settings",
+		"pyxdia-open-settings",
+		"close-sidebar-submenu",
+		"set-settings-tab",
 	]);
 	if (!keepMenuOpenActions.has(action)) {
 		closeMobileMenu();
@@ -19350,6 +19654,7 @@ function handleAction(element) {
 	if (action === "open-dashboard-direct") {
 		setState({
 			active: element.dataset.section,
+			sidebarSubmenu: "",
 			flipped: null,
 			artifactMode: "grid",
 			selectedArtifactId: null,
@@ -19484,7 +19789,9 @@ function handleAction(element) {
 	}
 	if (action === "open-settings") {
 		setState({
-			active: "Settings",
+			active: state.active === "Settings" ? "Dashboard" : state.active,
+			mobileMenuOpen: true,
+			sidebarSubmenu: "settings",
 			flipped: null,
 			artifactMode: "grid",
 			selectedArtifactId: null,
@@ -19498,8 +19805,10 @@ function handleAction(element) {
 	}
 	if (action === "pyxdia-open-settings") {
 		setState({
-			active: "Settings",
+			active: state.active === "Settings" ? "Dashboard" : state.active,
 			settingsTab: "pyxdia",
+			mobileMenuOpen: true,
+			sidebarSubmenu: "settings",
 			flipped: null,
 			artifactMode: "grid",
 			selectedArtifactId: null,
@@ -19512,10 +19821,15 @@ function handleAction(element) {
 		});
 	}
 	if (action === "close-settings") {
-		goHome();
+		setState({ sidebarSubmenu: "", mobileMenuOpen: true });
+	}
+	if (action === "close-sidebar-submenu") {
+		setState({ sidebarSubmenu: "", mobileMenuOpen: true });
 	}
 	if (action === "set-settings-tab") {
 		setState({
+			mobileMenuOpen: true,
+			sidebarSubmenu: "settings",
 			settingsTab:
 				element.dataset.tab === "dashboard"
 					? "interface"
@@ -19550,7 +19864,12 @@ function handleAction(element) {
 		void markSelectedPyxdiaThreadRead().catch(() => {});
 	}
 	if (action === "open-family-invites") {
-		setState({ active: "Settings", settingsTab: "cloud" });
+		setState({
+			active: state.active === "Settings" ? "Dashboard" : state.active,
+			mobileMenuOpen: true,
+			sidebarSubmenu: "settings",
+			settingsTab: "cloud",
+		});
 	}
 	if (action === "set-pyxdia-view") {
 		openPyxdia(element.dataset.view || "input");
@@ -20011,6 +20330,9 @@ function handleAction(element) {
 			Number(element.dataset.maxPage || 0),
 		);
 	}
+	if (action === "copy-reader-page") {
+		void copyActiveReaderPage();
+	}
 	if (action === "edit-compendium") {
 		setState({ mindMode: "compendium-editor" });
 	}
@@ -20089,6 +20411,7 @@ document.addEventListener("visibilitychange", () => {
 		saveTimerState(state.timerState, { markChanged: false });
 	}
 });
+document.addEventListener("copy", handleReaderCopy);
 ["pointerdown", "keydown", "wheel", "touchstart", "input"].forEach(
 	(eventName) => {
 		document.addEventListener(eventName, markUserInterfaceActivity, {

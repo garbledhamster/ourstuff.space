@@ -1,14 +1,14 @@
 {
 	"schema": "ourstuff.themeAdapterCoverage.v1",
-	"generatedAt": "2026-06-01T13:26:35.138Z",
+	"generatedAt": "2026-06-02T09:56:25.462Z",
 	"source": {
 		"cssPath": "assets/css/app.css",
-		"cssSha256": "09538a2e973254753dd3c75b93111d307b63b668f67248607c3011940347a95a"
+		"cssSha256": "0a41bb5883bf7df58de57334a15be9d00cf2ccadfe0c9b45f7e03a9b7afdc50f"
 	},
 	"summary": {
-		"classCount": 440,
+		"classCount": 444,
 		"needsAdapterCount": 26,
-		"coveredCount": 440,
+		"coveredCount": 444,
 		"requiredMissingCount": 0,
 		"highConfidenceMissingCount": 0
 	},
@@ -2480,7 +2480,7 @@
 				"selectors": [
 					":root.theme-palette:not(.theme-consolas) .app-shell, :root.theme-palette:not(.theme-consolas) .workspace, :root.theme-palette:not(.theme-consolas) .sidebar, :root.theme-palette:not(.theme-consolas) .mobile-menu-toggle, :",
 					":root.theme-palette:not(.theme-consolas) .theme-choice strong, :root.theme-palette:not(.theme-consolas) .home-button, :root.theme-palette:not(.theme-consolas) .path-bar button, :root.theme-palette:not(.theme-consolas) .d",
-					":root.theme-palette:not(.theme-consolas) .dashboard-card:hover .dashboard-card-face, :root.theme-palette:not(.theme-consolas) .dashboard-card:focus-visible .dashboard-card-face, :root.theme-palette:not(.theme-consolas) .",
+					":root.theme-palette:not(.theme-consolas) .dashboard-card.is-color-always-on .dashboard-card-face, :root.theme-palette:not(.theme-consolas) .dashboard-card:hover .dashboard-card-face, :root.theme-palette:not(.theme-consol",
 					":root.theme-palette:not(.theme-consolas) .dashboard-card-back-face",
 					":root.theme-palette:not(.theme-consolas) .dashboard-card-row strong"
 				]
@@ -2497,7 +2497,7 @@
 				".dashboard-card",
 				".dashboard-card-face",
 				".dashboard-card-back-face",
-				".dashboard-card:hover .dashboard-card-face, .dashboard-card:focus-visible .dashboard-card-face",
+				".dashboard-card.is-color-always-on .dashboard-card-face, .dashboard-card:hover .dashboard-card-face, .dashboard-card:focus-visible .dashboard-card-face",
 				".dashboard-card.is-linked-hover .dashboard-card-face"
 			]
 		},
@@ -2564,7 +2564,7 @@
 				"tokenized": true,
 				"selectors": [
 					":root.theme-palette:not(.theme-consolas) .app-shell, :root.theme-palette:not(.theme-consolas) .workspace, :root.theme-palette:not(.theme-consolas) .sidebar, :root.theme-palette:not(.theme-consolas) .mobile-menu-toggle, :",
-					":root.theme-palette:not(.theme-consolas) .dashboard-card:hover .dashboard-card-face, :root.theme-palette:not(.theme-consolas) .dashboard-card:focus-visible .dashboard-card-face, :root.theme-palette:not(.theme-consolas) ."
+					":root.theme-palette:not(.theme-consolas) .dashboard-card.is-color-always-on .dashboard-card-face, :root.theme-palette:not(.theme-consolas) .dashboard-card:hover .dashboard-card-face, :root.theme-palette:not(.theme-consol"
 				]
 			},
 			"consolas": {
@@ -2574,7 +2574,7 @@
 			},
 			"sourceSelectors": [
 				".dashboard-card-face",
-				".dashboard-card:hover .dashboard-card-face, .dashboard-card:focus-visible .dashboard-card-face",
+				".dashboard-card.is-color-always-on .dashboard-card-face, .dashboard-card:hover .dashboard-card-face, .dashboard-card:focus-visible .dashboard-card-face",
 				".dashboard-card.is-linked-hover .dashboard-card-face",
 				".dashboard-card.is-flipped .dashboard-card-face",
 				".dashboard-home:has(.dashboard-pie-segment[data-balance-key=\"Mind\"]:hover) .dashboard-card[data-balance-key=\"Mind\"] .dashboard-card-face, .dashboard-home:has(.dashboard-pie-segment[data-balance-key=\"Body\"]:hover) .dashbo"
@@ -9325,6 +9325,95 @@
 			"sourceSelectors": []
 		},
 		{
+			"className": "sidebar-settings-submenu",
+			"confidence": "layout",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": false,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": []
+		},
+		{
+			"className": "sidebar-submenu",
+			"confidence": "low",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": true,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": [
+				".sidebar-submenu-header",
+				".sidebar-submenu-back",
+				".sidebar-submenu-back:hover, .sidebar-submenu-back:focus-visible",
+				".sidebar-submenu-header h2",
+				".sidebar-submenu-header p"
+			]
+		},
+		{
+			"className": "sidebar-submenu-back",
+			"confidence": "low",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": true,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": [
+				".sidebar-submenu-back",
+				".sidebar-submenu-back:hover, .sidebar-submenu-back:focus-visible"
+			]
+		},
+		{
+			"className": "sidebar-submenu-header",
+			"confidence": "low",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": true,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": [
+				".sidebar-submenu-header",
+				".sidebar-submenu-header h2",
+				".sidebar-submenu-header p"
+			]
+		},
+		{
 			"className": "sidebar-text-link",
 			"confidence": "low",
 			"needsAdapter": false,
@@ -9345,7 +9434,8 @@
 			},
 			"sourceSelectors": [
 				".sidebar-text-link",
-				".sidebar-text-link:hover"
+				".sidebar-text-link:hover",
+				".sidebar-text-link.is-active"
 			]
 		},
 		{
@@ -9567,9 +9657,9 @@
 			"sourceSelectors": [
 				".themed-child-viewer",
 				".themed-child-viewer img",
+				".themed-child-viewer img[data-local-asset], .themed-child-viewer img.is-loading",
 				".themed-child-viewer iframe",
-				".themed-child-viewer--quotes blockquote",
-				".themed-child-viewer--text p"
+				".themed-child-viewer--quotes blockquote"
 			]
 		},
 		{
