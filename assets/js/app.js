@@ -4113,10 +4113,18 @@ async function restoreInactiveCloudSpacesOnSignIn(cloud = state.cloud) {
 	return { imported, enabled: nextEnabled.length };
 }
 
-async function signInWithEmailForm(options = {}) {
+function cloudEmailCredentialsFromDom() {
 	const email = document.getElementById("cloud-email")?.value || "";
 	const password = document.getElementById("cloud-password")?.value || "";
-	await signInWithEmailPassword(email, password, options);
+	return { email, password };
+}
+
+async function signInWithEmailForm(credentials, options = {}) {
+	await signInWithEmailPassword(
+		credentials?.email || "",
+		credentials?.password || "",
+		options,
+	);
 }
 
 async function sendFamilyInviteFromDom(sourceElement = null) {
@@ -11648,6 +11656,7 @@ function render() {
       ${sidebarHtml(compendium)}
       <section class="content-shell">
         ${pathBarHtml(compendium, section, spiritBook)}
+        ${floatingRouteTextHtml(compendium, section, spiritBook)}
         <div class="content-stage"${state.mobileMenuOpen ? ' inert aria-hidden="true"' : ""}>${contentHtml(compendium, section)}</div>
       </section>
     </div>
@@ -12678,6 +12687,27 @@ function pathBarHtml(compendium, section, spiritBook) {
       </div>
       ${pathCameraButtonHtml()}
     </nav>
+  `;
+}
+
+function floatingRouteTextHtml(compendium, section, spiritBook) {
+	const activeLabel = DASHBOARD_LABELS.includes(state.active)
+		? dashboardDisplayLabel(state.active)
+		: state.active === "PYXIDA"
+			? "Pen Pal"
+		: state.active;
+	const detail =
+		section?.title ||
+		compendium?.title ||
+		spiritBook?.title ||
+		(state.active === "Dashboard"
+			? `${activeSpaceLabel()} dashboard`
+			: activeLabel);
+	return `
+    <div class="floating-route-text" aria-label="Current view">
+      <span>${escapeHtml(activeLabel || "Dashboard")}</span>
+      <strong>${escapeHtml(detail || "Current view")}</strong>
+    </div>
   `;
 }
 
@@ -20064,11 +20094,13 @@ function handleAction(element) {
 		void runCloudAction("Opening Google sign-in...", () => signInWithGoogle());
 	}
 	if (action === "cloud-email-sign-in") {
-		void runCloudAction("Signing in...", () => signInWithEmailForm());
+		const credentials = cloudEmailCredentialsFromDom();
+		void runCloudAction("Signing in...", () => signInWithEmailForm(credentials));
 	}
 	if (action === "cloud-email-create") {
+		const credentials = cloudEmailCredentialsFromDom();
 		void runCloudAction("Creating account...", () =>
-			signInWithEmailForm({ create: true }),
+			signInWithEmailForm(credentials, { create: true }),
 		);
 	}
 	if (action === "cloud-sign-out") {
