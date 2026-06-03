@@ -194,6 +194,7 @@ const DISMISSED_TIPS_KEY = scopedStorageKey("ourstuff.dismissedTips.v1");
 const ICONIFY_SEARCH_CACHE_KEY = "ourstuff.iconifySearchCache.v1";
 const LOCAL_APP_UPDATED_AT_KEY = scopedStorageKey("ourstuff.localAppUpdatedAt.v1");
 const LOCAL_APP_OWNER_KEY = scopedStorageKey("ourstuff.localAppOwner.v1");
+const CLOUD_AUTH_VIEW_PENDING_KEY = "ourstuff.cloudAuthViewPending.v1";
 const CLOUD_SYNC_INTERVAL_MS = 2 * 60 * 1000;
 const CLOUD_SYNC_MIN_INTERVAL_MS = 20 * 1000;
 const CLOUD_SYNC_CLOCK_SKEW_MS = 1000;
@@ -2724,6 +2725,8 @@ function removeLocalAppStorageKeys() {
 }
 
 async function resetLocalAppForAccountSwitch(ownerId) {
+	const preserveCloudSettings =
+		state.sidebarSubmenu === "settings" && state.settingsTab === "cloud";
 	const emptyStore = createEmptyStore();
 	removeLocalAppStorageKeys();
 	await clearLocalFiles({ deleteRemote: false }).catch(() => {});
@@ -2741,7 +2744,7 @@ async function resetLocalAppForAccountSwitch(ownerId) {
 	state.timerSettings = normalizeTimerSettings();
 	state.timerOpen = false;
 	state.localAppUpdatedAt = "";
-	state.settingsTab = "getting-started";
+	state.settingsTab = preserveCloudSettings ? "cloud" : "getting-started";
 	state.trackerAddArea = "";
 	state.trackerEditKey = "";
 	state.trackerDeleteKey = "";
@@ -4117,6 +4120,27 @@ function cloudEmailCredentialsFromDom() {
 	const email = document.getElementById("cloud-email")?.value || "";
 	const password = document.getElementById("cloud-password")?.value || "";
 	return { email, password };
+}
+
+function rememberCloudAuthView() {
+	try {
+		window.sessionStorage.setItem(CLOUD_AUTH_VIEW_PENDING_KEY, "1");
+	} catch {
+		// Auth still works if sessionStorage is blocked.
+	}
+}
+
+function consumeCloudAuthView() {
+	try {
+		const pending =
+			window.sessionStorage.getItem(CLOUD_AUTH_VIEW_PENDING_KEY) === "1";
+		if (pending) {
+			window.sessionStorage.removeItem(CLOUD_AUTH_VIEW_PENDING_KEY);
+		}
+		return pending;
+	} catch {
+		return false;
+	}
 }
 
 async function signInWithEmailForm(credentials, options = {}) {
@@ -20088,17 +20112,21 @@ function handleAction(element) {
 		void runPyxdiaAction("Resetting Pen Pal memory...", resetPyxdiaMemoryAction);
 	}
 	if (action === "cloud-sign-in") {
+		rememberCloudAuthView();
 		void runCloudAction("Signing in...", () => signInToCloud());
 	}
 	if (action === "cloud-google-sign-in") {
+		rememberCloudAuthView();
 		void runCloudAction("Opening Google sign-in...", () => signInWithGoogle());
 	}
 	if (action === "cloud-email-sign-in") {
 		const credentials = cloudEmailCredentialsFromDom();
+		rememberCloudAuthView();
 		void runCloudAction("Signing in...", () => signInWithEmailForm(credentials));
 	}
 	if (action === "cloud-email-create") {
 		const credentials = cloudEmailCredentialsFromDom();
+		rememberCloudAuthView();
 		void runCloudAction("Creating account...", () =>
 			signInWithEmailForm(credentials, { create: true }),
 		);
@@ -20578,8 +20606,16 @@ void initCloudAccount((cloud) => {
 	const previousSignature = cloudUiSignature(state.cloud);
 	state.cloud = cloud;
 	configureMediaCloudContext(cloud);
+	const showAuthView =
+		cloud?.mode === "signed-in" && cloud?.user && consumeCloudAuthView();
+	if (showAuthView) {
+		state.active = state.active === "Settings" ? "Dashboard" : state.active;
+		state.mobileMenuOpen = true;
+		state.sidebarSubmenu = "settings";
+		state.settingsTab = "cloud";
+	}
 	const nextSignature = cloudUiSignature(cloud);
-	if (previousSignature !== nextSignature && !isUserEditingInterface()) {
+	if (showAuthView || (previousSignature !== nextSignature && !isUserEditingInterface())) {
 		render();
 	} else {
 		patchVisibleCloudStatus();
