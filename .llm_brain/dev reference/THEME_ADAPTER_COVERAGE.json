@@ -1,14 +1,14 @@
 {
 	"schema": "ourstuff.themeAdapterCoverage.v1",
-	"generatedAt": "2026-06-03T11:37:20.485Z",
+	"generatedAt": "2026-06-04T02:09:18.804Z",
 	"source": {
 		"cssPath": "assets/css/app.css",
-		"cssSha256": "39db213f5ad9be327b43cb5fb0017c9ebe17cd6d056a06d06ea5a54b26f5c0ef"
+		"cssSha256": "5c01d876ae6b1d53766ea66f066b634b0742c51f0c8289ec8c43cbf26176949a"
 	},
 	"summary": {
-		"classCount": 446,
+		"classCount": 447,
 		"needsAdapterCount": 26,
-		"coveredCount": 446,
+		"coveredCount": 447,
 		"requiredMissingCount": 0,
 		"highConfidenceMissingCount": 0
 	},
@@ -2746,6 +2746,25 @@
 		},
 		{
 			"className": "dashboard-card-title",
+			"confidence": "layout",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": false,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": []
+		},
+		{
+			"className": "dashboard-card-title--icon-only",
 			"confidence": "layout",
 			"needsAdapter": false,
 			"covered": true,

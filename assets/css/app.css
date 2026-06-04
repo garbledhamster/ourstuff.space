@@ -1842,6 +1842,11 @@ select option:checked {
 	height: 1.15em;
 }
 
+.dashboard-card-title--icon-only .dashboard-card-icon .button-icon {
+	width: clamp(2.5rem, 5vw, 3.75rem);
+	height: clamp(2.5rem, 5vw, 3.75rem);
+}
+
 .dashboard-inline-title {
 	display: inline-flex;
 	align-items: center;
@@ -12701,6 +12706,11 @@ button.life-event-row:hover {
 		height: 1em;
 	}
 
+	.dashboard-card-title--icon-only .dashboard-card-icon .button-icon {
+		width: 2.55rem;
+		height: 2.55rem;
+	}
+
 	.dashboard-card-face {
 		padding: 8px;
 	}
@@ -12782,6 +12792,11 @@ button.life-event-row:hover {
 		.dashboard-card-title {
 			gap: 4px;
 			font-size: 0.86rem;
+		}
+
+		.dashboard-card-title--icon-only .dashboard-card-icon .button-icon {
+			width: 2.1rem;
+			height: 2.1rem;
 		}
 
 		.dashboard-card-face {
@@ -13388,6 +13403,16 @@ button.life-event-row:hover {
 
 	.body-mode-button .button-icon {
 		font-size: 1rem;
+	}
+
+	.page-tool-switcher .body-mode-button .button-icon,
+	.body-tool-switcher .body-mode-button .button-icon,
+	.body-timer-switcher .body-mode-button .button-icon,
+	.body-nutrition-switcher .body-mode-button .button-icon,
+	.life-calendar-switcher .body-mode-button .button-icon {
+		width: 1.35rem;
+		height: 1.35rem;
+		font-size: 1.35rem;
 	}
 
 	.body-mode-label {

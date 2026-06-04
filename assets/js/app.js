@@ -5069,6 +5069,17 @@ function dashboardTitleHtml(dashboard) {
 	return parts.join("");
 }
 
+function dashboardTitleClassName() {
+	const identity = normalizeDashboardIdentity(state.dashboardIdentity);
+	const showsIconOnly =
+		identity.showIcons === true &&
+		identity.showTitle !== true &&
+		identity.showNumbers !== true;
+	return showsIconOnly
+		? "dashboard-card-title dashboard-card-title--icon-only"
+		: "dashboard-card-title";
+}
+
 function dashboardInlineLabelHtml(dashboard) {
 	return `<span aria-hidden="true">${iconHtml(dashboardDisplayIcon(dashboard))}</span><span>${escapeHtml(
 		dashboardDisplayLabel(dashboard),
@@ -11680,7 +11691,6 @@ function render() {
       ${sidebarHtml(compendium)}
       <section class="content-shell">
         ${pathBarHtml(compendium, section, spiritBook)}
-        ${floatingRouteTextHtml(compendium, section, spiritBook)}
         <div class="content-stage"${state.mobileMenuOpen ? ' inert aria-hidden="true"' : ""}>${contentHtml(compendium, section)}</div>
       </section>
     </div>
@@ -12714,27 +12724,6 @@ function pathBarHtml(compendium, section, spiritBook) {
   `;
 }
 
-function floatingRouteTextHtml(compendium, section, spiritBook) {
-	const activeLabel = DASHBOARD_LABELS.includes(state.active)
-		? dashboardDisplayLabel(state.active)
-		: state.active === "PYXIDA"
-			? "Pen Pal"
-		: state.active;
-	const detail =
-		section?.title ||
-		compendium?.title ||
-		spiritBook?.title ||
-		(state.active === "Dashboard"
-			? `${activeSpaceLabel()} dashboard`
-			: activeLabel);
-	return `
-    <div class="floating-route-text" aria-label="Current view">
-      <span>${escapeHtml(activeLabel || "Dashboard")}</span>
-      <strong>${escapeHtml(detail || "Current view")}</strong>
-    </div>
-  `;
-}
-
 function contentHtml(compendium, section) {
 	if (state.active === "Dashboard") {
 		return dashboardGridHtml();
@@ -12782,7 +12771,7 @@ function dashboardGridHtml() {
           <button class="dashboard-card${state.flipped === label ? " is-flipped" : ""}${state.dashboardIdentity?.colorAlwaysOn ? " is-color-always-on" : ""}" data-action="open-dashboard-card" data-section="${label}" data-balance-key="${label}" style="--card-color: ${dashboardColor(label)};">
             <span class="dashboard-card-inner">
               <span class="dashboard-card-face dashboard-card-front">
-                <span class="dashboard-card-title">${dashboardTitleHtml(label)}</span>
+                <span class="${dashboardTitleClassName()}">${dashboardTitleHtml(label)}</span>
               </span>
               <span class="dashboard-card-face dashboard-card-back-face">
                 ${dashboardCardBackHtml(label)}
