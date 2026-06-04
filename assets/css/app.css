@@ -13468,6 +13468,19 @@ button.life-event-row:hover {
 	}
 }
 
+.life-new-note-button .life-new-note-label {
+	position: static;
+	width: auto;
+	height: auto;
+	margin: 0;
+	overflow: visible;
+	clip: auto;
+	clip-path: none;
+	line-height: 1.05;
+	text-wrap: balance;
+	white-space: normal;
+}
+
 .thanks-page {
 	display: grid;
 	place-items: center;

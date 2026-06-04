@@ -15473,7 +15473,7 @@ function lifeToolSwitcherHtml() {
 				)
 				.join("")}
       <button class="body-mode-button life-new-note-button" data-action="new-artifact-note" data-dashboard="Life" type="button">
-        ${buttonContent("tabler:notes", "New Note", "body-mode-label")}
+        ${buttonContent("tabler:notes", "New Note", "body-mode-label life-new-note-label")}
       </button>
     </nav>
   `;
