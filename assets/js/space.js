@@ -1,13 +1,15 @@
 export const PERSONAL_SPACE_ID = "personal";
 export const WORK_SPACE_ID = "work";
 export const FAMILY_SPACE_ID = "family";
+export const CUSTOM_SPACE_IDS = Object.freeze(["custom-1", "custom-2"]);
 export const ACTIVE_SPACE_KEY = "ourstuff.activeSpace.v1";
 export const SPACE_MIGRATION_KEY = "ourstuff.spaceMigration.v1";
+export const CUSTOM_DATA_SPACES_KEY = "ourstuff.customDataSpaces.v1";
 
 const SPACE_PIN_PREFIX = "ourstuff.spacePin.v1.";
 const SPACE_UNLOCK_PREFIX = "ourstuff.spaceUnlockSession.v1.";
 
-export const DATA_SPACES = Object.freeze({
+export const BUILT_IN_DATA_SPACES = Object.freeze({
 	[PERSONAL_SPACE_ID]: Object.freeze({
 		id: PERSONAL_SPACE_ID,
 		label: "Personal",
@@ -50,7 +52,135 @@ export const DATA_SPACES = Object.freeze({
 	}),
 });
 
+export let DATA_SPACES = Object.freeze({
+	...BUILT_IN_DATA_SPACES,
+	...loadCustomDataSpaces(),
+});
+
+export function refreshDataSpaces() {
+	DATA_SPACES = Object.freeze({
+		...BUILT_IN_DATA_SPACES,
+		...loadCustomDataSpaces(),
+	});
+	return DATA_SPACES;
+}
+
+export function isCustomSpaceId(spaceId) {
+	return CUSTOM_SPACE_IDS.includes(String(spaceId || ""));
+}
+
+export function customSpaceCloudAppId(spaceId) {
+	const index = CUSTOM_SPACE_IDS.indexOf(String(spaceId || ""));
+	return index >= 0 ? `ourstuff-main-custom-${index + 1}` : "";
+}
+
+export function customSpaceSlots() {
+	refreshDataSpaces();
+	return CUSTOM_SPACE_IDS.map((id) => DATA_SPACES[id] || null);
+}
+
+export function availableCustomSpaceId() {
+	refreshDataSpaces();
+	return CUSTOM_SPACE_IDS.find((id) => !DATA_SPACES[id]) || "";
+}
+
+function sanitizeSpaceText(value, fallback = "") {
+	return String(value || fallback)
+		.replace(/\s+/g, " ")
+		.trim()
+		.slice(0, 80);
+}
+
+function normalizeDashboardLabels(labels = {}) {
+	const defaults = BUILT_IN_DATA_SPACES[PERSONAL_SPACE_ID].dashboardLabels;
+	return Object.freeze({
+		Mind: sanitizeSpaceText(labels.Mind, defaults.Mind),
+		Body: sanitizeSpaceText(labels.Body, defaults.Body),
+		Spirit: sanitizeSpaceText(labels.Spirit, defaults.Spirit),
+		Life: sanitizeSpaceText(labels.Life, defaults.Life),
+	});
+}
+
+function normalizeCustomSpace(value = {}, slotId = "") {
+	const id = isCustomSpaceId(value.id) ? value.id : slotId;
+	if (!isCustomSpaceId(id)) {
+		return null;
+	}
+	const label = sanitizeSpaceText(value.label, "");
+	if (!label) {
+		return null;
+	}
+	const description = sanitizeSpaceText(
+		value.description,
+		`${label} notes, trackers, Pen Pal, themes, and local media.`,
+	);
+	return Object.freeze({
+		id,
+		label,
+		cloudAppId: customSpaceCloudAppId(id),
+		description,
+		shareable: true,
+		custom: true,
+		createdAt: String(value.createdAt || new Date().toISOString()),
+		dashboardLabels: normalizeDashboardLabels(value.dashboardLabels),
+	});
+}
+
+export function loadCustomDataSpaces() {
+	try {
+		const parsed = JSON.parse(window.localStorage.getItem(CUSTOM_DATA_SPACES_KEY) || "{}");
+		return Object.freeze(
+			Object.fromEntries(
+				CUSTOM_SPACE_IDS.map((id) => [id, normalizeCustomSpace(parsed?.[id], id)])
+					.filter(([, space]) => Boolean(space)),
+			),
+		);
+	} catch {
+		return Object.freeze({});
+	}
+}
+
+export function saveCustomDataSpace(config = {}) {
+	const id = isCustomSpaceId(config.id) ? config.id : availableCustomSpaceId();
+	if (!id) {
+		throw new Error("You can create up to two additional spaces.");
+	}
+	const current = loadCustomDataSpaces();
+	const normalized = normalizeCustomSpace(
+		{
+			...config,
+			id,
+			createdAt: current[id]?.createdAt || new Date().toISOString(),
+		},
+		id,
+	);
+	if (!normalized) {
+		throw new Error("Enter a space name before creating it.");
+	}
+	const next = { ...current, [id]: normalized };
+	window.localStorage.setItem(CUSTOM_DATA_SPACES_KEY, JSON.stringify(next));
+	refreshDataSpaces();
+	return normalized;
+}
+
+export function removeCustomDataSpace(spaceId) {
+	const id = String(spaceId || "");
+	if (!isCustomSpaceId(id)) {
+		return false;
+	}
+	const current = loadCustomDataSpaces();
+	if (!current[id]) {
+		return false;
+	}
+	const next = { ...current };
+	delete next[id];
+	window.localStorage.setItem(CUSTOM_DATA_SPACES_KEY, JSON.stringify(next));
+	refreshDataSpaces();
+	return true;
+}
+
 export function normalizeSpaceId(value) {
+	refreshDataSpaces();
 	const spaceId = String(value || "");
 	return DATA_SPACES[spaceId] ? spaceId : PERSONAL_SPACE_ID;
 }

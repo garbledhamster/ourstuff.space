@@ -1405,7 +1405,7 @@ select option:checked {
 
 .dashboard-home {
 	display: grid;
-	grid-template-rows: auto auto minmax(0, 1fr);
+	grid-template-rows: auto auto auto minmax(0, 1fr);
 	container-type: size;
 	height: 100%;
 	min-height: 0;
@@ -1477,6 +1477,122 @@ select option:checked {
 	background: color-mix(in srgb, var(--accent) 18%, var(--theme-control));
 	color: var(--text);
 	outline: none;
+}
+
+.daily-return-panel {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(240px, 1.2fr);
+	align-items: stretch;
+	justify-self: center;
+	gap: 14px;
+	width: min(100%, 760px);
+	border: 1px solid var(--border-soft);
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--surface-2) 76%, transparent);
+	padding: 14px;
+}
+
+.daily-return-copy {
+	display: grid;
+	align-content: center;
+	gap: 5px;
+	min-width: 0;
+}
+
+.daily-return-copy span {
+	color: var(--accent);
+	font-family: var(--font-label);
+	font-size: 0.68rem;
+	font-weight: 900;
+	letter-spacing: 0.08em;
+	line-height: 1;
+	text-transform: uppercase;
+}
+
+.daily-return-copy h2 {
+	margin: 0;
+	color: var(--text);
+	font-family: var(--font-display);
+	font-size: 1.3rem;
+	line-height: 1.05;
+}
+
+.daily-return-copy p {
+	margin: 0;
+	color: var(--muted);
+	font-size: 0.9rem;
+	line-height: 1.35;
+}
+
+.daily-return-actions {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 8px;
+	min-width: 0;
+}
+
+.daily-return-path {
+	display: grid;
+	grid-template-columns: 32px minmax(0, 1fr);
+	align-items: center;
+	gap: 9px;
+	min-width: 0;
+	min-height: 54px;
+	border: 1px solid var(--border-soft);
+	border-left: 3px solid var(--path-color);
+	border-radius: 8px;
+	background: var(--theme-control);
+	color: var(--text);
+	padding: 7px 9px;
+	text-align: left;
+	cursor: pointer;
+}
+
+.daily-return-path:hover,
+.daily-return-path:focus-visible {
+	border-color: var(--path-color);
+	background: color-mix(in srgb, var(--path-color) 18%, var(--theme-control));
+	outline: none;
+}
+
+.daily-return-path-icon {
+	display: grid;
+	place-items: center;
+	width: 32px;
+	height: 32px;
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--path-color) 18%, transparent);
+	color: var(--path-color);
+}
+
+.daily-return-path-icon .button-icon {
+	width: 1.05em;
+	height: 1.05em;
+}
+
+.daily-return-path strong,
+.daily-return-path small {
+	display: block;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.daily-return-path strong {
+	font-family: var(--font-label);
+	font-size: 0.72rem;
+	font-weight: 900;
+	letter-spacing: 0.02em;
+	line-height: 1.1;
+	text-transform: uppercase;
+}
+
+.daily-return-path small {
+	margin-top: 2px;
+	color: var(--muted);
+	font-size: 0.7rem;
+	line-height: 1.15;
+	white-space: normal;
 }
 
 .dashboard-grid {
@@ -3914,6 +4030,38 @@ select option:checked {
 
 .space-switcher-section .dashboard-identity-toggles {
 	margin-top: 0.85rem;
+}
+
+.custom-space-questionnaire {
+	display: grid;
+	gap: 12px;
+	margin-top: 14px;
+	border-top: 1px solid var(--border-soft);
+	padding-top: 14px;
+}
+
+.custom-space-questionnaire h4 {
+	margin: 0;
+	color: var(--text);
+	font-family: var(--font-label);
+	font-size: 0.9rem;
+	letter-spacing: 0;
+}
+
+.custom-space-questionnaire p {
+	margin: 4px 0 0;
+	color: var(--muted);
+	font-size: 0.82rem;
+	line-height: 1.35;
+}
+
+.custom-space-form {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.custom-space-share-toggle {
+	align-self: end;
+	width: fit-content;
 }
 
 .space-lock-screen {
@@ -12748,6 +12896,53 @@ button.life-event-row:hover {
 		gap: 10px;
 	}
 
+	.daily-return-panel {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 10px;
+		width: 100%;
+		border-radius: 10px;
+		padding: 12px;
+	}
+
+	.daily-return-copy {
+		gap: 4px;
+	}
+
+	.daily-return-copy h2 {
+		font-size: 1.12rem;
+	}
+
+	.daily-return-copy p {
+		font-size: 0.82rem;
+		line-height: 1.25;
+	}
+
+	.daily-return-actions {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 7px;
+	}
+
+	.daily-return-path {
+		grid-template-columns: 28px minmax(0, 1fr);
+		gap: 7px;
+		min-height: 48px;
+		padding: 6px 7px;
+	}
+
+	.daily-return-path-icon {
+		width: 28px;
+		height: 28px;
+	}
+
+	.daily-return-path strong {
+		font-size: 0.66rem;
+	}
+
+	.daily-return-path small {
+		font-size: 0.64rem;
+		line-height: 1.1;
+	}
+
 	.app-shell.is-browser-mode.is-mobile-viewport .dashboard-home,
 	.app-shell.is-browser-mode.is-mobile-viewport .dashboard-grid,
 	.app-shell.is-browser-mode.is-mobile-viewport .dashboard-card {
@@ -13062,7 +13257,8 @@ button.life-event-row:hover {
 	}
 
 	.cloud-sync-grid,
-	.cloud-email-form {
+	.cloud-email-form,
+	.custom-space-form {
 		grid-template-columns: 1fr;
 	}
 

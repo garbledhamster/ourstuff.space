@@ -9,12 +9,15 @@ import {
 	SITE_ID,
 } from "./config.js?v=storage-quota-20260523a";
 import {
+	CUSTOM_SPACE_IDS,
 	DATA_SPACES,
 	FAMILY_SPACE_ID,
 	getActiveCloudAppId,
 	getActiveSpaceId,
 	getActiveSpaceLabel,
+	isShareableSpace,
 	normalizeSpaceId,
+	saveCustomDataSpace,
 	scopedStorageKey,
 } from "./space.js";
 
@@ -57,7 +60,7 @@ const CLOUD_APP_STATE_TITLES = {
 };
 
 function activeSpaceIsFamily() {
-	return getActiveSpaceId() === FAMILY_SPACE_ID;
+	return isShareableSpace(getActiveSpaceId());
 }
 
 function cloudContext(options = {}) {
@@ -667,23 +670,32 @@ export async function getCloudSpaceStates(spaceIds = Object.keys(DATA_SPACES)) {
 	}
 
 	const user = requireSignedInFirebaseUser();
-	let familyState = null;
-	if (normalizedSpaceIds.includes(FAMILY_SPACE_ID)) {
-		familyState = await readFamilySpaceState(user).catch((error) => ({
-			role: "owner",
-			ownerUid: user.uid,
-			members: [],
-			invites: [],
-			error: errorMessage(error),
-		}));
-	}
+	const sharedStates = Object.fromEntries(
+		await Promise.all(
+			normalizedSpaceIds
+				.filter((spaceId) => isShareableSpace(spaceId))
+				.map(async (spaceId) => [
+					spaceId,
+					await readFamilySpaceState(user, { spaceId }).catch((error) => ({
+						spaceId,
+						appId: cloudContext({ spaceId }).appId,
+						role: "owner",
+						ownerUid: user.uid,
+						members: [],
+						invites: [],
+						error: errorMessage(error),
+					})),
+				]),
+		),
+	);
 
 	return await Promise.all(
 		normalizedSpaceIds.map(async (spaceId) => {
 			const context = cloudContext({ spaceId });
+			const sharedState = sharedStates[spaceId] || null;
 			const cloudOwnerUid =
-				spaceId === FAMILY_SPACE_ID
-					? String(familyState?.ownerUid || user.uid)
+				sharedState
+					? String(sharedState?.ownerUid || user.uid)
 					: user.uid;
 			try {
 				const info = await readCloudArtifactCollection(cloudOwnerUid, context);
@@ -692,19 +704,17 @@ export async function getCloudSpaceStates(spaceIds = Object.keys(DATA_SPACES)) {
 					spaceId,
 					appId: context.appId,
 					cloudOwnerUid,
-					spaceRole:
-						spaceId === FAMILY_SPACE_ID ? familyState?.role || "owner" : "owner",
-					sharedSpace: spaceId === FAMILY_SPACE_ID ? familyState : null,
-					error: spaceId === FAMILY_SPACE_ID ? familyState?.error || "" : "",
+					spaceRole: sharedState ? sharedState?.role || "owner" : "owner",
+					sharedSpace: sharedState,
+					error: sharedState?.error || "",
 				};
 			} catch (error) {
 				return {
 					spaceId,
 					appId: context.appId,
 					cloudOwnerUid,
-					spaceRole:
-						spaceId === FAMILY_SPACE_ID ? familyState?.role || "owner" : "owner",
-					sharedSpace: spaceId === FAMILY_SPACE_ID ? familyState : null,
+					spaceRole: sharedState ? sharedState?.role || "owner" : "owner",
+					sharedSpace: sharedState,
 					exists: false,
 					deleted: false,
 					updatedAt: "",
@@ -783,7 +793,7 @@ export async function deleteCloudAccount() {
 export async function refreshFamilySharingState() {
 	const user = requireSignedInFirebaseUser();
 	const [sharedSpace, familyInvites] = await Promise.all([
-		readFamilySpaceState(user),
+		readFamilySpaceState(user, { spaceId: getActiveSpaceId() }),
 		readFamilyInvites(user),
 	]);
 	emitCloudState({
@@ -803,7 +813,13 @@ export async function addFamilyMember(email, role = "reader") {
 
 export async function sendFamilyInvite(email, role = "reader") {
 	requireCloudOwnerAccess();
-	const result = await familyApiRequest("POST", "/members", { email, role });
+	const space = DATA_SPACES[getActiveSpaceId()] || {};
+	const result = await familyApiRequest("POST", "/members", {
+		email,
+		role,
+		spaceLabel: getActiveSpaceLabel(),
+		dashboardLabels: space.dashboardLabels || {},
+	});
 	await refreshFamilySharingState();
 	return result;
 }
@@ -858,14 +874,23 @@ export async function removeFamilyMember(uid) {
 async function familyApiRequest(method, path, payload = {}) {
 	const user = requireSignedInFirebaseUser();
 	const idToken = await user.getIdToken();
-	const response = await fetch(`${FAMILY_API_URL}${path}`, {
+	const context = cloudContext();
+	const params = new URLSearchParams({
+		appId: context.appId,
+		spaceId: context.spaceId,
+	});
+	const separator = path.includes("?") ? "&" : "?";
+	const response = await fetch(`${FAMILY_API_URL}${path}${separator}${params.toString()}`, {
 		method,
 		headers: {
 			accept: "application/json",
 			authorization: `Bearer ${idToken}`,
 			...(method === "DELETE" ? {} : { "content-type": "application/json" }),
 		},
-		body: method === "DELETE" ? undefined : JSON.stringify(payload),
+		body:
+			method === "DELETE"
+				? undefined
+				: JSON.stringify({ ...payload, ...context }),
 	});
 	const result = await response.json().catch(() => ({}));
 	if (!response.ok) {
@@ -1774,9 +1799,12 @@ async function handleFirebaseAuthChange(user) {
 	const tokenResult = await user.getIdTokenResult(true).catch(() => null);
 	const claims = tokenResult?.claims || {};
 	const profile = await readUserProfile(user.uid).catch(() => null);
+	await restoreJoinedCustomSpaces(user.uid).catch(() => null);
 	const entitlement = resolveEntitlement({ claims, profile, bootstrap });
 	const sharedSpace = activeSpaceIsFamily()
-		? await readFamilySpaceState(user).catch((error) => ({
+		? await readFamilySpaceState(user, { spaceId: getActiveSpaceId() }).catch((error) => ({
+				spaceId: getActiveSpaceId(),
+				appId: getActiveCloudAppId(),
 				role: "owner",
 				ownerUid: user.uid,
 				members: [],
@@ -1784,9 +1812,7 @@ async function handleFirebaseAuthChange(user) {
 				error: errorMessage(error),
 			}))
 		: null;
-	const familyInvites = activeSpaceIsFamily()
-		? await readFamilyInvites(user).catch(() => [])
-		: [];
+	const familyInvites = await readFamilyInvites(user).catch(() => []);
 	const cloudOwnerUid = sharedSpace?.ownerUid || user.uid;
 	const spaceRole = sharedSpace?.role || "owner";
 	const obsidianKey =
@@ -1814,7 +1840,7 @@ async function handleFirebaseAuthChange(user) {
 		familyInvites,
 		message:
 			activeSpaceIsFamily() && spaceRole !== "owner"
-				? `Family space joined as ${spaceRole}.`
+				? `${getActiveSpaceLabel()} space joined as ${spaceRole}.`
 				: "Cloud sync active.",
 		error: bootstrap?.error || sharedSpace?.error || "",
 	});
@@ -1845,6 +1871,28 @@ async function readUserProfile(uid) {
 	return snapshot.exists() ? snapshot.data() : null;
 }
 
+async function restoreJoinedCustomSpaces(uid) {
+	const modules = await ensureFirebase();
+	for (const spaceId of CUSTOM_SPACE_IDS) {
+		const snapshot = await modules.getDoc(
+			modules.doc(firebaseDb, "users", uid, "joinedSpaces", spaceId),
+		);
+		if (!snapshot.exists()) {
+			continue;
+		}
+		const joined = snapshot.data() || {};
+		if (!joined.ownerUid || !joined.appId) {
+			continue;
+		}
+		saveCustomDataSpace({
+			id: spaceId,
+			label: joined.spaceLabel || `Custom ${CUSTOM_SPACE_IDS.indexOf(spaceId) + 1}`,
+			description: `${joined.spaceLabel || "Shared space"} shared notes, trackers, Pen Pal, themes, and media.`,
+			dashboardLabels: joined.dashboardLabels || {},
+		});
+	}
+}
+
 async function readObsidianSyncKey(user) {
 	const idToken = await user.getIdToken();
 	const response = await fetch(`${PAYMENTS_WORKER_URL}/api/obsidian/key`, {
@@ -1858,9 +1906,14 @@ async function readObsidianSyncKey(user) {
 	return result.key || null;
 }
 
-async function readFamilySpaceState(user) {
+async function readFamilySpaceState(user, options = {}) {
 	const idToken = await user.getIdToken();
-	const response = await fetch(`${FAMILY_API_URL}/state`, {
+	const context = cloudContext(options);
+	const params = new URLSearchParams({
+		appId: context.appId,
+		spaceId: context.spaceId,
+	});
+	const response = await fetch(`${FAMILY_API_URL}/state?${params.toString()}`, {
 		method: "GET",
 		headers: { authorization: `Bearer ${idToken}` },
 	});
@@ -1895,9 +1948,11 @@ function normalizeSharedSpace(value = {}) {
 	const role = ["owner", "editor", "reader"].includes(value.role)
 		? value.role
 		: "owner";
+	const spaceId = normalizeSpaceId(value.spaceId || getActiveSpaceId());
 	return {
-		spaceId: FAMILY_SPACE_ID,
-		appId: getActiveCloudAppId(),
+		spaceId,
+		appId: String(value.appId || getActiveCloudAppId()),
+		spaceLabel: String(value.spaceLabel || DATA_SPACES[spaceId]?.label || "Shared space"),
 		ownerUid,
 		role,
 		canEdit: role === "owner" || role === "editor",
@@ -1917,9 +1972,16 @@ function normalizeFamilyInvite(value = {}) {
 		role: value.role === "editor" ? "editor" : "reader",
 		status: String(value.status || "pending"),
 		ownerUid: String(value.ownerUid || ""),
+		appId: String(value.appId || ""),
+		spaceId: String(value.spaceId || ""),
+		spaceLabel: String(value.spaceLabel || ""),
+		dashboardLabels:
+			value.dashboardLabels && typeof value.dashboardLabels === "object"
+				? value.dashboardLabels
+				: {},
 		createdAt: String(value.createdAt || ""),
 		updatedAt: String(value.updatedAt || ""),
-		invitedByDisplay: String(value.invitedByDisplay || "Family owner"),
+		invitedByDisplay: String(value.invitedByDisplay || "Space owner"),
 	};
 }
 
