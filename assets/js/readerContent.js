@@ -224,7 +224,7 @@ function focusImageHtml(image) {
 		return "";
 	}
 	const panAttrs =
-		' class="reader-pan-image" data-reader-pan-image draggable="false"';
+		' class="reader-pan-image" data-reader-pan-image draggable="false" tabindex="0" role="region" aria-label="Image viewer. Drag or use arrow keys to pan. Press Home to reset."';
 	if (image.type === "local") {
 		return `<img${panAttrs} data-local-asset="${escapeHtml(image.id)}" alt="${escapeHtml(image.alt || "Image")}">`;
 	}

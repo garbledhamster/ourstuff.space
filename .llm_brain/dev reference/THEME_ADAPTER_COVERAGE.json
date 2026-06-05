@@ -1,14 +1,14 @@
 {
 	"schema": "ourstuff.themeAdapterCoverage.v1",
-	"generatedAt": "2026-06-05T10:41:54.553Z",
+	"generatedAt": "2026-06-05T11:07:44.241Z",
 	"source": {
 		"cssPath": "assets/css/app.css",
-		"cssSha256": "b2405191e8d9c8f27e5b5e2f140c0171acc413a254be859365a31cadefca9c91"
+		"cssSha256": "41477e311e73544197753442be5cda2e47de11865c306456994fdb7780028120"
 	},
 	"summary": {
-		"classCount": 457,
-		"needsAdapterCount": 26,
-		"coveredCount": 457,
+		"classCount": 463,
+		"needsAdapterCount": 27,
+		"coveredCount": 463,
 		"requiredMissingCount": 0,
 		"highConfidenceMissingCount": 0
 	},
@@ -8075,6 +8075,29 @@
 			]
 		},
 		{
+			"className": "reader-empty-note",
+			"confidence": "high",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": true,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": [
+				".reader-empty-note",
+				".reader-empty-note strong",
+				".reader-empty-note span"
+			]
+		},
+		{
 			"className": "reader-gallery-carousel",
 			"confidence": "layout",
 			"needsAdapter": false,
@@ -8382,6 +8405,27 @@
 			]
 		},
 		{
+			"className": "reader-pan-image",
+			"confidence": "high",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": true,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": [
+				".reader-pan-image:focus-visible"
+			]
+		},
+		{
 			"className": "reader-panel",
 			"confidence": "medium",
 			"needsAdapter": true,
@@ -8621,10 +8665,10 @@
 				"tokenized": true,
 				"selectors": [
 					":root.theme-palette:not(.theme-consolas) .app-shell, :root.theme-palette:not(.theme-consolas) .workspace, :root.theme-palette:not(.theme-consolas) .sidebar, :root.theme-palette:not(.theme-consolas) .mobile-menu-toggle, :",
+					":root.theme-palette:not(.theme-consolas) .danger-button, :root.theme-palette:not(.theme-consolas) .section-row-delete",
+					":root.theme-palette:not(.theme-consolas) .danger-button:hover, :root.theme-palette:not(.theme-consolas) .danger-button:focus-visible, :root.theme-palette:not(.theme-consolas) .section-row-delete:hover, :root.theme-palett",
 					":root.theme-palette:not(.theme-consolas) .home-button:hover, :root.theme-palette:not(.theme-consolas) .home-button:focus-visible, :root.theme-palette:not(.theme-consolas) .secondary-button:hover, :root.theme-palette:not(",
-					":root.theme-palette:not(.theme-consolas) .theme-choice, :root.theme-palette:not(.theme-consolas) .getting-started-grid article, :root.theme-palette:not(.theme-consolas) .body-card, :root.theme-palette:not(.theme-consolas",
-					":root.theme-palette:not(.theme-consolas) .theme-choice strong, :root.theme-palette:not(.theme-consolas) .home-button, :root.theme-palette:not(.theme-consolas) .path-bar button, :root.theme-palette:not(.theme-consolas) .d",
-					":root.theme-palette:not(.theme-consolas) .theme-choice small, :root.theme-palette:not(.theme-consolas) .dashboard-analytics-header p, :root.theme-palette:not(.theme-consolas) .panel-header p, :root.theme-palette:not(.the"
+					":root.theme-palette:not(.theme-consolas) .theme-choice, :root.theme-palette:not(.theme-consolas) .getting-started-grid article, :root.theme-palette:not(.theme-consolas) .body-card, :root.theme-palette:not(.theme-consolas"
 				]
 			},
 			"consolas": {
@@ -8641,9 +8685,75 @@
 			"sourceSelectors": [
 				".section-row",
 				".section-row > span",
-				".section-row.is-dragging",
-				".section-row > small",
-				".section-row > em"
+				".section-row-main",
+				".section-row-main:hover, .section-row-main:focus-visible",
+				".section-row.is-dragging"
+			]
+		},
+		{
+			"className": "section-row-actions",
+			"confidence": "layout",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": false,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": []
+		},
+		{
+			"className": "section-row-delete",
+			"confidence": "high",
+			"needsAdapter": true,
+			"covered": true,
+			"tokenizedBase": false,
+			"exemptReason": "",
+			"palette": {
+				"covered": true,
+				"tokenized": true,
+				"selectors": [
+					":root.theme-palette:not(.theme-consolas) .danger-button, :root.theme-palette:not(.theme-consolas) .section-row-delete",
+					":root.theme-palette:not(.theme-consolas) .danger-button:hover, :root.theme-palette:not(.theme-consolas) .danger-button:focus-visible, :root.theme-palette:not(.theme-consolas) .section-row-delete:hover, :root.theme-palett"
+				]
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": [
+				".section-row-delete"
+			]
+		},
+		{
+			"className": "section-row-main",
+			"confidence": "medium",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": true,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": [
+				".section-row-main",
+				".section-row-main:hover, .section-row-main:focus-visible",
+				".section-row-main > small"
 			]
 		},
 		{
@@ -9924,9 +10034,30 @@
 			"sourceSelectors": [
 				".themed-child-viewer",
 				".themed-child-viewer img",
+				".themed-child-viewer--image",
 				".themed-child-viewer img[data-local-asset], .themed-child-viewer img.is-loading",
-				".themed-child-viewer iframe",
-				".themed-child-viewer--quotes blockquote"
+				".themed-child-viewer iframe"
+			]
+		},
+		{
+			"className": "themed-child-viewer--image",
+			"confidence": "low",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": false,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": [
+				".themed-child-viewer--image"
 			]
 		},
 		{

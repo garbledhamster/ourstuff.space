@@ -10701,7 +10701,8 @@ function saveSection(id, title, body) {
 async function deleteSection(id) {
 	const compendium = selectedCompendium();
 	const section =
-		compendium?.sections.find((item) => item.id === id) || selectedSection();
+		(compendium?.sections || []).find((item) => item.id === id) ||
+		selectedSection();
 	if (!compendium || !section) {
 		return;
 	}
@@ -13072,10 +13073,10 @@ function dashboardGridHtml() {
 
 function dashboardDailyReturnHtml() {
 	const paths = [
-		["Mind", "See what is happening."],
-		["Body", "Come back to the ground."],
-		["Spirit", "Remember what matters."],
-		["Life", "Make one real thing better."],
+		["Mind", "Organize memories for the future."],
+		["Body", "Your body is your temple."],
+		["Spirit", "Self-Development is freedom."],
+		["Life", "Connect with what matters."],
 	];
 	return `
     <section class="daily-return-panel" aria-label="Daily Return">
@@ -14014,6 +14015,7 @@ function settingsInterfaceHtml() {
           ${DASHBOARD_LABELS.map((dashboard) => {
 						const item = identity.items[dashboard];
 						const fieldId = `dashboard-identity-${dashboard}-icon`;
+						const labelFieldId = `dashboard-identity-${dashboard}-label`;
 						const colorFieldId = `dashboard-identity-${dashboard}-color`;
 						const color = dashboardColor(dashboard);
 						return `
@@ -14026,9 +14028,10 @@ function settingsInterfaceHtml() {
 										color,
 										colorFieldId,
 										colorValue: item.color,
+										searchFieldId: labelFieldId,
 										showLabel: false,
 									})}
-                  <input id="dashboard-identity-${dashboard}-label" type="text" value="${escapeHtml(item.label)}" placeholder="${escapeHtml(`Enter a title for the ${DEFAULT_DASHBOARD_IDENTITY.items[dashboard].label} category...`)}">
+                  <input id="${escapeHtml(labelFieldId)}" type="text" value="${escapeHtml(item.label)}" placeholder="${escapeHtml(`Enter a title for the ${DEFAULT_DASHBOARD_IDENTITY.items[dashboard].label} category...`)}">
                   <button class="icon-button dashboard-identity-reset" data-action="reset-dashboard-identity-item" data-dashboard="${escapeHtml(dashboard)}" type="button" aria-label="Reset ${escapeHtml(item.label || dashboard)} to default" title="Reset">${iconHtml("tabler:restore")}</button>
                 </div>
               </div>
@@ -14608,6 +14611,7 @@ function trackerAddFormHtml(area, kind = "thought") {
 					value: "tabler:circle",
 					title: `${dashboardDisplayLabel(area)} ${config.noun} icon`,
 					color: dashboardColor(area),
+					searchFieldId: labelFieldId,
 					showLabel: false,
 				})}
         <input class="tracker-title-input" id="${labelFieldId}" data-area="${escapeHtml(area)}" data-target="add" type="text" placeholder="${escapeHtml(`${config.proper} name`)}" aria-label="${escapeHtml(`${config.proper} name`)}">
@@ -14646,6 +14650,7 @@ function trackerEditFormHtml(area, kind = "thought") {
 	const transferLabel = isGoal ? "Move to Thoughts" : "Move to Goals";
 	const frequencyFieldId = trackerFieldId(`${area}-${id}`, "frequency");
 	const customDaysFieldId = trackerFieldId(`${area}-${id}`, "custom-days");
+	const labelFieldId = trackerFieldId(`${area}-${id}`, "label");
 	const goalFrequency = normalizeGoalFrequency(tracker);
 	return `
     <div class="tracker-edit-form" data-tracker-edit-form data-area="${escapeHtml(area)}" data-id="${escapeHtml(id)}" data-kind="${normalizedKind}">
@@ -14668,9 +14673,10 @@ function trackerEditFormHtml(area, kind = "thought") {
 						value: tracker.icon,
 						title: `${tracker.label} icon`,
 						color: dashboardColor(area),
+						searchFieldId: labelFieldId,
 						showLabel: false,
 					})}
-          <input class="tracker-title-input" id="${trackerFieldId(`${area}-${id}`, "label")}" data-area="${escapeHtml(area)}" data-target="${escapeHtml(target)}" type="text" value="${escapeHtml(tracker.label)}" aria-label="Button text">
+          <input class="tracker-title-input" id="${escapeHtml(labelFieldId)}" data-area="${escapeHtml(area)}" data-target="${escapeHtml(target)}" type="text" value="${escapeHtml(tracker.label)}" aria-label="Button text">
           ${
 						isGoal
 							? `
@@ -16975,17 +16981,23 @@ function compendiumManagerHtml(compendium) {
 }
 
 function sectionListHtml(compendium) {
+	const sections = Array.isArray(compendium?.sections) ? compendium.sections : [];
 	return `
     <div class="scroll-area">
       <div class="section-list" data-section-sort-list data-compendium-id="${escapeHtml(compendium.id)}">
-        ${compendium.sections
+        ${sections
 					.map(
 						(section, index) => `
-          <button class="section-row" data-action="open-section" data-id="${escapeHtml(section.id)}" data-section-row>
-            <span class="section-number-handle" data-section-drag-handle data-id="${escapeHtml(section.id)}" title="Drag to reorder" aria-label="Drag section ${String(compendium.sections.length - index).padStart(2, "0")} to reorder">${String(compendium.sections.length - index).padStart(2, "0")}</span>
-            <strong>${escapeHtml(section.title)}</strong>
-            <small>${escapeHtml(section.body.replace(/[#>*`-]/g, ""))}</small>
-          </button>
+          <article class="section-row" data-id="${escapeHtml(section.id)}" data-section-row>
+            <span class="section-number-handle" data-section-drag-handle data-id="${escapeHtml(section.id)}" title="Drag to reorder" aria-label="Drag section ${String(sections.length - index).padStart(2, "0")} to reorder">${String(sections.length - index).padStart(2, "0")}</span>
+            <button class="section-row-main" data-action="open-section" data-id="${escapeHtml(section.id)}" type="button">
+              <strong>${escapeHtml(section.title)}</strong>
+              <small>${escapeHtml(section.body.replace(/[#>*`-]/g, ""))}</small>
+            </button>
+            <div class="section-row-actions">
+              ${pageActionButton("delete-section", "tabler:trash", "Delete section", { danger: true, data: { id: section.id }, className: "section-row-delete" })}
+            </div>
+          </article>
         `,
 					)
 					.join("")}
@@ -19883,19 +19895,53 @@ function markLocalAssetReady(element) {
 }
 
 function resetReaderPanImage(image) {
+	fitReaderPanImage(image);
 	image.style.removeProperty("--reader-pan-x");
 	image.style.removeProperty("--reader-pan-y");
 	image.dataset.panX = "0";
 	image.dataset.panY = "0";
 }
 
-function clampReaderPanImage(image) {
-	const frame =
+function readerPanFrame(image) {
+	return (
 		image.closest(".reader-pan-frame, .reader-gallery-frame, .themed-child-viewer") ||
-		image.parentElement;
+		image.parentElement
+	);
+}
+
+function fitReaderPanImage(image) {
+	const frame = readerPanFrame(image);
 	if (!frame) {
 		return;
 	}
+	const frameRect = frame.getBoundingClientRect();
+	const naturalWidth = image.naturalWidth || Number(image.dataset.mediaWidth) || 0;
+	const naturalHeight = image.naturalHeight || Number(image.dataset.mediaHeight) || 0;
+	if (!frameRect.width || !frameRect.height || !naturalWidth || !naturalHeight) {
+		image.style.removeProperty("--reader-pan-width");
+		image.style.removeProperty("--reader-pan-height");
+		return;
+	}
+	const scale = Math.max(
+		frameRect.width / naturalWidth,
+		frameRect.height / naturalHeight,
+	);
+	image.style.setProperty(
+		"--reader-pan-width",
+		`${Math.ceil(naturalWidth * scale)}px`,
+	);
+	image.style.setProperty(
+		"--reader-pan-height",
+		`${Math.ceil(naturalHeight * scale)}px`,
+	);
+}
+
+function clampReaderPanImage(image) {
+	const frame = readerPanFrame(image);
+	if (!frame) {
+		return;
+	}
+	fitReaderPanImage(image);
 	const frameRect = frame.getBoundingClientRect();
 	const imageRect = image.getBoundingClientRect();
 	const maxX = Math.max(0, (imageRect.width - frameRect.width) / 2);
@@ -19935,7 +19981,11 @@ function bindReaderImagePanning() {
 			const originX = Number(image.dataset.panX) || 0;
 			const originY = Number(image.dataset.panY) || 0;
 			image.classList.add("is-panning");
-			image.setPointerCapture?.(event.pointerId);
+			try {
+				image.setPointerCapture?.(event.pointerId);
+			} catch {
+				// Synthetic pointer events cannot always claim capture, but real drags can.
+			}
 			const onMove = (moveEvent) => {
 				moveEvent.preventDefault();
 				image.dataset.panX = String(originX + moveEvent.clientX - startX);
@@ -19944,7 +19994,11 @@ function bindReaderImagePanning() {
 			};
 			const finish = () => {
 				image.classList.remove("is-panning");
-				image.releasePointerCapture?.(event.pointerId);
+				try {
+					image.releasePointerCapture?.(event.pointerId);
+				} catch {
+					// Ignore release failures for synthetic or already-ended pointers.
+				}
 				image.removeEventListener("pointermove", onMove);
 				image.removeEventListener("pointerup", finish);
 				image.removeEventListener("pointercancel", finish);
@@ -19954,6 +20008,30 @@ function bindReaderImagePanning() {
 			image.addEventListener("pointercancel", finish);
 		};
 		image.addEventListener("pointerdown", beginPan);
+		image.addEventListener("keydown", (event) => {
+			const step = event.shiftKey ? 40 : 16;
+			let deltaX = 0;
+			let deltaY = 0;
+			if (event.key === "ArrowLeft") {
+				deltaX = step;
+			} else if (event.key === "ArrowRight") {
+				deltaX = -step;
+			} else if (event.key === "ArrowUp") {
+				deltaY = step;
+			} else if (event.key === "ArrowDown") {
+				deltaY = -step;
+			} else if (event.key === "Home") {
+				event.preventDefault();
+				resetReaderPanImage(image);
+				return;
+			} else {
+				return;
+			}
+			event.preventDefault();
+			image.dataset.panX = String((Number(image.dataset.panX) || 0) + deltaX);
+			image.dataset.panY = String((Number(image.dataset.panY) || 0) + deltaY);
+			clampReaderPanImage(image);
+		});
 	});
 }
 
@@ -20055,6 +20133,8 @@ function applyResolvedImageDimensions(image, resolved = {}) {
 	}
 	image.width = width;
 	image.height = height;
+	image.dataset.mediaWidth = String(width);
+	image.dataset.mediaHeight = String(height);
 	image.style.setProperty("--media-width", `${width}px`);
 	image.style.setProperty("--media-height", `${height}px`);
 	image.style.setProperty("--media-ratio", `${width} / ${height}`);
