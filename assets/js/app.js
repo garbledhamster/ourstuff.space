@@ -14655,7 +14655,30 @@ function spacePinControlsHtml() {
   `;
 }
 
-function resetSpaceDatasetStorage(spaceId, { defaults = false } = {}) {
+function createSpaceDatasetReset(spaceId, { defaults = false } = {}) {
+	return {
+		artifactStore: createEmptyStore(),
+		appState: {
+			bodyTracker: createDefaultBodyTracker(),
+			spiritProgress: {},
+			lifePlanner: createDefaultLifePlanner(),
+			thoughtSettings: cloneSpaceTrackers(spaceId, { empty: !defaults }),
+			goalSettings: cloneSpaceGoals(spaceId, { empty: !defaults }),
+			dashboardIdentity: cloneDefaultDashboardIdentityForSpace(spaceId),
+			dashboardChartTabs: [...DEFAULT_DASHBOARD_CHART_TABS],
+			theme: "default",
+			colorMode: "standard",
+			timerState: normalizeTimerState(),
+			timerSettings: normalizeTimerSettings(),
+			pyxdiaSettings: normalizePyxdiaSettings(DEFAULT_PYXIDA_SETTINGS),
+			pyxdiaLocalState: createEmptyPyxdiaLocalState(),
+			localFiles: [],
+		},
+	};
+}
+
+function resetSpaceDatasetStorage(spaceId, { defaults = false, reset = null } = {}) {
+	const appliedReset = reset || createSpaceDatasetReset(spaceId, { defaults });
 	DATASET_STORAGE_BASE_KEYS.forEach((key) => {
 		try {
 			window.localStorage.removeItem(scopedStorageKey(key, spaceId));
@@ -14668,49 +14691,111 @@ function resetSpaceDatasetStorage(spaceId, { defaults = false } = {}) {
 	} catch {
 		// IndexedDB cleanup is best effort.
 	}
-	const store = createEmptyStore();
 	window.localStorage.setItem(
 		scopedStorageKey("ourstuff.artifactStore.v1", spaceId),
-		JSON.stringify(store),
+		JSON.stringify(appliedReset.artifactStore),
 	);
 	window.localStorage.setItem(
 		scopedStorageKey("ourstuff.bodyTracker.v1", spaceId),
-		JSON.stringify(createDefaultBodyTracker()),
+		JSON.stringify(appliedReset.appState.bodyTracker),
 	);
 	window.localStorage.setItem(
 		scopedStorageKey("ourstuff.spiritPlanProgress.v1", spaceId),
-		JSON.stringify({}),
+		JSON.stringify(appliedReset.appState.spiritProgress),
 	);
 	window.localStorage.setItem(
 		scopedStorageKey("ourstuff.lifePlanner.v1", spaceId),
-		JSON.stringify(createDefaultLifePlanner()),
+		JSON.stringify(appliedReset.appState.lifePlanner),
 	);
 	window.localStorage.setItem(
 		scopedStorageKey("ourstuff.thoughts.v1", spaceId),
-		JSON.stringify(cloneSpaceTrackers(spaceId, { empty: !defaults })),
+		JSON.stringify(appliedReset.appState.thoughtSettings),
 	);
 	window.localStorage.setItem(
 		scopedStorageKey("ourstuff.goals.v1", spaceId),
-		JSON.stringify(cloneSpaceGoals(spaceId, { empty: !defaults })),
+		JSON.stringify(appliedReset.appState.goalSettings),
 	);
 	window.localStorage.setItem(
 		scopedStorageKey("ourstuff.dashboardIdentity.v1", spaceId),
-		JSON.stringify(cloneDefaultDashboardIdentityForSpace(spaceId)),
+		JSON.stringify(appliedReset.appState.dashboardIdentity),
 	);
 	window.localStorage.setItem(
 		scopedStorageKey("ourstuff.dashboardChartTabs.v1", spaceId),
-		JSON.stringify([...DEFAULT_DASHBOARD_CHART_TABS]),
+		JSON.stringify(appliedReset.appState.dashboardChartTabs),
 	);
-	window.localStorage.setItem(scopedStorageKey("ourstuff.theme.v1", spaceId), "default");
-	window.localStorage.setItem(scopedStorageKey("ourstuff.colorMode.v1", spaceId), "standard");
+	window.localStorage.setItem(
+		scopedStorageKey("ourstuff.theme.v1", spaceId),
+		appliedReset.appState.theme,
+	);
+	window.localStorage.setItem(
+		scopedStorageKey("ourstuff.colorMode.v1", spaceId),
+		appliedReset.appState.colorMode,
+	);
+	window.localStorage.setItem(
+		scopedStorageKey("ourstuff.timerState.v1", spaceId),
+		JSON.stringify(appliedReset.appState.timerState),
+	);
+	window.localStorage.setItem(
+		scopedStorageKey("ourstuff.timerSettings.v1", spaceId),
+		JSON.stringify(appliedReset.appState.timerSettings),
+	);
 	window.localStorage.setItem(
 		scopedStorageKey("ourstuff.pyxdiaSettings.v1", spaceId),
-		JSON.stringify(normalizePyxdiaSettings(DEFAULT_PYXIDA_SETTINGS)),
+		JSON.stringify(appliedReset.appState.pyxdiaSettings),
 	);
 	window.localStorage.setItem(
 		scopedStorageKey("ourstuff.pyxdiaPenpal.v1", spaceId),
-		JSON.stringify(createEmptyPyxdiaLocalState()),
+		JSON.stringify(appliedReset.appState.pyxdiaLocalState),
 	);
+	return appliedReset;
+}
+
+async function replaceActiveSpaceCloudWithReset(spaceId, reset) {
+	if (!cloudHasSyncAccess()) {
+		return null;
+	}
+	if (spaceId !== activeSpaceId()) {
+		throw new Error("Switch to the space before replacing its Cloud records.");
+	}
+	if (!cloudCanOwnActiveSpace()) {
+		throw new Error(`Only the ${activeSpaceLabel()} owner can replace Cloud records.`);
+	}
+	const updatedAt = nowIso();
+	const json = {
+		schemaVersion: SCHEMA_VERSION,
+		rootId: reset.artifactStore.rootId || "ourstuff-root",
+		artifacts: reset.artifactStore.artifacts || [],
+		metadata: {
+			localUpdatedAt: updatedAt,
+			exportedAt: updatedAt,
+			deviceId: state.cloud?.deviceId || "",
+		},
+		appState: {
+			...reset.appState,
+			appearanceUpdatedAt: updatedAt,
+		},
+	};
+	const result = await saveAppStateJsonToCloud(json, { quiet: true });
+	recordCloudSyncAt(
+		result.updatedAt || updatedAt,
+		`${DATA_SPACES[spaceId]?.label || "Space"} Cloud records replaced.`,
+	);
+	return result;
+}
+
+async function resetSpaceDatasetEverywhere(spaceId, { defaults = false } = {}) {
+	const reset = createSpaceDatasetReset(spaceId, { defaults });
+	if (cloudHasSyncAccess()) {
+		if (spaceId !== activeSpaceId()) {
+			throw new Error("Switch to the space before replacing its Cloud records.");
+		}
+		if (!cloudCanOwnActiveSpace()) {
+			throw new Error(`Only the ${activeSpaceLabel()} owner can replace Cloud records.`);
+		}
+		await deleteCloudStateJson();
+	}
+	resetSpaceDatasetStorage(spaceId, { reset });
+	return await replaceActiveSpaceCloudWithReset(spaceId, reset);
 }
 
 async function createEmptySpace(spaceId) {
@@ -14723,7 +14808,7 @@ async function createEmptySpace(spaceId) {
 	if (!confirmed) {
 		return;
 	}
-	resetSpaceDatasetStorage(normalized, { defaults: false });
+	await resetSpaceDatasetEverywhere(normalized, { defaults: false });
 	switchSpace(normalized);
 }
 
@@ -14741,7 +14826,7 @@ async function restoreSpaceDefaults(spaceId) {
 	if (!confirmed) {
 		return;
 	}
-	resetSpaceDatasetStorage(normalized, { defaults: true });
+	await resetSpaceDatasetEverywhere(normalized, { defaults: true });
 	switchSpace(normalized);
 }
 
