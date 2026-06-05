@@ -5947,25 +5947,23 @@ function dashboardQuickOrbEntries(kind) {
 
 function dashboardQuickOrbGroupHtml(kind, label) {
 	const entries = dashboardQuickOrbEntries(kind);
+	if (!entries.length) {
+		return "";
+	}
 	const config = trackerKindConfig(kind);
-	const emptyText = kind === "goal" ? "No active goals" : "No active thoughts";
 	return `
     <fieldset class="dashboard-orb-fieldset dashboard-orb-fieldset--${escapeHtml(kind)}">
       <legend>${escapeHtml(label)}</legend>
       <div class="dashboard-orb-scroll" data-dashboard-orb-scroll tabindex="0" aria-label="${escapeHtml(label)} quick ${escapeHtml(config.plural)}">
         <div class="dashboard-orb-scroll-track">
-          ${
-						entries.length
-							? entries
-									.map(({ dashboard, tracker }) =>
-										trackerOrbHtml(dashboard, tracker, false, kind, false, {
-											inlineColor: true,
-											wrapClass: "dashboard-orb-quick-item",
-										}),
-									)
-									.join("")
-							: `<span class="dashboard-orb-empty">${escapeHtml(emptyText)}</span>`
-					}
+          ${entries
+						.map(({ dashboard, tracker }) =>
+							trackerOrbHtml(dashboard, tracker, false, kind, false, {
+								inlineColor: true,
+								wrapClass: "dashboard-orb-quick-item",
+							}),
+						)
+						.join("")}
         </div>
       </div>
     </fieldset>
@@ -5973,10 +5971,15 @@ function dashboardQuickOrbGroupHtml(kind, label) {
 }
 
 function dashboardQuickOrbsHtml() {
+	const thoughtOrbs = dashboardQuickOrbGroupHtml("thought", "Thoughts");
+	const goalOrbs = dashboardQuickOrbGroupHtml("goal", "Goals");
+	if (!thoughtOrbs && !goalOrbs) {
+		return "";
+	}
 	return `
     <div class="dashboard-orbs-panel" aria-label="Quick tracker orbs">
-      ${dashboardQuickOrbGroupHtml("thought", "Thoughts")}
-      ${dashboardQuickOrbGroupHtml("goal", "Goals")}
+      ${thoughtOrbs}
+      ${goalOrbs}
     </div>
   `;
 }
