@@ -1405,7 +1405,7 @@ select option:checked {
 
 .dashboard-home {
 	display: grid;
-	grid-template-rows: auto auto auto minmax(0, 1fr);
+	grid-template-rows: auto auto;
 	container-type: size;
 	height: 100%;
 	min-height: 0;
@@ -1486,6 +1486,7 @@ select option:checked {
 	justify-self: center;
 	gap: 14px;
 	width: min(100%, 760px);
+	margin-top: 8px;
 	border: 1px solid var(--border-soft);
 	border-radius: 12px;
 	background: color-mix(in srgb, var(--surface-2) 76%, transparent);
@@ -12900,6 +12901,7 @@ button.life-event-row:hover {
 		grid-template-columns: minmax(0, 1fr);
 		gap: 10px;
 		width: 100%;
+		margin-top: 6px;
 		border-radius: 10px;
 		padding: 12px;
 	}

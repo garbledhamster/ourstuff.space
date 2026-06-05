@@ -10,6 +10,15 @@
   <title>Ourstuff.space</title>
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/assets/css/app.css?v=custom-spaces-20260605a">
+  <style>
+    .dashboard-orb-fieldset:has(.dashboard-orb-empty) {
+      display: none;
+    }
+
+    .dashboard-orbs-panel:not(:has(.dashboard-orb-fieldset:not(:has(.dashboard-orb-empty)))) {
+      display: none;
+    }
+  </style>
   <script src="https://code.iconify.design/iconify-icon/3.0.0/iconify-icon.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.js"></script>
 </head>

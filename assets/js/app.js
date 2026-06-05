@@ -13019,23 +13019,6 @@ function dashboardGridHtml() {
     <div class="dashboard-home">
       ${dashboardDailyReturnHtml()}
       ${dashboardAnalyticsHtml()}
-      <div class="dashboard-divider" aria-hidden="true"></div>
-      <div class="dashboard-grid">
-        ${DASHBOARD_LABELS.map(
-					(label) => `
-          <button class="dashboard-card${state.flipped === label ? " is-flipped" : ""}${state.dashboardIdentity?.colorAlwaysOn ? " is-color-always-on" : ""}" data-action="open-dashboard-card" data-section="${label}" data-balance-key="${label}" style="--card-color: ${dashboardColor(label)};">
-            <span class="dashboard-card-inner">
-              <span class="dashboard-card-face dashboard-card-front">
-                <span class="${dashboardTitleClassName()}">${dashboardTitleHtml(label)}</span>
-              </span>
-              <span class="dashboard-card-face dashboard-card-back-face">
-                ${dashboardCardBackHtml(label)}
-              </span>
-            </span>
-          </button>
-        `,
-				).join("")}
-      </div>
     </div>
   `);
 }
@@ -13169,8 +13152,6 @@ function dashboardAnalyticsHtml() {
     <section class="dashboard-analytics" aria-label="Dashboard analytics">
       <div class="dashboard-analytics-body">
         <div class="dashboard-pie-wrap dashboard-pie-wrap--${escapeHtml(chartType)}">
-          ${chartHtml}
-          ${chartType === "orbs" ? "" : `<strong>${balanceScore}% balanced</strong>`}
           <div class="dashboard-chart-controls">
             <div class="dashboard-chart-switcher" data-dashboard-chart-switcher role="tablist" aria-label="Dashboard chart type" style="--dashboard-chart-tab-count: ${chartTabs.length};">
               ${chartTabs
@@ -13184,6 +13165,8 @@ function dashboardAnalyticsHtml() {
 								.join("")}
             </div>
           </div>
+          ${chartHtml}
+          ${chartType === "orbs" ? "" : `<strong>${balanceScore}% balanced</strong>`}
         </div>
       </div>
     </section>
