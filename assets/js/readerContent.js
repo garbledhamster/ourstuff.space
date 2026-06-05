@@ -223,10 +223,12 @@ function focusImageHtml(image) {
 	if (!image) {
 		return "";
 	}
+	const panAttrs =
+		' class="reader-pan-image" data-reader-pan-image draggable="false"';
 	if (image.type === "local") {
-		return `<img data-local-asset="${escapeHtml(image.id)}" alt="${escapeHtml(image.alt || "Image")}">`;
+		return `<img${panAttrs} data-local-asset="${escapeHtml(image.id)}" alt="${escapeHtml(image.alt || "Image")}">`;
 	}
-	return `<img src="${escapeHtml(image.src)}" alt="${escapeHtml(image.alt || "Image")}" loading="lazy">`;
+	return `<img${panAttrs} src="${escapeHtml(image.src)}" alt="${escapeHtml(image.alt || "Image")}" loading="lazy">`;
 }
 
 function youtubeEmbedHtml(video, label = "YouTube video") {

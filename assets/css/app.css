@@ -788,13 +788,7 @@ select option:checked {
 }
 
 .sidebar-settings-submenu .settings-tabs {
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 7px;
-}
-
-.sidebar-settings-submenu .settings-tabs .body-mode-button {
-	min-height: 40px;
-	padding: 0 8px;
+	max-width: none;
 }
 
 .sidebar-settings-submenu .settings-tab-panel {
@@ -829,12 +823,6 @@ select option:checked {
 .sidebar-text-link.is-active {
 	color: var(--text);
 	text-decoration-thickness: 2px;
-}
-
-@media (min-width: 720px) {
-	.sidebar-settings-submenu .settings-tabs {
-		grid-template-columns: repeat(3, minmax(0, 1fr));
-	}
 }
 
 .sidebar-group {
@@ -2917,31 +2905,77 @@ select option:checked {
 }
 
 .settings-tabs {
-	display: grid;
-	grid-template-columns: repeat(6, minmax(0, 1fr));
-	gap: 8px;
+	display: block;
+	max-width: 360px;
 	border: 0;
 	border-radius: 0;
 	background: transparent;
 	padding: 0;
 }
 
-.settings-tabs .body-mode-button {
-	min-width: 0;
-	padding: 0 10px;
+.settings-section-picker-label {
+	display: grid;
+	gap: 6px;
 }
 
-.settings-tabs .body-mode-label {
-	position: static;
-	width: auto;
-	height: auto;
-	margin: 0;
-	padding: 0;
+.settings-section-picker-kicker {
+	color: var(--muted);
+	font-size: 0.72rem;
+	font-weight: 900;
+	letter-spacing: 0;
+	text-transform: uppercase;
+}
+
+.settings-section-picker-control {
+	position: relative;
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: center;
+	min-height: 44px;
+	border: 1px solid var(--border-soft);
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--theme-control) 90%, var(--surface));
+	box-shadow: 0 14px 28px color-mix(in srgb, #000 18%, transparent);
+	color: var(--text);
+	overflow: hidden;
+}
+
+.settings-section-picker-icon,
+.settings-section-picker-chevron {
+	display: inline-grid;
+	place-items: center;
+	width: 40px;
+	color: var(--accent);
+	pointer-events: none;
+}
+
+.settings-section-picker-chevron {
+	color: var(--muted);
+}
+
+.settings-section-select {
+	width: 100%;
+	min-width: 0;
+	height: 44px;
+	appearance: none;
 	border: 0;
-	overflow: visible;
-	clip: auto;
-	white-space: normal;
-	line-height: 1.15;
+	background: transparent;
+	color: var(--text);
+	font-family: var(--font-label);
+	font-size: 0.94rem;
+	font-weight: 850;
+	outline: 0;
+}
+
+.settings-section-picker-control:focus-within {
+	border-color: var(--border-accent);
+	box-shadow:
+		0 0 0 3px var(--theme-ring),
+		0 14px 28px color-mix(in srgb, #000 18%, transparent);
+}
+
+.settings-section-select option {
+	font-weight: 700;
 }
 
 .settings-tab-panel {
@@ -4701,6 +4735,30 @@ select option:checked {
 	transform: translateY(0) scale(1);
 }
 
+.guided-tip-highlight {
+	position: fixed;
+	top: 0;
+	left: 0;
+	z-index: 10002;
+	box-sizing: border-box;
+	border: 2px solid
+		color-mix(in srgb, var(--tooltip-dot) 82%, var(--tooltip-text));
+	border-radius: 14px;
+	box-shadow:
+		0 0 0 5px color-mix(in srgb, var(--tooltip-dot) 16%, transparent),
+		0 0 28px color-mix(in srgb, var(--tooltip-dot) 46%, transparent);
+	opacity: 0;
+	pointer-events: none;
+	transition:
+		opacity 0.14s ease,
+		box-shadow 0.14s ease,
+		transform 0.14s ease;
+}
+
+.guided-tip-highlight[data-ready="true"] {
+	opacity: 1;
+}
+
 .guided-tip-bubble:hover,
 .guided-tip-bubble:focus-visible {
 	border-color: var(--tooltip-text);
@@ -4781,12 +4839,7 @@ select option:checked {
 }
 
 .is-guided-tip-target {
-	outline: 2px solid
-		color-mix(in srgb, var(--tooltip-dot) 76%, var(--tooltip-text));
-	outline-offset: 5px;
-	box-shadow:
-		0 0 0 5px color-mix(in srgb, var(--tooltip-dot) 14%, transparent),
-		0 0 20px color-mix(in srgb, var(--tooltip-dot) 36%, transparent) !important;
+	scroll-margin: 72px;
 }
 
 @keyframes guided-tip-bubble-glow {
@@ -8972,7 +9025,10 @@ button.life-event-row:hover {
 .reader-book {
 	height: calc(100% - 80px);
 	min-height: 0;
+	min-width: 0;
+	max-width: 100%;
 	overflow-y: auto;
+	overflow-x: hidden;
 	border: 0;
 	border-radius: 0;
 	background: transparent;
@@ -8983,7 +9039,9 @@ button.life-event-row:hover {
 	position: relative;
 	display: grid;
 	min-height: 100%;
+	min-width: 0;
 	width: 100%;
+	max-width: 100%;
 	color: var(--text);
 }
 
@@ -9077,7 +9135,10 @@ button.life-event-row:hover {
 	display: grid;
 	place-items: center;
 	width: min(100%, 920px);
+	max-width: 100%;
 	min-height: min(58vh, 640px);
+	min-width: 0;
+	overflow: hidden;
 	color: var(--text);
 }
 
@@ -9088,6 +9149,39 @@ button.life-event-row:hover {
 	object-fit: contain;
 	border-radius: 8px;
 	box-shadow: 0 18px 54px color-mix(in srgb, var(--bg) 76%, transparent);
+}
+
+.themed-child-viewer--image {
+	width: min(100%, 1040px);
+	height: min(70vh, 720px);
+	min-height: min(62vh, 640px);
+	border-radius: 8px;
+	cursor: grab;
+	touch-action: none;
+}
+
+.reader-pan-image {
+	user-select: none;
+	transform: translate(
+		var(--reader-pan-x, 0),
+		var(--reader-pan-y, 0)
+	);
+	will-change: transform;
+}
+
+.reader-pan-image.is-panning {
+	cursor: grabbing;
+}
+
+.themed-child-viewer--image .reader-pan-image,
+.reader-gallery-frame .reader-pan-image {
+	width: 100%;
+	height: 100%;
+	max-width: none;
+	max-height: none;
+	object-fit: cover;
+	cursor: grab;
+	touch-action: none;
 }
 
 .themed-child-viewer img[data-local-asset],
@@ -9171,9 +9265,9 @@ button.life-event-row:hover {
 	height: 100%;
 	min-width: 0;
 	min-height: 0;
-	max-width: 100%;
-	max-height: 100%;
-	object-fit: contain;
+	max-width: none;
+	max-height: none;
+	object-fit: cover;
 }
 
 .reader-gallery-controls {
@@ -13127,15 +13221,6 @@ button.life-event-row:hover {
 		overflow: visible;
 	}
 
-	.settings-tabs {
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-	}
-
-	.settings-tabs .body-mode-button {
-		min-height: 40px;
-		padding: 0 8px;
-	}
-
 	.pyxdia-page {
 		height: auto;
 		overflow: visible;
@@ -13715,16 +13800,6 @@ button.life-event-row:hover {
 		overflow: hidden;
 		clip: rect(0 0 0 0);
 		white-space: nowrap;
-	}
-
-	.settings-tabs .body-mode-label {
-		position: static;
-		width: auto;
-		height: auto;
-		margin: 0;
-		overflow: visible;
-		clip: auto;
-		white-space: normal;
 	}
 
 	.pyxdia-mode-switcher .body-mode-label {

@@ -544,6 +544,7 @@ let thoughtTooltipCleanup = null;
 let thoughtTooltipLongPressTimer = null;
 let thoughtTooltipSuppressClickTarget = null;
 let guidedTipCleanup = null;
+let guidedTipHighlight = null;
 let guidedTipTarget = null;
 let guidedTipTargetClickHandler = null;
 let guidedTipDocumentClickHandler = null;
@@ -5430,6 +5431,7 @@ function iconPickerFieldHtml({
 	colorFieldId = "",
 	colorValue = "",
 	previewId = "",
+	searchFieldId = "",
 	showLabel = true,
 }) {
 	const icon = normalizeIconSource(value) || "tabler:circle";
@@ -5444,7 +5446,7 @@ function iconPickerFieldHtml({
 	return `
     <input class="icon-picker-input" id="${escapeHtml(fieldId)}" type="hidden" value="${escapeHtml(icon)}">
     ${colorFieldId ? `<input class="icon-picker-input" id="${escapeHtml(colorFieldId)}" type="hidden" value="${escapeHtml(resolvedColor)}">` : ""}
-    <button class="icon-picker-trigger" data-action="open-icon-picker" data-icon-field="${escapeHtml(fieldId)}" data-icon-title="${escapeHtml(title || "Choose icon")}" data-icon-color="${escapeHtml(resolvedColor)}"${colorFieldId ? ` data-icon-color-field="${escapeHtml(colorFieldId)}"` : ""}${previewId ? ` data-icon-preview="${escapeHtml(previewId)}"` : ""} type="button" aria-label="${escapeHtml(`Choose icon: ${label}`)}" title="${escapeHtml(`Choose icon: ${label}`)}" style="--icon-picker-color: ${escapeHtml(resolvedColor)};">
+    <button class="icon-picker-trigger" data-action="open-icon-picker" data-icon-field="${escapeHtml(fieldId)}" data-icon-title="${escapeHtml(title || "Choose icon")}" data-icon-color="${escapeHtml(resolvedColor)}"${colorFieldId ? ` data-icon-color-field="${escapeHtml(colorFieldId)}"` : ""}${previewId ? ` data-icon-preview="${escapeHtml(previewId)}"` : ""}${searchFieldId ? ` data-icon-search-field="${escapeHtml(searchFieldId)}"` : ""} type="button" aria-label="${escapeHtml(`Choose icon: ${label}`)}" title="${escapeHtml(`Choose icon: ${label}`)}" style="--icon-picker-color: ${escapeHtml(resolvedColor)};">
       <span class="icon-picker-trigger-symbol" aria-hidden="true">${trackerIconHtml(icon)}</span>
       ${triggerText}
     </button>
@@ -10408,7 +10410,8 @@ function openCompendium(id) {
 }
 
 function compendiumReaderPage(compendium) {
-	const maxPage = Math.max(0, compendium?.sections?.length || 0);
+	const sections = Array.isArray(compendium?.sections) ? compendium.sections : [];
+	const maxPage = Math.max(0, sections.length);
 	const page = state.compendiumReaderPages?.[compendium?.id] || 0;
 	return Math.min(Math.max(page, 0), maxPage);
 }
@@ -10464,7 +10467,7 @@ function compendiumSectionGalleryKey(compendiumId, sectionId) {
 
 function sectionGalleryKey(sectionId) {
 	const compendium = state.compendiums.find((item) =>
-		item.sections.some((section) => section.id === sectionId),
+		(item.sections || []).some((section) => section.id === sectionId),
 	);
 	return compendium
 		? compendiumSectionGalleryKey(compendium.id, sectionId)
@@ -10633,6 +10636,10 @@ async function deleteCompendium(id) {
 		return;
 	}
 	const artifact = findArtifact(state.artifactStore, id);
+	if (!artifact) {
+		window.alert("Could not find this compendium in the artifact store.");
+		return;
+	}
 	const moved = await moveArtifactToTrash(artifact, {
 		confirmText: `Move "${compendium.title}" and all of its sections to Trash?`,
 	});
@@ -10693,11 +10700,16 @@ function saveSection(id, title, body) {
 
 async function deleteSection(id) {
 	const compendium = selectedCompendium();
-	const section = selectedSection();
+	const section =
+		compendium?.sections.find((item) => item.id === id) || selectedSection();
 	if (!compendium || !section) {
 		return;
 	}
 	const artifact = findArtifact(state.artifactStore, id);
+	if (!artifact) {
+		window.alert("Could not find this section in the artifact store.");
+		return;
+	}
 	const moved = await moveArtifactToTrash(artifact, {
 		confirmText: `Move "${section.title}" to Trash?`,
 	});
@@ -12021,6 +12033,7 @@ function render() {
 	bindEditorMedia();
 	bindLocalAssetImages();
 	bindPyxdiaImages();
+	bindReaderImagePanning();
 	bindDonationFlow(document, { onOpen: closeMobileMenu });
 	updateBodyTimerDom();
 	renderLifeMonthCalendar();
@@ -12164,6 +12177,9 @@ function openIconPicker(element) {
 		colorField?.value,
 		normalizeHexColor(element.dataset.iconColor, DASHBOARD_COLORS.Mind),
 	);
+	const searchFieldId = element.dataset.iconSearchField || "";
+	const searchField = searchFieldId ? document.getElementById(searchFieldId) : null;
+	const query = String(searchField?.value || "").trim();
 	state.iconPicker = {
 		fieldId,
 		colorFieldId,
@@ -12173,12 +12189,13 @@ function openIconPicker(element) {
 		selectedColor: currentColor,
 		selected:
 			normalizeIconSource(field.value || "tabler:circle") || "tabler:circle",
-		query: "",
+		query,
 		limit: ICON_PICKER_PAGE_SIZE,
 	};
 	app.querySelector("[data-icon-picker-overlay]")?.remove();
 	app.insertAdjacentHTML("beforeend", iconPickerOverlayHtml());
 	bindIconPickerControls();
+	requestIconPickerSearch(state.iconPicker.query, state.iconPicker.limit);
 }
 
 function closeIconPicker() {
@@ -13745,7 +13762,7 @@ function trashItemHtml(item) {
 function settingsHtml() {
 	const tab = activeSettingsTab();
 	return panelHtml(`
-    ${headerHtml("Settings", "Getting started, Thoughts, Goals, Interface, Pen Pal, and data controls.")}
+    ${headerHtml("Settings", "Getting started, Thoughts, Goals, Interface, Spaces, Pen Pal, and data controls.")}
     <div class="settings-page">
       ${settingsTabsHtml(tab)}
       ${settingsPanelHtml(tab)}
@@ -13753,17 +13770,22 @@ function settingsHtml() {
   `);
 }
 
+function settingsTabOptions() {
+	return [
+		["getting-started", "Getting Started", "tabler:sparkles"],
+		["thoughts", "Thoughts", "tabler:message-circle"],
+		["goals", "Goals", "tabler:target-arrow"],
+		["interface", "Interface", "tabler:layout-dashboard"],
+		["spaces", "Spaces", "tabler:layout-grid-add"],
+		["pyxdia", "Pen Pal", "tabler:sparkles"],
+		["cloud", "Data Controls", "tabler:database-cog"],
+	];
+}
+
 function activeSettingsTab() {
 	const requestedTab =
 		state.settingsTab === "dashboard" ? "interface" : state.settingsTab;
-	return [
-		"getting-started",
-		"thoughts",
-		"goals",
-		"interface",
-		"pyxdia",
-		"cloud",
-	].includes(requestedTab)
+	return settingsTabOptions().some(([tab]) => tab === requestedTab)
 		? requestedTab
 		: "getting-started";
 }
@@ -13774,6 +13796,7 @@ function settingsPanelHtml(tab = activeSettingsTab()) {
 		thoughts: settingsThoughtsHtml,
 		goals: settingsGoalsHtml,
 		interface: settingsInterfaceHtml,
+		spaces: settingsSpacesHtml,
 		pyxdia: settingsPyxdiaHtml,
 		cloud: settingsCloudHtml,
 	};
@@ -13782,26 +13805,27 @@ function settingsPanelHtml(tab = activeSettingsTab()) {
 }
 
 function settingsTabsHtml(activeTab) {
-	const tabs = [
-		["getting-started", "Getting Started", "tabler:sparkles"],
-		["thoughts", "Thoughts", "tabler:message-circle"],
-		["goals", "Goals", "tabler:target-arrow"],
-		["interface", "Interface", "tabler:layout-dashboard"],
-		["pyxdia", "Pen Pal", "tabler:sparkles"],
-		["cloud", "Data Controls", "tabler:database-cog"],
-	];
+	const tabs = settingsTabOptions();
+	const current = tabs.find(([tab]) => tab === activeTab) || tabs[0];
 	return `
-    <nav class="settings-tabs page-tool-switcher" aria-label="Settings tabs">
-      ${tabs
+    <div class="settings-tabs settings-section-picker">
+      <label class="settings-section-picker-label">
+        <span class="settings-section-picker-kicker">Settings section</span>
+        <span class="settings-section-picker-control">
+          <span class="settings-section-picker-icon" aria-hidden="true">${iconHtml(current[2])}</span>
+          <select class="settings-section-select" data-action="set-settings-tab" aria-label="Choose settings section">
+            ${tabs
 				.map(
-					([tab, label, icon]) => `
-        <button class="body-mode-button${activeTab === tab ? " is-active" : ""}" data-action="set-settings-tab" data-tab="${tab}" type="button" aria-pressed="${activeTab === tab ? "true" : "false"}"${activeTab === tab ? ' aria-current="page"' : ""}>
-          ${buttonContent(icon, label, "body-mode-label")}
-        </button>
+					([tab, label]) => `
+              <option value="${escapeHtml(tab)}"${activeTab === tab ? " selected" : ""}>${escapeHtml(label)}</option>
       `,
 				)
 				.join("")}
-    </nav>
+          </select>
+          <span class="settings-section-picker-chevron" aria-hidden="true">${iconHtml("tabler:chevron-down")}</span>
+        </span>
+      </label>
+    </div>
   `;
 }
 
@@ -13966,7 +13990,6 @@ function settingsInterfaceHtml() {
 	const colorMode = normalizeColorMode(state.colorMode);
 	return `
     <div class="settings-tab-panel interface-settings">
-      ${spaceVisibilitySettingsHtml()}
       <section class="interface-settings-section">
         <div class="body-card-heading">
           <div>
@@ -14051,6 +14074,14 @@ function settingsInterfaceHtml() {
           </button>
         </div>
       </section>
+    </div>
+  `;
+}
+
+function settingsSpacesHtml() {
+	return `
+    <div class="settings-tab-panel spaces-settings">
+      ${spaceVisibilitySettingsHtml()}
     </div>
   `;
 }
@@ -16964,17 +16995,23 @@ function sectionListHtml(compendium) {
 }
 
 function compendiumReaderHtml(compendium) {
-	const totalPages = compendium.sections.length + 1;
+	const sections = Array.isArray(compendium?.sections) ? compendium.sections : [];
+	const totalPages = sections.length + 1;
 	const pages = [
 		{
 			key: "cover",
 			body: `
         <section class="reader-section reader-section--cover">
           ${pageContentHtml(compendium.title, compendium.body, readerPageContext({ current: 1, total: totalPages, skipPageNumber: true }, compendiumCoverGalleryKey(compendium.id)))}
+          ${
+						sections.length
+							? ""
+							: `<div class="reader-empty-note"><strong>No sections yet.</strong><span>Add a section when you are ready to build this compendium.</span></div>`
+					}
         </section>
       `,
 		},
-		...compendium.sections.map((section, index) => ({
+		...sections.map((section, index) => ({
 			key: section.id,
 			body: `
         <section class="reader-section">
@@ -17434,6 +17471,8 @@ function hideGuidedTip() {
 		guidedTipCleanup();
 		guidedTipCleanup = null;
 	}
+	guidedTipHighlight?.remove();
+	guidedTipHighlight = null;
 	if (guidedTipDocumentClickHandler) {
 		document.removeEventListener("click", guidedTipDocumentClickHandler, true);
 		guidedTipDocumentClickHandler = null;
@@ -17452,6 +17491,7 @@ function hideGuidedTip() {
 		guidedTipDocumentKeyHandler = null;
 	}
 	document.querySelector(".guided-tip-bubble")?.remove();
+	document.querySelector(".guided-tip-highlight")?.remove();
 	app.querySelectorAll(".is-guided-tip-target").forEach((element) => {
 		element.classList.remove("is-guided-tip-target");
 	});
@@ -17703,6 +17743,11 @@ function showGuidedTip(tip) {
 		`${simpleTooltipText(tip.label, 18)}. Step ${tip.index + 1} of ${tip.total}.`,
 	);
 	document.body.append(bubble);
+	const highlight = document.createElement("div");
+	highlight.className = "guided-tip-highlight";
+	highlight.setAttribute("aria-hidden", "true");
+	document.body.append(highlight);
+	guidedTipHighlight = highlight;
 	tip.target.classList.add("is-guided-tip-target");
 	guidedTipTarget = tip.target;
 	guidedTipDocumentClickHandler = (event) => {
@@ -17740,6 +17785,15 @@ function showGuidedTip(tip) {
 
 	const update = () => {
 		const safePadding = navigationTourSafePadding();
+		const targetRect = tip.target.getBoundingClientRect();
+		const highlightPad = 7;
+		Object.assign(highlight.style, {
+			left: `${targetRect.left - highlightPad}px`,
+			top: `${targetRect.top - highlightPad}px`,
+			width: `${targetRect.width + highlightPad * 2}px`,
+			height: `${targetRect.height + highlightPad * 2}px`,
+		});
+		highlight.dataset.ready = "true";
 		computePosition(tip.target, bubble, {
 			placement: navigationTourPlacement(tip),
 			strategy: "fixed",
@@ -18287,6 +18341,8 @@ function bindActions() {
 		}
 		if (action === "select-spirit-plan") {
 			element.addEventListener("change", () => selectSpiritPlan(element.value));
+		} else if (action === "set-settings-tab" && element.tagName === "SELECT") {
+			element.addEventListener("change", () => handleAction(element));
 		} else {
 			element.addEventListener("click", (event) => {
 				const actionElement = eventActionElement(event);
@@ -19826,6 +19882,81 @@ function markLocalAssetReady(element) {
 	delete element.dataset.mediaError;
 }
 
+function resetReaderPanImage(image) {
+	image.style.removeProperty("--reader-pan-x");
+	image.style.removeProperty("--reader-pan-y");
+	image.dataset.panX = "0";
+	image.dataset.panY = "0";
+}
+
+function clampReaderPanImage(image) {
+	const frame =
+		image.closest(".reader-pan-frame, .reader-gallery-frame, .themed-child-viewer") ||
+		image.parentElement;
+	if (!frame) {
+		return;
+	}
+	const frameRect = frame.getBoundingClientRect();
+	const imageRect = image.getBoundingClientRect();
+	const maxX = Math.max(0, (imageRect.width - frameRect.width) / 2);
+	const maxY = Math.max(0, (imageRect.height - frameRect.height) / 2);
+	const currentX = Number(image.dataset.panX) || 0;
+	const currentY = Number(image.dataset.panY) || 0;
+	const nextX = Math.min(Math.max(currentX, -maxX), maxX);
+	const nextY = Math.min(Math.max(currentY, -maxY), maxY);
+	image.dataset.panX = String(nextX);
+	image.dataset.panY = String(nextY);
+	image.style.setProperty("--reader-pan-x", `${nextX}px`);
+	image.style.setProperty("--reader-pan-y", `${nextY}px`);
+}
+
+function bindReaderImagePanning() {
+	app.querySelectorAll("[data-reader-pan-image]").forEach((image) => {
+		if (image.dataset.readerPanBound === "true") {
+			return;
+		}
+		image.dataset.readerPanBound = "true";
+		image.addEventListener("dragstart", (event) => {
+			event.preventDefault();
+		});
+		image.addEventListener("load", () => {
+			resetReaderPanImage(image);
+			clampReaderPanImage(image);
+		});
+		const beginPan = (event) => {
+			if (event.button !== undefined && event.button !== 0) {
+				return;
+			}
+			if (image.classList.contains("is-missing")) {
+				return;
+			}
+			const startX = event.clientX;
+			const startY = event.clientY;
+			const originX = Number(image.dataset.panX) || 0;
+			const originY = Number(image.dataset.panY) || 0;
+			image.classList.add("is-panning");
+			image.setPointerCapture?.(event.pointerId);
+			const onMove = (moveEvent) => {
+				moveEvent.preventDefault();
+				image.dataset.panX = String(originX + moveEvent.clientX - startX);
+				image.dataset.panY = String(originY + moveEvent.clientY - startY);
+				clampReaderPanImage(image);
+			};
+			const finish = () => {
+				image.classList.remove("is-panning");
+				image.releasePointerCapture?.(event.pointerId);
+				image.removeEventListener("pointermove", onMove);
+				image.removeEventListener("pointerup", finish);
+				image.removeEventListener("pointercancel", finish);
+			};
+			image.addEventListener("pointermove", onMove, { passive: false });
+			image.addEventListener("pointerup", finish);
+			image.addEventListener("pointercancel", finish);
+		};
+		image.addEventListener("pointerdown", beginPan);
+	});
+}
+
 function blobToDataUrl(blob) {
 	return new Promise((resolve, reject) => {
 		const reader = new FileReader();
@@ -19927,6 +20058,10 @@ function applyResolvedImageDimensions(image, resolved = {}) {
 	image.style.setProperty("--media-width", `${width}px`);
 	image.style.setProperty("--media-height", `${height}px`);
 	image.style.setProperty("--media-ratio", `${width} / ${height}`);
+	if (image.matches?.("[data-reader-pan-image]")) {
+		resetReaderPanImage(image);
+		clampReaderPanImage(image);
+	}
 }
 
 async function localOrBlobImageDataUrl(image) {
@@ -20428,13 +20563,12 @@ function handleAction(element) {
 		setState({ sidebarSubmenu: "", mobileMenuOpen: true });
 	}
 	if (action === "set-settings-tab") {
+		const requestedTab =
+			element.value || element.dataset.tab || "getting-started";
 		setState({
 			mobileMenuOpen: true,
 			sidebarSubmenu: "settings",
-			settingsTab:
-				element.dataset.tab === "dashboard"
-					? "interface"
-					: element.dataset.tab || "getting-started",
+			settingsTab: requestedTab === "dashboard" ? "interface" : requestedTab,
 			trackerAddArea: "",
 			trackerEditKey: "",
 			trackerDeleteKey: "",
@@ -20918,6 +21052,16 @@ function handleAction(element) {
 		toggleSpiritComplete(element.dataset.key);
 	}
 	if (action === "reader") {
+		const compendium = selectedCompendium();
+		if (!compendium) {
+			setState({
+				active: "Mind",
+				selectedCompendiumId: null,
+				selectedSectionId: null,
+				mindMode: "grid",
+			});
+			return;
+		}
 		setState({ mindMode: "reader" });
 	}
 	if (action === "manager") {

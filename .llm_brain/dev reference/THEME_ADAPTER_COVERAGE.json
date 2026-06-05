@@ -1,14 +1,14 @@
 {
 	"schema": "ourstuff.themeAdapterCoverage.v1",
-	"generatedAt": "2026-06-05T09:08:33.307Z",
+	"generatedAt": "2026-06-05T10:41:54.553Z",
 	"source": {
 		"cssPath": "assets/css/app.css",
-		"cssSha256": "916a583df7bd3f7a6d8ec93ba9fbc23961f0cee5735f3f9148b2744c6e595984"
+		"cssSha256": "b2405191e8d9c8f27e5b5e2f140c0171acc413a254be859365a31cadefca9c91"
 	},
 	"summary": {
-		"classCount": 450,
+		"classCount": 457,
 		"needsAdapterCount": 26,
-		"coveredCount": 450,
+		"coveredCount": 457,
 		"requiredMissingCount": 0,
 		"highConfidenceMissingCount": 0
 	},
@@ -420,7 +420,6 @@
 				"selectors": []
 			},
 			"sourceSelectors": [
-				".settings-tabs .body-mode-label",
 				".pyxdia-mode-switcher .body-mode-label",
 				".panel-header-actions .button-label, .panel-header-actions .body-mode-label"
 			]
@@ -4113,6 +4112,27 @@
 				"selectors": []
 			},
 			"sourceSelectors": []
+		},
+		{
+			"className": "guided-tip-highlight",
+			"confidence": "medium",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": true,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": [
+				".guided-tip-highlight"
+			]
 		},
 		{
 			"className": "icon-picker-body-field",
@@ -8670,6 +8690,132 @@
 			"sourceSelectors": []
 		},
 		{
+			"className": "settings-section-picker-chevron",
+			"confidence": "low",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": true,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": [
+				".settings-section-picker-icon, .settings-section-picker-chevron",
+				".settings-section-picker-chevron"
+			]
+		},
+		{
+			"className": "settings-section-picker-control",
+			"confidence": "low",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": true,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": [
+				".settings-section-picker-control",
+				".settings-section-picker-control:focus-within"
+			]
+		},
+		{
+			"className": "settings-section-picker-icon",
+			"confidence": "low",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": true,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": [
+				".settings-section-picker-icon, .settings-section-picker-chevron"
+			]
+		},
+		{
+			"className": "settings-section-picker-kicker",
+			"confidence": "low",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": true,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": [
+				".settings-section-picker-kicker"
+			]
+		},
+		{
+			"className": "settings-section-picker-label",
+			"confidence": "layout",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": false,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": []
+		},
+		{
+			"className": "settings-section-select",
+			"confidence": "high",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": true,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": [
+				".settings-section-select"
+			]
+		},
+		{
 			"className": "settings-tab-panel",
 			"confidence": "layout",
 			"needsAdapter": false,
@@ -8709,8 +8855,7 @@
 				"selectors": []
 			},
 			"sourceSelectors": [
-				".settings-tabs",
-				".settings-tabs .body-mode-label"
+				".settings-tabs"
 			]
 		},
 		{
