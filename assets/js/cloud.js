@@ -40,6 +40,7 @@ const CLOUD_APP_STATE_KEYS = [
 	"cloudMediaKey",
 	"theme",
 	"colorMode",
+	"appearanceUpdatedAt",
 ];
 const CLOUD_APP_STATE_TITLES = {
 	bodyTracker: "Body tracker state",
@@ -52,6 +53,7 @@ const CLOUD_APP_STATE_TITLES = {
 	cloudMediaKey: "Cloud media key",
 	theme: "Interface theme",
 	colorMode: "Color mode",
+	appearanceUpdatedAt: "Appearance preference timestamp",
 };
 
 function activeSpaceIsFamily() {

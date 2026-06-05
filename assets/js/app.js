@@ -156,6 +156,7 @@ const DATASET_STORAGE_BASE_KEYS = [
 	"ourstuff.pyxdiaPenpal.v1",
 	"ourstuff.dismissedTips.v1",
 	"ourstuff.localAppUpdatedAt.v1",
+	"ourstuff.appearanceUpdatedAt.v1",
 	"ourstuff.localAppOwner.v1",
 ];
 const APP_STATE_STORAGE_BASE_KEYS = [
@@ -172,6 +173,7 @@ const APP_STATE_STORAGE_BASE_KEYS = [
 	"ourstuff.colorMode.v1",
 	"ourstuff.timerState.v1",
 	"ourstuff.timerSettings.v1",
+	"ourstuff.appearanceUpdatedAt.v1",
 ];
 migrateLegacyLocalStorageToPersonal(DATASET_STORAGE_BASE_KEYS);
 const BODY_TRACKER_KEY = scopedStorageKey("ourstuff.bodyTracker.v1");
@@ -193,6 +195,7 @@ const PYXIDA_RECENT_NOTE_DAYS = 30;
 const DISMISSED_TIPS_KEY = scopedStorageKey("ourstuff.dismissedTips.v1");
 const ICONIFY_SEARCH_CACHE_KEY = "ourstuff.iconifySearchCache.v1";
 const LOCAL_APP_UPDATED_AT_KEY = scopedStorageKey("ourstuff.localAppUpdatedAt.v1");
+const APPEARANCE_UPDATED_AT_KEY = scopedStorageKey("ourstuff.appearanceUpdatedAt.v1");
 const LOCAL_APP_OWNER_KEY = scopedStorageKey("ourstuff.localAppOwner.v1");
 const CLOUD_AUTH_VIEW_PENDING_KEY = "ourstuff.cloudAuthViewPending.v1";
 const CLOUD_SYNC_INTERVAL_MS = 2 * 60 * 1000;
@@ -2263,8 +2266,8 @@ function applyCoreTooltips() {
 		[".sidebar-menu-nav-button", "Toggle side sections"],
 		[".sidebar-text-link[data-action='open-settings']", "Open settings"],
 		[".sidebar-text-link[data-action='open-gallery']", "Open gallery"],
-		[".cloud-heading-actions [data-action='import-artifacts']", "Import data"],
-		[".cloud-heading-actions [data-action='export-artifacts']", "Export data"],
+		[".cloud-action-nav [data-action='import-artifacts']", "Import data"],
+		[".cloud-action-nav [data-action='export-artifacts']", "Export data"],
 		[".reader-page-indicator", "Open overview"],
 		[".compendium-rotator-edge--prev", "Previous compendiums"],
 		[".compendium-rotator-edge--next", "Next compendiums"],
@@ -2594,6 +2597,16 @@ function loadLocalAppUpdatedAt() {
 	}
 }
 
+function loadAppearanceUpdatedAt() {
+	try {
+		return normalizeIsoTimestamp(
+			window.localStorage.getItem(APPEARANCE_UPDATED_AT_KEY),
+		);
+	} catch {
+		return "";
+	}
+}
+
 function saveLocalAppUpdatedAt(value = nowIso()) {
 	const normalized = normalizeIsoTimestamp(value) || nowIso();
 	try {
@@ -2609,12 +2622,36 @@ function saveLocalAppUpdatedAt(value = nowIso()) {
 	return normalized;
 }
 
+function saveAppearanceUpdatedAt(value = nowIso()) {
+	const normalized = normalizeIsoTimestamp(value) || nowIso();
+	try {
+		window.localStorage.setItem(APPEARANCE_UPDATED_AT_KEY, normalized);
+	} catch {
+		// Appearance can still use in-memory state if localStorage is blocked.
+	}
+	try {
+		state.appearanceUpdatedAt = normalized;
+	} catch {
+		// State may not be initialized while helpers are being defined.
+	}
+	return normalized;
+}
+
 function markLocalAppChanged(value = nowIso()) {
 	if (localChangeTrackingSuppressed > 0) {
 		return "";
 	}
 	const updatedAt = saveLocalAppUpdatedAt(value);
 	queueCloudSyncAfterLocalChange();
+	return updatedAt;
+}
+
+function markAppearanceChanged(value = nowIso()) {
+	if (localChangeTrackingSuppressed > 0) {
+		return "";
+	}
+	const updatedAt = saveAppearanceUpdatedAt(value);
+	markLocalAppChanged(updatedAt);
 	return updatedAt;
 }
 
@@ -2665,6 +2702,12 @@ function localAppUpdatedAt(options = {}) {
 		saveLocalAppUpdatedAt(derived);
 	}
 	return derived;
+}
+
+function localAppearanceUpdatedAt() {
+	return normalizeIsoTimestamp(
+		state.appearanceUpdatedAt || loadAppearanceUpdatedAt(),
+	);
 }
 
 function localCloudOwnerId(cloud = state.cloud) {
@@ -3017,6 +3060,7 @@ async function exportAppState(options = {}) {
 		),
 		theme: normalizeTheme(state.theme),
 		colorMode: normalizeColorMode(state.colorMode),
+		appearanceUpdatedAt: localAppearanceUpdatedAt(),
 		timerState: normalizeTimerState(state.timerState),
 		timerSettings: normalizeTimerSettings(state.timerSettings),
 		cloudMediaKey: await exportCloudMediaKey(),
@@ -3073,6 +3117,9 @@ async function restoreImportedAppState(appState) {
 	);
 	const theme = normalizeTheme(appState?.theme || state.theme);
 	const colorMode = normalizeColorMode(appState?.colorMode || state.colorMode);
+	const appearanceUpdatedAt = normalizeIsoTimestamp(
+		appState?.appearanceUpdatedAt,
+	);
 	const timerState = normalizeTimerState(appState?.timerState || state.timerState);
 	const timerSettings = normalizeTimerSettings(
 		appState?.timerSettings || state.timerSettings,
@@ -3100,6 +3147,9 @@ async function restoreImportedAppState(appState) {
 	saveDashboardChartTabs(dashboardChartTabs);
 	saveTheme(theme);
 	saveColorMode(colorMode);
+	if (appearanceUpdatedAt) {
+		saveAppearanceUpdatedAt(appearanceUpdatedAt);
+	}
 	saveTimerState(timerState);
 	saveTimerSettings(timerSettings);
 	if (timerState.running) {
@@ -3130,9 +3180,29 @@ async function importAppStateJson(json, options = {}) {
 	};
 	const sourceUpdatedAt = normalizeIsoTimestamp(options.sourceUpdatedAt);
 	const appliedAt = sourceUpdatedAt || nowIso();
+	const appState = { ...(json.appState || {}) };
+	const localAppearance = {
+		theme: normalizeTheme(state.theme),
+		colorMode: normalizeColorMode(state.colorMode),
+		updatedAt: localAppearanceUpdatedAt(),
+	};
+	const incomingAppearanceUpdatedAt = normalizeIsoTimestamp(
+		appState.appearanceUpdatedAt,
+	);
+	const preserveLocalAppearance =
+		Boolean(localAppearance.updatedAt) &&
+		_compareIsoTimestamps(localAppearance.updatedAt, incomingAppearanceUpdatedAt) >
+			0;
+	if (preserveLocalAppearance) {
+		appState.theme = localAppearance.theme;
+		appState.colorMode = localAppearance.colorMode;
+		appState.appearanceUpdatedAt = localAppearance.updatedAt;
+	} else if (!incomingAppearanceUpdatedAt && (appState.theme || appState.colorMode)) {
+		appState.appearanceUpdatedAt = appliedAt;
+	}
 	const restore = async () => {
 		persistArtifactStore(importedStore);
-		await restoreImportedAppState(json.appState);
+		await restoreImportedAppState(appState);
 		setState({
 			active: "Dashboard",
 			flipped: null,
@@ -3156,6 +3226,7 @@ async function importAppStateJson(json, options = {}) {
 	} else if (!sourceUpdatedAt && options.queueCloudSync !== false) {
 		queueCloudSyncAfterLocalChange();
 	}
+	return { updatedAt: appliedAt, appearanceLocalPreserved: preserveLocalAppearance };
 }
 
 function storageKeyForSpace(baseKey, spaceId) {
@@ -3185,9 +3256,27 @@ function loadLocalAppUpdatedAtForSpace(spaceId) {
 	}
 }
 
+function loadAppearanceUpdatedAtForSpace(spaceId) {
+	try {
+		return normalizeIsoTimestamp(
+			window.localStorage.getItem(
+				storageKeyForSpace("ourstuff.appearanceUpdatedAt.v1", spaceId),
+			),
+		);
+	} catch {
+		return "";
+	}
+}
+
 function saveLocalAppUpdatedAtForSpace(spaceId, value = nowIso()) {
 	const normalized = normalizeIsoTimestamp(value) || nowIso();
 	setSpaceStorageText(spaceId, "ourstuff.localAppUpdatedAt.v1", normalized);
+	return normalized;
+}
+
+function saveAppearanceUpdatedAtForSpace(spaceId, value = nowIso()) {
+	const normalized = normalizeIsoTimestamp(value) || nowIso();
+	setSpaceStorageText(spaceId, "ourstuff.appearanceUpdatedAt.v1", normalized);
 	return normalized;
 }
 
@@ -3238,6 +3327,29 @@ async function importAppStateJsonForSpace(spaceId, json, options = {}) {
 		sourceUpdatedAt ||
 		normalizeIsoTimestamp(json?.metadata?.localUpdatedAt) ||
 		nowIso();
+	const localAppearanceStamp =
+		normalizedSpaceId === activeSpaceId()
+			? localAppearanceUpdatedAt()
+			: loadAppearanceUpdatedAtForSpace(normalizedSpaceId);
+	const incomingAppearanceUpdatedAt = normalizeIsoTimestamp(
+		appState.appearanceUpdatedAt,
+	);
+	const preserveLocalAppearance =
+		Boolean(localAppearanceStamp) &&
+		_compareIsoTimestamps(localAppearanceStamp, incomingAppearanceUpdatedAt) >
+			0;
+	const theme = preserveLocalAppearance
+		? window.localStorage.getItem(
+				storageKeyForSpace("ourstuff.theme.v1", normalizedSpaceId),
+			) || "default"
+		: appState.theme || "default";
+	const colorMode = preserveLocalAppearance
+		? window.localStorage.getItem(
+				storageKeyForSpace("ourstuff.colorMode.v1", normalizedSpaceId),
+			) || "standard"
+		: appState.colorMode;
+	const appearanceUpdatedAt =
+		preserveLocalAppearance ? localAppearanceStamp : incomingAppearanceUpdatedAt;
 
 	setSpaceStorageJson(normalizedSpaceId, "ourstuff.artifactStore.v1", {
 		schemaVersion: json.schemaVersion,
@@ -3299,12 +3411,12 @@ async function importAppStateJsonForSpace(spaceId, json, options = {}) {
 	setSpaceStorageText(
 		normalizedSpaceId,
 		"ourstuff.theme.v1",
-		normalizeTheme(appState.theme || "default"),
+		normalizeTheme(theme),
 	);
 	setSpaceStorageText(
 		normalizedSpaceId,
 		"ourstuff.colorMode.v1",
-		normalizeColorMode(appState.colorMode),
+		normalizeColorMode(colorMode),
 	);
 	setSpaceStorageJson(
 		normalizedSpaceId,
@@ -3332,9 +3444,12 @@ async function importAppStateJsonForSpace(spaceId, json, options = {}) {
 			),
 		);
 	}
+	if (appearanceUpdatedAt) {
+		saveAppearanceUpdatedAtForSpace(normalizedSpaceId, appearanceUpdatedAt);
+	}
 	saveLocalAppUpdatedAtForSpace(normalizedSpaceId, appliedAt);
 	saveLocalAppOwnerForSpace(normalizedSpaceId, options.ownerId);
-	return { updatedAt: appliedAt };
+	return { updatedAt: appliedAt, appearanceLocalPreserved: preserveLocalAppearance };
 }
 
 function cloudReturnUrl() {
@@ -3731,12 +3846,15 @@ async function saveAppStateJsonToCloud(json, options = {}) {
 async function importCloudInfoIntoLocal(info) {
 	const cloudUpdatedAt = cloudInfoUpdatedAt(info);
 	const json = info?.json || (await loadCloudStateJson());
-	await importAppStateJson(json, {
+	const importResult = await importAppStateJson(json, {
 		sourceUpdatedAt:
 			cloudUpdatedAt ||
 			normalizeIsoTimestamp(json?.metadata?.localUpdatedAt) ||
 			nowIso(),
 	});
+	if (importResult?.appearanceLocalPreserved && cloudCanWriteActiveSpace()) {
+		return await uploadLocalStateToCloud({ quiet: true });
+	}
 	const migration = await migrateLocalImagesToCloudBeforeSync();
 	if (migration.migrated > 0) {
 		return await uploadLocalStateToCloud();
@@ -4292,6 +4410,7 @@ const state = {
 	trackerSettings: loadTrackerSettings(),
 	goalSettings: loadGoalSettings(),
 	localAppUpdatedAt: loadLocalAppUpdatedAt(),
+	appearanceUpdatedAt: loadAppearanceUpdatedAt(),
 	cloud: getCloudAccountState(),
 	cloudStorageUsage: null,
 	trashSettings: normalizeTrashSettings(),
@@ -9756,6 +9875,7 @@ async function clearAppData(options = {}) {
 		window.localStorage.removeItem(TIMER_SETTINGS_KEY);
 		window.localStorage.removeItem(ICONIFY_SEARCH_CACHE_KEY);
 		window.localStorage.removeItem(LOCAL_APP_UPDATED_AT_KEY);
+		window.localStorage.removeItem(APPEARANCE_UPDATED_AT_KEY);
 		clearDismissedTips();
 		await clearLocalFiles().catch(() => {});
 		saveArtifactStore(emptyStore);
@@ -9775,6 +9895,7 @@ async function clearAppData(options = {}) {
 		state.timerSettings = normalizeTimerSettings();
 		state.timerOpen = false;
 		state.localAppUpdatedAt = "";
+		state.appearanceUpdatedAt = "";
 		state.pyxdiaSettings = normalizePyxdiaSettings(DEFAULT_PYXIDA_SETTINGS);
 		state.pyxdiaThreads = [];
 		state.pyxdiaLetters = [];
@@ -11507,13 +11628,21 @@ function reorderDashboardChartTabs(tabId, targetIndex) {
 
 function setTheme(theme) {
 	const nextTheme = normalizeTheme(theme);
+	const changed = nextTheme !== normalizeTheme(state.theme);
 	saveTheme(nextTheme);
+	if (changed) {
+		markAppearanceChanged();
+	}
 	setState({ theme: nextTheme });
 }
 
 function setColorMode(mode) {
 	const nextMode = normalizeColorMode(mode);
+	const changed = nextMode !== normalizeColorMode(state.colorMode);
 	saveColorMode(nextMode);
+	if (changed) {
+		markAppearanceChanged();
+	}
 	setState({ colorMode: nextMode });
 }
 
@@ -13957,25 +14086,21 @@ function settingsCloudHtml() {
             </div>
             <div class="cloud-heading-controls">
               <span class="cloud-status-pill${isCloud ? " is-active" : ""}" data-cloud-status-pill>${escapeHtml(statusLabel)}</span>
-              <div class="cloud-heading-actions" aria-label="Cloud sync actions">
-                ${
-									signedIn && isCloud
-										? `
-                <div class="cloud-heading-action-row">
-                  <button class="primary-button" data-action="cloud-sync-now" type="button"${writeDisabledAttr}>${buttonContent("tabler:cloud-up", "Sync now")}</button>
-                  <button class="secondary-button" data-action="cloud-load" type="button"${busyAttr}>${buttonContent("tabler:cloud-down", "Load cloud")}</button>
-                  <button class="secondary-button" data-action="cloud-sign-out" type="button"${busyAttr}>${buttonContent("tabler:logout", "Sign out")}</button>
-                </div>
-                `
-										: ""
-								}
-                <div class="cloud-heading-action-row">
-                  <button class="secondary-button" data-action="import-artifacts" type="button"${signedIn && !canWriteSpace ? " disabled" : ""}>${buttonContent("tabler:file-import", "Import")}</button>
-                  <button class="secondary-button" data-action="export-artifacts" type="button">${buttonContent("tabler:file-export", "Export")}</button>
-                </div>
-              </div>
             </div>
           </div>
+          <nav class="cloud-action-nav" aria-label="Cloud sync actions">
+            ${
+							signedIn && isCloud
+								? `
+            <button class="primary-button" data-action="cloud-sync-now" type="button"${writeDisabledAttr}>${buttonContent("tabler:cloud-up", "Sync now")}</button>
+            <button class="secondary-button" data-action="cloud-load" type="button"${busyAttr}>${buttonContent("tabler:cloud-down", "Load cloud")}</button>
+            <button class="secondary-button" data-action="cloud-sign-out" type="button"${busyAttr}>${buttonContent("tabler:logout", "Sign out")}</button>
+            `
+								: ""
+						}
+            <button class="secondary-button" data-action="import-artifacts" type="button"${signedIn && !canWriteSpace ? " disabled" : ""}>${buttonContent("tabler:file-import", "Import")}</button>
+            <button class="secondary-button" data-action="export-artifacts" type="button">${buttonContent("tabler:file-export", "Export")}</button>
+          </nav>
           ${
 						signedIn
 							? `
@@ -19698,20 +19823,6 @@ function handleAction(element) {
 	if (action === "stop-navigation-tour") {
 		stopNavigationTour();
 		return;
-	}
-	const keepMenuOpenActions = new Set([
-		"toggle-mobile-menu",
-		"toggle-sidebar-section",
-		"toggle-pyxdia-menu",
-		"toggle-all-sidebar-sections",
-		"sidebar-page",
-		"open-settings",
-		"pyxdia-open-settings",
-		"close-sidebar-submenu",
-		"set-settings-tab",
-	]);
-	if (!keepMenuOpenActions.has(action)) {
-		closeMobileMenu();
 	}
 	if (action === "open-camera") {
 		openCamera(cameraTargetFromElement(element));

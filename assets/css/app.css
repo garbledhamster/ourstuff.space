@@ -817,7 +817,7 @@ select option:checked {
 }
 
 .sidebar-settings-submenu .body-actions,
-.sidebar-settings-submenu .cloud-heading-actions {
+.sidebar-settings-submenu .cloud-action-nav {
 	justify-content: stretch;
 }
 
@@ -1847,9 +1847,27 @@ select option:checked {
 	height: 1.15em;
 }
 
+.dashboard-card-title--icon-only {
+	display: grid;
+	place-items: center;
+	gap: 0;
+	line-height: 0;
+}
+
+.dashboard-card-title--icon-only .dashboard-card-icon {
+	display: grid;
+	place-items: center;
+	width: 100%;
+	height: 100%;
+	line-height: 0;
+}
+
 .dashboard-card-title--icon-only .dashboard-card-icon .button-icon {
-	width: clamp(2.5rem, 5vw, 3.75rem);
-	height: clamp(2.5rem, 5vw, 3.75rem);
+	width: clamp(52px, 6.5vw, 72px);
+	height: clamp(52px, 6.5vw, 72px);
+	font-size: clamp(52px, 6.5vw, 72px);
+	line-height: 1;
+	transform: translateY(clamp(5px, 0.65vw, 8px));
 }
 
 @container (max-height: 650px) {
@@ -3825,6 +3843,17 @@ select option:checked {
 	flex-wrap: nowrap;
 }
 
+.cloud-action-nav {
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+	gap: 8px;
+	width: 100%;
+	min-width: 0;
+	margin-top: 10px;
+	flex-wrap: wrap;
+}
+
 .cloud-heading-actions {
 	display: flex;
 	align-items: flex-end;
@@ -3845,11 +3874,20 @@ select option:checked {
 }
 
 .cloud-heading-actions .primary-button,
-.cloud-heading-actions .secondary-button {
+.cloud-heading-actions .secondary-button,
+.cloud-action-nav .primary-button,
+.cloud-action-nav .secondary-button {
+	flex: 0 1 auto;
+	min-width: max-content;
+	max-width: 100%;
 	min-height: 34px;
 	padding: 6px 10px;
 	border-radius: 10px;
 	font-size: 0.78rem;
+}
+
+.cloud-action-nav .button-label {
+	white-space: normal;
 }
 
 .cloud-status-pill {
@@ -10824,6 +10862,7 @@ button.life-event-row:hover {
 :root.theme-palette:not(.theme-consolas) .cloud-settings,
 :root.theme-palette:not(.theme-consolas) .cloud-account-section,
 :root.theme-palette:not(.theme-consolas) .cloud-heading-controls,
+:root.theme-palette:not(.theme-consolas) .cloud-action-nav,
 :root.theme-palette:not(.theme-consolas) .cloud-heading-actions,
 :root.theme-palette:not(.theme-consolas) .cloud-heading-action-row,
 :root.theme-palette:not(.theme-consolas) .cloud-actions,
@@ -11114,6 +11153,7 @@ button.life-event-row:hover {
 :root.theme-consolas .cloud-settings,
 :root.theme-consolas .cloud-account-section,
 :root.theme-consolas .cloud-heading-controls,
+:root.theme-consolas .cloud-action-nav,
 :root.theme-consolas .cloud-heading-actions,
 :root.theme-consolas .cloud-heading-action-row,
 :root.theme-consolas .cloud-actions,
@@ -12750,8 +12790,9 @@ button.life-event-row:hover {
 	}
 
 	.dashboard-card-title--icon-only .dashboard-card-icon .button-icon {
-		width: 2.55rem;
-		height: 2.55rem;
+		width: clamp(52px, 13vw, 60px);
+		height: clamp(52px, 13vw, 60px);
+		font-size: clamp(52px, 13vw, 60px);
 	}
 
 	.dashboard-card-face {
@@ -12838,8 +12879,9 @@ button.life-event-row:hover {
 		}
 
 		.dashboard-card-title--icon-only .dashboard-card-icon .button-icon {
-			width: 2.1rem;
-			height: 2.1rem;
+			width: clamp(48px, 12vw, 56px);
+			height: clamp(48px, 12vw, 56px);
+			font-size: clamp(48px, 12vw, 56px);
 		}
 
 		.dashboard-card-face {
@@ -12975,6 +13017,7 @@ button.life-event-row:hover {
 
 	.cloud-heading-controls,
 	.cloud-heading-actions,
+	.cloud-action-nav,
 	.cloud-danger-links {
 		justify-content: flex-start;
 		width: 100%;
@@ -12990,6 +13033,11 @@ button.life-event-row:hover {
 		width: 100%;
 	}
 
+	.cloud-action-nav {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
 	.cloud-heading-action-row {
 		display: grid;
 		grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -12997,7 +13045,9 @@ button.life-event-row:hover {
 	}
 
 	.cloud-heading-actions .primary-button,
-	.cloud-heading-actions .secondary-button {
+	.cloud-heading-actions .secondary-button,
+	.cloud-action-nav .primary-button,
+	.cloud-action-nav .secondary-button {
 		min-width: 0;
 		width: 100%;
 		padding-right: 6px;
@@ -13005,7 +13055,8 @@ button.life-event-row:hover {
 		line-height: 1.1;
 	}
 
-	.cloud-heading-actions .button-label {
+	.cloud-heading-actions .button-label,
+	.cloud-action-nav .button-label {
 		white-space: normal;
 		text-align: center;
 	}

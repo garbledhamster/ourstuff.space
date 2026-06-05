@@ -1,14 +1,14 @@
 {
 	"schema": "ourstuff.themeAdapterCoverage.v1",
-	"generatedAt": "2026-06-04T03:14:45.323Z",
+	"generatedAt": "2026-06-05T00:34:50.645Z",
 	"source": {
 		"cssPath": "assets/css/app.css",
-		"cssSha256": "faa0cec9d4b2c26a4ced9a600451d4ddaeaaa608e0eaa8d8d888f635ab59669b"
+		"cssSha256": "7d8e9c765564e4a2e398bcd25029816580eb3cdbe72da34561e5543875a5cd94"
 	},
 	"summary": {
-		"classCount": 447,
+		"classCount": 450,
 		"needsAdapterCount": 26,
-		"coveredCount": 447,
+		"coveredCount": 450,
 		"requiredMissingCount": 0,
 		"highConfidenceMissingCount": 0
 	},
@@ -1172,6 +1172,31 @@
 			"sourceSelectors": []
 		},
 		{
+			"className": "cloud-action-nav",
+			"confidence": "low",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": false,
+			"exemptReason": "",
+			"palette": {
+				"covered": true,
+				"tokenized": true,
+				"selectors": [
+					":root.theme-palette:not(.theme-consolas) .dashboard-space-switcher, :root.theme-palette:not(.theme-consolas) .dashboard-chart-controls, :root.theme-palette:not(.theme-consolas) .dashboard-analytics-body, :root.theme-pale"
+				]
+			},
+			"consolas": {
+				"covered": true,
+				"tokenized": true,
+				"selectors": [
+					":root.theme-consolas .dashboard-space-switcher, :root.theme-consolas .dashboard-chart-controls, :root.theme-consolas .dashboard-analytics-body, :root.theme-consolas .dashboard-pie-wrap, :root.theme-consolas .dashboard-pi"
+				]
+			},
+			"sourceSelectors": [
+				".cloud-heading-actions .primary-button, .cloud-heading-actions .secondary-button, .cloud-action-nav .primary-button, .cloud-action-nav .secondary-button"
+			]
+		},
+		{
 			"className": "cloud-actions",
 			"confidence": "layout",
 			"needsAdapter": false,
@@ -1342,7 +1367,7 @@
 				]
 			},
 			"sourceSelectors": [
-				".cloud-heading-actions .primary-button, .cloud-heading-actions .secondary-button"
+				".cloud-heading-actions .primary-button, .cloud-heading-actions .secondary-button, .cloud-action-nav .primary-button, .cloud-action-nav .secondary-button"
 			]
 		},
 		{
@@ -5446,6 +5471,44 @@
 			"sourceSelectors": [
 				".life-month-heading"
 			]
+		},
+		{
+			"className": "life-new-note-button",
+			"confidence": "layout",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": false,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": []
+		},
+		{
+			"className": "life-new-note-label",
+			"confidence": "layout",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": false,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": []
 		},
 		{
 			"className": "life-project-body",
