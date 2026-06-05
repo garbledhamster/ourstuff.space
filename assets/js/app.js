@@ -34,7 +34,7 @@ import {
 	signOutCloud,
 	startCloudSubscription,
 	updateFamilyMember,
-} from "./cloud.js?v=custom-spaces-20260605a";
+} from "./cloud.js?v=space-isolation-20260605b";
 import { CLOUD_STORAGE_LIMIT_BYTES } from "./config.js?v=storage-quota-20260523a";
 import { today } from "./data.js";
 import { bindDonationFlow, donationModalHtml } from "./donations.js";
@@ -96,16 +96,17 @@ import {
 	removeArtifact,
 	rootNotesForDashboard,
 	SCHEMA_VERSION,
-	STORAGE_KEY,
+	artifactStorageKey,
 	upsertArtifact,
 	saveArtifactStore as writeArtifactStore,
-} from "./storage.js?v=space-20260531a";
+} from "./storage.js?v=space-isolation-20260605b";
 import {
 	activeSpace,
 	availableCustomSpaceId,
 	CUSTOM_SPACE_IDS,
 	DATA_SPACES,
 	FAMILY_SPACE_ID,
+	ACTIVE_SPACE_KEY,
 	getActiveSpaceId,
 	getActiveSpaceLabel,
 	hasSpacePin,
@@ -2754,7 +2755,7 @@ function saveLocalAppOwner(ownerId = localCloudOwnerId()) {
 
 function removeLocalAppStorageKeys() {
 	[
-		STORAGE_KEY,
+		artifactStorageKey(),
 		BODY_TRACKER_KEY,
 		SPIRIT_PROGRESS_KEY,
 		LIFE_PLANNER_KEY,
@@ -2768,6 +2769,7 @@ function removeLocalAppStorageKeys() {
 		TIMER_SETTINGS_KEY,
 		ICONIFY_SEARCH_CACHE_KEY,
 		LOCAL_APP_UPDATED_AT_KEY,
+		LOCAL_APP_OWNER_KEY,
 	].forEach((key) => {
 		try {
 			window.localStorage.removeItem(key);
@@ -3083,6 +3085,8 @@ async function exportAppState(options = {}) {
 
 async function exportAppStateJson(options = {}) {
 	const artifactStore = options.artifactStore || state.artifactStore;
+	const spaceId = normalizeDataSpaceId(options.spaceId || activeSpaceId());
+	const space = DATA_SPACES[spaceId] || DATA_SPACES[PERSONAL_SPACE_ID];
 	return {
 		schemaVersion: SCHEMA_VERSION,
 		rootId: artifactStore?.rootId || "ourstuff-root",
@@ -3090,12 +3094,35 @@ async function exportAppStateJson(options = {}) {
 			? artifactStore.artifacts
 			: [],
 		metadata: {
+			spaceId,
+			spaceLabel: space.label,
+			cloudAppId: space.cloudAppId,
 			localUpdatedAt: localAppUpdatedAt(),
 			exportedAt: nowIso(),
 			deviceId: state.cloud?.deviceId || "",
 		},
 		appState: await exportAppState(options),
 	};
+}
+
+function assertAppStateSpace(json, expectedSpaceId = activeSpaceId()) {
+	const normalizedSpaceId = normalizeDataSpaceId(expectedSpaceId);
+	const expectedSpace =
+		DATA_SPACES[normalizedSpaceId] || DATA_SPACES[PERSONAL_SPACE_ID];
+	const metadata =
+		json?.metadata && typeof json.metadata === "object" ? json.metadata : {};
+	const actualSpaceId = String(metadata.spaceId || "").trim();
+	const actualCloudAppId = String(metadata.cloudAppId || metadata.appId || "").trim();
+	if (actualSpaceId && normalizeDataSpaceId(actualSpaceId) !== normalizedSpaceId) {
+		throw new Error(
+			`This export belongs to the ${DATA_SPACES[normalizeDataSpaceId(actualSpaceId)]?.label || actualSpaceId} space, not ${expectedSpace.label}.`,
+		);
+	}
+	if (actualCloudAppId && actualCloudAppId !== expectedSpace.cloudAppId) {
+		throw new Error(
+			`This export belongs to ${actualCloudAppId}, not ${expectedSpace.cloudAppId}.`,
+		);
+	}
 }
 
 async function restoreImportedAppState(appState) {
@@ -3184,6 +3211,7 @@ async function importAppStateJson(json, options = {}) {
 	) {
 		throw new Error("Cloud state is not a valid Ourstuff app export.");
 	}
+	assertAppStateSpace(json, options.spaceId || activeSpaceId());
 	const importedStore = {
 		schemaVersion: json.schemaVersion,
 		rootId: json.rootId || "ourstuff-root",
@@ -3332,6 +3360,7 @@ async function importAppStateJsonForSpace(spaceId, json, options = {}) {
 	) {
 		throw new Error("Cloud state is not a valid Ourstuff app export.");
 	}
+	assertAppStateSpace(json, normalizedSpaceId);
 	const appState = json.appState || {};
 	const sourceUpdatedAt = normalizeIsoTimestamp(options.sourceUpdatedAt);
 	const appliedAt =
@@ -4441,7 +4470,7 @@ function hasStoredAppState() {
 
 function hasStoredLocalData() {
 	return Boolean(
-		window.localStorage.getItem(STORAGE_KEY) || hasStoredAppState(),
+		window.localStorage.getItem(artifactStorageKey()) || hasStoredAppState(),
 	);
 }
 
@@ -10000,6 +10029,7 @@ async function clearAppData(options = {}) {
 		window.localStorage.removeItem(TIMER_SETTINGS_KEY);
 		window.localStorage.removeItem(ICONIFY_SEARCH_CACHE_KEY);
 		window.localStorage.removeItem(LOCAL_APP_UPDATED_AT_KEY);
+		window.localStorage.removeItem(LOCAL_APP_OWNER_KEY);
 		window.localStorage.removeItem(APPEARANCE_UPDATED_AT_KEY);
 		clearDismissedTips();
 		await clearLocalFiles().catch(() => {});
@@ -10078,7 +10108,7 @@ async function restoreFactoryDefaults() {
 		return;
 	}
 	const seedStore = await loadSeedStore();
-	window.localStorage.removeItem(STORAGE_KEY);
+	window.localStorage.removeItem(artifactStorageKey());
 	window.localStorage.removeItem(BODY_TRACKER_KEY);
 	window.localStorage.removeItem(SPIRIT_PROGRESS_KEY);
 	window.localStorage.removeItem(LIFE_PLANNER_KEY);
@@ -20979,6 +21009,12 @@ function updateBodyTimerDom() {
 window.addEventListener("pagehide", () => {
 	saveTimerState(state.timerState, { markChanged: false });
 	stopCameraStream();
+});
+window.addEventListener("storage", (event) => {
+	if (event.key !== ACTIVE_SPACE_KEY || event.newValue === event.oldValue) {
+		return;
+	}
+	window.location.reload();
 });
 document.addEventListener("visibilitychange", () => {
 	if (document.hidden && state.cameraOpen) {

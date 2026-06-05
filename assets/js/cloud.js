@@ -23,9 +23,9 @@ import {
 
 const DEVICE_ID_KEY = "ourstuff.cloudDeviceId.v1";
 const CLOUD_AUTH_REDIRECT_PENDING_KEY = "ourstuff.cloudAuthRedirectPending.v1";
-const LAST_SYNC_KEY = scopedStorageKey("ourstuff.lastCloudSyncAt.v1");
+const LAST_SYNC_BASE_KEY = "ourstuff.lastCloudSyncAt.v1";
 const LOCAL_DEMO_SESSION_KEY = "ourstuff.localCloudDemoSession.v1";
-const LOCAL_DEMO_STATE_KEY = scopedStorageKey("ourstuff.localCloudDemoState.v1");
+const LOCAL_DEMO_STATE_BASE_KEY = "ourstuff.localCloudDemoState.v1";
 const CLOUD_STORAGE_VERSION = 2;
 const CLOUD_SCHEMA_VERSION = 1;
 const CLOUD_ARTIFACTS_COLLECTION = "artifacts";
@@ -75,6 +75,14 @@ function cloudContext(options = {}) {
 
 function activeCloudAppId() {
 	return cloudContext().appId;
+}
+
+function lastCloudSyncBaseStorageKey(spaceId = getActiveSpaceId()) {
+	return scopedStorageKey(LAST_SYNC_BASE_KEY, spaceId);
+}
+
+function localDemoStateStorageKey(spaceId = getActiveSpaceId()) {
+	return scopedStorageKey(LOCAL_DEMO_STATE_BASE_KEY, spaceId);
 }
 
 const INACTIVE_ENTITLEMENT = {
@@ -543,9 +551,10 @@ export async function saveCloudStateJson(json, options = {}) {
 		});
 		assertStorageUsageWithinLimit(usage);
 		window.localStorage.setItem(
-			LOCAL_DEMO_STATE_KEY,
+			localDemoStateStorageKey(context.spaceId),
 			JSON.stringify({
 				appId: context.appId,
+				spaceId: context.spaceId,
 				version: 1,
 				updatedAt: savedAt,
 				deviceId: getDeviceId(),
@@ -597,10 +606,13 @@ export async function loadCloudStateJson(options = {}) {
 
 	if (cloudState.isLocalDemo) {
 		const parsed = JSON.parse(
-			window.localStorage.getItem(LOCAL_DEMO_STATE_KEY) || "null",
+			window.localStorage.getItem(localDemoStateStorageKey(context.spaceId)) || "null",
 		);
 		if (!parsed?.json) {
 			throw new Error(`No ${getActiveSpaceLabel()} local demo cloud state has been saved yet.`);
+		}
+		if (parsed.appId && parsed.appId !== context.appId) {
+			throw new Error("Saved local demo cloud state is not valid for this space.");
 		}
 		emitCloudState({ message: `${getActiveSpaceLabel()} local demo cloud state loaded.`, error: "" });
 		return parsed.json;
@@ -627,7 +639,7 @@ export async function getCloudStateInfo(options = {}) {
 
 	if (cloudState.isLocalDemo) {
 		const parsed = JSON.parse(
-			window.localStorage.getItem(LOCAL_DEMO_STATE_KEY) || "null",
+			window.localStorage.getItem(localDemoStateStorageKey(context.spaceId)) || "null",
 		);
 		return {
 			appId: context.appId,
@@ -679,8 +691,8 @@ export async function getCloudSpaceStates(spaceIds = Object.keys(DATA_SPACES)) {
 					await readFamilySpaceState(user, { spaceId }).catch((error) => ({
 						spaceId,
 						appId: cloudContext({ spaceId }).appId,
-						role: "owner",
-						ownerUid: user.uid,
+						role: "reader",
+						ownerUid: "",
 						members: [],
 						invites: [],
 						error: errorMessage(error),
@@ -695,8 +707,26 @@ export async function getCloudSpaceStates(spaceIds = Object.keys(DATA_SPACES)) {
 			const sharedState = sharedStates[spaceId] || null;
 			const cloudOwnerUid =
 				sharedState
-					? String(sharedState?.ownerUid || user.uid)
+					? String(sharedState?.ownerUid || "")
 					: user.uid;
+			if (sharedState && !cloudOwnerUid) {
+				return {
+					spaceId,
+					appId: context.appId,
+					cloudOwnerUid: "",
+					spaceRole: "reader",
+					sharedSpace: sharedState,
+					exists: false,
+					deleted: false,
+					updatedAt: "",
+					docCount: 0,
+					artifactCount: 0,
+					json: null,
+					error:
+						sharedState?.error ||
+						`Could not resolve the ${DATA_SPACES[spaceId]?.label || "shared"} owner. Cloud sync is blocked.`,
+				};
+			}
 			try {
 				const info = await readCloudArtifactCollection(cloudOwnerUid, context);
 				return {
@@ -748,7 +778,7 @@ export async function deleteCloudStateJson() {
 	const context = cloudContext();
 
 	if (cloudState.isLocalDemo) {
-		window.localStorage.removeItem(LOCAL_DEMO_STATE_KEY);
+		window.localStorage.removeItem(localDemoStateStorageKey(context.spaceId));
 		emitCloudState({ message: `${getActiveSpaceLabel()} local demo cloud state deleted.`, error: "" });
 		return { deleted: true };
 	}
@@ -766,7 +796,7 @@ export async function deleteCloudStateJson() {
 export async function deleteCloudAccount() {
 	if (cloudState.isLocalDemo) {
 		clearLocalDemoSession();
-		window.localStorage.removeItem(LOCAL_DEMO_STATE_KEY);
+		window.localStorage.removeItem(localDemoStateStorageKey());
 		emitCloudState(signedOutState("Local demo cloud account deleted."));
 		return { deleted: true };
 	}
@@ -1100,6 +1130,8 @@ async function writeCollectionDocs(modules, collectionRef, docs) {
 }
 
 function normalizeExportJson(json, context = {}) {
+	const cloudContextValue = cloudContext(context);
+	const space = DATA_SPACES[cloudContextValue.spaceId] || {};
 	const updatedAt =
 		normalizeSyncTimestamp(context.updatedAt) || new Date().toISOString();
 	const metadata =
@@ -1115,6 +1147,9 @@ function normalizeExportJson(json, context = {}) {
 			: [],
 		metadata: {
 			...jsonSafe(metadata),
+			spaceId: cloudContextValue.spaceId,
+			spaceLabel: space.label || metadata.spaceLabel || getActiveSpaceLabel(),
+			cloudAppId: cloudContextValue.appId,
 			localUpdatedAt:
 				normalizeSyncTimestamp(metadata.localUpdatedAt) || updatedAt,
 			cloudStorage: "cloud-records",
@@ -1156,9 +1191,12 @@ export function estimateCloudStateStorageUsage(json, options = {}) {
 }
 
 function cloudAppDocBase(json, docs, context = {}) {
-	const { appId } = cloudContext(context);
+	const { appId, spaceId } = cloudContext(context);
 	return {
 		appId,
+		spaceId,
+		spaceLabel:
+			DATA_SPACES[spaceId]?.label || json?.metadata?.spaceLabel || getActiveSpaceLabel(),
 		version: CLOUD_STORAGE_VERSION,
 		schemaVersion: json.schemaVersion,
 		storage: "cloud-records",
@@ -1577,6 +1615,9 @@ function cloudArtifactDocsToAppJson(docs, appData = {}) {
 			.sort((a, b) => a.order - b.order)
 			.map((row) => row.artifact),
 		metadata: {
+			spaceId: appData?.spaceId || spaceIdForAppId(appData?.appId),
+			spaceLabel: appData?.spaceLabel || "",
+			cloudAppId: appData?.appId || "",
 			localUpdatedAt:
 				normalizeSyncTimestampFromFirestore(appData?.updatedAt) ||
 				new Date().toISOString(),
@@ -1805,15 +1846,15 @@ async function handleFirebaseAuthChange(user) {
 		? await readFamilySpaceState(user, { spaceId: getActiveSpaceId() }).catch((error) => ({
 				spaceId: getActiveSpaceId(),
 				appId: getActiveCloudAppId(),
-				role: "owner",
-				ownerUid: user.uid,
+				role: "reader",
+				ownerUid: "",
 				members: [],
 				invites: [],
 				error: errorMessage(error),
 			}))
 		: null;
 	const familyInvites = await readFamilyInvites(user).catch(() => []);
-	const cloudOwnerUid = sharedSpace?.ownerUid || user.uid;
+	const cloudOwnerUid = sharedSpace ? String(sharedSpace.ownerUid || "") : user.uid;
 	const spaceRole = sharedSpace?.role || "owner";
 	const obsidianKey =
 		(getActiveCloudAppId() === "ourstuff-main") && (entitlement.cloud || entitlement.admin)
@@ -2109,10 +2150,13 @@ function requireCloudEntitlement() {
 }
 
 function currentCloudDataUid() {
-	return (
-		String(cloudState.cloudOwnerUid || "").trim() ||
-		String(cloudState.user?.uid || "").trim()
-	);
+	const ownerUid = String(cloudState.cloudOwnerUid || "").trim();
+	if (activeSpaceIsFamily() && !ownerUid) {
+		throw new Error(
+			`Could not resolve the ${getActiveSpaceLabel()} owner. Cloud sync is blocked.`,
+		);
+	}
+	return ownerUid || String(cloudState.user?.uid || "").trim();
 }
 
 function requireCloudWriteAccess() {
@@ -2159,7 +2203,8 @@ function currentCloudUserUid() {
 
 function lastCloudSyncStorageKey(uid = "") {
 	const normalized = String(uid || "").trim();
-	return normalized ? `${LAST_SYNC_KEY}:${normalized}` : LAST_SYNC_KEY;
+	const baseKey = lastCloudSyncBaseStorageKey();
+	return normalized ? `${baseKey}:${normalized}` : baseKey;
 }
 
 function loadLastCloudSyncAt(uid = "") {
@@ -2170,7 +2215,7 @@ function loadLastCloudSyncAt(uid = "") {
 				window.localStorage.getItem(lastCloudSyncStorageKey(normalized)) || ""
 			);
 		}
-		return window.localStorage.getItem(LAST_SYNC_KEY) || "";
+		return window.localStorage.getItem(lastCloudSyncBaseStorageKey()) || "";
 	} catch {
 		return "";
 	}

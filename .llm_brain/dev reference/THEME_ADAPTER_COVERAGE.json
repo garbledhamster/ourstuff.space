@@ -1,9 +1,9 @@
 {
 	"schema": "ourstuff.themeAdapterCoverage.v1",
-	"generatedAt": "2026-06-05T03:19:22.665Z",
+	"generatedAt": "2026-06-05T09:08:33.307Z",
 	"source": {
 		"cssPath": "assets/css/app.css",
-		"cssSha256": "015dcaffe62a2df7e73c2c288946f3ca60a5e756218f575d72a6e566ba9a5997"
+		"cssSha256": "916a583df7bd3f7a6d8ec93ba9fbc23961f0cee5735f3f9148b2744c6e595984"
 	},
 	"summary": {
 		"classCount": 450,

@@ -1,6 +1,10 @@
 import { getActiveSpaceId, PERSONAL_SPACE_ID, scopedStorageKey } from "./space.js";
 
-export const STORAGE_KEY = scopedStorageKey("ourstuff.artifactStore.v1");
+export function artifactStorageKey(spaceId = getActiveSpaceId()) {
+	return scopedStorageKey("ourstuff.artifactStore.v1", spaceId);
+}
+
+export const STORAGE_KEY = artifactStorageKey();
 export const SCHEMA_VERSION = 1;
 export const SEED_DATA_URL = "/assets/data/artifacts.json";
 
@@ -35,7 +39,7 @@ export async function loadSeedStore() {
 
 export async function loadArtifactStore() {
 	try {
-		const raw = window.localStorage.getItem(STORAGE_KEY);
+		const raw = window.localStorage.getItem(artifactStorageKey());
 		if (!raw) {
 			if (getActiveSpaceId() !== PERSONAL_SPACE_ID) {
 				return createEmptyStore();
@@ -64,7 +68,7 @@ export async function loadArtifactStore() {
 }
 
 export function saveArtifactStore(store) {
-	window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+	window.localStorage.setItem(artifactStorageKey(), JSON.stringify(store));
 }
 
 function compendiumSections(compendium) {
