@@ -1499,10 +1499,41 @@ select option:checked {
 }
 
 .daily-return-copy {
+	position: relative;
 	display: grid;
 	align-content: center;
 	gap: 5px;
 	min-width: 0;
+	padding-right: 46px;
+}
+
+.daily-return-teaching-orb {
+	position: absolute;
+	top: 0;
+	right: 0;
+	width: 38px;
+	height: 38px;
+	min-width: 38px;
+	border-radius: 999px;
+	border-color: color-mix(in srgb, var(--accent) 34%, var(--border-soft));
+	background: color-mix(in srgb, var(--accent) 12%, var(--theme-control));
+	color: var(--accent);
+	box-shadow: 0 10px 24px color-mix(in srgb, var(--shadow) 18%, transparent);
+}
+
+.daily-return-teaching-orb:hover,
+.daily-return-teaching-orb:focus-visible,
+.daily-return-teaching-orb.is-active {
+	border-color: var(--border-accent-soft);
+	background: color-mix(in srgb, var(--accent) 22%, var(--theme-control));
+	color: var(--text);
+	outline: none;
+}
+
+.daily-return-teaching-orb .button-icon {
+	width: 1.1em;
+	height: 1.1em;
+	font-size: 1.1em;
 }
 
 .daily-return-copy span {
@@ -13186,6 +13217,13 @@ button.life-event-row:hover {
 
 	.daily-return-copy {
 		gap: 4px;
+		padding-right: 42px;
+	}
+
+	.daily-return-teaching-orb {
+		width: 34px;
+		height: 34px;
+		min-width: 34px;
 	}
 
 	.daily-return-copy h2 {

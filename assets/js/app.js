@@ -13123,11 +13123,23 @@ function dashboardTeachingModeEnabled() {
 	return state.dashboardTeachingMode === true;
 }
 
-function dashboardTeachingToggleHtml() {
+function dashboardTeachingToggleHtml({
+	iconOnly = false,
+	extraClass = "",
+} = {}) {
 	const active = dashboardTeachingModeEnabled();
+	const label = active ? "Hide Teaching" : "Show Teaching";
+	const buttonClass = [
+		iconOnly ? "icon-button" : "secondary-button",
+		"dashboard-teaching-toggle",
+		extraClass,
+		active ? "is-active" : "",
+	]
+		.filter(Boolean)
+		.join(" ");
 	return `
-    <button class="secondary-button dashboard-teaching-toggle${active ? " is-active" : ""}" data-action="toggle-dashboard-teaching" type="button" aria-pressed="${active ? "true" : "false"}">
-      ${buttonContent("tabler:school", active ? "Hide Teaching" : "Show Teaching")}
+    <button class="${buttonClass}" data-action="toggle-dashboard-teaching" type="button" aria-pressed="${active ? "true" : "false"}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">
+      ${iconOnly ? iconHtml("tabler:school") : buttonContent("tabler:school", label)}
     </button>
   `;
 }
@@ -13175,7 +13187,6 @@ function dashboardGridHtml() {
     ${headerHtml(
 			"Ourstuff.space",
 			`${activeSpaceLabel()} dashboard for ${dashboardDisplayNameList()}.`,
-			dashboardTeachingToggleHtml(),
 		)}
     ${dashboardSpaceSwitcherHtml()}
     <div class="dashboard-home">
@@ -13195,6 +13206,10 @@ function dashboardDailyReturnHtml() {
 	return `
     <section class="daily-return-panel" aria-label="Daily Return">
       <div class="daily-return-copy">
+        ${dashboardTeachingToggleHtml({
+					iconOnly: true,
+					extraClass: "daily-return-teaching-orb",
+				})}
         <span>Daily Return</span>
         <h2>Notice your life.</h2>
         <p>Start with one honest check-in. Choose one path and make one thing clearer today.</p>
