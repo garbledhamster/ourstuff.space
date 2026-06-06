@@ -207,6 +207,7 @@ select option:checked {
 
 :root.theme-accessibility-colorblind .body-mode-button.is-active,
 :root.theme-accessibility-colorblind .dashboard-chart-switcher button.is-active,
+:root.theme-accessibility-colorblind .settings-tab.is-active,
 :root.theme-accessibility-colorblind .theme-choice.is-active,
 :root.theme-accessibility-colorblind .dashboard-identity-toggle.is-active {
 	box-shadow:
@@ -251,6 +252,7 @@ select option:checked {
 .mobile-menu-toggle,
 .path-bar,
 .settings-tabs,
+.settings-tab,
 .theme-choice,
 .sidebar-item,
 .sidebar-toggle-all,
@@ -405,6 +407,7 @@ select option:checked {
 :root.theme-consolas .primary-button,
 :root.theme-consolas .secondary-button,
 :root.theme-consolas .icon-button,
+:root.theme-consolas .settings-tab,
 :root.theme-consolas .body-mode-button,
 :root.theme-consolas .dashboard-chart-switcher button,
 :root.theme-consolas .compendium-new-button,
@@ -424,6 +427,9 @@ select option:checked {
 :root.theme-consolas .primary-button:hover,
 :root.theme-consolas .secondary-button:hover,
 :root.theme-consolas .icon-button:hover,
+:root.theme-consolas .settings-tab:hover,
+:root.theme-consolas .settings-tab:focus-visible,
+:root.theme-consolas .settings-tab.is-active,
 :root.theme-consolas .body-mode-button:hover,
 :root.theme-consolas .body-mode-button.is-active,
 :root.theme-consolas .dashboard-chart-switcher button:hover,
@@ -1401,6 +1407,11 @@ select option:checked {
 	overflow: hidden;
 }
 
+.dashboard-home:has(.dashboard-teaching-panel) {
+	overflow-y: auto;
+	padding-right: 4px;
+}
+
 .dashboard-space-switcher {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
@@ -1465,6 +1476,12 @@ select option:checked {
 	background: color-mix(in srgb, var(--accent) 18%, var(--theme-control));
 	color: var(--text);
 	outline: none;
+}
+
+.dashboard-teaching-toggle.is-active {
+	border-color: var(--border-accent-soft);
+	background: color-mix(in srgb, var(--accent) 18%, var(--theme-control));
+	color: var(--text);
 }
 
 .daily-return-panel {
@@ -1582,6 +1599,74 @@ select option:checked {
 	font-size: 0.7rem;
 	line-height: 1.15;
 	white-space: normal;
+}
+
+.daily-return-path em {
+	display: block;
+	margin-top: 5px;
+	color: color-mix(in srgb, var(--muted) 88%, var(--text));
+	font-size: 0.68rem;
+	font-style: normal;
+	font-weight: 650;
+	line-height: 1.25;
+}
+
+.dashboard-teaching-panel {
+	display: grid;
+	gap: 8px;
+	width: 100%;
+	min-width: 0;
+	border: 1px solid color-mix(in srgb, var(--border-soft) 88%, transparent);
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--surface-2) 58%, transparent);
+	padding: 10px 11px;
+	text-align: left;
+}
+
+.dashboard-teaching-panel--compact {
+	border-color: color-mix(in srgb, var(--border-soft) 62%, transparent);
+	background: transparent;
+	padding: 9px 0 0;
+}
+
+.dashboard-teaching-panel h3 {
+	margin: 0;
+	color: var(--text);
+	font-family: var(--font-body);
+	font-size: 0.82rem;
+	font-weight: 760;
+	letter-spacing: 0;
+	line-height: 1.2;
+}
+
+.dashboard-teaching-panel dl {
+	display: grid;
+	gap: 7px;
+	margin: 0;
+}
+
+.dashboard-teaching-panel div {
+	display: grid;
+	gap: 2px;
+	min-width: 0;
+}
+
+.dashboard-teaching-panel dt {
+	color: var(--muted);
+	font-family: var(--font-label);
+	font-size: 0.62rem;
+	font-weight: 900;
+	letter-spacing: 0.08em;
+	line-height: 1.1;
+	text-transform: uppercase;
+}
+
+.dashboard-teaching-panel dd {
+	margin: 0;
+	color: color-mix(in srgb, var(--text) 88%, var(--muted));
+	font-size: 0.76rem;
+	line-height: 1.4;
+	text-wrap: pretty;
 }
 
 .dashboard-grid {
@@ -2905,77 +2990,67 @@ select option:checked {
 }
 
 .settings-tabs {
-	display: block;
-	max-width: 360px;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
 	border: 0;
 	border-radius: 0;
 	background: transparent;
 	padding: 0;
 }
 
-.settings-section-picker-label {
-	display: grid;
-	gap: 6px;
-}
-
-.settings-section-picker-kicker {
+.settings-tab {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 7px;
+	min-height: 38px;
+	min-width: 0;
+	border: 1px solid var(--border-soft);
+	border-radius: 10px;
+	background: var(--theme-control);
 	color: var(--muted);
-	font-size: 0.72rem;
+	padding: 0 12px;
+	font-size: 0.84rem;
 	font-weight: 900;
 	letter-spacing: 0;
-	text-transform: uppercase;
+	line-height: 1.1;
+	text-align: center;
+	transition:
+		background 0.16s ease,
+		border-color 0.16s ease,
+		color 0.16s ease,
+		transform 0.16s ease;
 }
 
-.settings-section-picker-control {
-	position: relative;
-	display: grid;
-	grid-template-columns: auto minmax(0, 1fr) auto;
-	align-items: center;
-	min-height: 44px;
-	border: 1px solid var(--border-soft);
-	border-radius: 12px;
-	background: color-mix(in srgb, var(--theme-control) 90%, var(--surface));
-	box-shadow: 0 14px 28px color-mix(in srgb, #000 18%, transparent);
-	color: var(--text);
-	overflow: hidden;
-}
-
-.settings-section-picker-icon,
-.settings-section-picker-chevron {
+.settings-tab-icon {
 	display: inline-grid;
 	place-items: center;
-	width: 40px;
+	width: 1rem;
+	height: 1rem;
 	color: var(--accent);
-	pointer-events: none;
 }
 
-.settings-section-picker-chevron {
-	color: var(--muted);
-}
-
-.settings-section-select {
-	width: 100%;
+.settings-tab-label {
 	min-width: 0;
-	height: 44px;
-	appearance: none;
-	border: 0;
-	background: transparent;
-	color: var(--text);
-	font-family: var(--font-label);
-	font-size: 0.94rem;
-	font-weight: 850;
-	outline: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
-.settings-section-picker-control:focus-within {
+.settings-tab:hover,
+.settings-tab:focus-visible,
+.settings-tab.is-active {
 	border-color: var(--border-accent);
-	box-shadow:
-		0 0 0 3px var(--theme-ring),
-		0 14px 28px color-mix(in srgb, #000 18%, transparent);
+	background: var(--theme-control-hover);
+	color: var(--text);
+	outline: none;
 }
 
-.settings-section-select option {
-	font-weight: 700;
+.settings-tab:hover,
+.settings-tab:focus-visible {
+	transform: translateY(-1px);
 }
 
 .settings-tab-panel {
@@ -6097,6 +6172,24 @@ select option:checked {
 	white-space: nowrap;
 }
 
+.panel-header-actions .dashboard-teaching-toggle {
+	width: auto;
+	min-width: 0;
+	gap: 7px;
+	padding: 0 12px;
+}
+
+.panel-header-actions .dashboard-teaching-toggle .button-label {
+	position: static;
+	width: auto;
+	height: auto;
+	margin: 0;
+	overflow: visible;
+	clip: auto;
+	clip-path: none;
+	white-space: nowrap;
+}
+
 .primary-button,
 .secondary-button,
 .icon-button {
@@ -7379,7 +7472,7 @@ select option:checked {
 
 .life-todo-view {
 	display: grid;
-	grid-template-rows: auto auto minmax(0, 1fr);
+	grid-template-rows: auto auto auto minmax(0, 1fr);
 	gap: var(--dashboard-density-gap);
 	min-height: 0;
 }
@@ -7729,7 +7822,7 @@ select option:checked {
 
 .life-projects-view {
 	display: grid;
-	grid-template-rows: auto minmax(0, 1fr);
+	grid-template-rows: auto auto minmax(0, 1fr);
 	gap: 14px;
 	min-height: 0;
 }
@@ -10335,6 +10428,7 @@ button.life-event-row:hover {
 :root.theme-palette:not(.theme-consolas) .sidebar-item-organizer,
 :root.theme-palette:not(.theme-consolas) .sidebar-donate-row,
 :root.theme-palette:not(.theme-consolas) .sidebar-toggle-all,
+:root.theme-palette:not(.theme-consolas) .settings-tab,
 :root.theme-palette:not(.theme-consolas) .body-mode-switcher,
 :root.theme-palette:not(.theme-consolas) .body-timer-switcher,
 :root.theme-palette:not(.theme-consolas) .body-nutrition-switcher,
@@ -10421,6 +10515,7 @@ button.life-event-row:hover {
 :root.theme-palette:not(.theme-consolas) .primary-button,
 :root.theme-palette:not(.theme-consolas) .secondary-button,
 :root.theme-palette:not(.theme-consolas) .icon-button,
+:root.theme-palette:not(.theme-consolas) .settings-tab,
 :root.theme-palette:not(.theme-consolas) .body-mode-button,
 :root.theme-palette:not(.theme-consolas) .dashboard-chart-switcher button,
 :root.theme-palette:not(.theme-consolas) .compendium-new-button,
@@ -10481,6 +10576,9 @@ button.life-event-row:hover {
 :root.theme-palette:not(.theme-consolas) .home-button:focus-visible,
 :root.theme-palette:not(.theme-consolas) .secondary-button:hover,
 :root.theme-palette:not(.theme-consolas) .icon-button:hover,
+:root.theme-palette:not(.theme-consolas) .settings-tab:hover,
+:root.theme-palette:not(.theme-consolas) .settings-tab:focus-visible,
+:root.theme-palette:not(.theme-consolas) .settings-tab.is-active,
 :root.theme-palette:not(.theme-consolas) .body-mode-button:hover,
 :root.theme-palette:not(.theme-consolas) .body-mode-button.is-active,
 :root.theme-palette:not(.theme-consolas) .dashboard-chart-switcher button:hover,
@@ -12388,6 +12486,7 @@ button.life-event-row:hover {
 :root.theme-matrix .sidebar-item-organizer,
 :root.theme-matrix .sidebar-donate-row,
 :root.theme-matrix .sidebar-toggle-all,
+:root.theme-matrix .settings-tab,
 :root.theme-matrix .body-mode-switcher,
 :root.theme-matrix .body-timer-switcher,
 :root.theme-matrix .body-nutrition-switcher,
@@ -12528,6 +12627,7 @@ button.life-event-row:hover {
 :root.theme-matrix .primary-button,
 :root.theme-matrix .secondary-button,
 :root.theme-matrix .icon-button,
+:root.theme-matrix .settings-tab,
 :root.theme-matrix .body-mode-button,
 :root.theme-matrix .dashboard-chart-switcher button,
 :root.theme-matrix .compendium-new-button,
@@ -12558,6 +12658,9 @@ button.life-event-row:hover {
 :root.theme-matrix .secondary-button:focus-visible,
 :root.theme-matrix .icon-button:hover,
 :root.theme-matrix .icon-button:focus-visible,
+:root.theme-matrix .settings-tab:hover,
+:root.theme-matrix .settings-tab:focus-visible,
+:root.theme-matrix .settings-tab.is-active,
 :root.theme-matrix .body-mode-button:hover,
 :root.theme-matrix .body-mode-button.is-active,
 :root.theme-matrix .dashboard-chart-switcher button:hover,
@@ -13118,6 +13221,35 @@ button.life-event-row:hover {
 	.daily-return-path small {
 		font-size: 0.64rem;
 		line-height: 1.1;
+	}
+
+	.daily-return-path em {
+		font-size: 0.62rem;
+		line-height: 1.2;
+	}
+
+	.dashboard-teaching-panel {
+		gap: 7px;
+		border-radius: 9px;
+		padding: 9px;
+	}
+
+	.dashboard-teaching-panel--compact {
+		padding: 8px 0 0;
+	}
+
+	.dashboard-teaching-panel h3 {
+		font-size: 0.78rem;
+	}
+
+	.dashboard-teaching-panel dt {
+		font-size: 0.58rem;
+		letter-spacing: 0.06em;
+	}
+
+	.dashboard-teaching-panel dd {
+		font-size: 0.72rem;
+		line-height: 1.35;
 	}
 
 	.app-shell.is-browser-mode.is-mobile-viewport .dashboard-home,

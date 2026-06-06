@@ -1,9 +1,9 @@
 {
 	"schema": "ourstuff.themeAdapterCoverage.v1",
-	"generatedAt": "2026-06-05T11:07:44.241Z",
+	"generatedAt": "2026-06-06T12:12:01.110Z",
 	"source": {
 		"cssPath": "assets/css/app.css",
-		"cssSha256": "41477e311e73544197753442be5cda2e47de11865c306456994fdb7780028120"
+		"cssSha256": "73b53aa02ebb984bae14aac2f199f05f9364e87ae6fa579eb8cbd7f2378aaa46"
 	},
 	"summary": {
 		"classCount": 463,
@@ -376,7 +376,7 @@
 				"covered": true,
 				"tokenized": true,
 				"selectors": [
-					":root.theme-palette:not(.theme-consolas) .primary-button, :root.theme-palette:not(.theme-consolas) .secondary-button, :root.theme-palette:not(.theme-consolas) .icon-button, :root.theme-palette:not(.theme-consolas) .body-",
+					":root.theme-palette:not(.theme-consolas) .primary-button, :root.theme-palette:not(.theme-consolas) .secondary-button, :root.theme-palette:not(.theme-consolas) .icon-button, :root.theme-palette:not(.theme-consolas) .setti",
 					":root.theme-palette:not(.theme-consolas) .home-button:hover, :root.theme-palette:not(.theme-consolas) .home-button:focus-visible, :root.theme-palette:not(.theme-consolas) .secondary-button:hover, :root.theme-palette:not(",
 					".page-tool-switcher .body-mode-button, .body-tool-switcher .body-mode-button, .life-tool-switcher .body-mode-button, :root.theme-palette:not(.theme-consolas) .page-tool-switcher .body-mode-button, :root.theme-palette:not",
 					":root.theme-palette:not(.theme-consolas) .life-tool-switcher .body-mode-button",
@@ -387,7 +387,7 @@
 				"covered": true,
 				"tokenized": true,
 				"selectors": [
-					":root.theme-consolas .primary-button, :root.theme-consolas .secondary-button, :root.theme-consolas .icon-button, :root.theme-consolas .body-mode-button, :root.theme-consolas .dashboard-chart-switcher button, :root.theme-",
+					":root.theme-consolas .primary-button, :root.theme-consolas .secondary-button, :root.theme-consolas .icon-button, :root.theme-consolas .settings-tab, :root.theme-consolas .body-mode-button, :root.theme-consolas .dashboard",
 					":root.theme-consolas .home-button:hover, :root.theme-consolas .home-button:focus-visible, :root.theme-consolas .primary-button:hover, :root.theme-consolas .secondary-button:hover, :root.theme-consolas .icon-button:hover,",
 					":root.theme-consolas .body-mode-button:hover, :root.theme-consolas .body-mode-button.is-active, :root.theme-consolas .dashboard-chart-switcher button:hover, :root.theme-consolas .dashboard-chart-switcher button.is-active",
 					".page-tool-switcher .body-mode-button, .body-tool-switcher .body-mode-button, .life-tool-switcher .body-mode-button, :root.theme-palette:not(.theme-consolas) .page-tool-switcher .body-mode-button, :root.theme-palette:not",
@@ -1842,7 +1842,7 @@
 				"tokenized": true,
 				"selectors": [
 					":root.theme-palette:not(.theme-consolas) .app-shell, :root.theme-palette:not(.theme-consolas) .workspace, :root.theme-palette:not(.theme-consolas) .sidebar, :root.theme-palette:not(.theme-consolas) .mobile-menu-toggle, :",
-					":root.theme-palette:not(.theme-consolas) .primary-button, :root.theme-palette:not(.theme-consolas) .secondary-button, :root.theme-palette:not(.theme-consolas) .icon-button, :root.theme-palette:not(.theme-consolas) .body-",
+					":root.theme-palette:not(.theme-consolas) .primary-button, :root.theme-palette:not(.theme-consolas) .secondary-button, :root.theme-palette:not(.theme-consolas) .icon-button, :root.theme-palette:not(.theme-consolas) .setti",
 					":root.theme-palette:not(.theme-consolas) .home-button:hover, :root.theme-palette:not(.theme-consolas) .home-button:focus-visible, :root.theme-palette:not(.theme-consolas) .secondary-button:hover, :root.theme-palette:not("
 				]
 			},
@@ -1850,7 +1850,7 @@
 				"covered": true,
 				"tokenized": true,
 				"selectors": [
-					":root.theme-consolas .primary-button, :root.theme-consolas .secondary-button, :root.theme-consolas .icon-button, :root.theme-consolas .body-mode-button, :root.theme-consolas .dashboard-chart-switcher button, :root.theme-",
+					":root.theme-consolas .primary-button, :root.theme-consolas .secondary-button, :root.theme-consolas .icon-button, :root.theme-consolas .settings-tab, :root.theme-consolas .body-mode-button, :root.theme-consolas .dashboard",
 					":root.theme-consolas .home-button:hover, :root.theme-consolas .home-button:focus-visible, :root.theme-consolas .primary-button:hover, :root.theme-consolas .secondary-button:hover, :root.theme-consolas .icon-button:hover,",
 					":root.theme-consolas .body-mode-button:hover, :root.theme-consolas .body-mode-button.is-active, :root.theme-consolas .dashboard-chart-switcher button:hover, :root.theme-consolas .dashboard-chart-switcher button.is-active"
 				]
@@ -2076,7 +2076,7 @@
 				"tokenized": true,
 				"selectors": [
 					":root.theme-palette:not(.theme-consolas) .app-shell, :root.theme-palette:not(.theme-consolas) .workspace, :root.theme-palette:not(.theme-consolas) .sidebar, :root.theme-palette:not(.theme-consolas) .mobile-menu-toggle, :",
-					":root.theme-palette:not(.theme-consolas) .primary-button, :root.theme-palette:not(.theme-consolas) .secondary-button, :root.theme-palette:not(.theme-consolas) .icon-button, :root.theme-palette:not(.theme-consolas) .body-"
+					":root.theme-palette:not(.theme-consolas) .primary-button, :root.theme-palette:not(.theme-consolas) .secondary-button, :root.theme-palette:not(.theme-consolas) .icon-button, :root.theme-palette:not(.theme-consolas) .setti"
 				]
 			},
 			"consolas": {
@@ -2103,7 +2103,7 @@
 				"covered": true,
 				"tokenized": true,
 				"selectors": [
-					":root.theme-palette:not(.theme-consolas) .primary-button, :root.theme-palette:not(.theme-consolas) .secondary-button, :root.theme-palette:not(.theme-consolas) .icon-button, :root.theme-palette:not(.theme-consolas) .body-"
+					":root.theme-palette:not(.theme-consolas) .primary-button, :root.theme-palette:not(.theme-consolas) .secondary-button, :root.theme-palette:not(.theme-consolas) .icon-button, :root.theme-palette:not(.theme-consolas) .setti"
 				]
 			},
 			"consolas": {
@@ -2841,7 +2841,7 @@
 				"tokenized": true,
 				"selectors": [
 					":root.theme-palette:not(.theme-consolas) .app-shell, :root.theme-palette:not(.theme-consolas) .workspace, :root.theme-palette:not(.theme-consolas) .sidebar, :root.theme-palette:not(.theme-consolas) .mobile-menu-toggle, :",
-					":root.theme-palette:not(.theme-consolas) .primary-button, :root.theme-palette:not(.theme-consolas) .secondary-button, :root.theme-palette:not(.theme-consolas) .icon-button, :root.theme-palette:not(.theme-consolas) .body-",
+					":root.theme-palette:not(.theme-consolas) .primary-button, :root.theme-palette:not(.theme-consolas) .secondary-button, :root.theme-palette:not(.theme-consolas) .icon-button, :root.theme-palette:not(.theme-consolas) .setti",
 					":root.theme-palette:not(.theme-consolas) .home-button:hover, :root.theme-palette:not(.theme-consolas) .home-button:focus-visible, :root.theme-palette:not(.theme-consolas) .secondary-button:hover, :root.theme-palette:not(",
 					":root.theme-palette:not(.theme-consolas) .path-bar, :root.theme-palette:not(.theme-consolas) .settings-tabs, :root.theme-palette:not(.theme-consolas) .body-mode-switcher, :root.theme-palette:not(.theme-consolas) .body-ti"
 				]
@@ -2850,7 +2850,7 @@
 				"covered": true,
 				"tokenized": true,
 				"selectors": [
-					":root.theme-consolas .primary-button, :root.theme-consolas .secondary-button, :root.theme-consolas .icon-button, :root.theme-consolas .body-mode-button, :root.theme-consolas .dashboard-chart-switcher button, :root.theme-",
+					":root.theme-consolas .primary-button, :root.theme-consolas .secondary-button, :root.theme-consolas .icon-button, :root.theme-consolas .settings-tab, :root.theme-consolas .body-mode-button, :root.theme-consolas .dashboard",
 					":root.theme-consolas .home-button:hover, :root.theme-consolas .home-button:focus-visible, :root.theme-consolas .primary-button:hover, :root.theme-consolas .secondary-button:hover, :root.theme-consolas .icon-button:hover,",
 					":root.theme-consolas .path-bar, :root.theme-consolas .mobile-menu-toggle, :root.theme-consolas .sidebar-donate-row, :root.theme-consolas .sidebar-menu-nav-button, :root.theme-consolas .sidebar-toggle-all, :root.theme-con",
 					":root.theme-consolas .body-mode-button:hover, :root.theme-consolas .body-mode-button.is-active, :root.theme-consolas .dashboard-chart-switcher button:hover, :root.theme-consolas .dashboard-chart-switcher button.is-active"
@@ -3384,7 +3384,7 @@
 				"covered": true,
 				"tokenized": true,
 				"selectors": [
-					":root.theme-consolas .primary-button, :root.theme-consolas .secondary-button, :root.theme-consolas .icon-button, :root.theme-consolas .body-mode-button, :root.theme-consolas .dashboard-chart-switcher button, :root.theme-",
+					":root.theme-consolas .primary-button, :root.theme-consolas .secondary-button, :root.theme-consolas .icon-button, :root.theme-consolas .settings-tab, :root.theme-consolas .body-mode-button, :root.theme-consolas .dashboard",
 					":root.theme-consolas .home-button:hover, :root.theme-consolas .home-button:focus-visible, :root.theme-consolas .primary-button:hover, :root.theme-consolas .secondary-button:hover, :root.theme-consolas .icon-button:hover,",
 					":root.theme-consolas .path-bar, :root.theme-consolas .mobile-menu-toggle, :root.theme-consolas .sidebar-donate-row, :root.theme-consolas .sidebar-menu-nav-button, :root.theme-consolas .sidebar-toggle-all, :root.theme-con",
 					":root.theme-consolas .body-mode-button:hover, :root.theme-consolas .body-mode-button.is-active, :root.theme-consolas .dashboard-chart-switcher button:hover, :root.theme-consolas .dashboard-chart-switcher button.is-active"
@@ -3668,6 +3668,73 @@
 			},
 			"sourceSelectors": [
 				".dashboard-space-unread"
+			]
+		},
+		{
+			"className": "dashboard-teaching-panel",
+			"confidence": "low",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": true,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": [
+				".dashboard-teaching-panel",
+				".dashboard-teaching-panel--compact",
+				".dashboard-teaching-panel h3",
+				".dashboard-teaching-panel dt",
+				".dashboard-teaching-panel dd"
+			]
+		},
+		{
+			"className": "dashboard-teaching-panel--compact",
+			"confidence": "low",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": true,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": [
+				".dashboard-teaching-panel--compact"
+			]
+		},
+		{
+			"className": "dashboard-teaching-toggle",
+			"confidence": "high",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": true,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": [
+				".dashboard-teaching-toggle.is-active"
 			]
 		},
 		{
@@ -8545,7 +8612,7 @@
 				"tokenized": true,
 				"selectors": [
 					":root.theme-palette:not(.theme-consolas) .app-shell, :root.theme-palette:not(.theme-consolas) .workspace, :root.theme-palette:not(.theme-consolas) .sidebar, :root.theme-palette:not(.theme-consolas) .mobile-menu-toggle, :",
-					":root.theme-palette:not(.theme-consolas) .primary-button, :root.theme-palette:not(.theme-consolas) .secondary-button, :root.theme-palette:not(.theme-consolas) .icon-button, :root.theme-palette:not(.theme-consolas) .body-"
+					":root.theme-palette:not(.theme-consolas) .primary-button, :root.theme-palette:not(.theme-consolas) .secondary-button, :root.theme-palette:not(.theme-consolas) .icon-button, :root.theme-palette:not(.theme-consolas) .setti"
 				]
 			},
 			"consolas": {
@@ -8574,7 +8641,7 @@
 				"covered": true,
 				"tokenized": true,
 				"selectors": [
-					":root.theme-palette:not(.theme-consolas) .primary-button, :root.theme-palette:not(.theme-consolas) .secondary-button, :root.theme-palette:not(.theme-consolas) .icon-button, :root.theme-palette:not(.theme-consolas) .body-"
+					":root.theme-palette:not(.theme-consolas) .primary-button, :root.theme-palette:not(.theme-consolas) .secondary-button, :root.theme-palette:not(.theme-consolas) .icon-button, :root.theme-palette:not(.theme-consolas) .setti"
 				]
 			},
 			"consolas": {
@@ -8600,7 +8667,7 @@
 				"covered": true,
 				"tokenized": true,
 				"selectors": [
-					":root.theme-palette:not(.theme-consolas) .primary-button, :root.theme-palette:not(.theme-consolas) .secondary-button, :root.theme-palette:not(.theme-consolas) .icon-button, :root.theme-palette:not(.theme-consolas) .body-"
+					":root.theme-palette:not(.theme-consolas) .primary-button, :root.theme-palette:not(.theme-consolas) .secondary-button, :root.theme-palette:not(.theme-consolas) .icon-button, :root.theme-palette:not(.theme-consolas) .setti"
 				]
 			},
 			"consolas": {
@@ -8800,7 +8867,39 @@
 			"sourceSelectors": []
 		},
 		{
-			"className": "settings-section-picker-chevron",
+			"className": "settings-tab",
+			"confidence": "medium",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": true,
+			"exemptReason": "",
+			"palette": {
+				"covered": true,
+				"tokenized": true,
+				"selectors": [
+					":root.theme-palette:not(.theme-consolas) .app-shell, :root.theme-palette:not(.theme-consolas) .workspace, :root.theme-palette:not(.theme-consolas) .sidebar, :root.theme-palette:not(.theme-consolas) .mobile-menu-toggle, :",
+					":root.theme-palette:not(.theme-consolas) .primary-button, :root.theme-palette:not(.theme-consolas) .secondary-button, :root.theme-palette:not(.theme-consolas) .icon-button, :root.theme-palette:not(.theme-consolas) .setti",
+					":root.theme-palette:not(.theme-consolas) .home-button:hover, :root.theme-palette:not(.theme-consolas) .home-button:focus-visible, :root.theme-palette:not(.theme-consolas) .secondary-button:hover, :root.theme-palette:not(",
+					":root.theme-palette:not(.theme-consolas) .path-bar, :root.theme-palette:not(.theme-consolas) .settings-tabs, :root.theme-palette:not(.theme-consolas) .body-mode-switcher, :root.theme-palette:not(.theme-consolas) .body-ti"
+				]
+			},
+			"consolas": {
+				"covered": true,
+				"tokenized": true,
+				"selectors": [
+					":root.theme-consolas .primary-button, :root.theme-consolas .secondary-button, :root.theme-consolas .icon-button, :root.theme-consolas .settings-tab, :root.theme-consolas .body-mode-button, :root.theme-consolas .dashboard",
+					":root.theme-consolas .home-button:hover, :root.theme-consolas .home-button:focus-visible, :root.theme-consolas .primary-button:hover, :root.theme-consolas .secondary-button:hover, :root.theme-consolas .icon-button:hover,"
+				]
+			},
+			"sourceSelectors": [
+				".settings-tabs",
+				".settings-tab",
+				".settings-tab-icon",
+				".settings-tab:hover, .settings-tab:focus-visible, .settings-tab.is-active"
+			]
+		},
+		{
+			"className": "settings-tab-icon",
 			"confidence": "low",
 			"needsAdapter": false,
 			"covered": true,
@@ -8817,76 +8916,11 @@
 				"selectors": []
 			},
 			"sourceSelectors": [
-				".settings-section-picker-icon, .settings-section-picker-chevron",
-				".settings-section-picker-chevron"
+				".settings-tab-icon"
 			]
 		},
 		{
-			"className": "settings-section-picker-control",
-			"confidence": "low",
-			"needsAdapter": false,
-			"covered": true,
-			"tokenizedBase": true,
-			"exemptReason": "",
-			"palette": {
-				"covered": false,
-				"tokenized": false,
-				"selectors": []
-			},
-			"consolas": {
-				"covered": false,
-				"tokenized": false,
-				"selectors": []
-			},
-			"sourceSelectors": [
-				".settings-section-picker-control",
-				".settings-section-picker-control:focus-within"
-			]
-		},
-		{
-			"className": "settings-section-picker-icon",
-			"confidence": "low",
-			"needsAdapter": false,
-			"covered": true,
-			"tokenizedBase": true,
-			"exemptReason": "",
-			"palette": {
-				"covered": false,
-				"tokenized": false,
-				"selectors": []
-			},
-			"consolas": {
-				"covered": false,
-				"tokenized": false,
-				"selectors": []
-			},
-			"sourceSelectors": [
-				".settings-section-picker-icon, .settings-section-picker-chevron"
-			]
-		},
-		{
-			"className": "settings-section-picker-kicker",
-			"confidence": "low",
-			"needsAdapter": false,
-			"covered": true,
-			"tokenizedBase": true,
-			"exemptReason": "",
-			"palette": {
-				"covered": false,
-				"tokenized": false,
-				"selectors": []
-			},
-			"consolas": {
-				"covered": false,
-				"tokenized": false,
-				"selectors": []
-			},
-			"sourceSelectors": [
-				".settings-section-picker-kicker"
-			]
-		},
-		{
-			"className": "settings-section-picker-label",
+			"className": "settings-tab-label",
 			"confidence": "layout",
 			"needsAdapter": false,
 			"covered": true,
@@ -8903,27 +8937,6 @@
 				"selectors": []
 			},
 			"sourceSelectors": []
-		},
-		{
-			"className": "settings-section-select",
-			"confidence": "high",
-			"needsAdapter": false,
-			"covered": true,
-			"tokenizedBase": true,
-			"exemptReason": "",
-			"palette": {
-				"covered": false,
-				"tokenized": false,
-				"selectors": []
-			},
-			"consolas": {
-				"covered": false,
-				"tokenized": false,
-				"selectors": []
-			},
-			"sourceSelectors": [
-				".settings-section-select"
-			]
 		},
 		{
 			"className": "settings-tab-panel",
@@ -9863,7 +9876,7 @@
 				"covered": true,
 				"tokenized": true,
 				"selectors": [
-					":root.theme-consolas .primary-button, :root.theme-consolas .secondary-button, :root.theme-consolas .icon-button, :root.theme-consolas .body-mode-button, :root.theme-consolas .dashboard-chart-switcher button, :root.theme-",
+					":root.theme-consolas .primary-button, :root.theme-consolas .secondary-button, :root.theme-consolas .icon-button, :root.theme-consolas .settings-tab, :root.theme-consolas .body-mode-button, :root.theme-consolas .dashboard",
 					":root.theme-consolas .home-button:hover, :root.theme-consolas .home-button:focus-visible, :root.theme-consolas .primary-button:hover, :root.theme-consolas .secondary-button:hover, :root.theme-consolas .icon-button:hover,",
 					":root.theme-consolas .theme-choice strong, :root.theme-consolas .home-button, :root.theme-consolas .dashboard-card, :root.theme-consolas .dashboard-analytics-header h2, :root.theme-consolas .dashboard-pie span, :root.the",
 					":root.theme-consolas .theme-choice small, :root.theme-consolas .dashboard-analytics-header p, :root.theme-consolas .getting-started-intro p, :root.theme-consolas .getting-started-rhythm p, :root.theme-consolas .getting-s"
@@ -10358,7 +10371,7 @@
 				"covered": true,
 				"tokenized": true,
 				"selectors": [
-					":root.theme-consolas .primary-button, :root.theme-consolas .secondary-button, :root.theme-consolas .icon-button, :root.theme-consolas .body-mode-button, :root.theme-consolas .dashboard-chart-switcher button, :root.theme-"
+					":root.theme-consolas .primary-button, :root.theme-consolas .secondary-button, :root.theme-consolas .icon-button, :root.theme-consolas .settings-tab, :root.theme-consolas .body-mode-button, :root.theme-consolas .dashboard"
 				]
 			},
 			"sourceSelectors": [
@@ -10412,7 +10425,7 @@
 				"covered": true,
 				"tokenized": true,
 				"selectors": [
-					":root.theme-consolas .primary-button, :root.theme-consolas .secondary-button, :root.theme-consolas .icon-button, :root.theme-consolas .body-mode-button, :root.theme-consolas .dashboard-chart-switcher button, :root.theme-",
+					":root.theme-consolas .primary-button, :root.theme-consolas .secondary-button, :root.theme-consolas .icon-button, :root.theme-consolas .settings-tab, :root.theme-consolas .body-mode-button, :root.theme-consolas .dashboard",
 					":root.theme-consolas .home-button:hover, :root.theme-consolas .home-button:focus-visible, :root.theme-consolas .primary-button:hover, :root.theme-consolas .secondary-button:hover, :root.theme-consolas .icon-button:hover,"
 				]
 			},
@@ -10529,7 +10542,7 @@
 				"covered": true,
 				"tokenized": true,
 				"selectors": [
-					":root.theme-consolas .primary-button, :root.theme-consolas .secondary-button, :root.theme-consolas .icon-button, :root.theme-consolas .body-mode-button, :root.theme-consolas .dashboard-chart-switcher button, :root.theme-",
+					":root.theme-consolas .primary-button, :root.theme-consolas .secondary-button, :root.theme-consolas .icon-button, :root.theme-consolas .settings-tab, :root.theme-consolas .body-mode-button, :root.theme-consolas .dashboard",
 					":root.theme-consolas .home-button:hover, :root.theme-consolas .home-button:focus-visible, :root.theme-consolas .primary-button:hover, :root.theme-consolas .secondary-button:hover, :root.theme-consolas .icon-button:hover,"
 				]
 			},
@@ -11037,7 +11050,7 @@
 				"covered": true,
 				"tokenized": true,
 				"selectors": [
-					":root.theme-palette:not(.theme-consolas) .primary-button, :root.theme-palette:not(.theme-consolas) .secondary-button, :root.theme-palette:not(.theme-consolas) .icon-button, :root.theme-palette:not(.theme-consolas) .body-",
+					":root.theme-palette:not(.theme-consolas) .primary-button, :root.theme-palette:not(.theme-consolas) .secondary-button, :root.theme-palette:not(.theme-consolas) .icon-button, :root.theme-palette:not(.theme-consolas) .setti",
 					":root.theme-palette:not(.theme-consolas) .theme-choice small, :root.theme-palette:not(.theme-consolas) .dashboard-analytics-header p, :root.theme-palette:not(.theme-consolas) .panel-header p, :root.theme-palette:not(.the"
 				]
 			},

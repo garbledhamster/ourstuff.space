@@ -189,6 +189,9 @@ const TRACKER_SETTINGS_KEY = scopedStorageKey("ourstuff.thoughts.v1");
 const GOAL_SETTINGS_KEY = scopedStorageKey("ourstuff.goals.v1");
 const DASHBOARD_IDENTITY_KEY = scopedStorageKey("ourstuff.dashboardIdentity.v1");
 const DASHBOARD_CHART_TABS_KEY = scopedStorageKey("ourstuff.dashboardChartTabs.v1");
+const DASHBOARD_TEACHING_MODE_KEY = scopedStorageKey(
+	"ourstuff.dashboardTeachingMode.v1",
+);
 const SIDEBAR_WIDTH_KEY = "ourstuff.sidebarWidth.v1";
 const ENABLED_DATA_SPACES_KEY = "ourstuff.enabledDataSpaces.v1";
 const CUSTOM_SPACE_POST_CREATE_KEY = "ourstuff.customSpacePostCreate.v1";
@@ -468,6 +471,38 @@ const DASHBOARD_CHART_TAB_DEFS = {
 		icon: "tabler:chart-bar",
 		label: "Bar",
 		title: "Bar chart",
+	},
+};
+const DASHBOARD_LITERACY = {
+	Mind: {
+		purpose: "Mind is where notes, questions, ideas, and compendiums become organized memory.",
+		next: "Open Mind when you need to name what you are noticing or shape reusable knowledge.",
+	},
+	Body: {
+		purpose: "Body is where timers, nutrition, workouts, sleep, and physical notes return you to the ground.",
+		next: "Open Body when a small physical check-in would make the day more honest.",
+	},
+	Spirit: {
+		purpose: "Spirit is where reading, reflection, values, and meaning stay connected to practice.",
+		next: "Open Spirit when you need to remember what matters before choosing the next task.",
+	},
+	Life: {
+		purpose: "Life is where calendar work, journal entries, tasks, projects, and attachments become practical repair.",
+		next: "Open Life when the work needs a date, a task, or a project structure.",
+	},
+};
+const LIFE_TOOL_LITERACY = {
+	calendar: {
+		purpose: "Calendar shows dated Life activity from notes, saves, journal entries, tasks, and projects.",
+		next: "Use Calendar when timing matters or you need to see what happened today.",
+	},
+	todo: {
+		purpose: "Todo List shows standalone tasks and project tasks in one action board.",
+		next: "Use Todo List when the next step is already concrete.",
+	},
+	projects: {
+		purpose: "Projects organize phases, tasks, notes, status, assignments, and attachments.",
+		next: "Use Projects when work feels too large for one task.",
 	},
 };
 const BODY_TIMER_MODES = [
@@ -1486,6 +1521,25 @@ function saveDashboardChartTabs(tabs = state.dashboardChartTabs) {
 		JSON.stringify(normalizeDashboardChartTabs(tabs)),
 	);
 	markLocalAppChanged();
+}
+
+function loadDashboardTeachingMode() {
+	try {
+		return window.localStorage.getItem(DASHBOARD_TEACHING_MODE_KEY) === "true";
+	} catch {
+		return false;
+	}
+}
+
+function saveDashboardTeachingMode(enabled = state.dashboardTeachingMode) {
+	try {
+		window.localStorage.setItem(
+			DASHBOARD_TEACHING_MODE_KEY,
+			enabled ? "true" : "false",
+		);
+	} catch {
+		// Teaching mode is a local display preference; in-memory state is enough.
+	}
 }
 
 function normalizeColorMode(value) {
@@ -4546,6 +4600,7 @@ const state = {
 	dashboardChartTabs: initialDashboardChartTabs,
 	dashboardChartType:
 		initialDashboardChartTabs[0] || DEFAULT_DASHBOARD_CHART_TABS[0],
+	dashboardTeachingMode: loadDashboardTeachingMode(),
 	timerOpen: false,
 	timerState: loadTimerState(),
 	timerSettings: loadTimerSettings(),
@@ -11770,6 +11825,13 @@ function setDashboardChartType(chartType) {
 	});
 }
 
+function toggleDashboardTeachingMode() {
+	const enabled = !dashboardTeachingModeEnabled();
+	state.dashboardTeachingMode = enabled;
+	saveDashboardTeachingMode(enabled);
+	setState({ dashboardTeachingMode: enabled });
+}
+
 function reorderDashboardChartTabs(tabId, targetIndex) {
 	const tabs = dashboardChartTabs();
 	const sourceIndex = tabs.indexOf(tabId);
@@ -13057,11 +13119,63 @@ function contentHtml(compendium, section) {
 	return dashboardArtifactHtml(state.active);
 }
 
+function dashboardTeachingModeEnabled() {
+	return state.dashboardTeachingMode === true;
+}
+
+function dashboardTeachingToggleHtml() {
+	const active = dashboardTeachingModeEnabled();
+	return `
+    <button class="secondary-button dashboard-teaching-toggle${active ? " is-active" : ""}" data-action="toggle-dashboard-teaching" type="button" aria-pressed="${active ? "true" : "false"}">
+      ${buttonContent("tabler:school", active ? "Hide Teaching" : "Show Teaching")}
+    </button>
+  `;
+}
+
+function dashboardTeachingPanelHtml({ title, items = [], compact = false } = {}) {
+	if (!dashboardTeachingModeEnabled() || !items.length) {
+		return "";
+	}
+	return `
+    <aside class="dashboard-teaching-panel${compact ? " dashboard-teaching-panel--compact" : ""}" aria-label="${escapeHtml(title || "Dashboard explanation")}">
+      ${title ? `<h3>${escapeHtml(title)}</h3>` : ""}
+      <dl>
+        ${items
+					.map(
+						([term, detail]) => `
+          <div>
+            <dt>${escapeHtml(term)}</dt>
+            <dd>${escapeHtml(detail)}</dd>
+          </div>
+        `,
+					)
+					.join("")}
+      </dl>
+    </aside>
+  `;
+}
+
+function dashboardCategoryTeachingHtml(area) {
+	const literacy = DASHBOARD_LITERACY[area];
+	if (!literacy) {
+		return "";
+	}
+	return dashboardTeachingPanelHtml({
+		title: `Reading ${dashboardDisplayLabel(area)}`,
+		items: [
+			["What am I seeing?", literacy.purpose],
+			["Why it matters", "This area is one doorway into the same private local-first workspace, not a score about you."],
+			["Next useful action", literacy.next],
+		],
+	});
+}
+
 function dashboardGridHtml() {
 	return panelHtml(`
     ${headerHtml(
 			"Ourstuff.space",
 			`${activeSpaceLabel()} dashboard for ${dashboardDisplayNameList()}.`,
+			dashboardTeachingToggleHtml(),
 		)}
     ${dashboardSpaceSwitcherHtml()}
     <div class="dashboard-home">
@@ -13073,10 +13187,10 @@ function dashboardGridHtml() {
 
 function dashboardDailyReturnHtml() {
 	const paths = [
-		["Mind", "Organize memories for the future."],
-		["Body", "Your body is your temple."],
-		["Spirit", "Self-Development is freedom."],
-		["Life", "Connect with what matters."],
+		["Mind", "See what is happening."],
+		["Body", "Come back to the ground."],
+		["Spirit", "Remember what matters."],
+		["Life", "Make one real thing better."],
 	];
 	return `
     <section class="daily-return-panel" aria-label="Daily Return">
@@ -13084,6 +13198,15 @@ function dashboardDailyReturnHtml() {
         <span>Daily Return</span>
         <h2>Notice your life.</h2>
         <p>Start with one honest check-in. Choose one path and make one thing clearer today.</p>
+        ${dashboardTeachingPanelHtml({
+					title: "Reading Today",
+					compact: true,
+					items: [
+						["What am I seeing?", "Four paths into your private workspace: Mind, Body, Spirit, and Life."],
+						["Why it matters", "Choosing one path keeps the first action small instead of turning the dashboard into a status wall."],
+						["Next useful action", "Pick the path that matches what needs attention today, then add one useful record."],
+					],
+				})}
       </div>
       <div class="daily-return-actions">
         ${paths
@@ -13095,6 +13218,7 @@ function dashboardDailyReturnHtml() {
             <span>
               <strong>${escapeHtml(displayLabel)}</strong>
               <small>${escapeHtml(phrase)}</small>
+              ${dashboardTeachingModeEnabled() ? `<em>${escapeHtml(DASHBOARD_LITERACY[label]?.next || "")}</em>` : ""}
             </span>
           </button>`;
 					})
@@ -13125,6 +13249,24 @@ function dashboardPeriodSliderHtml(extraClass = "") {
       </span>
     </label>
   `;
+}
+
+function dashboardBalanceTeachingItems(counts, total, balanceScore, periodLabel) {
+	const labels = DASHBOARD_LABELS;
+	const sorted = [...labels].sort((a, b) => counts[b] - counts[a]);
+	const loudest = sorted[0];
+	const quietest = [...labels].sort((a, b) => counts[a] - counts[b])[0];
+	const snapshot = total
+		? `${total} activity event${total === 1 ? "" : "s"} in ${periodLabel}; ${dashboardDisplayLabel(loudest)} is loudest and ${dashboardDisplayLabel(quietest)} is quietest.`
+		: `No activity events in ${periodLabel}. The dashboard is waiting for notes, saves, journal entries, tasks, or project work.`;
+	const next = total
+		? `Open ${dashboardDisplayLabel(quietest)} if you want balance, or open ${dashboardDisplayLabel(loudest)} if that is where the real work is.`
+		: "Add one note, journal entry, task, or project update so the next snapshot has something to read.";
+	return [
+		["What am I seeing?", snapshot],
+		["Why it matters", `Balance is ${balanceScore} percent for this range. It shows where records landed, not how well you are doing.`],
+		["Next useful action", next],
+	];
 }
 
 function dashboardAnalyticsHtml() {
@@ -13195,7 +13337,7 @@ function dashboardAnalyticsHtml() {
         <span>${total}</span>
         <small>events</small>
       </div>
-    `;
+  `;
 	return `
     <section class="dashboard-analytics" aria-label="Dashboard analytics">
       <div class="dashboard-analytics-body">
@@ -13215,6 +13357,15 @@ function dashboardAnalyticsHtml() {
           </div>
           ${chartHtml}
           ${chartType === "orbs" ? "" : `<strong>${balanceScore}% balanced</strong>`}
+          ${dashboardTeachingPanelHtml({
+						title: "Reading Balance",
+						items: dashboardBalanceTeachingItems(
+							counts,
+							total,
+							balanceScore,
+							periodOption.label,
+						),
+					})}
         </div>
       </div>
     </section>
@@ -13807,26 +13958,19 @@ function settingsPanelHtml(tab = activeSettingsTab()) {
 
 function settingsTabsHtml(activeTab) {
 	const tabs = settingsTabOptions();
-	const current = tabs.find(([tab]) => tab === activeTab) || tabs[0];
 	return `
-    <div class="settings-tabs settings-section-picker">
-      <label class="settings-section-picker-label">
-        <span class="settings-section-picker-kicker">Settings section</span>
-        <span class="settings-section-picker-control">
-          <span class="settings-section-picker-icon" aria-hidden="true">${iconHtml(current[2])}</span>
-          <select class="settings-section-select" data-action="set-settings-tab" aria-label="Choose settings section">
-            ${tabs
+    <nav class="settings-tabs" aria-label="Settings sections">
+      ${tabs
 				.map(
-					([tab, label]) => `
-              <option value="${escapeHtml(tab)}"${activeTab === tab ? " selected" : ""}>${escapeHtml(label)}</option>
+					([tab, label, icon]) => `
+        <button class="settings-tab${activeTab === tab ? " is-active" : ""}" data-action="set-settings-tab" data-tab="${escapeHtml(tab)}" type="button" aria-pressed="${activeTab === tab ? "true" : "false"}">
+          <span class="settings-tab-icon" aria-hidden="true">${iconHtml(icon)}</span>
+          <span class="settings-tab-label">${escapeHtml(label)}</span>
+        </button>
       `,
 				)
 				.join("")}
-          </select>
-          <span class="settings-section-picker-chevron" aria-hidden="true">${iconHtml("tabler:chevron-down")}</span>
-        </span>
-      </label>
-    </div>
+    </nav>
   `;
 }
 
@@ -14773,6 +14917,17 @@ function saveEnabledSpaceIds(spaceIds) {
 	return normalized;
 }
 
+function enableSpaceOnDashboard(spaceId) {
+	const normalized = normalizeDataSpaceId(spaceId);
+	const enabled = new Set(enabledSpaceIds());
+	if (enabled.has(normalized)) {
+		return enabledSpaceIds();
+	}
+	const nextEnabled = saveEnabledSpaceIds([...enabled, normalized]);
+	state.enabledSpaceIds = nextEnabled;
+	return nextEnabled;
+}
+
 function enabledSpaceIds() {
 	return normalizeEnabledSpaceIds(state.enabledSpaceIds);
 }
@@ -14861,6 +15016,17 @@ function spaceVisibilitySettingsHtml() {
           <p>${escapeHtml(description)}</p>
         </div>
         ${activeSpacePillHtml()}
+      </div>
+      <div class="data-controls-group space-dashboard-visibility">
+        <div class="body-card-heading">
+          <div>
+            <h4>Show On Dashboard</h4>
+            <p>Keep space buttons visible on the dashboard. Personal always stays visible.</p>
+          </div>
+        </div>
+        <div class="dashboard-identity-toggles" role="group" aria-label="Dashboard space visibility">
+          ${spaceToggleButtonsHtml()}
+        </div>
       </div>
       <div class="dashboard-identity-toggles" role="group" aria-label="Spaces">
         ${Object.values(DATA_SPACES)
@@ -15396,13 +15562,13 @@ function spiritHtml() {
 	}
 	if (state.spiritPlanError) {
 		return panelHtml(`
-      ${headerHtml(dashboardDisplayLabel("Spirit"), "Personal reading plans.", "", { titleHtml: dashboardHeaderTitleHtml("Spirit") })}
+      ${headerHtml(dashboardDisplayLabel("Spirit"), "Personal reading plans.", dashboardTeachingToggleHtml(), { titleHtml: dashboardHeaderTitleHtml("Spirit") })}
       ${emptyStateHtml("Plan could not load.", state.spiritPlanError)}
     `);
 	}
 	if (!state.spiritPlan) {
 		return panelHtml(`
-      ${headerHtml(dashboardDisplayLabel("Spirit"), "Personal reading plans.", "", { titleHtml: dashboardHeaderTitleHtml("Spirit") })}
+      ${headerHtml(dashboardDisplayLabel("Spirit"), "Personal reading plans.", dashboardTeachingToggleHtml(), { titleHtml: dashboardHeaderTitleHtml("Spirit") })}
       ${emptyStateHtml("Loading plan.", "Preparing the selected reading plan.")}
     `);
 	}
@@ -15437,10 +15603,11 @@ function spiritHtml() {
   `;
 
 	return panelHtml(`
-    ${headerHtml(dashboardDisplayLabel("Spirit"), "Personal reading plans.", "", { titleHtml: dashboardHeaderTitleHtml("Spirit") })}
+    ${headerHtml(dashboardDisplayLabel("Spirit"), "Personal reading plans.", dashboardTeachingToggleHtml(), { titleHtml: dashboardHeaderTitleHtml("Spirit") })}
     <div class="spirit-dashboard">
       <div class="spirit-nav-stack">
         ${dashboardOrbNavHtml("Spirit")}
+        ${dashboardCategoryTeachingHtml("Spirit")}
         ${spiritControls}
         <nav class="spirit-year-nav" aria-label="Plan years">
           <button class="secondary-button" data-action="spirit-prev-year" type="button"${yearIndex <= 0 ? " disabled" : ""}>Previous</button>
@@ -15926,10 +16093,11 @@ function lifeHtml() {
 	}
 
 	return panelHtml(`
-    ${headerHtml(dashboardDisplayLabel("Life"), "Calendar-first journal, orb trackers, and app activity.", "", { titleHtml: dashboardHeaderTitleHtml("Life") })}
+    ${headerHtml(dashboardDisplayLabel("Life"), "Calendar-first journal, orb trackers, and app activity.", dashboardTeachingToggleHtml(), { titleHtml: dashboardHeaderTitleHtml("Life") })}
     <div class="life-dashboard">
       ${dashboardOrbNavHtml("Life")}
       ${lifeToolSwitcherHtml()}
+      ${lifeToolTeachingHtml()}
       <div class="life-mode-panel">
         ${lifePanelHtml()}
       </div>
@@ -15937,10 +16105,14 @@ function lifeHtml() {
   `);
 }
 
-function lifeToolSwitcherHtml() {
-	const activeTool = ["todo", "projects", "calendar"].includes(state.lifeTool)
+function activeLifeTool() {
+	return ["todo", "projects", "calendar"].includes(state.lifeTool)
 		? state.lifeTool
 		: "calendar";
+}
+
+function lifeToolSwitcherHtml() {
+	const activeTool = activeLifeTool();
 	const modes = [
 		["calendar", "Calendar", "tabler:calendar-month"],
 		["todo", "Todo List", "tabler:checkbox"],
@@ -15962,6 +16134,18 @@ function lifeToolSwitcherHtml() {
       </button>
     </nav>
   `;
+}
+
+function lifeToolTeachingHtml(tool = activeLifeTool()) {
+	const literacy = LIFE_TOOL_LITERACY[tool] || LIFE_TOOL_LITERACY.calendar;
+	return dashboardTeachingPanelHtml({
+		title: "Reading Life Tools",
+		items: [
+			["What am I seeing?", literacy.purpose],
+			["Why it matters", "Life work can be read by time, by next action, or by project structure."],
+			["Next useful action", literacy.next],
+		],
+	});
 }
 
 function lifeCalendarModeSwitcherHtml() {
@@ -15987,9 +16171,7 @@ function lifeCalendarModeSwitcherHtml() {
 }
 
 function lifePanelHtml() {
-	const tool = ["todo", "projects", "calendar"].includes(state.lifeTool)
-		? state.lifeTool
-		: "calendar";
+	const tool = activeLifeTool();
 	if (tool === "todo") {
 		return lifeTodoHtml();
 	}
@@ -16197,7 +16379,7 @@ function lifeTodoHtml() {
       <div class="life-todo-overview">
         <div>
           <h3>Todo List</h3>
-          <p>${tasks.length ? `${open.length} open / ${complete.length} complete / ${projectCount} from projects` : "Standalone todos and project tasks stay connected here and inside Projects."}</p>
+          <p>${tasks.length ? `${open.length} open / ${complete.length} complete / ${projectCount} from projects. This board teaches the next concrete action.` : "Standalone todos and project tasks stay connected here and inside Projects."}</p>
         </div>
         <div class="life-todo-stats" aria-label="Todo summary">
           <span><strong>${open.length}</strong><small>Open</small></span>
@@ -16205,9 +16387,18 @@ function lifeTodoHtml() {
           <span><strong>${standaloneCount}</strong><small>Solo</small></span>
         </div>
       </div>
+      ${dashboardTeachingPanelHtml({
+				title: "Reading Todo List",
+				compact: true,
+				items: [
+					["What am I seeing?", "Open and completed tasks, including tasks that belong to project phases."],
+					["Why it matters", "A task should teach the next concrete action, not hold the whole project in one line."],
+					["Next useful action", "If the task feels vague, move the work into Projects and split it into phases."],
+				],
+			})}
       <div class="life-quick-add">
         <input id="life-todo-title" type="text" placeholder="Add a task">
-        <button class="primary-button" data-action="add-life-todo" type="button">${buttonContent("tabler:plus", "Add")}</button>
+        <button class="primary-button" data-action="add-life-todo" type="button">${buttonContent("tabler:plus", "Add Task")}</button>
       </div>
       <div class="life-todo-board">
         <section class="life-todo-column life-todo-column--open">
@@ -16315,15 +16506,21 @@ function lifeEntityStatusOptions(level, value) {
 function lifeProjectDetailHtml(level, entity) {
 	const label =
 		level === "task" ? "Task" : level === "phase" ? "Phase" : "Project";
+	const detailCopy =
+		level === "task"
+			? "A task should name the next visible action."
+			: level === "phase"
+				? "A phase groups the tasks for one step of the project."
+				: "A project holds phases, tasks, notes, status, assignments, and attachments.";
 	return `
     <div class="life-project-detail">
       <div class="body-card-heading">
         <div>
-          <h3>${escapeHtml(label)} Info</h3>
-          <p>${escapeHtml(entity.title)}</p>
+          <h3>${escapeHtml(label)} Snapshot</h3>
+          <p>${escapeHtml(`${entity.title}. ${detailCopy}`)}</p>
         </div>
         <div class="action-row">
-          <button class="secondary-button" data-action="save-life-project-entity" data-level="${level}" type="button">${buttonContent("tabler:device-floppy", "Save")}</button>
+          <button class="secondary-button" data-action="save-life-project-entity" data-level="${level}" type="button">${buttonContent("tabler:device-floppy", `Save ${label}`)}</button>
         </div>
       </div>
       <div class="life-project-form">
@@ -16384,7 +16581,7 @@ function lifeProjectsHtml() {
       <div class="life-project-overview">
         <div>
           <h3>Projects</h3>
-          <p>${projects.length ? `${projects.length} project${projects.length === 1 ? "" : "s"} / ${phaseCount} phase${phaseCount === 1 ? "" : "s"} / ${taskCount} task${taskCount === 1 ? "" : "s"}` : "Build projects from phases, tasks, notes, and files."}</p>
+          <p>${projects.length ? `${projects.length} project${projects.length === 1 ? "" : "s"} / ${phaseCount} phase${phaseCount === 1 ? "" : "s"} / ${taskCount} task${taskCount === 1 ? "" : "s"}. Projects teach structure: project, phase, task, note.` : "Build projects from phases, tasks, notes, and files."}</p>
         </div>
         <div class="life-project-stats" aria-label="Project summary">
           <span><strong>${projects.length}</strong><small>Projects</small></span>
@@ -16392,11 +16589,20 @@ function lifeProjectsHtml() {
           <span><strong>${taskCount - openTaskCount}</strong><small>Done</small></span>
         </div>
       </div>
+      ${dashboardTeachingPanelHtml({
+				title: "Reading Projects",
+				compact: true,
+				items: [
+					["What am I seeing?", "A project list, the selected project's phases, and the selected detail panel."],
+					["Why it matters", "Projects keep large work from becoming one overloaded task."],
+					["Next useful action", project ? "Add the next phase or task that would make this project easier to act on." : "Add one project when work has more than one step."],
+				],
+			})}
       <div class="life-project-shell">
         <aside class="life-project-sidebar">
           <div class="life-quick-add">
             <input id="life-project-title" type="text" placeholder="New project">
-            <button class="primary-button" data-action="add-life-project" type="button">${buttonContent("tabler:plus", "Add")}</button>
+            <button class="primary-button" data-action="add-life-project" type="button">${buttonContent("tabler:plus", "Add Project")}</button>
           </div>
           <div class="life-project-nav-section">
             <h4>Projects</h4>
@@ -16409,7 +16615,7 @@ function lifeProjectsHtml() {
 							? `
             <div class="life-quick-add">
               <input id="life-phase-title" type="text" placeholder="New phase">
-              <button class="secondary-button" data-action="add-life-phase" data-project-id="${escapeHtml(project.id)}" type="button">${buttonContent("tabler:plus", "Phase")}</button>
+              <button class="secondary-button" data-action="add-life-phase" data-project-id="${escapeHtml(project.id)}" type="button">${buttonContent("tabler:plus", "Add Phase")}</button>
             </div>
             <div class="life-project-nav-section">
               <h4>Phases</h4>
@@ -16426,7 +16632,7 @@ function lifeProjectsHtml() {
 							? `
             <div class="life-quick-add">
               <input id="life-task-title" type="text" placeholder="New task">
-              <button class="secondary-button" data-action="add-life-project-task" data-project-id="${escapeHtml(project.id)}" data-phase-id="${escapeHtml(phase.id)}" type="button">${buttonContent("tabler:plus", "Task")}</button>
+              <button class="secondary-button" data-action="add-life-project-task" data-project-id="${escapeHtml(project.id)}" data-phase-id="${escapeHtml(phase.id)}" type="button">${buttonContent("tabler:plus", "Add Task")}</button>
             </div>
             <div class="life-project-nav-section">
               <h4>Tasks</h4>
@@ -16710,9 +16916,10 @@ function bodyHtml() {
 	};
 
 	return panelHtml(`
-    ${headerHtml(dashboardDisplayLabel("Body"), "Timers, nutrition, movement, and notes.", "", { titleHtml: dashboardHeaderTitleHtml("Body") })}
+    ${headerHtml(dashboardDisplayLabel("Body"), "Timers, nutrition, movement, and notes.", dashboardTeachingToggleHtml(), { titleHtml: dashboardHeaderTitleHtml("Body") })}
     <div class="body-dashboard">
       ${dashboardOrbNavHtml("Body")}
+      ${dashboardCategoryTeachingHtml("Body")}
       ${bodyModeSwitcherHtml()}
       <div class="body-mode-panel">
         ${panels[state.bodyMode] || panels.timers}
@@ -16890,8 +17097,9 @@ function mindGridHtml() {
 		: 0;
 	return panelHtml(`
     <div class="scroll-area mind-grid-scroll">
-      ${headerHtml(dashboardDisplayLabel("Mind"), "Organize your knowledge with a compendium.", "", { titleHtml: dashboardHeaderTitleHtml("Mind") })}
+      ${headerHtml(dashboardDisplayLabel("Mind"), "Organize your knowledge with a compendium.", dashboardTeachingToggleHtml(), { titleHtml: dashboardHeaderTitleHtml("Mind") })}
       ${dashboardOrbNavHtml("Mind")}
+      ${dashboardCategoryTeachingHtml("Mind")}
       ${
 				state.compendiums.length
 					? `
@@ -18353,8 +18561,6 @@ function bindActions() {
 		}
 		if (action === "select-spirit-plan") {
 			element.addEventListener("change", () => selectSpiritPlan(element.value));
-		} else if (action === "set-settings-tab" && element.tagName === "SELECT") {
-			element.addEventListener("change", () => handleAction(element));
 		} else {
 			element.addEventListener("click", (event) => {
 				const actionElement = eventActionElement(event);
@@ -20334,6 +20540,7 @@ function handleAction(element) {
 	if (action === "switch-space") {
 		const target = element.dataset.space || PERSONAL_SPACE_ID;
 		if (target !== activeSpaceId() && DATA_SPACES[target]) {
+			enableSpaceOnDashboard(target);
 			switchSpace(target);
 		}
 		return;
@@ -20484,6 +20691,9 @@ function handleAction(element) {
 			return;
 		}
 		setDashboardChartType(element.dataset.chart);
+	}
+	if (action === "toggle-dashboard-teaching") {
+		toggleDashboardTeachingMode();
 	}
 	if (action === "set-theme") {
 		setTheme(element.dataset.theme);

@@ -5,6 +5,10 @@
 !CLAUDE.md
 !README.md
 !CHANGELOG.md
+!MISSION.md
+!UBIQUITOUS_LANGUAGE.md
+!docs/
+!docs/project-literacy-ux.md
 assets/local-cloud-dev.json
 firebase-debug.log
 functions/venv/
