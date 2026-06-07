@@ -6561,6 +6561,95 @@ function restoreThoughtToastFocus(focusState) {
 	pauseThoughtToastFade();
 }
 
+function cssSelectorValue(value) {
+	const text = String(value || "");
+	return window.CSS?.escape
+		? window.CSS.escape(text)
+		: text.replace(/["\\]/g, "\\$&");
+}
+
+function activeEditableFocusSelectors(element) {
+	const selectors = [];
+	if (element.id) {
+		selectors.push(`#${cssSelectorValue(element.id)}`);
+	}
+	const tag = element.tagName.toLowerCase();
+	const name = element.getAttribute("name");
+	if (name) {
+		selectors.push(`${tag}[name="${cssSelectorValue(name)}"]`);
+	}
+	[
+		"data-dashboard-period-slider",
+		"data-gallery-size-slider",
+		"data-pyxdia-note-filter",
+		"data-pyxdia-note-ref",
+		"data-dashboard-display-option",
+	].forEach((attribute) => {
+		if (element.hasAttribute(attribute)) {
+			selectors.push(`${tag}[${attribute}]`);
+		}
+	});
+	return selectors;
+}
+
+function captureActiveEditableFocus() {
+	const active = document.activeElement;
+	if (!isEditableAppElement(active)) {
+		return null;
+	}
+	const selectors = activeEditableFocusSelectors(active);
+	if (!selectors.length) {
+		return null;
+	}
+	let start = null;
+	let end = null;
+	try {
+		start = active.selectionStart;
+		end = active.selectionEnd;
+	} catch {
+		// Selection APIs are only available on text-like fields.
+	}
+	return {
+		selectors,
+		tagName: active.tagName,
+		type: active instanceof HTMLInputElement ? active.type : "",
+		start,
+		end,
+	};
+}
+
+function restoreActiveEditableFocus(focusState) {
+	if (!focusState) {
+		return;
+	}
+	const field = focusState.selectors
+		.map((selector) => app.querySelector(selector))
+		.find((candidate) => {
+			if (!isEditableAppElement(candidate)) {
+				return false;
+			}
+			if (candidate.tagName !== focusState.tagName) {
+				return false;
+			}
+			return !focusState.type || candidate.type === focusState.type;
+		});
+	if (!field) {
+		return;
+	}
+	field.focus({ preventScroll: true });
+	if (
+		typeof focusState.start === "number" &&
+		typeof focusState.end === "number" &&
+		typeof field.setSelectionRange === "function"
+	) {
+		try {
+			field.setSelectionRange(focusState.start, focusState.end);
+		} catch {
+			// Non-text inputs can be focused without restoring a selection range.
+		}
+	}
+}
+
 function editorDraftKeyFor(saveAction, id) {
 	if (!id) {
 		return "";
@@ -12041,6 +12130,7 @@ function render() {
 	const settingsScrollTop =
 		app.querySelector(".settings-tab-panel")?.scrollTop ?? 0;
 	const thoughtToastFocus = captureThoughtToastFocus();
+	const activeEditableFocus = captureActiveEditableFocus();
 	hideThoughtTooltip();
 	hideGuidedTip();
 	app.innerHTML = `
@@ -12104,6 +12194,7 @@ function render() {
 	restoreEditorDraftFocus(editorDraft);
 	focusThoughtEditor();
 	restoreThoughtToastFocus(thoughtToastFocus);
+	restoreActiveEditableFocus(activeEditableFocus);
 	restoreContentScrollPosition(contentScrollRestoreKey);
 	if (state.sidebarSubmenu === "settings" && state.settingsTab === "cloud") {
 		scheduleCloudStorageUsageRefresh();
