@@ -185,6 +185,9 @@ export function parseSingleLineContent(line) {
 	if (command?.name === "caption") {
 		return { type: "caption", text: command.value };
 	}
+	if (command?.name === "attachment") {
+		return { type: "attachment", id: command.id };
+	}
 	const items = splitCommaContent(text);
 	if (items.length > 1) {
 		const images = items.map(parseMarkdownImageReference);
@@ -229,6 +232,15 @@ function focusImageHtml(image) {
 		return `<img${panAttrs} data-local-asset="${escapeHtml(image.id)}" alt="${escapeHtml(image.alt || "Image")}">`;
 	}
 	return `<img${panAttrs} src="${escapeHtml(image.src)}" alt="${escapeHtml(image.alt || "Image")}" loading="lazy">`;
+}
+
+function attachmentPillHtml(id, label = "Attachment") {
+	const cleanId = String(id || "").trim();
+	if (!/^file-[a-z0-9-]+$/i.test(cleanId) && !/^img-[a-z0-9-]+$/i.test(cleanId)) {
+		return "";
+	}
+	const cleanLabel = String(label || "Attachment").trim() || "Attachment";
+	return `<span class="ourstuff-attachment-pill-wrap"><a class="ourstuff-attachment-pill" href="#" data-local-file-link="${escapeHtml(cleanId)}" data-local-file-pill="true" target="_blank" rel="noopener noreferrer" aria-label="Open attachment ${escapeHtml(cleanLabel)}"><span class="ourstuff-attachment-icon" aria-hidden="true">FILE</span><span data-local-file-label>${escapeHtml(cleanLabel)}</span></a><button class="ourstuff-attachment-rename" data-action="rename-library-file" data-id="${escapeHtml(cleanId)}" type="button" aria-label="Rename attachment ${escapeHtml(cleanLabel)}">Rename</button></span>`;
 }
 
 function youtubeEmbedHtml(video, label = "YouTube video") {
@@ -289,6 +301,9 @@ export function themedChildViewerHtml(parsed, options = {}) {
 	}
 	if (parsed.type === "caption") {
 		return `<div class="themed-child-viewer themed-child-viewer--caption ourstuff-command ourstuff-command--caption"><p>${escapeHtml(parsed.text || "")}</p></div>`;
+	}
+	if (parsed.type === "attachment") {
+		return `<div class="themed-child-viewer themed-child-viewer--attachment ourstuff-command ourstuff-command--attachment">${attachmentPillHtml(parsed.id)}</div>`;
 	}
 	return `<div class="themed-child-viewer themed-child-viewer--text"><p>${escapeHtml(parsed.text || "")}</p></div>`;
 }

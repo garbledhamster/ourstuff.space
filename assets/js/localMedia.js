@@ -363,6 +363,16 @@ function safeAltText(name) {
 	);
 }
 
+function safeDisplayName(name, fallback = "File") {
+	return (
+		String(name || fallback)
+			.replace(/\.[a-z0-9]+$/i, "")
+			.replace(/[\][()]/g, "")
+			.replace(/\s+/g, " ")
+			.trim() || fallback
+	);
+}
+
 function safeStorageName(name) {
 	return (
 		String(name || "file")
@@ -412,13 +422,21 @@ function metadataFromRecord(record) {
 	const { blob, dataUrl, ...metadata } = record || {};
 	const size = Number(metadata.size) || Number(blob?.size) || 0;
 	const cloudStorageBytes = Number(metadata.cloudStorageBytes) || 0;
+	const name = filenameWithExtension(
+		metadata.name,
+		metadata.type,
+		metadata.id || "file",
+	);
+	const originalName = metadata.originalName || name;
+	const displayName =
+		String(metadata.displayName || "").trim() ||
+		safeDisplayName(originalName, metadata.type?.startsWith("image/") ? "Image" : "File");
 	return {
 		...metadata,
-		name: filenameWithExtension(
-			metadata.name,
-			metadata.type,
-			metadata.id || "file",
-		),
+		name,
+		originalName,
+		displayName,
+		caption: String(metadata.caption || "").trim(),
 		size,
 		storageBytes: cloudStorageBytes || size,
 	};
@@ -577,6 +595,9 @@ export async function storeLocalImage(file, options = {}) {
 		name: useOriginal
 			? filenameWithExtension(file.name || `${id}.${extension}`, type, id)
 			: filenameWithExtension(file.name || `${id}.${extension}`, type, id),
+		originalName: file.name || `${id}.${extension}`,
+		displayName: safeAltText(file.name || "Image"),
+		caption: "",
 		type,
 		size: blob.size,
 		width,
@@ -634,6 +655,9 @@ export async function storeLocalFile(
 			file.type || "application/octet-stream",
 			id,
 		),
+		originalName: file.name || id,
+		displayName: safeDisplayName(file.name || "File", "File"),
+		caption: "",
 		type: file.type || "application/octet-stream",
 		size: file.size || 0,
 		created: new Date().toISOString(),
@@ -649,8 +673,7 @@ export async function storeLocalFile(
 	}
 	const store = await transaction("readwrite");
 	await requestToPromise(store.put(uploadedRecord));
-	const { blob, dataUrl, ...metadata } = uploadedRecord;
-	return metadata;
+	return metadataFromRecord(uploadedRecord);
 }
 
 export async function listLocalFiles() {
@@ -663,6 +686,35 @@ export async function listLocalFiles() {
 		);
 }
 
+export async function updateLocalFileMetadata(id, patch = {}) {
+	if (!id) {
+		throw new Error("No file selected.");
+	}
+	const store = await transaction("readonly");
+	const record = await requestToPromise(store.get(id));
+	if (!record) {
+		throw new Error("This file is no longer in the Gallery.");
+	}
+	const next = {
+		...record,
+		displayName:
+			patch.displayName === undefined
+				? record.displayName
+				: safeDisplayName(
+						patch.displayName,
+						record.type?.startsWith("image/") ? "Image" : "File",
+					),
+		caption:
+			patch.caption === undefined
+				? record.caption || ""
+				: String(patch.caption || "").trim(),
+		updated: new Date().toISOString(),
+	};
+	const writeStore = await transaction("readwrite");
+	await requestToPromise(writeStore.put(next));
+	return metadataFromRecord(next);
+}
+
 export async function listLocalImages() {
 	const records = await listLocalFiles();
 	return records
@@ -672,7 +724,7 @@ export async function listLocalImages() {
 		);
 }
 
-export async function deleteLocalImages(ids) {
+export async function deleteLocalFiles(ids) {
 	const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
 	if (!uniqueIds.length) {
 		return;
@@ -695,6 +747,10 @@ export async function deleteLocalImages(ids) {
 		}
 		objectUrlCache.delete(id);
 	});
+}
+
+export async function deleteLocalImages(ids) {
+	return deleteLocalFiles(ids);
 }
 
 export async function clearLocalFiles(options = {}) {

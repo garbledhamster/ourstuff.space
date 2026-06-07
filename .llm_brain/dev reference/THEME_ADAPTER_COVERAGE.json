@@ -1,14 +1,14 @@
 {
 	"schema": "ourstuff.themeAdapterCoverage.v1",
-	"generatedAt": "2026-06-06T17:43:09.675Z",
+	"generatedAt": "2026-06-07T08:52:46.556Z",
 	"source": {
 		"cssPath": "assets/css/app.css",
-		"cssSha256": "420aeef2c2717c3eaa8a3b179620e1033442445c744f6ef6706e10d22dc25212"
+		"cssSha256": "8316628b4d87123e9f4ef9753085e1a1272a24c5c36bff8267817cdd50099e08"
 	},
 	"summary": {
-		"classCount": 463,
-		"needsAdapterCount": 27,
-		"coveredCount": 463,
+		"classCount": 468,
+		"needsAdapterCount": 29,
+		"coveredCount": 468,
 		"requiredMissingCount": 0,
 		"highConfidenceMissingCount": 0
 	},
@@ -2370,6 +2370,25 @@
 			]
 		},
 		{
+			"className": "dashboard-analytics-period",
+			"confidence": "layout",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": false,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": []
+		},
+		{
 			"className": "dashboard-bar-button",
 			"confidence": "high",
 			"needsAdapter": false,
@@ -3900,6 +3919,75 @@
 			]
 		},
 		{
+			"className": "gallery-file-link",
+			"confidence": "low",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": true,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": [
+				".gallery-file-link"
+			]
+		},
+		{
+			"className": "gallery-file-meta",
+			"confidence": "low",
+			"needsAdapter": false,
+			"covered": true,
+			"tokenizedBase": true,
+			"exemptReason": "",
+			"palette": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"consolas": {
+				"covered": false,
+				"tokenized": false,
+				"selectors": []
+			},
+			"sourceSelectors": [
+				".gallery-file-meta",
+				".gallery-file-meta small"
+			]
+		},
+		{
+			"className": "gallery-file-tile",
+			"confidence": "high",
+			"needsAdapter": true,
+			"covered": true,
+			"tokenizedBase": false,
+			"exemptReason": "",
+			"palette": {
+				"covered": true,
+				"tokenized": true,
+				"selectors": [
+					":root.theme-palette:not(.theme-consolas) .dashboard-space-button, :root.theme-palette:not(.theme-consolas) .dashboard-bar-button, :root.theme-palette:not(.theme-consolas) .dashboard-bar-track, :root.theme-palette:not(.th"
+				]
+			},
+			"consolas": {
+				"covered": true,
+				"tokenized": true,
+				"selectors": [
+					":root.theme-consolas .dashboard-space-button, :root.theme-consolas .dashboard-space-unread, :root.theme-consolas .dashboard-bar-button, :root.theme-consolas .dashboard-bar-track, :root.theme-consolas .dashboard-pie::afte"
+				]
+			},
+			"sourceSelectors": [
+				".gallery-file-tile",
+				".gallery-file-tile iconify-icon"
+			]
+		},
+		{
 			"className": "gallery-grid",
 			"confidence": "layout",
 			"needsAdapter": false,
@@ -3972,6 +4060,32 @@
 				]
 			},
 			"sourceSelectors": []
+		},
+		{
+			"className": "gallery-rename-button",
+			"confidence": "high",
+			"needsAdapter": true,
+			"covered": true,
+			"tokenizedBase": false,
+			"exemptReason": "",
+			"palette": {
+				"covered": true,
+				"tokenized": true,
+				"selectors": [
+					":root.theme-palette:not(.theme-consolas) .dashboard-space-button, :root.theme-palette:not(.theme-consolas) .dashboard-bar-button, :root.theme-palette:not(.theme-consolas) .dashboard-bar-track, :root.theme-palette:not(.th",
+					":root.theme-palette:not(.theme-consolas) .dashboard-space-button, :root.theme-palette:not(.theme-consolas) .pyxdia-status-strip span, :root.theme-palette:not(.theme-consolas) .pyxdia-recipient-static, :root.theme-palette"
+				]
+			},
+			"consolas": {
+				"covered": true,
+				"tokenized": true,
+				"selectors": [
+					":root.theme-consolas .dashboard-space-button, :root.theme-consolas .dashboard-space-unread, :root.theme-consolas .dashboard-bar-button, :root.theme-consolas .dashboard-bar-track, :root.theme-consolas .dashboard-pie::afte"
+				]
+			},
+			"sourceSelectors": [
+				".gallery-rename-button"
+			]
 		},
 		{
 			"className": "gallery-select",

@@ -5994,6 +5994,98 @@ select option:checked {
 	opacity: 0.45;
 }
 
+.gallery-file-link {
+	display: grid;
+	grid-template-rows: minmax(0, 1fr) auto;
+	align-items: stretch;
+	background:
+		linear-gradient(160deg, rgba(14, 165, 233, 0.2), transparent 46%),
+		rgba(15, 23, 42, 0.86);
+	color: var(--text);
+	text-decoration: none;
+}
+
+.gallery-file-tile {
+	display: grid;
+	place-items: center;
+	align-content: center;
+	gap: 8px;
+	min-height: 0;
+	padding: 18px 12px 10px;
+	color: #dbeafe;
+}
+
+.gallery-file-tile iconify-icon {
+	width: clamp(32px, 28%, 62px);
+	height: clamp(32px, 28%, 62px);
+	font-size: clamp(32px, 28%, 62px);
+	color: #93c5fd;
+}
+
+.gallery-file-tile strong {
+	max-width: 100%;
+	overflow: hidden;
+	font-family: var(--font-label);
+	font-size: 0.72rem;
+	font-weight: 900;
+	letter-spacing: 0;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.gallery-file-meta {
+	display: grid;
+	gap: 2px;
+	min-width: 0;
+	padding: 10px 12px;
+	background: rgba(2, 6, 23, 0.76);
+	color: var(--text);
+}
+
+.gallery-file-meta strong,
+.gallery-file-meta small {
+	display: block;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.gallery-file-meta strong {
+	font-size: 0.86rem;
+	line-height: 1.2;
+}
+
+.gallery-file-meta small {
+	color: var(--muted);
+	font-family: var(--font-label);
+	font-size: 0.68rem;
+	font-weight: 800;
+}
+
+.gallery-rename-button {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	z-index: 1;
+	width: 30px;
+	height: 30px;
+	border-radius: 8px;
+	background: rgba(2, 6, 23, 0.78);
+	opacity: 0;
+	pointer-events: none;
+	transition:
+		opacity 0.16s ease,
+		background 0.16s ease,
+		border-color 0.16s ease;
+}
+
+.gallery-card:hover .gallery-rename-button,
+.gallery-card:focus-within .gallery-rename-button {
+	opacity: 1;
+	pointer-events: auto;
+}
+
 .panel {
 	position: relative;
 	display: flex;
@@ -9855,7 +9947,7 @@ button.life-event-row:hover {
 .editor-form--section {
 	padding-top: 54px;
 	padding-bottom: clamp(36px, 6vh, 58px);
-	grid-template-rows: auto auto minmax(0, 1fr);
+	grid-template-rows: auto auto minmax(0, 1fr) auto;
 }
 
 .section-editor-floating-nav {
@@ -9942,6 +10034,25 @@ button.life-event-row:hover {
 .editor-form--section .editor-body-wrap {
 	height: 100%;
 	min-height: 0;
+}
+
+.section-attachment-preview {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
+	min-width: 0;
+	margin-top: -4px;
+}
+
+.section-attachment-preview .ourstuff-attachment-pill {
+	max-width: min(100%, 28rem);
+}
+
+.section-attachment-rename {
+	width: 34px;
+	height: 34px;
+	border-radius: 999px;
 }
 
 .editor-body-wrap.has-image-button textarea {
@@ -10957,6 +11068,8 @@ button.life-event-row:hover {
 :root.theme-palette:not(.theme-consolas) .gallery-card,
 :root.theme-palette:not(.theme-consolas) .gallery-select,
 :root.theme-palette:not(.theme-consolas) .gallery-image-link,
+:root.theme-palette:not(.theme-consolas) .gallery-file-tile,
+:root.theme-palette:not(.theme-consolas) .gallery-rename-button,
 :root.theme-palette:not(.theme-consolas) .compendium-list-view,
 :root.theme-palette:not(.theme-consolas) .compendium-list-item,
 :root.theme-palette:not(.theme-consolas) .compendium-picker-empty,
@@ -10993,6 +11106,7 @@ button.life-event-row:hover {
 :root.theme-palette:not(.theme-consolas) .pyxdia-memory-entry,
 :root.theme-palette:not(.theme-consolas) .trash-item-type,
 :root.theme-palette:not(.theme-consolas) .gallery-select,
+:root.theme-palette:not(.theme-consolas) .gallery-rename-button,
 :root.theme-palette:not(.theme-consolas) .compendium-list-item,
 :root.theme-palette:not(.theme-consolas) .reader-gallery-edge,
 :root.theme-palette:not(.theme-consolas) .dashboard-identity-input-row input[type="text"],
@@ -11393,6 +11507,8 @@ button.life-event-row:hover {
 :root.theme-consolas .gallery-card,
 :root.theme-consolas .gallery-select,
 :root.theme-consolas .gallery-image-link,
+:root.theme-consolas .gallery-file-tile,
+:root.theme-consolas .gallery-rename-button,
 :root.theme-consolas .compendium-list-view,
 :root.theme-consolas .compendium-list-item,
 :root.theme-consolas .compendium-picker-empty,
@@ -12916,6 +13032,101 @@ button.life-event-row:hover {
 
 .ourstuff-command--caption p {
 	margin: 0;
+}
+
+.ourstuff-command--attachment {
+	margin: 0.85rem 0;
+}
+
+.ourstuff-attachment-pill-wrap {
+	display: inline-flex;
+	align-items: center;
+	max-width: 100%;
+	gap: 6px;
+	vertical-align: middle;
+}
+
+.ourstuff-attachment-pill {
+	display: inline-grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	align-items: center;
+	max-width: min(100%, 34rem);
+	min-height: 36px;
+	gap: 8px;
+	border: 1px solid var(--border-soft);
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--surface) 86%, transparent);
+	color: var(--text);
+	padding: 6px 12px 6px 8px;
+	text-decoration: none;
+	vertical-align: middle;
+}
+
+.ourstuff-attachment-pill:hover,
+.ourstuff-attachment-pill:focus-visible {
+	border-color: var(--accent);
+	background: color-mix(in srgb, var(--surface) 72%, var(--accent) 12%);
+	color: var(--text);
+}
+
+.ourstuff-attachment-icon {
+	display: inline-grid;
+	place-items: center;
+	min-width: 34px;
+	height: 24px;
+	border-radius: 999px;
+	background: rgba(14, 165, 233, 0.18);
+	color: #bfdbfe;
+	font-family: var(--font-label);
+	font-size: 0.64rem;
+	font-weight: 900;
+	letter-spacing: 0;
+	padding: 0 7px;
+}
+
+.ourstuff-attachment-pill [data-local-file-label] {
+	min-width: 0;
+	overflow: hidden;
+	font-size: 0.9rem;
+	font-weight: 800;
+	line-height: 1.2;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ourstuff-attachment-rename {
+	flex: 0 0 auto;
+	min-height: 32px;
+	border: 1px solid var(--border-soft);
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--surface) 78%, transparent);
+	color: var(--muted);
+	cursor: pointer;
+	font-family: var(--font-label);
+	font-size: 0.68rem;
+	font-weight: 900;
+	letter-spacing: 0;
+	padding: 0 10px;
+}
+
+.ourstuff-attachment-rename:hover,
+.ourstuff-attachment-rename:focus-visible {
+	border-color: var(--accent);
+	background: color-mix(in srgb, var(--surface) 72%, var(--accent) 12%);
+	color: var(--text);
+	outline: none;
+}
+
+@media (max-width: 560px) {
+	.ourstuff-attachment-pill-wrap {
+		display: flex;
+		width: 100%;
+	}
+
+	.ourstuff-attachment-pill {
+		flex: 1 1 auto;
+		max-width: none;
+	}
 }
 
 .markdown-body code {

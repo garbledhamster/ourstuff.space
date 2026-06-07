@@ -41,20 +41,21 @@ import { bindDonationFlow, donationModalHtml } from "./donations.js";
 import {
 	clearLocalFiles,
 	configureCloudMedia,
+	deleteLocalFiles,
 	deleteLocalImages,
 	exportCloudMediaKey,
 	exportLocalFiles,
 	importCloudMediaKey,
 	importLocalFiles,
 	listLocalFiles,
-	listLocalImages,
 	migrateLocalMediaToCloud,
 	resolveLocalFile,
 	storeLocalFile,
 	storeLocalImage,
 	storeLocalImageFromDataUrl,
+	updateLocalFileMetadata,
 } from "./localMedia.js?v=space-20260531a";
-import { escapeHtml, renderMarkdown } from "./markdown.js";
+import { escapeHtml, parseOurstuffLineCommand, renderMarkdown } from "./markdown.js";
 import {
 	pageContentHtml,
 	pageNumberOverlayHtml,
@@ -319,14 +320,14 @@ const NAVIGATION_TOUR_STEPS = [
 		id: "menu-button",
 		route: "dashboard",
 		selector: ".mobile-menu-toggle",
-		label: "Tap Menu to open notes, settings, gallery, timer, and data tools.",
+		label: "Tap Menu to open notes, settings, Gallery, timer, and data tools.",
 		placement: "bottom",
 	},
 	{
 		id: "menu-open",
 		route: "dashboard-menu",
 		selector: ".sidebar",
-		label: "This menu holds your notes, settings, gallery, timer, and data tools.",
+		label: "This menu holds your notes, settings, Gallery, timer, and data tools.",
 		placement: "right",
 	},
 	{
@@ -2326,7 +2327,7 @@ function applyCoreTooltips() {
 		[".dashboard-chart-switcher [data-chart='bar']", "Bar chart"],
 		[".sidebar-menu-nav-button", "Toggle side sections"],
 		[".sidebar-text-link[data-action='open-settings']", "Open settings"],
-		[".sidebar-text-link[data-action='open-gallery']", "Open gallery"],
+		[".sidebar-text-link[data-action='open-gallery']", "Open Gallery"],
 		[".cloud-action-nav [data-action='import-artifacts']", "Import data"],
 		[".cloud-action-nav [data-action='export-artifacts']", "Export data"],
 		[".reader-page-indicator", "Open overview"],
@@ -10256,7 +10257,7 @@ async function restoreFactoryDefaults() {
 
 async function refreshGalleryImages() {
 	try {
-		const images = await listLocalImages();
+		const images = await listLocalFiles();
 		setState({
 			galleryImages: images,
 			gallerySelectedIds: state.gallerySelectedIds.filter((id) =>
@@ -13072,6 +13073,8 @@ function pathBarHtml(compendium, section, spiritBook) {
 		? dashboardDisplayLabel(state.active)
 		: state.active === "PYXIDA"
 			? "Pen Pal"
+		: state.active === "Gallery"
+			? "Gallery"
 		: state.active;
 	const extraCrumbs = pathBarExtraCrumbs(spiritBook);
 	return `
@@ -15408,9 +15411,9 @@ function cloudStorageUsageHtml(usage) {
 }
 
 function galleryHtml() {
-	const images = state.galleryImages;
+	const files = state.galleryImages;
 	const selected = new Set(state.gallerySelectedIds);
-	const count = images?.length || 0;
+	const count = files?.length || 0;
 	const selectedCount = selected.size;
 	const thumbSize = Math.min(
 		320,
@@ -15419,7 +15422,7 @@ function galleryHtml() {
 	return panelHtml(`
     ${headerHtml(
 			"Gallery",
-			"Browse image uploads from this browser. Cloud media is encrypted before upload.",
+			"Browse images and files from this browser. Cloud media is encrypted before upload.",
 			`
       <div class="action-row">
         <button class="secondary-button" data-action="gallery-select-all" type="button"${count ? "" : " disabled"}>${buttonContent("tabler:checks", "Select All")}</button>
@@ -15430,49 +15433,66 @@ function galleryHtml() {
 		)}
     <div class="gallery-page">
       <div class="gallery-toolbar">
-        <span>${images ? `${count} image${count === 1 ? "" : "s"}` : "Loading images"}</span>
+        <span>${files ? `${count} file${count === 1 ? "" : "s"}` : "Loading files"}</span>
         <label>
-          <span>Image size</span>
-          <input data-gallery-size-slider type="range" min="110" max="320" step="10" value="${thumbSize}" aria-label="Gallery image size">
+          <span>Tile size</span>
+          <input data-gallery-size-slider type="range" min="110" max="320" step="10" value="${thumbSize}" aria-label="Gallery tile size">
         </label>
       </div>
       ${
-				images === null
+				files === null
 					? emptyStateHtml(
-							"Loading gallery.",
-							"Reading your local image library.",
+							"Loading Gallery.",
+							"Reading your local files.",
 						)
-					: images.length
+					: files.length
 						? `
         <div class="gallery-grid${selectedCount ? " is-selecting" : ""}" style="--gallery-thumb-size: ${thumbSize}px;">
-          ${images.map((image) => galleryImageCardHtml(image, selected.has(image.id))).join("")}
+          ${files.map((file) => galleryFileCardHtml(file, selected.has(file.id))).join("")}
         </div>
       `
 						: emptyStateHtml(
-								"No images yet.",
-								"Images you upload into notes will appear here.",
+								"No files yet.",
+								"Images and files you add to notes or sections will appear here.",
 							)
 			}
     </div>
   `);
 }
 
-function galleryImageCardHtml(image, selected) {
-	const remoteUrl = galleryRemoteImageUrl(image);
-	const downloadName = image.name || `${image.id || "image"}.jpg`;
+function galleryFileCardHtml(file, selected) {
+	const isImage = file?.type?.startsWith("image/");
+	const remoteUrl = isImage ? galleryRemoteImageUrl(file) : "";
+	const downloadName = file.name || `${file.id || "file"}`;
+	const displayName = libraryFileDisplayName(file);
+	const details = libraryFileDetails(file);
+	const openLabel = isPdfFile(file) ? "Open PDF" : isImage ? "Open image" : "Download file";
 	const imageLinkAttrs = remoteUrl
 		? `href="${escapeHtml(remoteUrl)}" download="${escapeHtml(downloadName)}" target="_blank" rel="noopener noreferrer"`
-		: `href="#" download="${escapeHtml(downloadName)}" data-local-asset-link="${escapeHtml(image.id)}" data-local-asset-name="${escapeHtml(downloadName)}"`;
+		: isImage
+			? `href="#" download="${escapeHtml(downloadName)}" data-local-asset-link="${escapeHtml(file.id)}" data-local-asset-name="${escapeHtml(downloadName)}"`
+			: `href="#" data-local-file-link="${escapeHtml(file.id)}" target="_blank" rel="noopener noreferrer"`;
 	const imageAttrs = remoteUrl
 		? `src="${escapeHtml(remoteUrl)}"`
-		: `data-local-asset="${escapeHtml(image.id)}"`;
+		: isImage
+			? `data-local-asset="${escapeHtml(file.id)}"`
+			: "";
 	return `
     <article class="gallery-card${selected ? " is-selected" : ""}">
       <label class="gallery-select">
-        <input data-gallery-select type="checkbox" value="${escapeHtml(image.id)}"${selected ? " checked" : ""} aria-label="Select ${escapeHtml(image.name || "image")}">
+        <input data-gallery-select type="checkbox" value="${escapeHtml(file.id)}"${selected ? " checked" : ""} aria-label="Select ${escapeHtml(displayName)}">
       </label>
-      <a class="gallery-image-link" ${imageLinkAttrs} aria-label="Download ${escapeHtml(image.name || "image")}">
-        <img ${imageAttrs} alt="${escapeHtml(image.name || "Uploaded image")}" loading="lazy">
+      <button class="icon-button gallery-rename-button" data-action="rename-library-file" data-id="${escapeHtml(file.id)}" type="button" aria-label="Rename ${escapeHtml(displayName)}" title="Rename">${iconHtml("tabler:pencil")}</button>
+      <a class="gallery-image-link${isImage ? "" : " gallery-file-link"}" ${imageLinkAttrs} aria-label="${escapeHtml(openLabel)} ${escapeHtml(displayName)}" title="${escapeHtml(details)}">
+        ${
+					isImage
+						? `<img ${imageAttrs} alt="${escapeHtml(displayName)}" loading="lazy">`
+						: `<span class="gallery-file-tile" aria-hidden="true">${iconHtml(libraryFileIcon(file))}<strong>${escapeHtml(libraryFileExtension(file))}</strong></span>`
+				}
+        <span class="gallery-file-meta">
+          <strong>${escapeHtml(displayName)}</strong>
+          <small>${escapeHtml(`${libraryFileTypeLabel(file)} / ${formatFileSize(file.size)}`)}</small>
+        </span>
       </a>
     </article>
   `;
@@ -15488,14 +15508,165 @@ function galleryRemoteImageUrl(image) {
 	return /^https?:\/\/[^"'<>]+$/i.test(value) ? value : "";
 }
 
+function libraryFileDisplayName(file) {
+	return (
+		String(file?.displayName || file?.caption || "").trim() ||
+		String(file?.originalName || file?.name || file?.id || "File")
+			.replace(/\.[a-z0-9]+$/i, "")
+			.trim() ||
+		"File"
+	);
+}
+
+function libraryFileExtension(file) {
+	const name = String(file?.originalName || file?.name || "");
+	const extension = name.match(/\.([a-z0-9]{1,8})$/i)?.[1] || "";
+	if (extension) {
+		return extension.toUpperCase();
+	}
+	const type = String(file?.type || "").toLowerCase();
+	if (type.includes("pdf")) {
+		return "PDF";
+	}
+	if (type.startsWith("text/")) {
+		return "TXT";
+	}
+	if (type.startsWith("image/")) {
+		return "IMG";
+	}
+	return "FILE";
+}
+
+function libraryFileTypeLabel(file) {
+	const type = String(file?.type || "").trim();
+	if (type === "application/pdf" || /\.pdf$/i.test(file?.name || "")) {
+		return "PDF";
+	}
+	if (type.startsWith("image/")) {
+		return "Image";
+	}
+	if (type.startsWith("text/")) {
+		return "Text";
+	}
+	return type ? type.split("/").pop().toUpperCase() : "File";
+}
+
+function libraryFileIcon(file) {
+	const type = String(file?.type || "").toLowerCase();
+	const name = String(file?.name || file?.originalName || "").toLowerCase();
+	if (type === "application/pdf" || name.endsWith(".pdf")) {
+		return "tabler:file-type-pdf";
+	}
+	if (type.startsWith("image/")) {
+		return "tabler:photo";
+	}
+	if (type.startsWith("text/") || name.endsWith(".txt") || name.endsWith(".md")) {
+		return "tabler:file-text";
+	}
+	if (name.endsWith(".doc") || name.endsWith(".docx")) {
+		return "tabler:file-type-doc";
+	}
+	return "tabler:file";
+}
+
+function isPdfFile(file) {
+	return (
+		String(file?.type || "").toLowerCase() === "application/pdf" ||
+		/\.pdf$/i.test(file?.name || file?.originalName || "")
+	);
+}
+
+function libraryFileDetails(file) {
+	return [
+		libraryFileDisplayName(file),
+		file?.originalName || file?.name
+			? `Actual: ${file.originalName || file.name}`
+			: "",
+		file?.type ? `Type: ${file.type}` : "",
+		`Size: ${formatFileSize(file?.size)}`,
+	]
+		.filter(Boolean)
+		.join(" / ");
+}
+
+async function renameLibraryFile(id) {
+	const file =
+		(state.galleryImages || []).find((item) => item.id === id) ||
+		(await resolveLocalFile(id).catch(() => null));
+	if (!file?.id) {
+		window.alert("This file is no longer in the Gallery.");
+		return;
+	}
+	const current = libraryFileDisplayName(file);
+	const nextName = window.prompt("Friendly name", current);
+	if (nextName === null) {
+		return;
+	}
+	const trimmed = nextName.trim();
+	if (!trimmed) {
+		window.alert("Friendly name cannot be blank.");
+		return;
+	}
+	try {
+		const updated = await updateLocalFileMetadata(id, {
+			displayName: trimmed,
+		});
+		if (state.galleryImages) {
+			setState({
+				galleryImages: state.galleryImages.map((item) =>
+					item.id === id ? { ...item, ...updated } : item,
+				),
+			});
+			return;
+		}
+		render();
+	} catch (error) {
+		window.alert(
+			error instanceof Error ? error.message : "Could not rename this file.",
+		);
+	}
+}
+
 function selectAllGalleryImages() {
 	setState({
-		gallerySelectedIds: (state.galleryImages || []).map((image) => image.id),
+		gallerySelectedIds: (state.galleryImages || []).map((file) => file.id),
 	});
 }
 
 function clearGallerySelection() {
 	setState({ gallerySelectedIds: [] });
+}
+
+function sectionAttachmentIdsFromBody(body) {
+	return String(body || "")
+		.split(/\r?\n/)
+		.map((line) => parseOurstuffLineCommand(line))
+		.filter((command) => command?.name === "attachment" && command.id)
+		.map((command) => command.id);
+}
+
+function sectionAttachmentPreviewHtml(body) {
+	const ids = [...new Set(sectionAttachmentIdsFromBody(body))];
+	if (!ids.length) {
+		return "";
+	}
+	return `
+    <div class="section-attachment-preview" aria-label="Section attachments">
+      ${ids
+				.map(
+					(id) => `
+        <span class="ourstuff-attachment-pill-wrap">
+          <a class="ourstuff-attachment-pill" href="#" data-local-file-link="${escapeHtml(id)}" data-local-file-pill="true" target="_blank" rel="noopener noreferrer" aria-label="Open attachment">
+            <span class="ourstuff-attachment-icon" aria-hidden="true">FILE</span>
+            <span data-local-file-label>Attachment</span>
+          </a>
+          <button class="ourstuff-attachment-rename" data-action="rename-library-file" data-id="${escapeHtml(id)}" type="button" aria-label="Rename attachment">Rename</button>
+        </span>
+      `,
+				)
+				.join("")}
+    </div>
+  `;
 }
 
 function escapeRegExp(value) {
@@ -15533,27 +15704,60 @@ function removeDeletedImageReferences(ids) {
 	}
 }
 
+function removeDeletedAttachmentReferences(ids) {
+	if (!state.artifactStore || !ids.length) {
+		return;
+	}
+	const patterns = ids.map(
+		(id) =>
+			new RegExp(
+				`^:attachment\\s+ourstuff-asset:${escapeRegExp(id)}\\s*$`,
+				"gim",
+			),
+	);
+	let changed = false;
+	const now = nowIso();
+	const artifacts = state.artifactStore.artifacts.map((artifact) => {
+		if (typeof artifact.body !== "string") {
+			return artifact;
+		}
+		const nextBody = patterns
+			.reduce((body, pattern) => body.replace(pattern, ""), artifact.body)
+			.replace(/\n{3,}/g, "\n\n")
+			.trim();
+		if (nextBody === artifact.body) {
+			return artifact;
+		}
+		changed = true;
+		return { ...artifact, body: nextBody, edited: now };
+	});
+	if (changed) {
+		persistArtifactStore({ ...state.artifactStore, artifacts });
+	}
+}
+
 async function deleteSelectedGalleryImages() {
 	const ids = state.gallerySelectedIds.filter((id) =>
-		(state.galleryImages || []).some((image) => image.id === id),
+		(state.galleryImages || []).some((file) => file.id === id),
 	);
 	if (!ids.length) {
 		return;
 	}
-	const label = `${ids.length} image${ids.length === 1 ? "" : "s"}`;
+	const label = `${ids.length} file${ids.length === 1 ? "" : "s"}`;
 	if (
 		!window.confirm(
-			`Delete ${label} from the gallery and remove their note references?`,
+			`Delete ${label} from the Gallery and remove note or section references?`,
 		)
 	) {
 		return;
 	}
 	try {
-		await deleteLocalImages(ids);
+		await deleteLocalFiles(ids);
 		removeDeletedImageReferences(ids);
+		removeDeletedAttachmentReferences(ids);
 		setState({
 			galleryImages: (state.galleryImages || []).filter(
-				(image) => !ids.includes(image.id),
+				(file) => !ids.includes(file.id),
 			),
 			gallerySelectedIds: [],
 		});
@@ -17497,6 +17701,7 @@ function editorHtml({
 					? `
         <nav class="section-editor-floating-nav" aria-label="Section editor actions">
           ${cameraOrUploadInputHtml({ className: "page-action-button section-editor-nav-button", label: "Add photo" })}
+          ${pageActionButton("upload-section-attachment", "tabler:paperclip", "Attach file", { data: { id } })}
           ${pageActionButton(saveAction, "tabler:device-floppy", "Save section", { data: { id } })}
           ${pageActionButton("delete-section", "tabler:trash", "Delete section", { data: { id } })}
           ${pageActionButton(cancelAction, "tabler:x", "Exit section editor", { className: "close-viewer-button" })}
@@ -17511,6 +17716,7 @@ function editorHtml({
         <textarea id="editor-body" aria-label="Body">${escapeHtml(displayBody)}</textarea>
         ${bodyHasCamera ? cameraOrUploadInputHtml() : ""}
       </div>
+      ${sectionChrome ? sectionAttachmentPreviewHtml(displayBody) : ""}
       ${
 				sectionChrome
 					? ""
@@ -20065,6 +20271,52 @@ async function insertEditorImages(files, range = null) {
 	return true;
 }
 
+async function uploadSectionAttachment() {
+	const editor = document.getElementById("editor-body");
+	if (!editor) {
+		return;
+	}
+	const input = document.createElement("input");
+	input.type = "file";
+	input.multiple = true;
+	input.addEventListener(
+		"change",
+		async () => {
+			const files = Array.from(input.files || []);
+			if (!files.length) {
+				return;
+			}
+			const start = editor.selectionStart ?? editor.value.length;
+			const end = editor.selectionEnd ?? start;
+			const commands = [];
+			const storedFiles = [];
+			try {
+				for (const file of files) {
+					const stored = await storeLocalFile(
+						file,
+						"compendium-attachments",
+						localMediaStoreOptions(),
+					);
+					storedFiles.push(stored);
+					commands.push(`:attachment ourstuff-asset:${stored.id}`);
+				}
+				scheduleCloudStorageUsageRefresh({ force: true });
+			} catch (error) {
+				window.alert(
+					error instanceof Error ? error.message : "Could not attach file.",
+				);
+				return;
+			}
+			insertTextAtEditorCursor(commands.join("\n"), start, end);
+			if (state.galleryImages) {
+				state.galleryImages = [...storedFiles, ...state.galleryImages];
+			}
+		},
+		{ once: true },
+	);
+	input.click();
+}
+
 function insertTextAtEditorCursor(text, start, end) {
 	const editor = document.getElementById("editor-body");
 	if (!editor) {
@@ -20528,8 +20780,32 @@ function bindLocalAssetImages() {
 			const resolved = await resolveLocalFile(link.dataset.localFileLink);
 			if (resolved.url) {
 				link.href = resolved.url;
-				link.download = resolved.name || link.download || "download";
+				const displayName = libraryFileDisplayName(resolved);
+				const details = libraryFileDetails(resolved);
+				const inline = isPdfFile(resolved) || resolved.type?.startsWith("image/");
+				const label = link.querySelector("[data-local-file-label]");
+				const icon = link.querySelector(".ourstuff-attachment-icon");
+				if (label) {
+					label.textContent = displayName;
+				}
+				if (icon) {
+					icon.textContent = libraryFileExtension(resolved);
+				}
+				link.title = details;
+				link.setAttribute(
+					"aria-label",
+					`${inline ? "Open" : "Download"} ${displayName}`,
+				);
+				if (inline) {
+					link.removeAttribute("download");
+					link.target = "_blank";
+					link.rel = "noopener noreferrer";
+				} else {
+					link.download =
+						resolved.name || resolved.originalName || link.download || "download";
+				}
 				markLocalAssetReady(link);
+				link.title = details;
 			} else {
 				markLocalAssetMissing(link, "No local or cloud media file was found.");
 			}
@@ -20826,6 +21102,12 @@ function handleAction(element) {
 	}
 	if (action === "gallery-delete-selected") {
 		deleteSelectedGalleryImages();
+	}
+	if (action === "rename-library-file") {
+		void renameLibraryFile(element.dataset.id);
+	}
+	if (action === "upload-section-attachment") {
+		void uploadSectionAttachment();
 	}
 	if (action === "open-settings") {
 		const closingSettings =

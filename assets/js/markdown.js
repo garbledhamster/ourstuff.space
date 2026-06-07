@@ -22,6 +22,15 @@ function imageHtml(alt, src) {
 	return escapeHtml(`![${alt}](${src})`);
 }
 
+function attachmentHtml(id, label = "Attachment") {
+	const cleanId = String(id || "").trim();
+	if (!/^file-[a-z0-9-]+$/i.test(cleanId) && !/^img-[a-z0-9-]+$/i.test(cleanId)) {
+		return "";
+	}
+	const cleanLabel = String(label || "Attachment").trim() || "Attachment";
+	return `<span class="ourstuff-attachment-pill-wrap"><a class="ourstuff-attachment-pill" href="#" data-local-file-link="${escapeHtml(cleanId)}" data-local-file-pill="true" target="_blank" rel="noopener noreferrer" aria-label="Open attachment ${escapeHtml(cleanLabel)}"><span class="ourstuff-attachment-icon" aria-hidden="true">FILE</span><span data-local-file-label>${escapeHtml(cleanLabel)}</span></a><button class="ourstuff-attachment-rename" data-action="rename-library-file" data-id="${escapeHtml(cleanId)}" type="button" aria-label="Rename attachment ${escapeHtml(cleanLabel)}">Rename</button></span>`;
+}
+
 function renderInlineMarkdown(text) {
 	let output = escapeHtml(text);
 	output = output.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_, alt, src) =>
@@ -57,11 +66,18 @@ export function parseOurstuffLineCommand(line) {
 		return null;
 	}
 	const name = match[1].toLowerCase();
-	if (name !== "caption") {
-		return null;
-	}
 	const value = commandArgumentValue(match[2] || "");
-	return value ? { name, value } : null;
+	if (name === "caption") {
+		return value ? { name, value } : null;
+	}
+	if (name === "attachment") {
+		const asset = /^ourstuff-asset:([a-z0-9-]+)$/i.exec(value);
+		if (!asset) {
+			return null;
+		}
+		return { name, value, id: asset[1] };
+	}
+	return null;
 }
 
 export function renderMarkdown(raw) {
@@ -142,6 +158,11 @@ export function renderMarkdown(raw) {
 		if (command?.name === "caption") {
 			closeList();
 			html += `<div class="ourstuff-command ourstuff-command--caption"><p>${renderInlineMarkdown(command.value)}</p></div>`;
+			return;
+		}
+		if (command?.name === "attachment") {
+			closeList();
+			html += `<div class="ourstuff-command ourstuff-command--attachment">${attachmentHtml(command.id)}</div>`;
 			return;
 		}
 
