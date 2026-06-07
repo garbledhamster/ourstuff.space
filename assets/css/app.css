@@ -2287,6 +2287,10 @@ select option:checked {
 	gap: 7px;
 }
 
+.dashboard-analytics-period {
+	margin-bottom: 3px;
+}
+
 .dashboard-chart-switcher {
 	display: grid;
 	grid-template-columns: repeat(

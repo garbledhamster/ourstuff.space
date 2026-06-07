@@ -13257,7 +13257,7 @@ function dashboardPeriodSliderHtml(extraClass = "") {
       <span class="dashboard-period-slider-top">
         <span class="dashboard-period-slider-value">${escapeHtml(periodOption.label)}</span>
       </span>
-      <input class="dashboard-period-range" data-dashboard-period-slider type="range" min="0" max="${DASHBOARD_PERIOD_OPTIONS.length - 1}" step="1" value="${periodIndex}" aria-label="Balance range" aria-valuetext="${escapeHtml(periodOption.label)}" style="--period-progress: ${periodProgress}%;">
+      <input class="dashboard-period-range" data-dashboard-period-slider type="range" min="0" max="${DASHBOARD_PERIOD_OPTIONS.length - 1}" step="1" value="${periodIndex}" aria-label="Dashboard time range" aria-valuetext="${escapeHtml(periodOption.label)}" style="--period-progress: ${periodProgress}%;">
       <span class="dashboard-period-slider-scale" aria-hidden="true">
         <span>1d</span>
         <span>10y</span>
@@ -13358,6 +13358,7 @@ function dashboardAnalyticsHtml() {
       <div class="dashboard-analytics-body">
         <div class="dashboard-pie-wrap dashboard-pie-wrap--${escapeHtml(chartType)}">
           <div class="dashboard-chart-controls">
+            ${dashboardPeriodSliderHtml("dashboard-analytics-period")}
             <div class="dashboard-chart-switcher" data-dashboard-chart-switcher role="tablist" aria-label="Dashboard chart type" style="--dashboard-chart-tab-count: ${chartTabs.length};">
               ${chartTabs
 								.map((type) => DASHBOARD_CHART_TAB_DEFS[type])
