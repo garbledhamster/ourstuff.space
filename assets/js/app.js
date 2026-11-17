@@ -12920,6 +12920,8 @@ function sidebarHtml(_compendium) {
           <button class="sidebar-text-link${submenu ? " is-active" : ""}" data-action="open-settings" type="button">Settings</button>
           <span aria-hidden="true">/</span>
           <button class="sidebar-text-link" data-action="open-gallery" type="button">Gallery</button>
+          <span aria-hidden="true">/</span>
+          <a class="sidebar-text-link" href="https://maps.ourstuff.space/">Maps</a>
         </div>
       </div>
     </aside>
