@@ -14593,3 +14593,11 @@ button.life-event-row:hover {
 	gap: 4px 12px;
 	font-size: 0.85rem;
 }
+
+.maps-outing-records { margin: 12px 0; padding: 12px; border: 1px solid var(--border); overflow: auto; max-height: 34vh; }
+.maps-outing-records ul, .maps-habit-list { list-style: none; padding: 0; }
+.maps-outing-records li, .maps-habit-list > li { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.maps-outing-records time { display: inline-block; margin-inline: 8px; }
+.maps-outing-records img { display: block; max-width: min(240px, 100%); border-radius: 8px; }
+.maps-habit-list details { margin-block: 8px; }
+#maps-habit-form label { display: grid; gap: 4px; }

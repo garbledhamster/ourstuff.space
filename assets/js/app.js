@@ -58,6 +58,7 @@ import {
 } from "./localMedia.js?v=space-20260531a";
 import { escapeHtml, parseOurstuffLineCommand, renderMarkdown } from "./markdown.js";
 import { createMapsProfile, mapsProfileHtml, mapsProfileViews, mapsUrl } from "./maps-profile.js";
+import { createMapsOutings } from "./maps-outings.js";
 import { createMapsProgress, mapsProgressHtml } from "./maps-progress.js";
 import {
 	pageContentHtml,
@@ -152,6 +153,7 @@ import {
 const app = document.getElementById("app");
 const mapsProfile = createMapsProfile({ getIdToken: getCloudIdToken, onChange: render });
 const connectedGoals = createConnectedGoals({ getIdToken: getCloudIdToken, onChange: render });
+const mapsOutings = createMapsOutings({ getIdToken: getCloudIdToken, onChange: render });
 const mapsProgress = createMapsProgress({ getIdToken: getCloudIdToken, onChange: render });
 const DATASET_STORAGE_BASE_KEYS = [
 	"ourstuff.artifactStore.v1",
@@ -11734,6 +11736,58 @@ function resetTips() {
 	render();
 }
 
+function mapsSpaceScope() {
+	const cloud = state.cloud;
+	const uid = cloud?.mode === "signed-in" && !cloud.isLocalDemo ? cloud.user?.uid : undefined;
+	if (!uid) return;
+	if (!isSpaceUnlocked(activeSpaceId())) return { uid };
+	const shared = isShareableSpace(activeSpaceId());
+	const ownerUid = shared ? cloud.cloudOwnerUid : uid;
+	const appId = shared ? cloud.sharedSpace?.appId : activeSpace().cloudAppId;
+	return { uid, ownerUid, appId, role: shared ? cloud.spaceRole : "owner" };
+}
+
+const mapsEntry = new URLSearchParams(window.location.search);
+let mapsEntrySpacePending = Boolean(mapsEntry.get("spaceOwner") && mapsEntry.get("spaceApp"));
+let mapsSpaceRefreshing = false;
+const mapsLocalSlots = {
+	"ourstuff-main": "personal", "ourstuff-main-work": "work", "ourstuff-main-family": "family",
+	"ourstuff-main-custom-1": "custom-1", "ourstuff-main-custom-2": "custom-2",
+};
+
+async function followMapsSpace() {
+	const scope = mapsSpaceScope();
+	if (!scope?.uid || mapsSpaceRefreshing) return;
+	mapsSpaceRefreshing = true;
+	try {
+		const pending = sessionStorage.getItem("ourstuff.maps-space-selection");
+		if (pending && pending === activeSpaceId()) {
+			if (!scope.ownerUid || !scope.appId) return;
+			await mapsOutings.select({ ownerUid: scope.ownerUid, appId: scope.appId });
+			sessionStorage.removeItem("ourstuff.maps-space-selection");
+			return;
+		}
+		const { space } = await mapsOutings.active();
+		if (mapsSpaceScope()?.uid !== scope.uid) return;
+		if (mapsEntrySpacePending && (space?.ownerUid !== mapsEntry.get("spaceOwner") || space?.appId !== mapsEntry.get("spaceApp"))) return;
+		mapsEntrySpacePending = false;
+		const localId = space?.localId ?? mapsLocalSlots[space?.appId];
+		if (localId && DATA_SPACES[localId] && localId !== activeSpaceId()) {
+			enableSpaceOnDashboard(localId);
+			switchSpace(localId);
+		}
+	} catch {
+		// Retain the current Space if the other site or its sign-in is unavailable.
+	} finally { mapsSpaceRefreshing = false; }
+}
+
+function syncMapsOutings() {
+	const view = state.active === "Habit Tracker" ? "habits" :
+		state.sidebarSubmenu === "settings" && state.settingsTab === "goals" ? "goals" :
+			DASHBOARD_LABELS.includes(state.active) ? "records" : undefined;
+	mapsOutings.sync(mapsSpaceScope(), view);
+}
+
 function syncConnectedGoals() {
 	const cloud = state.cloud;
 	let scope;
@@ -11759,6 +11813,7 @@ function syncMapsProgress(cloud = state.cloud) {
 
 function render() {
 	syncMapsProgress();
+	syncMapsOutings();
 	mapsProfile.sync(state.active, state.cloud);
 	syncConnectedGoals();
 	const focusedHeading = ["maps-profile-heading", "space-progress-title"].find(id => document.activeElement?.id === id);
@@ -12611,9 +12666,11 @@ function sidebarHtml(_compendium) {
           <span aria-hidden="true">/</span>
           <button class="sidebar-text-link" data-action="open-gallery" type="button">Gallery</button>
           <span aria-hidden="true">/</span>
-          <a class="sidebar-text-link" href="${escapeHtml(mapsUrl({ theme: firstSpaceTheme() }))}">Maps</a>
+          <a class="sidebar-text-link" href="${escapeHtml(mapsUrl({ theme: state.theme, space: mapsSpaceScope() }))}">Maps</a>
         </div>
         <div class="sidebar-footer-links sidebar-maps-links">
+          <button class="sidebar-text-link" type="button" data-action="open-maps-goals">Goals</button>
+          <button class="sidebar-text-link" type="button" data-action="open-maps-habits">Habit Tracker</button>
           ${mapsProfileViews.map((view) => `
             <button class="sidebar-text-link${state.active === view ? " is-active" : ""}" data-action="open-maps-profile" data-view="${escapeHtml(view)}" type="button"${state.active === view ? ' aria-current="page"' : ""}>${escapeHtml(view)}</button>
           `).join("")}
@@ -12880,6 +12937,10 @@ function pathBarHtml(compendium, section, spiritBook) {
 }
 
 function contentHtml(compendium, section) {
+	if (state.active === "Habit Tracker") {
+		return panelHtml(`<header class="panel-header"><h2>Habit Tracker</h2></header>
+			<div class="scroll-area maps-profile-page">${mapsOutings.habitsHtml()}</div>`);
+	}
 	if (state.active === "Dashboard") {
 		return dashboardGridHtml();
 	}
@@ -12887,7 +12948,7 @@ function contentHtml(compendium, section) {
 		return dashboardGridHtml();
 	}
 	if (mapsProfileViews.includes(state.active)) {
-		return panelHtml(mapsProfileHtml(state.active, mapsProfile.current, state.cloud, firstSpaceTheme()));
+		return panelHtml(mapsProfileHtml(state.active, mapsProfile.current, state.cloud, state.theme, mapsSpaceScope()));
 	}
 	if (state.active === "Gallery") {
 		return galleryHtml();
@@ -12899,16 +12960,16 @@ function contentHtml(compendium, section) {
 		return pyxdiaHtml();
 	}
 	if (state.active === "Mind") {
-		return mindHtml(compendium, section);
+		return mindHtml(compendium, section) + mapsOutings.visitsHtml("Mind");
 	}
 	if (state.active === "Body") {
-		return bodyHtml();
+		return bodyHtml() + mapsOutings.visitsHtml("Body");
 	}
 	if (state.active === "Spirit") {
-		return spiritHtml();
+		return spiritHtml() + mapsOutings.visitsHtml("Spirit");
 	}
 	if (state.active === "Life") {
-		return lifeHtml();
+		return lifeHtml() + mapsOutings.visitsHtml("Life");
 	}
 	return dashboardArtifactHtml(state.active);
 }
@@ -13910,6 +13971,7 @@ function settingsGoalsHtml() {
 	return `
     <div class="settings-tab-panel thoughts-settings goals-settings">
       ${connectedGoals.html(DASHBOARD_LABELS.map((id) => ({ id, label: dashboardDisplayLabel(id) })))}
+      ${mapsOutings.creditHtml()}
       <section class="thoughts-settings-intro">
         <div>
           <h3>Goal Orbs</h3>
@@ -14753,11 +14815,6 @@ function visibleDataSpaces() {
 	const enabled = new Set(enabledSpaceIds());
 	enabled.add(activeSpaceId());
 	return Object.values(DATA_SPACES).filter((space) => enabled.has(space.id));
-}
-
-function firstSpaceTheme() {
-	const [first] = visibleDataSpaces();
-	return first ? loadTheme(storageKeyForSpace("ourstuff.theme.v1", first.id)) : "default";
 }
 
 function activeSpacePillHtml() {
@@ -20632,6 +20689,7 @@ function handleAction(element) {
 		const target = element.dataset.space || PERSONAL_SPACE_ID;
 		if (target !== activeSpaceId() && DATA_SPACES[target]) {
 			enableSpaceOnDashboard(target);
+			if (mapsSpaceScope()?.uid) sessionStorage.setItem("ourstuff.maps-space-selection", target);
 			switchSpace(target);
 		}
 		return;
@@ -20867,6 +20925,20 @@ function handleAction(element) {
 	}
 	if (action === "dismiss-tip") {
 		dismissTip(element.dataset.tip, element);
+	}
+	if (action === "open-maps-goals") {
+		setState({ active: "Dashboard", mobileMenuOpen: true, sidebarSubmenu: "settings", settingsTab: "goals" });
+		return;
+	}
+	if (action === "open-maps-habits") {
+		setState({ active: "Habit Tracker", mobileMenuOpen: false, sidebarSubmenu: null });
+		return;
+	}
+	if (action === "maps-outings-photo" || action === "maps-outings-retry" || action === "maps-habit-check-in") {
+		const kind = action === "maps-outings-photo" ? "photo" : action === "maps-outings-retry" ? "retry" : "check-in";
+		element.disabled = true;
+		void mapsOutings.action(kind, element.dataset.id).finally(() => { element.disabled = false; });
+		return;
 	}
 	if (action === "open-maps-profile") {
 		setState({
@@ -21598,6 +21670,19 @@ document.addEventListener("copy", handleReaderCopy);
 	},
 );
 
+app.addEventListener("submit", (event) => {
+	if (event.target?.id !== "maps-habit-form") return;
+	event.preventDefault();
+	const submit = event.target.querySelector("button[type=submit]");
+	submit.disabled = true;
+	void mapsOutings.action("create", "", event.target).finally(() => { submit.disabled = false; });
+});
+if (mapsEntry.get("view") === "goals") {
+	Object.assign(state, { active: "Dashboard", mobileMenuOpen: true, sidebarSubmenu: "settings", settingsTab: "goals" });
+} else if (mapsEntry.get("view") === "habits") {
+	Object.assign(state, { active: "Habit Tracker", mobileMenuOpen: false, sidebarSubmenu: null });
+}
+window.addEventListener("focus", () => void followMapsSpace());
 applyEnvironmentClasses();
 if (state.timerState?.running) {
 	startTimerInterval();
@@ -21611,6 +21696,8 @@ void initCloudAccount((cloud) => {
 	state.cloud = cloud;
 	const mapsProfileChanged = mapsProfile.sync(state.active, cloud);
 	const connectedGoalsChanged = syncConnectedGoals();
+	syncMapsOutings();
+	void followMapsSpace();
 	configureMediaCloudContext(cloud);
 	const showAuthView =
 		cloud?.mode === "signed-in" && cloud?.user && consumeCloudAuthView();

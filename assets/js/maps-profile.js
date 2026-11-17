@@ -2,12 +2,16 @@ import { escapeHtml } from "./markdown.js";
 
 const MAPS_ORIGIN = "https://maps.ourstuff.space";
 
-export function mapsUrl({ view, list, topic, theme } = {}) {
+export function mapsUrl({ view, list, topic, theme, space } = {}) {
 	const url = new URL("/", MAPS_ORIGIN);
 	if (view) url.searchParams.set("view", view);
 	if (list) url.searchParams.set("list", list);
 	if (topic) url.searchParams.set("topic", topic);
 	if (theme && theme !== "default") url.searchParams.set("theme", theme);
+	if (space?.ownerUid && space.appId) {
+		url.searchParams.set("spaceOwner", space.ownerUid);
+		url.searchParams.set("spaceApp", space.appId);
+	}
 	return url.href;
 }
 const VIEWS = new Map([
@@ -116,14 +120,14 @@ function row(name, details) {
 	return `<li>${name}${details ? `<span>${escapeHtml(details)}</span>` : ""}</li>`;
 }
 
-function placesHtml(lists, theme) {
+function placesHtml(lists, theme, space) {
 	return lists.map((list) => {
 		const places = Array.isArray(list.places) ? list.places : [];
 		return `
 			<section class="maps-profile-list">
 				<header class="maps-profile-list-header">
 					<h3>${escapeHtml(list.name)}</h3>
-					<a class="secondary-button" href="${escapeHtml(mapsUrl({ view: "places", list: list.id, theme }))}">Open in Maps</a>
+					<a class="secondary-button" href="${escapeHtml(mapsUrl({ view: "places", list: list.id, theme, space }))}">Open in Maps</a>
 				</header>
 				${places.length ? `<ul>${places.map((place) => row(
 					placeName(place), [place.category, place.address].filter(Boolean).join(" · "),
@@ -132,19 +136,19 @@ function placesHtml(lists, theme) {
 	}).join("");
 }
 
-function keywordsHtml(entries, theme) {
+function keywordsHtml(entries, theme, space) {
 	return `<ul>${entries.map((entry) => `
 		<li class="maps-profile-keyword">
 			<div><strong>${escapeHtml(entry.name)}</strong>${entry.learning ? `<span>${escapeHtml(entry.learning)}</span>` : ""}</div>
-			<a class="secondary-button" aria-label="Find nearby for ${escapeHtml(entry.name)}" href="${escapeHtml(mapsUrl({ topic: entry.name, theme }))}">Find nearby</a>
+			<a class="secondary-button" aria-label="Find nearby for ${escapeHtml(entry.name)}" href="${escapeHtml(mapsUrl({ topic: entry.name, theme, space }))}">Find nearby</a>
 		</li>`).join("")}</ul>`;
 }
 
-export function mapsProfileHtml(view, { status, rows }, cloud, theme) {
+export function mapsProfileHtml(view, { status, rows }, cloud, theme, space) {
 	const isPlaces = view === "Places";
 	const itemName = view.toLowerCase();
 	const editLink = !isPlaces && status === "ready"
-		? `<a class="secondary-button" href="${escapeHtml(mapsUrl({ view: VIEWS.get(view).view, theme }))}">Edit in Maps</a>`
+		? `<a class="secondary-button" href="${escapeHtml(mapsUrl({ view: VIEWS.get(view).view, theme, space }))}">Edit in Maps</a>`
 		: "";
 	let content;
 	if (status === "checking") {
@@ -172,10 +176,10 @@ export function mapsProfileHtml(view, { status, rows }, cloud, theme) {
 			<p role="status">Couldn’t load ${escapeHtml(itemName)} from Maps.</p>
 			<button class="primary-button" data-action="maps-profile-retry" type="button">Retry</button>`;
 	} else if (rows.length) {
-		content = isPlaces ? placesHtml(rows, theme) : keywordsHtml(rows, theme);
+		content = isPlaces ? placesHtml(rows, theme, space) : keywordsHtml(rows, theme, space);
 	} else {
 		content = isPlaces
-			? `<p role="status">No saved places yet.</p><a class="secondary-button" href="${escapeHtml(mapsUrl({ theme }))}">Open Maps</a>`
+			? `<p role="status">No saved places yet.</p><a class="secondary-button" href="${escapeHtml(mapsUrl({ theme, space }))}">Open Maps</a>`
 			: `<p role="status">No ${escapeHtml(itemName)} yet.</p>`;
 	}
 
