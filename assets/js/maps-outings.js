@@ -113,7 +113,7 @@ export function createMapsOutings({ getIdToken, onChange }) {
 	}
 
 	function habitsHtml() {
-		if (!scope) return '<p>Sign in with Google to open Habit Tracker.</p>';
+		if (!scope) return '<button class="primary-button" data-action="maps-profile-sign-in" type="button">Sign in with Google</button>';
 		if (!scope.appId) return '<p>Choose an unlocked Space to open Habit Tracker.</p>';
 		const create = scope.role !== "reader" ? `<form id="maps-habit-form" class="body-actions">
 			<label>Habit <input name="name" maxlength="120" required></label>
@@ -134,7 +134,7 @@ export function createMapsOutings({ getIdToken, onChange }) {
 					data-id="${escapeHtml(habit.id)}" type="button"${complete ? " disabled" : ""}>${complete ? "Checked in" : "Check in"}</button>
 				<details><summary>History (${history.length})</summary><ul>
 					${history.map(entry => `<li>${escapeHtml(entry.actorUid === data.viewerUid ? "You" : entry.actorName)} ·
-						<time datetime="${escapeHtml(entry.day)}">${escapeHtml(entry.day)}</time></li>`).join("")}
+						<time datetime="${escapeHtml(entry.day)}">${escapeHtml(entry.day)}</time>${entry.outingCredit ? " · Visited an outing stop · Pyxida Maps" : ""}</li>`).join("")}
 				</ul></details>
 			</li>`;
 		}).join("");
