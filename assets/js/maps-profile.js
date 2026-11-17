@@ -1,6 +1,13 @@
 import { escapeHtml } from "./markdown.js";
 
 const MAPS_ORIGIN = "https://maps.ourstuff.space";
+
+export function mapsUrl({ view, theme } = {}) {
+	const url = new URL("/", MAPS_ORIGIN);
+	if (view) url.searchParams.set("view", view);
+	if (theme && theme !== "default") url.searchParams.set("theme", theme);
+	return url.href;
+}
 const VIEWS = new Map([
 	["Places", { path: "places", collection: "lists" }],
 	["Interests & goals", { path: "interests", collection: "entries" }],
@@ -121,10 +128,10 @@ function interestsHtml(entries) {
 	)).join("")}</ul>`;
 }
 
-export function mapsProfileHtml(view, { status, rows }, cloud) {
+export function mapsProfileHtml(view, { status, rows }, cloud, theme) {
 	const isPlaces = view === "Places";
 	const editLink = !isPlaces && status === "ready"
-		? `<a class="secondary-button" href="${MAPS_ORIGIN}/?view=interests">Edit in Maps</a>`
+		? `<a class="secondary-button" href="${escapeHtml(mapsUrl({ view: "interests", theme }))}">Edit in Maps</a>`
 		: "";
 	let content;
 	if (status === "checking") {
@@ -155,7 +162,7 @@ export function mapsProfileHtml(view, { status, rows }, cloud) {
 		content = isPlaces ? placesHtml(rows) : interestsHtml(rows);
 	} else {
 		content = isPlaces
-			? `<p role="status">No saved places yet.</p><a class="secondary-button" href="${MAPS_ORIGIN}/">Open Maps</a>`
+			? `<p role="status">No saved places yet.</p><a class="secondary-button" href="${escapeHtml(mapsUrl({ theme }))}">Open Maps</a>`
 			: '<p role="status">No interests or goals yet.</p>';
 	}
 
