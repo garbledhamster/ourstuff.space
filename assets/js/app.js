@@ -36,6 +36,7 @@ import {
 	updateFamilyMember,
 } from "./cloud.js?v=maps-views-20261117";
 import { CLOUD_STORAGE_LIMIT_BYTES } from "./config.js?v=storage-quota-20260523a";
+import { createConnectedGoals } from "./connected-goals.js";
 import { today } from "./data.js";
 import { bindDonationFlow, donationModalHtml } from "./donations.js";
 import {
@@ -149,6 +150,7 @@ import {
 
 const app = document.getElementById("app");
 const mapsProfile = createMapsProfile({ getIdToken: getCloudIdToken, onChange: render });
+const connectedGoals = createConnectedGoals({ getIdToken: getCloudIdToken, onChange: render });
 const DATASET_STORAGE_BASE_KEYS = [
 	"ourstuff.artifactStore.v1",
 	"ourstuff.bodyTracker.v1",
@@ -5445,6 +5447,15 @@ function trackerSettingsForKind(kind) {
 		: state.trackerSettings;
 }
 
+function visibleGoalOrbs(dashboard) {
+	return (state.goalSettings?.[dashboard] || []).filter((goal) => !connectedGoals.hasAlias(goal.id));
+}
+
+function replaceVisibleGoalOrbs(allGoals, visibleGoals) {
+	let index = 0;
+	return allGoals.map((goal) => connectedGoals.hasAlias(goal.id) ? goal : visibleGoals[index++]);
+}
+
 function saveTrackerSettingsForKind(kind) {
 	if (trackerKind(kind) === "goal") {
 		saveGoalSettings();
@@ -5505,7 +5516,7 @@ function trackerStripHtml(dashboard, options = {}) {
 	if (isCombined) {
 		const thoughtTrackers =
 			trackerSettingsForKind("thought")?.[dashboard] || [];
-		const goalTrackers = trackerSettingsForKind("goal")?.[dashboard] || [];
+		const goalTrackers = visibleGoalOrbs(dashboard);
 		const enabledGoals = goalTrackers.filter((goal) => goal?.enabled);
 		entries = [
 			...thoughtTrackers.map((tracker) => ({
@@ -5516,8 +5527,9 @@ function trackerStripHtml(dashboard, options = {}) {
 		];
 		reorderEnabled = entries.length >= maxVisibleOrbs;
 	} else {
-		const allTrackers =
-			trackerSettingsForKind(normalizedKind)?.[dashboard] || [];
+		const allTrackers = normalizedKind === "goal"
+			? visibleGoalOrbs(dashboard)
+			: trackerSettingsForKind(normalizedKind)?.[dashboard] || [];
 		entries =
 			normalizedKind === "goal"
 				? allTrackers.filter((tracker) => tracker?.enabled)
@@ -5646,9 +5658,7 @@ function trackerOrbHtml(
 
 function hasDashboardOrbs(dashboard) {
 	const thoughtTrackers = trackerSettingsForKind("thought")?.[dashboard] || [];
-	const enabledGoals = (
-		trackerSettingsForKind("goal")?.[dashboard] || []
-	).filter((goal) => goal?.enabled);
+	const enabledGoals = visibleGoalOrbs(dashboard).filter((goal) => goal?.enabled);
 	return thoughtTrackers.length > 0 || enabledGoals.length > 0;
 }
 
@@ -5667,7 +5677,7 @@ function dashboardQuickOrbEntries(kind) {
 	const normalizedKind = trackerKind(kind);
 	const settings = trackerSettingsForKind(normalizedKind) || {};
 	return DASHBOARD_LABELS.flatMap((dashboard) =>
-		(settings[dashboard] || [])
+		(normalizedKind === "goal" ? visibleGoalOrbs(dashboard) : settings[dashboard] || [])
 			.filter((tracker) =>
 				normalizedKind === "goal" ? tracker?.enabled : true,
 			)
@@ -5806,6 +5816,7 @@ function updateTracker(area, id, kind = "thought", options = {}) {
 	const normalizedKind = trackerKind(kind);
 	const config = trackerKindConfig(normalizedKind);
 	const isGoal = normalizedKind === "goal";
+	if (isGoal && connectedGoals.hasAlias(id)) return;
 	const currentSettings = trackerSettingsForKind(normalizedKind);
 	const current = (currentSettings?.[area] || []).find(
 		(tracker) => tracker.id === id,
@@ -5849,6 +5860,7 @@ function transferTrackerKind(area, id, kind = "thought") {
 		return;
 	}
 	const sourceKind = trackerKind(kind);
+	if (sourceKind === "goal" && connectedGoals.hasAlias(id)) return;
 	const targetKind = sourceKind === "goal" ? "thought" : "goal";
 	const sourceSettings = trackerSettingsForKind(sourceKind);
 	const targetSettings = trackerSettingsForKind(targetKind);
@@ -5919,7 +5931,8 @@ function reorderTracker(area, trackerId, targetIndex, kind = "thought") {
 	}
 	const normalizedKind = trackerKind(kind);
 	const currentSettings = trackerSettingsForKind(normalizedKind);
-	const trackers = currentSettings?.[area] || [];
+	const allTrackers = currentSettings?.[area] || [];
+	const trackers = normalizedKind === "goal" ? visibleGoalOrbs(area) : allTrackers;
 	const fromIndex = trackers.findIndex((tracker) => tracker.id === trackerId);
 	if (fromIndex < 0) {
 		return false;
@@ -5938,7 +5951,7 @@ function reorderTracker(area, trackerId, targetIndex, kind = "thought") {
 
 	const next = {
 		...currentSettings,
-		[area]: nextTrackers,
+		[area]: normalizedKind === "goal" ? replaceVisibleGoalOrbs(allTrackers, nextTrackers) : nextTrackers,
 	};
 	if (normalizedKind === "goal") {
 		state.goalSettings = normalizeGoalSettings(next);
@@ -5951,6 +5964,7 @@ function reorderTracker(area, trackerId, targetIndex, kind = "thought") {
 }
 
 function removeTracker(area, id, kind = "thought") {
+	if (trackerKind(kind) === "goal" && connectedGoals.hasAlias(id)) return;
 	if (!DASHBOARD_LABELS.includes(area) || !id) {
 		return;
 	}
@@ -6614,6 +6628,7 @@ function quickTrackerEntry(area, id, kind = "thought", triggerElement = null) {
 		return;
 	}
 	const normalizedKind = trackerKind(kind);
+	if (normalizedKind === "goal" && connectedGoals.hasAlias(id)) return;
 	const config = trackerKindConfig(normalizedKind);
 	const cooldownKey = thoughtCooldownKey(area, id, normalizedKind);
 	const tracker = (trackerSettingsForKind(normalizedKind)?.[area] || []).find(
@@ -9507,7 +9522,8 @@ function reorderCombinedTrackers(area, trackerId, targetIndex) {
 		return;
 	}
 	const thoughtTrackers = [...(state.trackerSettings?.[area] || [])];
-	const goalTrackers = [...(state.goalSettings?.[area] || [])];
+	const allGoalTrackers = state.goalSettings?.[area] || [];
+	const goalTrackers = visibleGoalOrbs(area);
 	const enabledGoals = goalTrackers.filter((goal) => goal?.enabled);
 	const disabledGoals = goalTrackers.filter((goal) => !goal?.enabled);
 	const combinedTrackers = [
@@ -9556,7 +9572,7 @@ function reorderCombinedTrackers(area, trackerId, targetIndex) {
 	const nextEnabledGoals = orderedGoalIds
 		.map((goalId) => enabledGoalMap.get(goalId))
 		.filter(Boolean);
-	const nextGoals = [...nextEnabledGoals, ...disabledGoals];
+	const nextGoals = replaceVisibleGoalOrbs(allGoalTrackers, [...nextEnabledGoals, ...disabledGoals]);
 
 	setState({
 		trackerSettings: {
@@ -11716,8 +11732,24 @@ function resetTips() {
 	render();
 }
 
+function syncConnectedGoals() {
+	const cloud = state.cloud;
+	let scope;
+	if (cloud?.ready && cloud.mode === "signed-in" && !cloud.isLocalDemo && cloud.user?.uid &&
+			isSpaceUnlocked(activeSpaceId())) {
+		const uid = cloud.user.uid;
+		const shareable = isShareableSpace(activeSpaceId());
+		const ownerUid = shareable ? cloud.cloudOwnerUid : uid;
+		const appId = shareable ? cloud.sharedSpace?.appId : activeSpace().cloudAppId;
+		if (ownerUid && appId) scope = { uid, ownerUid, appId };
+	}
+	const shown = state.mobileMenuOpen && state.sidebarSubmenu === "settings" && state.settingsTab === "goals";
+	return connectedGoals.sync(scope, shown);
+}
+
 function render() {
 	mapsProfile.sync(state.active, state.cloud);
+	syncConnectedGoals();
 	const restoreMapsFocus = document.activeElement?.id === "maps-profile-heading";
 	applyEnvironmentClasses();
 	if (cameraStream) {
@@ -11804,6 +11836,7 @@ function render() {
 		settingsScroll.scrollTop = settingsScrollTop;
 	}
 	bindActions();
+	connectedGoals.bind(app);
 	fitNavButtonLabels();
 	bindCameraControls();
 	bindTimerControls();
@@ -13865,6 +13898,7 @@ function settingsThoughtsHtml() {
 function settingsGoalsHtml() {
 	return `
     <div class="settings-tab-panel thoughts-settings goals-settings">
+      ${connectedGoals.html(DASHBOARD_LABELS.map((id) => ({ id, label: dashboardDisplayLabel(id) })))}
       <section class="thoughts-settings-intro">
         <div>
           <h3>Goal Orbs</h3>
@@ -13873,7 +13907,7 @@ function settingsGoalsHtml() {
       </section>
       <div class="thoughts-settings-sections">
         ${DASHBOARD_LABELS.map((dashboard) => {
-					const goals = state.goalSettings?.[dashboard] || [];
+					const goals = visibleGoalOrbs(dashboard);
 					const enabledGoals = goals.filter((goal) => goal?.enabled);
 					const checks = goalProgressCount(dashboard);
 					const orbLabel = goals.length === 1 ? "orb" : "orbs";
@@ -14545,6 +14579,7 @@ function trackerEditFormHtml(area, kind = "thought") {
 		return "";
 	}
 	const id = parsedKey.id;
+	if (normalizedKind === "goal" && connectedGoals.hasAlias(id)) return "";
 	const tracker = (trackerSettingsForKind(normalizedKind)?.[area] || []).find(
 		(item) => item.id === id,
 	);
@@ -21551,10 +21586,14 @@ if (state.timerState?.running) {
 	startTimerInterval();
 }
 render();
+document.addEventListener("visibilitychange", () => {
+	if (!document.hidden) connectedGoals.refreshVisible();
+});
 void initCloudAccount((cloud) => {
 	const previousSignature = cloudUiSignature(state.cloud);
 	state.cloud = cloud;
 	const mapsProfileChanged = mapsProfile.sync(state.active, cloud);
+	const connectedGoalsChanged = syncConnectedGoals();
 	configureMediaCloudContext(cloud);
 	const showAuthView =
 		cloud?.mode === "signed-in" && cloud?.user && consumeCloudAuthView();
@@ -21565,7 +21604,7 @@ void initCloudAccount((cloud) => {
 		state.settingsTab = "cloud";
 	}
 	const nextSignature = cloudUiSignature(cloud);
-	if (mapsProfileChanged || showAuthView || (previousSignature !== nextSignature && !isUserEditingInterface())) {
+	if (mapsProfileChanged || connectedGoalsChanged || showAuthView || (previousSignature !== nextSignature && !isUserEditingInterface())) {
 		render();
 	} else {
 		patchVisibleCloudStatus();
