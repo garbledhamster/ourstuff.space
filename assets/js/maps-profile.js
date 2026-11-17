@@ -2,16 +2,21 @@ import { escapeHtml } from "./markdown.js";
 
 const MAPS_ORIGIN = "https://maps.ourstuff.space";
 
-export function mapsUrl({ view, theme } = {}) {
+export function mapsUrl({ view, list, topic, theme } = {}) {
 	const url = new URL("/", MAPS_ORIGIN);
 	if (view) url.searchParams.set("view", view);
+	if (list) url.searchParams.set("list", list);
+	if (topic) url.searchParams.set("topic", topic);
 	if (theme && theme !== "default") url.searchParams.set("theme", theme);
 	return url.href;
 }
 const VIEWS = new Map([
-	["Places", { path: "places", collection: "lists" }],
-	["Interests & goals", { path: "interests", collection: "entries" }],
+	["Places", { path: "places", collection: "lists", view: "places" }],
+	["Interests", { path: "interests", collection: "entries", view: "interests", label: "Interest" }],
+	["Hobbies", { path: "interests", collection: "entries", view: "hobbies", label: "Hobby" }],
+	["Skills", { path: "interests", collection: "entries", view: "skills", label: "Skill" }],
 ]);
+export const mapsProfileViews = [...VIEWS.keys()];
 
 export function createMapsProfile({ getIdToken, onChange }) {
 	let view;
@@ -50,7 +55,10 @@ export function createMapsProfile({ getIdToken, onChange }) {
 			const data = await response.json();
 			const rows = data?.[selected.collection];
 			if (!Array.isArray(rows)) throw new Error("Maps profile response was incomplete.");
-			if (!signal.aborted) current = { status: "ready", rows };
+			const matching = selected.label
+				? rows.filter(entry => Array.isArray(entry?.labels) && entry.labels.includes(selected.label))
+				: rows;
+			if (!signal.aborted) current = { status: "ready", rows: matching };
 		} catch {
 			if (!signal.aborted) current = { status: "error", rows: [] };
 		} finally {
@@ -108,12 +116,15 @@ function row(name, details) {
 	return `<li>${name}${details ? `<span>${escapeHtml(details)}</span>` : ""}</li>`;
 }
 
-function placesHtml(lists) {
+function placesHtml(lists, theme) {
 	return lists.map((list) => {
 		const places = Array.isArray(list.places) ? list.places : [];
 		return `
 			<section class="maps-profile-list">
-				<h3>${escapeHtml(list.name)}</h3>
+				<header class="maps-profile-list-header">
+					<h3>${escapeHtml(list.name)}</h3>
+					<a class="secondary-button" href="${escapeHtml(mapsUrl({ view: "places", list: list.id, theme }))}">Open in Maps</a>
+				</header>
 				${places.length ? `<ul>${places.map((place) => row(
 					placeName(place), [place.category, place.address].filter(Boolean).join(" · "),
 				)).join("")}</ul>` : "<p>No places in this list yet.</p>"}
@@ -121,17 +132,19 @@ function placesHtml(lists) {
 	}).join("");
 }
 
-function interestsHtml(entries) {
-	return `<ul>${entries.map((entry) => row(
-		`<strong>${escapeHtml(entry.name)}</strong>`,
-		[entry.category, ...(Array.isArray(entry.labels) ? entry.labels : []), entry.learning].filter(Boolean).join(" · "),
-	)).join("")}</ul>`;
+function keywordsHtml(entries, theme) {
+	return `<ul>${entries.map((entry) => `
+		<li class="maps-profile-keyword">
+			<div><strong>${escapeHtml(entry.name)}</strong>${entry.learning ? `<span>${escapeHtml(entry.learning)}</span>` : ""}</div>
+			<a class="secondary-button" aria-label="Find nearby for ${escapeHtml(entry.name)}" href="${escapeHtml(mapsUrl({ topic: entry.name, theme }))}">Find nearby</a>
+		</li>`).join("")}</ul>`;
 }
 
 export function mapsProfileHtml(view, { status, rows }, cloud, theme) {
 	const isPlaces = view === "Places";
+	const itemName = view.toLowerCase();
 	const editLink = !isPlaces && status === "ready"
-		? `<a class="secondary-button" href="${escapeHtml(mapsUrl({ view: "interests", theme }))}">Edit in Maps</a>`
+		? `<a class="secondary-button" href="${escapeHtml(mapsUrl({ view: VIEWS.get(view).view, theme }))}">Edit in Maps</a>`
 		: "";
 	let content;
 	if (status === "checking") {
@@ -153,17 +166,17 @@ export function mapsProfileHtml(view, { status, rows }, cloud, theme) {
 				<button class="primary-button" data-action="maps-profile-retry" type="button">Retry</button>
 			</div>`;
 	} else if (status === "loading") {
-		content = `<p role="status">Loading ${isPlaces ? "places" : "interests &amp; goals"}…</p>`;
+		content = `<p role="status">Loading ${escapeHtml(itemName)}…</p>`;
 	} else if (status === "error") {
 		content = `
-			<p role="status">Couldn’t load ${isPlaces ? "places" : "interests &amp; goals"} from Maps.</p>
+			<p role="status">Couldn’t load ${escapeHtml(itemName)} from Maps.</p>
 			<button class="primary-button" data-action="maps-profile-retry" type="button">Retry</button>`;
 	} else if (rows.length) {
-		content = isPlaces ? placesHtml(rows) : interestsHtml(rows);
+		content = isPlaces ? placesHtml(rows, theme) : keywordsHtml(rows, theme);
 	} else {
 		content = isPlaces
 			? `<p role="status">No saved places yet.</p><a class="secondary-button" href="${escapeHtml(mapsUrl({ theme }))}">Open Maps</a>`
-			: '<p role="status">No interests or goals yet.</p>';
+			: `<p role="status">No ${escapeHtml(itemName)} yet.</p>`;
 	}
 
 	return `

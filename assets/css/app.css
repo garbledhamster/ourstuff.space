@@ -14504,6 +14504,19 @@ button.life-event-row:hover {
 	border-radius: 8px;
 }
 
+.maps-profile-list-header,
+.maps-profile-page .maps-profile-keyword {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 8px 16px;
+}
+
+.maps-profile-keyword span {
+	display: block;
+}
+
 .maps-profile-page ul {
 	display: grid;
 	gap: 0;

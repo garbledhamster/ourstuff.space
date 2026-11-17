@@ -57,7 +57,7 @@ import {
 	updateLocalFileMetadata,
 } from "./localMedia.js?v=space-20260531a";
 import { escapeHtml, parseOurstuffLineCommand, renderMarkdown } from "./markdown.js";
-import { createMapsProfile, mapsProfileHtml, mapsUrl } from "./maps-profile.js";
+import { createMapsProfile, mapsProfileHtml, mapsProfileViews, mapsUrl } from "./maps-profile.js";
 import { createMapsProgress, mapsProgressHtml } from "./maps-progress.js";
 import {
 	pageContentHtml,
@@ -12614,7 +12614,7 @@ function sidebarHtml(_compendium) {
           <a class="sidebar-text-link" href="${escapeHtml(mapsUrl({ theme: firstSpaceTheme() }))}">Maps</a>
         </div>
         <div class="sidebar-footer-links sidebar-maps-links">
-          ${["Places", "Interests & goals"].map((view) => `
+          ${mapsProfileViews.map((view) => `
             <button class="sidebar-text-link${state.active === view ? " is-active" : ""}" data-action="open-maps-profile" data-view="${escapeHtml(view)}" type="button"${state.active === view ? ' aria-current="page"' : ""}>${escapeHtml(view)}</button>
           `).join("")}
         </div>
@@ -12886,7 +12886,7 @@ function contentHtml(compendium, section) {
 	if (state.active === "Settings") {
 		return dashboardGridHtml();
 	}
-	if (state.active === "Places" || state.active === "Interests & goals") {
+	if (mapsProfileViews.includes(state.active)) {
 		return panelHtml(mapsProfileHtml(state.active, mapsProfile.current, state.cloud, firstSpaceTheme()));
 	}
 	if (state.active === "Gallery") {
