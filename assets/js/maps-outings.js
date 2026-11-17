@@ -169,7 +169,7 @@ export function createMapsOutings({ getIdToken, onChange }) {
 	}
 
 	return {
-		sync, action, habitsHtml, visitsHtml, creditHtml,
+		sync, action, habitsHtml, visitsHtml, creditHtml, refresh: reload,
 		active: () => request("/api/connected/active-space"),
 		select: (space) => request("/api/connected/active-space", { method: "PUT", body: JSON.stringify(space) }),
 	};

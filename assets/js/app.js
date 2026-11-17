@@ -21682,7 +21682,10 @@ if (mapsEntry.get("view") === "goals") {
 } else if (mapsEntry.get("view") === "habits") {
 	Object.assign(state, { active: "Habit Tracker", mobileMenuOpen: false, sidebarSubmenu: null });
 }
-window.addEventListener("focus", () => void followMapsSpace());
+window.addEventListener("focus", () => {
+	void followMapsSpace();
+	mapsOutings.refresh();
+});
 applyEnvironmentClasses();
 if (state.timerState?.running) {
 	startTimerInterval();
