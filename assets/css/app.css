@@ -14541,3 +14541,42 @@ button.life-event-row:hover {
 		min-height: 44px;
 	}
 }
+
+.space-progress {
+	display: grid;
+	gap: 8px;
+	min-width: 0;
+}
+
+.space-progress > button {
+	justify-self: start;
+	min-height: 44px;
+}
+
+.space-progress-items {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.space-progress-items li {
+	display: grid;
+	gap: 4px;
+	padding: 10px 0;
+	overflow-wrap: anywhere;
+}
+
+.space-progress-items li + li {
+	border-top: 1px solid var(--theme-divider);
+}
+
+.space-progress-items li:last-child {
+	padding-bottom: 0;
+}
+
+.space-progress-meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 12px;
+	font-size: 0.85rem;
+}

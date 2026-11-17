@@ -58,6 +58,7 @@ import {
 } from "./localMedia.js?v=space-20260531a";
 import { escapeHtml, parseOurstuffLineCommand, renderMarkdown } from "./markdown.js";
 import { createMapsProfile, mapsProfileHtml, mapsUrl } from "./maps-profile.js";
+import { createMapsProgress, mapsProgressHtml } from "./maps-progress.js";
 import {
 	pageContentHtml,
 	pageNumberOverlayHtml,
@@ -151,6 +152,7 @@ import {
 const app = document.getElementById("app");
 const mapsProfile = createMapsProfile({ getIdToken: getCloudIdToken, onChange: render });
 const connectedGoals = createConnectedGoals({ getIdToken: getCloudIdToken, onChange: render });
+const mapsProgress = createMapsProgress({ getIdToken: getCloudIdToken, onChange: render });
 const DATASET_STORAGE_BASE_KEYS = [
 	"ourstuff.artifactStore.v1",
 	"ourstuff.bodyTracker.v1",
@@ -11747,10 +11749,19 @@ function syncConnectedGoals() {
 	return connectedGoals.sync(scope, shown);
 }
 
+function syncMapsProgress(cloud = state.cloud) {
+	const inSettings = state.mobileMenuOpen
+		? state.sidebarSubmenu === "settings"
+		: state.active === "Settings";
+	const open = inSettings && activeSettingsTab() === "spaces" && isSpaceUnlocked(activeSpaceId());
+	return mapsProgress.sync(open, open ? activeSpace() : null, cloud);
+}
+
 function render() {
+	syncMapsProgress();
 	mapsProfile.sync(state.active, state.cloud);
 	syncConnectedGoals();
-	const restoreMapsFocus = document.activeElement?.id === "maps-profile-heading";
+	const focusedHeading = ["maps-profile-heading", "space-progress-title"].find(id => document.activeElement?.id === id);
 	applyEnvironmentClasses();
 	if (cameraStream) {
 		stopCameraStream();
@@ -11874,7 +11885,7 @@ function render() {
 	restoreThoughtToastFocus(thoughtToastFocus);
 	restoreActiveEditableFocus(activeEditableFocus);
 	restoreContentScrollPosition(contentScrollRestoreKey);
-	if (restoreMapsFocus) app.querySelector("#maps-profile-heading")?.focus({ preventScroll: true });
+	if (focusedHeading) app.querySelector(`#${focusedHeading}`)?.focus({ preventScroll: true });
 	if (state.sidebarSubmenu === "settings" && state.settingsTab === "cloud") {
 		scheduleCloudStorageUsageRefresh();
 	}
@@ -14849,6 +14860,7 @@ function spaceVisibilitySettingsHtml() {
 				)
 					.join("")}
       </div>
+      ${mapsProgressHtml(mapsProgress.current)}
       ${customSpaceQuestionnaireHtml()}
     </section>
   `;
@@ -20871,6 +20883,11 @@ function handleAction(element) {
 		app.querySelector("#maps-profile-heading")?.focus({ preventScroll: true });
 		return;
 	}
+	if (action === "maps-progress-retry") {
+		app.querySelector("#space-progress-title")?.focus({ preventScroll: true });
+		mapsProgress.retry();
+		return;
+	}
 	if (action === "maps-profile-retry") {
 		app.querySelector("#maps-profile-heading")?.focus({ preventScroll: true });
 		mapsProfile.retry();
@@ -21604,7 +21621,8 @@ void initCloudAccount((cloud) => {
 		state.settingsTab = "cloud";
 	}
 	const nextSignature = cloudUiSignature(cloud);
-	if (mapsProfileChanged || connectedGoalsChanged || showAuthView || (previousSignature !== nextSignature && !isUserEditingInterface())) {
+	const mapsProgressChanged = syncMapsProgress(cloud);
+	if (mapsProfileChanged || connectedGoalsChanged || mapsProgressChanged || showAuthView || (previousSignature !== nextSignature && !isUserEditingInterface())) {
 		render();
 	} else {
 		patchVisibleCloudStatus();
