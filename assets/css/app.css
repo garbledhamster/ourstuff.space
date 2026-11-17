@@ -14395,3 +14395,90 @@ button.life-event-row:hover {
 .error {
 	color: var(--danger);
 }
+
+.sidebar-maps-links {
+	gap: 16px;
+}
+
+.sidebar-maps-links .sidebar-text-link {
+	min-height: 32px;
+}
+
+.maps-profile-header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px 16px;
+}
+
+.maps-profile-header .panel-header-copy {
+	flex: 1 1 auto;
+	width: auto;
+}
+
+.maps-profile-header h2 {
+	width: fit-content;
+}
+
+.maps-profile-page {
+	display: grid;
+	align-content: start;
+	gap: 16px;
+	min-width: 0;
+}
+
+.maps-profile-page p,
+.maps-profile-list h3 {
+	margin: 0;
+}
+
+.maps-profile-page > :is(a, button) {
+	justify-self: start;
+}
+
+.maps-profile-list {
+	display: grid;
+	gap: 8px;
+	min-width: 0;
+	padding: 16px;
+	border: 1px solid var(--border-soft);
+	border-radius: 8px;
+}
+
+.maps-profile-page ul {
+	display: grid;
+	gap: 0;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.maps-profile-page li {
+	display: grid;
+	gap: 4px;
+	padding: 10px 0;
+	overflow-wrap: anywhere;
+}
+
+.maps-profile-page li + li {
+	border-top: 1px solid var(--border-soft);
+}
+
+.maps-profile-page li a {
+	width: fit-content;
+	max-width: 100%;
+	color: inherit;
+}
+
+.maps-profile-page li span {
+	color: var(--muted);
+	font-size: 0.9rem;
+}
+
+@media (max-width: 860px) {
+	.sidebar-maps-links .sidebar-text-link,
+	.maps-profile-header > a,
+	.maps-profile-page :is(a.secondary-button, button) {
+		min-height: 44px;
+	}
+}

@@ -34,7 +34,7 @@ import {
 	signOutCloud,
 	startCloudSubscription,
 	updateFamilyMember,
-} from "./cloud.js?v=space-isolation-20260605b";
+} from "./cloud.js?v=maps-views-20261117";
 import { CLOUD_STORAGE_LIMIT_BYTES } from "./config.js?v=storage-quota-20260523a";
 import { today } from "./data.js";
 import { bindDonationFlow, donationModalHtml } from "./donations.js";
@@ -56,6 +56,7 @@ import {
 	updateLocalFileMetadata,
 } from "./localMedia.js?v=space-20260531a";
 import { escapeHtml, parseOurstuffLineCommand, renderMarkdown } from "./markdown.js";
+import { createMapsProfile, mapsProfileHtml } from "./maps-profile.js";
 import {
 	pageContentHtml,
 	pageNumberOverlayHtml,
@@ -146,6 +147,7 @@ import {
 } from "./trash.js?v=space-20260531a";
 
 const app = document.getElementById("app");
+const mapsProfile = createMapsProfile({ getIdToken: getCloudIdToken, onChange: render });
 const DATASET_STORAGE_BASE_KEYS = [
 	"ourstuff.artifactStore.v1",
 	"ourstuff.bodyTracker.v1",
@@ -12074,6 +12076,8 @@ function resetTips() {
 }
 
 function render() {
+	mapsProfile.sync(state.active, state.cloud);
+	const restoreMapsFocus = document.activeElement?.id === "maps-profile-heading";
 	applyEnvironmentClasses();
 	if (cameraStream) {
 		stopCameraStream();
@@ -12196,6 +12200,7 @@ function render() {
 	restoreThoughtToastFocus(thoughtToastFocus);
 	restoreActiveEditableFocus(activeEditableFocus);
 	restoreContentScrollPosition(contentScrollRestoreKey);
+	if (restoreMapsFocus) app.querySelector("#maps-profile-heading")?.focus({ preventScroll: true });
 	if (state.sidebarSubmenu === "settings" && state.settingsTab === "cloud") {
 		scheduleCloudStorageUsageRefresh();
 	}
@@ -12923,6 +12928,11 @@ function sidebarHtml(_compendium) {
           <span aria-hidden="true">/</span>
           <a class="sidebar-text-link" href="https://maps.ourstuff.space/">Maps</a>
         </div>
+        <div class="sidebar-footer-links sidebar-maps-links">
+          ${["Places", "Interests & goals"].map((view) => `
+            <button class="sidebar-text-link${state.active === view ? " is-active" : ""}" data-action="open-maps-profile" data-view="${escapeHtml(view)}" type="button"${state.active === view ? ' aria-current="page"' : ""}>${escapeHtml(view)}</button>
+          `).join("")}
+        </div>
       </div>
     </aside>
   `;
@@ -13190,6 +13200,9 @@ function contentHtml(compendium, section) {
 	}
 	if (state.active === "Settings") {
 		return dashboardGridHtml();
+	}
+	if (state.active === "Places" || state.active === "Interests & goals") {
+		return panelHtml(mapsProfileHtml(state.active, mapsProfile.current, state.cloud));
 	}
 	if (state.active === "Gallery") {
 		return galleryHtml();
@@ -21162,6 +21175,34 @@ function handleAction(element) {
 	if (action === "dismiss-tip") {
 		dismissTip(element.dataset.tip, element);
 	}
+	if (action === "open-maps-profile") {
+		setState({
+			active: element.dataset.view,
+			sidebarSubmenu: "",
+			mobileMenuOpen: false,
+			flipped: null,
+			artifactMode: "grid",
+			selectedArtifactId: null,
+			selectedCompendiumId: null,
+			selectedSectionId: null,
+			selectedSpiritBookKey: null,
+		});
+		app.querySelector("#maps-profile-heading")?.focus({ preventScroll: true });
+		return;
+	}
+	if (action === "maps-profile-retry") {
+		app.querySelector("#maps-profile-heading")?.focus({ preventScroll: true });
+		mapsProfile.retry();
+		return;
+	}
+	if (action === "maps-profile-sign-in") {
+		void runCloudAction("Opening Google sign-in...", () => signInWithGoogle());
+		return;
+	}
+	if (action === "maps-profile-account") {
+		setState({ sidebarSubmenu: "settings", mobileMenuOpen: true, settingsTab: "cloud" });
+		return;
+	}
 	if (action === "open-gallery") {
 		openGallery();
 	}
@@ -21867,6 +21908,7 @@ render();
 void initCloudAccount((cloud) => {
 	const previousSignature = cloudUiSignature(state.cloud);
 	state.cloud = cloud;
+	const mapsProfileChanged = mapsProfile.sync(state.active, cloud);
 	configureMediaCloudContext(cloud);
 	const showAuthView =
 		cloud?.mode === "signed-in" && cloud?.user && consumeCloudAuthView();
@@ -21877,7 +21919,7 @@ void initCloudAccount((cloud) => {
 		state.settingsTab = "cloud";
 	}
 	const nextSignature = cloudUiSignature(cloud);
-	if (showAuthView || (previousSignature !== nextSignature && !isUserEditingInterface())) {
+	if (mapsProfileChanged || showAuthView || (previousSignature !== nextSignature && !isUserEditingInterface())) {
 		render();
 	} else {
 		patchVisibleCloudStatus();

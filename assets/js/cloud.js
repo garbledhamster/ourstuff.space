@@ -141,13 +141,14 @@ export function getCloudAccountState() {
 }
 
 export async function getCloudIdToken(options = {}) {
-	if (!currentFirebaseUser) {
+	const user = currentFirebaseUser;
+	if (!user || (options.expectedUid && user.uid !== options.expectedUid)) {
 		if (options.optional === true) {
 			return null;
 		}
 		throw new Error("Sign in before using PYXIDA.");
 	}
-	return currentFirebaseUser.getIdToken(options.forceRefresh === true);
+	return user.getIdToken(options.forceRefresh === true);
 }
 
 export function subscribeCloudAccount(listener) {
@@ -1861,6 +1862,7 @@ async function handleFirebaseAuthChange(user) {
 			? await readObsidianSyncKey(user).catch(() => null)
 			: null;
 
+	if (currentFirebaseUser !== user) return;
 	emitCloudState({
 		ready: true,
 		busy: false,
