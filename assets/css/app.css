@@ -14510,6 +14510,9 @@ button.life-event-row:hover {
 .space-locations-modal h2 { margin: 0 0 .4rem; }
 .space-locations-modal > div { margin-bottom: 1rem; }
 .space-locations-modal > p:empty { display: none; }
+.hosted-plans-modal > details { margin-block: 1rem; }
+.hosted-plans-modal > details summary { cursor: pointer; min-block-size: 2.75rem; }
+.hosted-plans-modal > details .body-field { min-inline-size: 0; }
 .space-location-entries { display: grid; gap: .65rem; padding-inline-start: 0; }
 .space-location-entries li {
 	display: grid;

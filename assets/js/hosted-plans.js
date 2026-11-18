@@ -1,4 +1,5 @@
 import { PAYMENTS_WORKER_URL } from "./config.js";
+import { setupBusinessInquiry } from "./business-inquiry.js";
 
 const offers = [
 	{ id: "personal", label: "Personal", price: "$9.99 USD per user per month" },
@@ -7,7 +8,7 @@ const offers = [
 
 export function setupHostedPlans({ account, checkout }) {
 	const dialog = document.createElement("dialog");
-	dialog.className = "space-locations-modal";
+	dialog.className = "space-locations-modal hosted-plans-modal";
 	dialog.setAttribute("aria-label", "Hosted plans");
 	const title = document.createElement("h2");
 	title.textContent = "Hosted plans";
@@ -21,7 +22,8 @@ export function setupHostedPlans({ account, checkout }) {
 	close.className = "secondary-button";
 	close.textContent = "Close";
 	close.addEventListener("click", () => dialog.close());
-	dialog.append(title, status, list, close);
+	const inquiry = setupBusinessInquiry();
+	dialog.append(title, status, list, inquiry.details, close);
 	document.body.append(dialog);
 
 	let catalog;
@@ -88,6 +90,7 @@ export function setupHostedPlans({ account, checkout }) {
 			dialog.showModal();
 			title.focus();
 			refresh();
+			void inquiry.refresh();
 			try {
 				const response = await fetch(PAYMENTS_WORKER_URL + "/api/subscriptions/plans", {
 					cache: "no-store", redirect: "error",
