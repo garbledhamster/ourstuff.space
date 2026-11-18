@@ -150,7 +150,7 @@ export function setupSpaceTargets({ currentSpace, localGoals, openLegacy, tokenF
 		}
 		feedback.textContent = "Loading…";
 		try {
-			const path = selectedHistory ? "/" + encodeURIComponent(selectedHistory) + "/check-ins" : "";
+			const path = selectedHistory ? "/" + encodeURIComponent(selectedHistory) + "/progress" : "";
 			const result = await request(space, tokenFor, path, { kind: mode });
 			if (!dialog.open || requestId !== sequence || key(space) !== key(currentSpace())) return;
 			updateRole(result.role);
@@ -167,9 +167,10 @@ export function setupSpaceTargets({ currentSpace, localGoals, openLegacy, tokenF
 				}
 			} else paintList(result, space);
 		} catch (error) {
-			if (!dialog.open || requestId !== sequence) return;
+			if (!dialog.open || requestId !== sequence || key(space) !== key(currentSpace())) return;
 			showFailure(error);
 			content.append(button("Retry", load));
+			if (selectedHistory) content.append(button(mode === "goal" ? "All goals" : "All habits", returnToList));
 		}
 	}
 
@@ -198,10 +199,14 @@ export function setupSpaceTargets({ currentSpace, localGoals, openLegacy, tokenF
 			if (!target.enabled) description.push("Inactive");
 			row.append(node("strong", target.name), node("span", description.join(" · ")));
 			const actions = node("div", "", "space-location-actions");
-			if (target.kind === "habit") {
-				if (editable(role) && target.enabled) actions.append(button("Check in", event => void checkIn(space, target, event.currentTarget)));
-				actions.append(button("History", () => { selectedHistory = target.id; void load(); }));
+			if (target.kind === "habit" && editable(role) && target.enabled) {
+				actions.append(button("Check in", event => void checkIn(space, target, event.currentTarget)));
 			}
+			actions.append(button("History", () => {
+				if (key(space) !== key(currentSpace())) return refresh();
+				selectedHistory = target.id;
+				void load();
+			}));
 			if (editable(role)) actions.append(button("Edit " + mode, () => editTarget(space, target)));
 			row.append(actions);
 			list.append(row);
@@ -415,18 +420,29 @@ export function setupSpaceTargets({ currentSpace, localGoals, openLegacy, tokenF
 
 	function paintHistory(result, space) {
 		const list = node("ul", "", "space-location-entries");
-		for (const check of result.checks) {
+		const dates = new Intl.DateTimeFormat(undefined, {
+			timeZone: result.target.timeZone, dateStyle: "medium", timeStyle: "short",
+		});
+		// A stop that satisfies a habit period already appears as a progress event.
+		const entries = [...result.progress, ...result.checks.filter(check => !check.creditId)]
+			.sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
+		for (const entry of entries) {
 			const row = node("li");
-			const time = node("time", new Intl.DateTimeFormat(undefined, {
-				timeZone: result.target.timeZone, dateStyle: "medium", timeStyle: "short",
-			}).format(new Date(check.occurredAt)));
-			time.dateTime = check.occurredAt;
-			row.append(node("strong", check.actorName), time);
+			const time = node("time", dates.format(new Date(entry.occurredAt)));
+			time.dateTime = entry.occurredAt;
+			if (entry.action === "credited") {
+				const source = entry.app === "maps" ? "Maps" : entry.app === "our-stuff" ? "Our Stuff" : entry.app;
+				const metadata = node("span");
+				metadata.append(time, " · " + source);
+				row.append(node("strong", entry.activity), node("span", entry.actorName, "space-location-writing"), metadata);
+			} else row.append(node("strong", entry.actorName), node("span", "Checked in"), time);
 			list.append(row);
 		}
-		feedback.textContent = result.checks.length ? "" : "No check-ins yet.";
-		content.replaceChildren(node("h3", result.target.name), node("p", category(space, result.target.categoryId)),
-			button("All habits", returnToList), list);
+		feedback.textContent = entries.length ? "" : mode === "goal" ? "No completed stops yet." : "No check-ins yet.";
+		const actions = node("div", "", "space-location-actions");
+		actions.append(button(mode === "goal" ? "All goals" : "All habits", returnToList));
+		content.replaceChildren(node("h3", result.target.name, "space-location-writing"),
+			node("p", category(space, result.target.categoryId)), actions, list);
 	}
 
 	function refresh() {

@@ -110,12 +110,22 @@ export function setupSpaceHistory({ currentSpace, resolveSpace, tokenFor, edit }
 		count.setAttribute("role", "status");
 		function filter() {
 			query = searchField.value;
-			const shown = entries.filter(row => summary(row).toLowerCase().includes(query.trim().toLowerCase()));
+			const searchTerm = query.trim().toLowerCase();
+			const shown = entries.filter(row => summary(row).toLowerCase().includes(searchTerm));
 			count.textContent = shown.length + (shown.length === 1 ? " change" : " changes");
 			rows.replaceChildren(...shown.map(row => {
 				const item = node("li");
-				item.dataset.historyRecord = row.recordId;
 				item.dataset.change = row.action;
+				if (row.action === "credited") {
+					const time = node("time", dates.format(new Date(row.occurredAt)));
+					time.dateTime = row.occurredAt;
+					const metadata = node("span", "", "space-location-writing");
+					metadata.append(time, " · " + row.actorName);
+					item.append(node("strong", creditTitle(row), "space-location-writing"),
+						node("span", changeDetails(row, row.activity)), metadata);
+					return item;
+				}
+				item.dataset.historyRecord = row.recordId;
 				const actor = mode === "local" ? "On this device" : row.actorUid === scope.account ? "You" :
 					row.actorUid === scope.ownerUid ? "Space owner" : "Space member";
 				item.append(node("strong", summary(row)), node("span", dates.format(new Date(row.at)) + " · " + actor),
@@ -127,9 +137,16 @@ export function setupSpaceHistory({ currentSpace, resolveSpace, tokenFor, edit }
 			}));
 		}
 		function summary(row) {
+			if (row.action === "credited") return creditTitle(row) + " · " + changeDetails(row, row.activity) + " · " + row.actorName;
+			return changeDetails(row, labels[row.kind] + " " + row.action);
+		}
+		function creditTitle(row) {
+			return (row.kind === "goal-credit" ? "Goal" : "Habit") + " · " + row.targetName;
+		}
+		function changeDetails(row, action) {
 			const category = scope.categories[row.categoryId]?.label ?? row.categoryId;
-			return labels[row.kind] + " " + row.action + (category ? " · " + category : "") +
-				" · " + (row.app === "maps" ? "Maps" : row.app === "our-stuff" ? "Our Stuff" : row.app);
+			const source = row.app === "maps" ? "Maps" : row.app === "our-stuff" ? "Our Stuff" : row.app;
+			return action + (category ? " · " + category : "") + " · " + source;
 		}
 		searchField.addEventListener("input", filter);
 		content.replaceChildren(search, count, rows);
