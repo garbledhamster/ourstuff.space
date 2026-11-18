@@ -1843,9 +1843,9 @@ function normalizeTheme(value) {
 	});
 }
 
-function loadTheme() {
+function loadTheme(storageKey = THEME_KEY) {
 	return loadThemeSelection({
-		storageKey: THEME_KEY,
+		storageKey,
 		themes: APP_THEMES,
 		fallbackId: "default",
 	});
@@ -12921,7 +12921,7 @@ function sidebarHtml(_compendium) {
           <span aria-hidden="true">/</span>
           <button class="sidebar-text-link" data-action="open-gallery" type="button">Gallery</button>
           <span aria-hidden="true">/</span>
-          <a class="sidebar-text-link" href="https://maps.ourstuff.space/">Maps</a>
+          <a class="sidebar-text-link" href="${escapeHtml(mapsUrl())}">Maps</a>
         </div>
       </div>
     </aside>
@@ -15053,6 +15053,14 @@ function visibleDataSpaces() {
 	const enabled = new Set(enabledSpaceIds());
 	enabled.add(activeSpaceId());
 	return Object.values(DATA_SPACES).filter((space) => enabled.has(space.id));
+}
+
+function mapsUrl() {
+	const [first] = visibleDataSpaces();
+	const theme = first ? loadTheme(storageKeyForSpace("ourstuff.theme.v1", first.id)) : "default";
+	const url = new URL("https://maps.ourstuff.space/");
+	url.searchParams.set("theme", theme);
+	return url.href;
 }
 
 function activeSpacePillHtml() {
