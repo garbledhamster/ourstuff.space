@@ -62,6 +62,7 @@ import { exportDeviceBackup, restoreDeviceBackup, restoreLegacyAppState, validat
 import { setupSpaceOutings } from "./space-outings.js";
 import { readHistoryReference, setupSpaceHistory } from "./space-history.js";
 import { setupSpaceTargets } from "./space-targets.js";
+import { setupHostedPlans } from "./hosted-plans.js";
 import {
 	pageContentHtml,
 	pageNumberOverlayHtml,
@@ -136,6 +137,10 @@ import {
 
 const app = document.getElementById("app");
 const standalone = location.origin === "http://127.0.0.1:8768";
+const hostedPlans = !standalone && setupHostedPlans({
+	account: () => state.cloud,
+	checkout: plan => startCloudSubscription(cloudReturnUrl(), plan),
+});
 const mapsProfile = createMapsProfile({ getIdToken: getCloudIdToken, onChange: render });
 const DATASET_STORAGE_BASE_KEYS = [
 	"ourstuff.artifactStore.v1",
@@ -12520,6 +12525,7 @@ function settingsCloudHtml() {
             </div>
           </div>
           <nav class="cloud-action-nav" aria-label="Cloud sync actions">
+            <button class="secondary-button" data-action="hosted-plans" type="button">Hosted plans</button>
             ${
 							signedIn && isCloud
 								? `
@@ -19192,6 +19198,9 @@ function handleAction(element) {
 			startCloudSubscription(cloudReturnUrl()),
 		);
 	}
+	if (action === "hosted-plans") {
+		void hostedPlans.open(element);
+	}
 	if (action === "cloud-billing") {
 		void runCloudAction("Opening billing portal...", () =>
 			openBillingPortal(cloudReturnUrl()),
@@ -19688,6 +19697,7 @@ if (standalone) void openTargetEntry();
 else void initCloudAccount((cloud) => {
 	const previousSignature = cloudUiSignature(state.cloud);
 	state.cloud = cloud;
+	hostedPlans.refresh();
 	spaceLocations.refresh();
 	spaceTargets.refresh();
 	spaceOutings.refresh();

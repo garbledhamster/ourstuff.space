@@ -323,7 +323,7 @@ export async function signOutCloud() {
 	return getCloudAccountState();
 }
 
-export async function startCloudSubscription(returnUrl = currentReturnUrl()) {
+export async function startCloudSubscription(returnUrl = currentReturnUrl(), plan) {
 	if (cloudState.isLocalDemo) {
 		emitCloudState({
 			message: "Local subscribed demo already has Cloud enabled.",
@@ -334,6 +334,7 @@ export async function startCloudSubscription(returnUrl = currentReturnUrl()) {
 
 	const user = requireSignedInFirebaseUser();
 	const idToken = await user.getIdToken();
+	if (user !== currentFirebaseUser) throw new Error("Your account changed. Open Hosted plans again.");
 	emitCloudState({
 		busy: true,
 		message: "Opening subscription checkout...",
@@ -349,7 +350,7 @@ export async function startCloudSubscription(returnUrl = currentReturnUrl()) {
 			},
 			body: JSON.stringify({
 				site: SITE_ID,
-				appId: activeCloudAppId(),
+				...(plan ? { plan } : { appId: activeCloudAppId() }),
 				returnUrl,
 			}),
 		},
