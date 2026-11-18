@@ -4,7 +4,7 @@ import {
 	flip,
 	offset,
 	shift,
-} from "https://cdn.jsdelivr.net/npm/@floating-ui/dom@1.7.5/+esm";
+} from "../vendor/floating-ui/dom.js";
 import {
 	acceptFamilyInvite,
 	copyLatestObsidianApiKey,
@@ -58,6 +58,7 @@ import {
 import { escapeHtml, parseOurstuffLineCommand, renderMarkdown } from "./markdown.js";
 import { createMapsProfile, MAPS_ORIGIN, mapsProfileHtml, mapsProfileUrl, mapsProfileViews } from "./maps-profile.js";
 import { setupSpaceLocations } from "./space-locations.js";
+import { exportDeviceBackup, restoreDeviceBackup, restoreLegacyAppState, validateDeviceBackup } from "./device-backup.js";
 import { setupSpaceOutings } from "./space-outings.js";
 import { readHistoryReference, setupSpaceHistory } from "./space-history.js";
 import { setupSpaceTargets } from "./space-targets.js";
@@ -68,28 +69,11 @@ import {
 } from "./readerContent.js";
 import {
 	DEFAULT_PYXIDA_SETTINGS,
-	estimatePyxdiaLetterSize,
-	estimatePyxdiaNoteMetadataSize,
-	fetchPyxdiaState,
-	markPyxdiaThreadRead,
 	normalizePyxdiaDynamicRetrievalMemory,
 	normalizePyxdiaSettings,
 	normalizePyxdiaStaticMemory,
 	normalizePyxdiaUserSelectedContext,
-	PYXIDA_NOTE_METADATA_MAX_CHARS,
-	PYXIDA_NOTE_METADATA_MAX_REFS,
-	pyxdiaNoteRefsFromArtifacts,
-	resetPyxdiaMemory,
-	retryPyxdiaLetter,
-	savePyxdiaDraft,
-	savePyxdiaSettings,
-	sendPyxdiaLetter,
 } from "./pyxdia.js?v=space-20260531b";
-import {
-	pyxdiaImageMarkdown,
-	resolvePyxdiaImageUrl,
-	uploadPyxdiaLetterImage,
-} from "./pyxdiaMedia.js?v=space-20260531a";
 import {
 	artifactStoreToCompendiums,
 	compendiumsToArtifactStore,
@@ -151,6 +135,7 @@ import {
 } from "./trash.js?v=space-20260531a";
 
 const app = document.getElementById("app");
+const standalone = location.origin === "http://127.0.0.1:8768";
 const mapsProfile = createMapsProfile({ getIdToken: getCloudIdToken, onChange: render });
 const DATASET_STORAGE_BASE_KEYS = [
 	"ourstuff.artifactStore.v1",
@@ -208,7 +193,6 @@ const TIMER_STATE_KEY = scopedStorageKey("ourstuff.timerState.v1");
 const TIMER_SETTINGS_KEY = scopedStorageKey("ourstuff.timerSettings.v1");
 const PYXIDA_SETTINGS_KEY = scopedStorageKey("ourstuff.pyxdiaSettings.v1");
 const PYXIDA_LOCAL_STATE_KEY = scopedStorageKey("ourstuff.pyxdiaPenpal.v1");
-const PYXIDA_RECENT_NOTE_DAYS = 30;
 const DISMISSED_TIPS_KEY = scopedStorageKey("ourstuff.dismissedTips.v1");
 const ICONIFY_SEARCH_CACHE_KEY = "ourstuff.iconifySearchCache.v1";
 const LOCAL_APP_UPDATED_AT_KEY = scopedStorageKey("ourstuff.localAppUpdatedAt.v1");
@@ -608,7 +592,6 @@ let lastUserInterfaceActivityAt = Date.now();
 let cloudStorageUsageRefreshTimer = null;
 let cloudStorageUsageRefreshInFlight = false;
 let cloudStorageUsageSignature = "";
-let pyxdiaSettingsPersistTimer = null;
 let cameraStream = null;
 let cameraRequestToken = 0;
 const SPIRIT_PLANS = [
@@ -1867,29 +1850,6 @@ function saveTheme(theme) {
 	return saved;
 }
 
-function loadPyxdiaSettings() {
-	try {
-		const raw = window.localStorage.getItem(PYXIDA_SETTINGS_KEY);
-		const parsed = raw ? JSON.parse(raw) : null;
-		const normalized = normalizePyxdiaSettings(parsed);
-		if (raw && JSON.stringify(parsed) !== JSON.stringify(normalized)) {
-			window.localStorage.setItem(
-				PYXIDA_SETTINGS_KEY,
-				JSON.stringify(normalized),
-			);
-		}
-		return normalized;
-	} catch {
-		return normalizePyxdiaSettings(DEFAULT_PYXIDA_SETTINGS);
-	}
-}
-
-function savePyxdiaSettingsLocal(settings = state.pyxdiaSettings) {
-	const normalized = normalizePyxdiaSettings(settings);
-	window.localStorage.setItem(PYXIDA_SETTINGS_KEY, JSON.stringify(normalized));
-	return normalized;
-}
-
 function createEmptyPyxdiaMemory() {
 	const staticMemory = normalizePyxdiaStaticMemory();
 	const dynamicRetrievalMemory = normalizePyxdiaDynamicRetrievalMemory();
@@ -1984,20 +1944,6 @@ function normalizePyxdiaReadBy(value = {}) {
 			.map(([key, readAt]) => [String(key || ""), String(readAt || "")])
 			.filter(([key, readAt]) => key && readAt),
 	);
-}
-
-function normalizePyxdiaCorrespondent(value = {}) {
-	const uid = String(value.uid || value.recipientUid || "").trim();
-	if (!uid) {
-		return null;
-	}
-	return {
-		uid,
-		label: safePyxdiaRecipientLabel(value.label || value.displayName || value.email),
-		recipientType: "family",
-		role: String(value.role || ""),
-		unreadCount: Math.max(0, Number(value.unreadCount) || 0),
-	};
 }
 
 function normalizePyxdiaDraft(value = {}) {
@@ -3141,7 +3087,10 @@ async function exportAppState(options = {}) {
 		cloudMediaKey: await exportCloudMediaKey(),
 		localFiles: await exportLocalFiles({
 			includeData: options.includeLocalFileData !== false,
-		}).catch(() => []),
+		}).catch(error => {
+			if (options.requireLocalFiles) throw error;
+			return [];
+		}),
 	};
 }
 
@@ -4450,7 +4399,7 @@ function ensureInviteSpaceLocally(invite = {}) {
 	const created = saveCustomDataSpace({
 		id: spaceId,
 		label: invite.spaceLabel || "Shared space",
-		description: `${invite.spaceLabel || "Shared space"} shared notes, trackers, Pen Pal, themes, and media.`,
+		description: `${invite.spaceLabel || "Shared space"} shared notes, trackers, themes, and media.`,
 		dashboardLabels: invite.dashboardLabels || {},
 	});
 	const reset = createSpaceDatasetReset(created.id, { defaults: false });
@@ -4569,24 +4518,10 @@ const state = {
 	contentScrollPositions: {},
 	theme: loadTheme(),
 	colorMode: loadColorMode(),
-	pyxdiaSettings: loadPyxdiaSettings(),
 	pyxdiaThreads: initialPyxdiaLocalState.threads,
 	pyxdiaLetters: initialPyxdiaLocalState.letters,
 	pyxdiaDraft: initialPyxdiaLocalState.draft,
 	pyxdiaMemory: initialPyxdiaLocalState.memory,
-	pyxdiaAiBrain: null,
-	pyxdiaExpanded: false,
-	pyxdiaView: "input",
-	pyxdiaActiveThreadId: "",
-	pyxdiaRecipientType: "pyxdia",
-	pyxdiaRecipientUid: "pyxdia",
-	pyxdiaCorrespondents: [],
-	pyxdiaUnreadBySpace: {},
-	pyxdiaStatus: "",
-	pyxdiaError: "",
-	pyxdiaBusy: false,
-	pyxdiaLastRefreshAt: "",
-	pyxdiaNoteFilters: createDefaultPyxdiaNoteFilters(),
 	dismissedTips: loadDismissedTips(),
 	navigationTour: null,
 	dashboardIdentity: loadDashboardIdentity(),
@@ -4616,7 +4551,7 @@ const state = {
 	goalSettings: loadGoalSettings(),
 	localAppUpdatedAt: loadLocalAppUpdatedAt(),
 	appearanceUpdatedAt: loadAppearanceUpdatedAt(),
-	cloud: getCloudAccountState(),
+	cloud: standalone ? { ...getCloudAccountState(), ready: true, localDemoAvailable: false } : getCloudAccountState(),
 	cloudStorageUsage: null,
 	trashSettings: normalizeTrashSettings(),
 	trashItems: [],
@@ -4664,13 +4599,7 @@ let menuTimerAudioContext = null;
 
 function contentScrollKey(source = state) {
 	const active = source.active || "Dashboard";
-	if (active === "PYXIDA") {
-		const view = ["input", "output", "thread"].includes(source.pyxdiaView)
-			? source.pyxdiaView
-			: "input";
-		const threadId = view === "thread" ? source.pyxdiaActiveThreadId || "" : "";
-		return `PYXIDA:${view}:${threadId}`;
-	}
+
 	if (active === "Life") {
 		return [
 			"Life",
@@ -4893,9 +4822,6 @@ function pageActionButton(action, icon, label, options = {}) {
 }
 
 function activeCameraTarget() {
-	if (state.active === "PYXIDA") {
-		return { kind: "pyxdia" };
-	}
 	if (DASHBOARD_LABELS.includes(state.active)) {
 		return { kind: "dashboard", dashboard: state.active };
 	}
@@ -4903,10 +4829,7 @@ function activeCameraTarget() {
 }
 
 function normalizeCameraTarget(target = {}) {
-	const kind =
-		target.kind === "pyxdia" || target.kind === "editor"
-			? target.kind
-			: "dashboard";
+	const kind = target.kind === "editor" ? "editor" : "dashboard";
 	const dashboard = DASHBOARD_LABELS.includes(target.dashboard)
 		? target.dashboard
 		: DASHBOARD_LABELS.includes(state.active)
@@ -4922,9 +4845,6 @@ function normalizeCameraTarget(target = {}) {
 
 function cameraTargetFromElement(element) {
 	const explicitKind = element?.dataset?.cameraTarget || "";
-	if (explicitKind === "pyxdia") {
-		return { kind: "pyxdia" };
-	}
 	if (explicitKind === "editor") {
 		return { kind: "editor" };
 	}
@@ -4936,9 +4856,6 @@ function cameraTargetLabel(target = state.cameraTarget) {
 	const normalized = normalizeCameraTarget(
 		target || activeCameraTarget() || {},
 	);
-	if (normalized.kind === "pyxdia") {
-		return "Pen Pal letter";
-	}
 	if (normalized.kind === "editor") {
 		return "Current note";
 	}
@@ -4950,12 +4867,7 @@ function pathCameraButtonHtml() {
 	if (!target) {
 		return "";
 	}
-	const attrs =
-		target.kind === "pyxdia"
-			? 'data-camera-target="pyxdia"'
-			: `data-camera-target="dashboard" data-dashboard="${escapeHtml(
-					target.dashboard,
-				)}"`;
+	const attrs = `data-camera-target="dashboard" data-dashboard="${escapeHtml(target.dashboard)}"`;
 	return `
       <button class="path-camera-button" data-action="open-camera" ${attrs} type="button" aria-label="Open camera" title="Open camera">
         ${iconHtml("tabler:camera")}
@@ -8112,885 +8024,6 @@ function setSidebarPage(section, direction, maxPage) {
 	});
 }
 
-function isPyxdiaSignedIn() {
-	return Boolean(state.cloud?.mode === "signed-in" && state.cloud?.user?.uid);
-}
-
-function pyxdiaActorUid() {
-	return String(state.cloud?.user?.uid || state.cloud?.cloudOwnerUid || "local-demo");
-}
-
-function pyxdiaActorLabel() {
-	const user = state.cloud?.user || {};
-	return safePyxdiaRecipientLabel(
-		user.displayName || user.email || "You",
-		"You",
-	);
-}
-
-function isFamilyPenPalAvailable() {
-	return isShareableSpace(activeSpaceId()) && Boolean(state.cloud?.sharedSpace);
-}
-
-function familyPenPalCorrespondents() {
-	if (!isFamilyPenPalAvailable()) {
-		return [];
-	}
-	const shared = state.cloud?.sharedSpace || {};
-	const actorUid = pyxdiaActorUid();
-	const members = Array.isArray(shared.members) ? shared.members : [];
-	const fromMembers = members
-		.map((member) =>
-			normalizePyxdiaCorrespondent({
-				uid: member.uid,
-				label: member.displayName || member.email || "Family member",
-				role: member.role,
-			}),
-		)
-		.filter(Boolean)
-		.filter((member) => member.uid !== actorUid);
-	if (String(shared.ownerUid || "") && String(shared.ownerUid) !== actorUid) {
-		fromMembers.unshift(
-			normalizePyxdiaCorrespondent({
-				uid: shared.ownerUid,
-				label: shared.ownerDisplayName || `${activeSpaceLabel()} owner`,
-				role: "owner",
-			}),
-		);
-	}
-	const merged = new Map();
-	[...(state.pyxdiaCorrespondents || []), ...fromMembers]
-		.map(normalizePyxdiaCorrespondent)
-		.filter(Boolean)
-		.forEach((item) => merged.set(item.uid, { ...merged.get(item.uid), ...item }));
-	return [...merged.values()].filter((item) => item.uid !== actorUid);
-}
-
-function pyxdiaSelectedRecipient() {
-	const type = normalizePyxdiaRecipientType(state.pyxdiaRecipientType);
-	if (type !== "family") {
-		return {
-			recipientType: "pyxdia",
-			recipientUid: "pyxdia",
-			recipientLabel: "PYXIDA",
-		};
-	}
-	const family = familyPenPalCorrespondents();
-	if (!family.length) {
-		return {
-			recipientType: "pyxdia",
-			recipientUid: "pyxdia",
-			recipientLabel: "PYXIDA",
-		};
-	}
-	const selected =
-		family.find((item) => item.uid === state.pyxdiaRecipientUid) || family[0];
-	return selected
-		? {
-				recipientType: "family",
-				recipientUid: selected.uid,
-				recipientLabel: selected.label,
-			}
-		: {
-				recipientType: "family",
-				recipientUid: "",
-				recipientLabel: "Family member",
-			};
-}
-
-function pyxdiaLetterRoute(letter = {}) {
-	const from = safePyxdiaRecipientLabel(
-		letter.fromLabel || letter.authorLabel || "You",
-		"You",
-	);
-	const to = safePyxdiaRecipientLabel(
-		letter.toLabel || letter.recipientLabel || "PYXIDA",
-		"PYXIDA",
-	);
-	return `From ${from} / To ${to}`;
-}
-
-function pyxdiaLetterMatchesRecipient(letter = {}) {
-	const selected = pyxdiaSelectedRecipient();
-	const type = normalizePyxdiaRecipientType(letter.recipientType);
-	if (selected.recipientType !== "family") {
-		return type !== "family";
-	}
-	if (type !== "family" || !selected.recipientUid) {
-		return false;
-	}
-	const participants = Array.isArray(letter.participantUids)
-		? letter.participantUids.map(String)
-		: [letter.fromUid, letter.toUid, letter.recipientUid, letter.createdBy]
-				.map(String)
-				.filter(Boolean);
-	return participants.includes(selected.recipientUid);
-}
-
-function pyxdiaUnreadSpaceCount(spaceId) {
-	const unread = state.pyxdiaUnreadBySpace || {};
-	return Math.max(0, Number(unread[spaceId] || 0));
-}
-
-function pyxdiaStatusText(letter) {
-	const stateLabel = String(letter?.state || "").toLowerCase();
-	if (stateLabel === "delivered") {
-		return "Letter delivered.";
-	}
-	if (stateLabel === "completed") {
-		return isTemplatePyxdiaReply(letter)
-			? "Template reply. Regenerate for a real model response."
-			: "Reply ready.";
-	}
-	if (stateLabel === "processing") {
-		return "Pen Pal is writing back.";
-	}
-	if (stateLabel === "queued" || stateLabel === "submitted") {
-		return "Reply pending.";
-	}
-	if (stateLabel === "failed") {
-		return letter?.errorMessageSafe || "Pen Pal could not finish. Try again.";
-	}
-	return "Draft saved.";
-}
-
-function isTemplatePyxdiaReply(letter = {}) {
-	if (String(letter.modelName || "") === "local-template") {
-		return true;
-	}
-	const output = String(letter.outputText || "");
-	return [
-		"I read the center of what you sent",
-		"In Adlerian language",
-		"In DBT terms",
-		"archetype language helps",
-		"I will keep this grounded and non-clinical",
-	].some((marker) => output.includes(marker));
-}
-
-function pyxdiaThreadTitleFromText(text = "") {
-	const clean = String(text || "")
-		.replace(/\s+/g, " ")
-		.trim();
-	if (!clean) {
-		return "Pen Pal letter thread";
-	}
-	return clean.length > 44 ? `${clean.slice(0, 41)}...` : clean;
-}
-
-function pyxdiaLettersByNewest() {
-	return activePyxdiaLetters().filter(pyxdiaLetterMatchesRecipient).sort((a, b) => {
-		const bTime = Date.parse(b.updatedAt || b.createdAt || "") || 0;
-		const aTime = Date.parse(a.updatedAt || a.createdAt || "") || 0;
-		if (bTime !== aTime) {
-			return bTime - aTime;
-		}
-		return String(b.id || "").localeCompare(String(a.id || ""));
-	});
-}
-
-function latestPyxdiaLetter() {
-	return pyxdiaLettersByNewest()[0] || null;
-}
-
-function latestCompletedPyxdiaLetter() {
-	return pyxdiaLettersByNewest().find((letter) => letter.state === "completed");
-}
-
-function selectedPyxdiaThread() {
-	const threadId =
-		state.pyxdiaActiveThreadId || latestPyxdiaLetter()?.threadId || "";
-	const activeThreadIds = new Set(
-		activePyxdiaLetters()
-			.filter(pyxdiaLetterMatchesRecipient)
-			.map((letter) => letter.threadId),
-	);
-	return (
-		state.pyxdiaThreads.find(
-			(thread) => thread.id === threadId && activeThreadIds.has(thread.id),
-		) || null
-	);
-}
-
-function selectedPyxdiaThreadLetters() {
-	const thread = selectedPyxdiaThread();
-	if (!thread) {
-		return [];
-	}
-	const ids = new Set(thread.letterIds || []);
-	return pyxdiaLettersByNewest()
-		.filter((letter) => letter.threadId === thread.id || ids.has(letter.id))
-		.reverse();
-}
-
-function createDefaultPyxdiaNoteFilters() {
-	return {
-		search: "",
-		dashboard: "",
-		role: "",
-		selectedOnly: false,
-		recentOnly: false,
-	};
-}
-
-function normalizePyxdiaNoteFilters(value = {}) {
-	const source = value && typeof value === "object" ? value : {};
-	return {
-		...createDefaultPyxdiaNoteFilters(),
-		search: String(source.search || "").trim(),
-		dashboard: String(source.dashboard || ""),
-		role: String(source.role || ""),
-		selectedOnly: source.selectedOnly === true,
-		recentOnly: source.recentOnly === true,
-	};
-}
-
-function pyxdiaAllNoteRefs() {
-	return pyxdiaNoteRefsFromArtifacts(state.artifactStore);
-}
-
-function pyxdiaBalanceStatsLevel(settings = state.pyxdiaSettings) {
-	const value = Number(settings?.balanceStatsLevel);
-	if (!Number.isFinite(value)) {
-		return 0;
-	}
-	return Math.min(100, Math.max(0, Math.round(value / 25) * 25));
-}
-
-function pyxdiaTrackerStatistics(events = []) {
-	const counts = new Map();
-	events.forEach((event) => {
-		const kind =
-			event.role === "thought"
-				? "thought"
-				: event.role === "goal-progress"
-					? "goal"
-					: "";
-		const label =
-			kind === "thought"
-				? event.thoughtLabel
-				: kind === "goal"
-					? event.goalLabel
-					: "";
-		const area = DASHBOARD_LABELS.includes(event.dashboard)
-			? event.dashboard
-			: "Life";
-		if (!kind || !label) {
-			return;
-		}
-		const key = `${area}|${kind}|${label}`;
-		const current = counts.get(key) || { area, kind, label, count: 0 };
-		current.count += 1;
-		counts.set(key, current);
-	});
-	return [...counts.values()]
-		.sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
-		.slice(0, 16);
-}
-
-function pyxdiaBalanceStatisticsForSettings(settings = state.pyxdiaSettings) {
-	const level = pyxdiaBalanceStatsLevel(settings);
-	if (!level || !state.artifactStore) {
-		return null;
-	}
-	const period = dashboardPeriodOption(state.dashboardPeriod).id;
-	const artifacts = (state.artifactStore.artifacts || []).filter(
-		(artifact) => !isDeletedArtifact(artifact),
-	);
-	const notes = artifacts.filter((artifact) => artifact.type === "note");
-	const periodEvents = lifeEvents().filter((event) =>
-		eventIsInPeriod(event, period),
-	);
-	const totalEvents = periodEvents.length;
-	const areas = DASHBOARD_LABELS.map((area) => {
-		const areaEvents = periodEvents.filter((event) => event.dashboard === area);
-		const areaNotes = notes.filter((note) => note.dashboard === area).length;
-		const thoughts = areaEvents.filter(
-			(event) => event.role === "thought",
-		).length;
-		const goals = areaEvents.filter(
-			(event) => event.role === "goal-progress",
-		).length;
-		return {
-			name: area,
-			count: areaEvents.length,
-			percent: totalEvents
-				? Math.round((areaEvents.length / totalEvents) * 100)
-				: 0,
-			notes: areaNotes,
-			thoughts,
-			goals,
-		};
-	});
-	const stats = {
-		enabled: true,
-		level,
-		period,
-		generatedAt: nowIso(),
-		totalEvents,
-		totalNotes: notes.length,
-		areas,
-	};
-	if (level >= 50) {
-		stats.trackerSummary = pyxdiaTrackerStatistics(periodEvents);
-	}
-	if (level >= 75) {
-		stats.recentActivity = periodEvents
-			.slice()
-			.sort((a, b) => {
-				const bTime = Date.parse(b.timestamp || b.dateKey || "") || 0;
-				const aTime = Date.parse(a.timestamp || a.dateKey || "") || 0;
-				return bTime - aTime;
-			})
-			.slice(0, 12)
-			.map((event) => ({
-				area: DASHBOARD_LABELS.includes(event.dashboard)
-					? event.dashboard
-					: "Life",
-				role: event.role || "note",
-				action: event.action || "activity",
-				dateKey: event.dateKey || dateKeyFromValue(event.timestamp),
-			}));
-	}
-	return stats;
-}
-
-function pyxdiaEffectiveSelectedNoteIds(
-	draft = state.pyxdiaDraft,
-	refs = pyxdiaAllNoteRefs(),
-) {
-	const normalized = normalizePyxdiaDraft(draft);
-	if (normalized.noteSelectionMode !== "custom") {
-		return new Set(refs.map((ref) => ref.id).filter(Boolean));
-	}
-	return new Set(normalized.contextSelections || []);
-}
-
-function pyxdiaSelectedNoteRefs(
-	draft = state.pyxdiaDraft,
-	refs = pyxdiaAllNoteRefs(),
-) {
-	const selectedIds = pyxdiaEffectiveSelectedNoteIds(draft, refs);
-	return refs
-		.filter((ref) => selectedIds.has(ref.id))
-		.map((ref) => ({ ...ref, userApprovedContentIncluded: false }));
-}
-
-function pyxdiaNoteMetadataBudget(
-	draft = state.pyxdiaDraft,
-	refs = pyxdiaAllNoteRefs(),
-) {
-	const selectedRefs = pyxdiaSelectedNoteRefs(draft, refs);
-	const size = estimatePyxdiaNoteMetadataSize(selectedRefs);
-	return {
-		...size,
-		overRefs: size.refs > PYXIDA_NOTE_METADATA_MAX_REFS,
-		overChars: size.chars > PYXIDA_NOTE_METADATA_MAX_CHARS,
-		selectedRefs,
-	};
-}
-
-function pyxdiaNoteMetadataBudgetError(budget) {
-	if (!budget?.overRefs && !budget?.overChars) {
-		return "";
-	}
-	const parts = [];
-	if (budget.overRefs) {
-		parts.push(
-			`${budget.refs} note metadata refs selected; limit is ${PYXIDA_NOTE_METADATA_MAX_REFS}`,
-		);
-	}
-	if (budget.overChars) {
-		parts.push(
-			`${budget.chars} metadata characters selected; limit is ${PYXIDA_NOTE_METADATA_MAX_CHARS}`,
-		);
-	}
-	return `${parts.join(". ")}. Use filters or clear visible notes before sending.`;
-}
-
-function pyxdiaRecentCutoffMs() {
-	return Date.now() - PYXIDA_RECENT_NOTE_DAYS * 24 * 60 * 60 * 1000;
-}
-
-function isPyxdiaRecentNoteRef(ref) {
-	const edited = Date.parse(ref?.edited || "");
-	return Number.isFinite(edited) && edited >= pyxdiaRecentCutoffMs();
-}
-
-function pyxdiaDraftFromDom(options = {}) {
-	const input = document.getElementById("pyxdia-letter-input");
-	const context = document.getElementById("pyxdia-context-input");
-	const selections = Array.from(
-		document.querySelectorAll("[data-pyxdia-note-ref]:checked"),
-	).map((item) => item.value);
-	const refs = pyxdiaAllNoteRefs();
-	const selectedNoteRefs = refs.filter((ref) => selections.includes(ref.id));
-	const currentSelectionMode = normalizePyxdiaDraft(
-		state.pyxdiaDraft,
-	).noteSelectionMode;
-	const noteSelectionMode =
-		options.noteSelectionMode === "all" ||
-		options.noteSelectionMode === "custom"
-			? options.noteSelectionMode
-			: currentSelectionMode || "all";
-	const userSelectedContext = normalizePyxdiaUserSelectedContext({
-		manualText: context
-			? context.value
-			: state.pyxdiaDraft?.userIncludedContext || "",
-		selectedNoteRefs,
-		contextSelections: selections,
-		balanceStatistics: pyxdiaBalanceStatisticsForSettings(state.pyxdiaSettings),
-	});
-	const now = nowIso();
-	const selectedRecipient = pyxdiaSelectedRecipient();
-	return normalizePyxdiaDraft({
-		...(state.pyxdiaDraft || createEmptyPyxdiaDraft()),
-		inputText: input ? input.value : state.pyxdiaDraft?.inputText || "",
-		imageRefs: state.pyxdiaDraft?.imageRefs || [],
-		recipientType: selectedRecipient.recipientType,
-		recipientUid: selectedRecipient.recipientUid,
-		recipientLabel: selectedRecipient.recipientLabel,
-		toUid: selectedRecipient.recipientUid,
-		toLabel: selectedRecipient.recipientLabel,
-		userIncludedContext: userSelectedContext.manualText,
-		userSelectedContext,
-		contextSelections: selections,
-		includedNoteRefs: selectedNoteRefs,
-		noteSelectionMode,
-		updatedAt: now,
-	});
-}
-
-function pyxdiaCurrentClientLetterId() {
-	const current = normalizePyxdiaDraft(state.pyxdiaDraft);
-	if (current.clientLetterId) {
-		return current.clientLetterId;
-	}
-	const next = makeId("pyxdia-letter");
-	state.pyxdiaDraft = normalizePyxdiaDraft({
-		...current,
-		clientLetterId: next,
-	});
-	savePyxdiaLocalState();
-	return next;
-}
-
-function savePyxdiaDraftLocal(draft, options = {}) {
-	const normalized = normalizePyxdiaDraft(draft);
-	state.pyxdiaDraft = normalized;
-	savePyxdiaLocalState();
-	if (options.render !== false) {
-		setState({
-			pyxdiaDraft: normalized,
-			pyxdiaStatus: options.message || "Draft saved.",
-			pyxdiaError: "",
-		});
-	}
-	return normalized;
-}
-
-function validatePyxdiaDraft(draft, settings = state.pyxdiaSettings) {
-	const text = String(draft?.inputText || "").trim();
-	const size = estimatePyxdiaLetterSize(text);
-	if (!text) {
-		return "Write a letter before sending.";
-	}
-	if (
-		normalizePyxdiaRecipientType(draft?.recipientType) === "family" &&
-		!String(draft?.recipientUid || "").trim()
-	) {
-		return "Choose a family member before sending.";
-	}
-	if (size.words > settings.letterMaxWords) {
-		return `Letter is ${size.words} words. Limit is ${settings.letterMaxWords}.`;
-	}
-	if (size.chars > settings.letterMaxChars) {
-		return `Letter is ${size.chars} characters. Limit is ${settings.letterMaxChars}.`;
-	}
-	const budgetError = pyxdiaNoteMetadataBudgetError(
-		pyxdiaNoteMetadataBudget(draft),
-	);
-	if (budgetError) {
-		return budgetError;
-	}
-	return "";
-}
-
-function pyxdiaUnreadBySpaceFromPayload(payload = {}, fallback = {}) {
-	const unread = payload.unread || {};
-	if (unread.bySpaceId && typeof unread.bySpaceId === "object") {
-		return unread.bySpaceId;
-	}
-	if (unread.byAppId && typeof unread.byAppId === "object") {
-		return unread.byAppId;
-	}
-	return fallback;
-}
-
-function applyPyxdiaStatePayload(payload = {}) {
-	const local = normalizePyxdiaLocalState({
-		threads: payload.threads || state.pyxdiaThreads,
-		letters: payload.letters || state.pyxdiaLetters,
-		draft: payload.draft || state.pyxdiaDraft,
-		memory: payload.memory || state.pyxdiaMemory,
-	});
-	const settings = normalizePyxdiaSettings(
-		payload.settings || state.pyxdiaSettings,
-	);
-	state.pyxdiaSettings = settings;
-	state.pyxdiaThreads = local.threads;
-	state.pyxdiaLetters = local.letters;
-	state.pyxdiaDraft = local.draft;
-	state.pyxdiaMemory = local.memory;
-	state.pyxdiaAiBrain = payload.aiBrain || state.pyxdiaAiBrain;
-	state.pyxdiaCorrespondents = Array.isArray(payload.correspondents)
-		? payload.correspondents.map(normalizePyxdiaCorrespondent).filter(Boolean)
-		: state.pyxdiaCorrespondents;
-	state.pyxdiaUnreadBySpace = pyxdiaUnreadBySpaceFromPayload(
-		payload,
-		state.pyxdiaUnreadBySpace,
-	);
-	savePyxdiaSettingsLocal(settings);
-	savePyxdiaLocalState();
-	return { settings, ...local };
-}
-
-function openPyxdia(view = "input", patch = {}) {
-	setState({
-		active: "PYXIDA",
-		pyxdiaExpanded: true,
-		pyxdiaView: view,
-		flipped: null,
-		artifactMode: "grid",
-		selectedArtifactId: null,
-		selectedCompendiumId: null,
-		selectedSectionId: null,
-		selectedSpiritBookKey: null,
-		trackerAddArea: "",
-		trackerEditKey: "",
-		trackerDeleteKey: "",
-		...patch,
-	});
-}
-
-function openPyxdiaReplyToThread(threadId) {
-	if (!threadId) {
-		openPyxdia("input");
-		return;
-	}
-	selectPyxdiaRecipientForThread(threadId);
-	const current = normalizePyxdiaDraft(state.pyxdiaDraft);
-	const selectedRecipient = pyxdiaSelectedRecipient();
-	const draft = normalizePyxdiaDraft({
-		...current,
-		threadId,
-		recipientType: selectedRecipient.recipientType,
-		recipientUid: selectedRecipient.recipientUid,
-		recipientLabel: selectedRecipient.recipientLabel,
-		toUid: selectedRecipient.recipientUid,
-		toLabel: selectedRecipient.recipientLabel,
-		clientLetterId:
-			current.threadId === threadId
-				? current.clientLetterId
-				: makeId("pyxdia-letter"),
-		updatedAt: nowIso(),
-	});
-	state.pyxdiaDraft = draft;
-	savePyxdiaLocalState();
-	openPyxdia("input", {
-		pyxdiaActiveThreadId: threadId,
-		pyxdiaDraft: draft,
-		pyxdiaStatus: "Replying in this letter chain.",
-		pyxdiaError: "",
-	});
-}
-
-function pyxdiaSettingsFromForm() {
-	const current = state.pyxdiaSettings || DEFAULT_PYXIDA_SETTINGS;
-	const delayEnabled = document.getElementById("pyxdia-setting-delay")?.checked;
-	return normalizePyxdiaSettings({
-		...current,
-		enabled: document.getElementById("pyxdia-setting-enabled")?.checked,
-		delayEnabled,
-		pyxdiaDelayEnabled: delayEnabled,
-		memoryEnabled: document.getElementById("pyxdia-setting-memory")?.checked,
-		aiBrainMemoryEnabled: document.getElementById("pyxdia-setting-ai-brain")
-			?.checked,
-		balanceStatsLevel: document.getElementById("pyxdia-balance-stats-level")
-			?.value,
-		delayMinHours: document.getElementById("pyxdia-delay-min")?.value,
-		delayMaxHours: document.getElementById("pyxdia-delay-max")?.value,
-		generalInstructions:
-			document.getElementById("pyxdia-general-instructions")?.value ||
-			current.generalInstructions,
-		userWantsPyxdiaToKnow:
-			document.getElementById("pyxdia-know")?.value ||
-			current.userWantsPyxdiaToKnow,
-	});
-}
-
-async function runPyxdiaAction(message, action) {
-	setState({ pyxdiaBusy: true, pyxdiaStatus: message, pyxdiaError: "" });
-	try {
-		await action();
-	} catch (error) {
-		setState({
-			pyxdiaBusy: false,
-			pyxdiaError:
-				error instanceof Error ? error.message : "Pen Pal action failed.",
-		});
-	}
-}
-
-async function refreshPyxdiaState(options = {}) {
-	if (isPyxdiaSignedIn() && !state.cloud?.isLocalDemo) {
-		const payload = await fetchPyxdiaState({ getIdToken: getCloudIdToken });
-		applyPyxdiaStatePayload(payload);
-		setState({
-			pyxdiaBusy: false,
-			pyxdiaError: "",
-			pyxdiaStatus: options.silent ? state.pyxdiaStatus : "Pen Pal refreshed.",
-			pyxdiaLastRefreshAt: nowIso(),
-		});
-		return;
-	}
-	processDueLocalPyxdiaJobs();
-	savePyxdiaLocalState();
-	setState({
-		pyxdiaBusy: false,
-		pyxdiaError: "",
-		pyxdiaStatus: options.silent ? state.pyxdiaStatus : "Pen Pal refreshed.",
-		pyxdiaLastRefreshAt: nowIso(),
-	});
-}
-
-async function refreshPyxdiaUnreadSummary(options = {}) {
-	if (!isPyxdiaSignedIn() || state.cloud?.isLocalDemo) {
-		return;
-	}
-	const payload = await fetchPyxdiaState({
-		getIdToken: getCloudIdToken,
-	});
-	const next = pyxdiaUnreadBySpaceFromPayload(payload, {});
-	if (options.render === false) {
-		state.pyxdiaUnreadBySpace = next;
-		return;
-	}
-	setState({ pyxdiaUnreadBySpace: next });
-}
-
-async function markSelectedPyxdiaThreadRead() {
-	const threadId = state.pyxdiaActiveThreadId || selectedPyxdiaThread()?.id || "";
-	if (!threadId || !isPyxdiaSignedIn() || state.cloud?.isLocalDemo) {
-		return;
-	}
-	const payload = await markPyxdiaThreadRead(threadId, {
-		getIdToken: getCloudIdToken,
-	});
-	applyPyxdiaStatePayload(payload);
-}
-
-function selectPyxdiaCorrespondent(type, uid = "") {
-	let recipientType = normalizePyxdiaRecipientType(type);
-	const family = familyPenPalCorrespondents();
-	const selected =
-		recipientType === "family"
-			? family.find((item) => item.uid === uid) || family[0]
-			: null;
-	if (recipientType === "family" && !selected) {
-		recipientType = "pyxdia";
-	}
-	const patch = {
-		pyxdiaRecipientType: recipientType,
-		pyxdiaRecipientUid: selected?.uid || "pyxdia",
-		pyxdiaActiveThreadId: "",
-		pyxdiaView: state.pyxdiaView === "output" ? "thread" : state.pyxdiaView,
-		pyxdiaError: "",
-	};
-	state.pyxdiaRecipientType = patch.pyxdiaRecipientType;
-	state.pyxdiaRecipientUid = patch.pyxdiaRecipientUid;
-	const draft = normalizePyxdiaDraft({
-		...state.pyxdiaDraft,
-		recipientType: recipientType,
-		recipientUid: selected?.uid || "pyxdia",
-		recipientLabel: selected?.label || "PYXIDA",
-		toUid: selected?.uid || "pyxdia",
-		toLabel: selected?.label || "PYXIDA",
-		threadId: "",
-		updatedAt: nowIso(),
-	});
-	state.pyxdiaDraft = draft;
-	savePyxdiaLocalState();
-	setState({ ...patch, pyxdiaDraft: draft });
-}
-
-function selectPyxdiaRecipientForThread(threadId) {
-	const letter = activePyxdiaLetters().find((item) => item.threadId === threadId);
-	if (!letter) {
-		return;
-	}
-	if (normalizePyxdiaRecipientType(letter.recipientType) === "family") {
-		const peerUid = pyxdiaFamilyLetterPeerUid(letter);
-		state.pyxdiaRecipientType = "family";
-		state.pyxdiaRecipientUid = peerUid;
-		return;
-	}
-	state.pyxdiaRecipientType = "pyxdia";
-	state.pyxdiaRecipientUid = "pyxdia";
-}
-
-async function savePyxdiaDraftAction() {
-	const draft = savePyxdiaDraftLocal(pyxdiaDraftFromDom(), { render: false });
-	if (isPyxdiaSignedIn() && !state.cloud?.isLocalDemo) {
-		await savePyxdiaDraft(
-			{
-				draft,
-				settings: state.pyxdiaSettings,
-			},
-			{ getIdToken: getCloudIdToken },
-		);
-	}
-	setState({
-		pyxdiaDraft: draft,
-		pyxdiaBusy: false,
-		pyxdiaStatus: "Draft saved.",
-		pyxdiaError: "",
-	});
-}
-
-async function sendPyxdiaLetterAction() {
-	if (isShareableSpace(activeSpaceId()) && state.cloud?.spaceRole === "reader") {
-		setState({
-			pyxdiaStatus: "",
-			pyxdiaError: `${activeSpaceLabel()} readers can view Pen Pal letters but cannot send.`,
-		});
-		return;
-	}
-	const draft = savePyxdiaDraftLocal(pyxdiaDraftFromDom(), { render: false });
-	const settings = normalizePyxdiaSettings(state.pyxdiaSettings);
-	const validation = validatePyxdiaDraft(draft, settings);
-	if (validation) {
-		setState({ pyxdiaBusy: false, pyxdiaError: validation });
-		return;
-	}
-	if (!settings.enabled) {
-		setState({
-			pyxdiaBusy: false,
-			pyxdiaError: "Pen Pal is turned off in Settings.",
-		});
-		return;
-	}
-	if (!isPyxdiaSignedIn()) {
-		setState({
-			pyxdiaBusy: false,
-			pyxdiaStatus: "",
-			pyxdiaError: "Sign in to send Pen Pal letters.",
-			settingsTab: "cloud",
-		});
-		return;
-	}
-	if (!state.cloud?.isLocalDemo) {
-		const payload = await sendPyxdiaLetter(
-			{
-				draft,
-				settings,
-			},
-			{ getIdToken: getCloudIdToken },
-		);
-		applyPyxdiaStatePayload(payload);
-		setState({
-			pyxdiaBusy: false,
-			pyxdiaStatus: "Letter sent.",
-			pyxdiaError: "",
-			pyxdiaView: "output",
-			pyxdiaActiveThreadId:
-				payload.letter?.threadId || latestPyxdiaLetter()?.threadId || "",
-		});
-		return;
-	}
-	await submitLocalPyxdiaLetter(draft, settings);
-}
-
-async function retryPyxdiaLetterAction(letterId) {
-	if (!letterId) {
-		return;
-	}
-	const existingLetter = state.pyxdiaLetters.find((item) => item.id === letterId);
-	const isRegeneration = isTemplatePyxdiaReply(existingLetter);
-	if (isPyxdiaSignedIn() && !state.cloud?.isLocalDemo) {
-		const payload = await retryPyxdiaLetter(letterId, {
-			getIdToken: getCloudIdToken,
-		});
-		applyPyxdiaStatePayload(payload);
-		setState({
-			pyxdiaBusy: false,
-			pyxdiaStatus: isRegeneration ? "Regeneration queued." : "Retry queued.",
-			pyxdiaError: "",
-		});
-		return;
-	}
-	const letter = existingLetter;
-	if (!letter) {
-		return;
-	}
-	state.pyxdiaDraft = normalizePyxdiaDraft({
-		...state.pyxdiaDraft,
-		threadId: letter.threadId,
-		inputText: letter.inputText,
-		clientLetterId: letter.id || state.pyxdiaDraft?.clientLetterId,
-		imageRefs: letter.imageRefs,
-		includedNoteRefs: letter.includedNoteRefs,
-		userIncludedContext: letter.userIncludedContext,
-		userSelectedContext: letter.userSelectedContext,
-		contextSelections: letter.contextSelections,
-		updatedAt: nowIso(),
-	});
-	savePyxdiaLocalState();
-	await submitLocalPyxdiaLetter(state.pyxdiaDraft, state.pyxdiaSettings);
-}
-
-async function savePyxdiaSettingsAction(nextSettings = null) {
-	const settings = normalizePyxdiaSettings(
-		nextSettings || pyxdiaSettingsFromForm(),
-	);
-	state.pyxdiaSettings = settings;
-	savePyxdiaSettingsLocal(settings);
-	if (isPyxdiaSignedIn() && !state.cloud?.isLocalDemo) {
-		await savePyxdiaSettings(settings, { getIdToken: getCloudIdToken });
-	}
-	if (!settings.delayEnabled) {
-		processDueLocalPyxdiaJobs({ force: true });
-	}
-	savePyxdiaLocalState();
-	setState({
-		pyxdiaSettings: settings,
-		pyxdiaBusy: false,
-		pyxdiaStatus: "Pen Pal settings saved.",
-		pyxdiaError: "",
-	});
-}
-
-async function resetPyxdiaMemoryAction() {
-	const confirmed = window.confirm("Reset Pen Pal memory for this app?");
-	if (!confirmed) {
-		setState({ pyxdiaBusy: false, pyxdiaStatus: "", pyxdiaError: "" });
-		return;
-	}
-	if (isPyxdiaSignedIn() && !state.cloud?.isLocalDemo) {
-		const payload = await resetPyxdiaMemory({ getIdToken: getCloudIdToken });
-		applyPyxdiaStatePayload(payload);
-	} else {
-		state.pyxdiaMemory = createEmptyPyxdiaMemory();
-		savePyxdiaLocalState();
-	}
-	setState({
-		pyxdiaMemory: state.pyxdiaMemory,
-		pyxdiaBusy: false,
-		pyxdiaStatus: "Pen Pal memory reset.",
-		pyxdiaError: "",
-	});
-}
-
 function isTrashSignedIn() {
 	return state.cloud?.mode === "signed-in" && !state.cloud?.isLocalDemo;
 }
@@ -8999,16 +8032,6 @@ function trashAuthRequiredMessage() {
 	return state.cloud?.spaceRole === "reader"
 		? "Readers can view and export only."
 		: "Sign in with Cloud to move items to Trash.";
-}
-
-function isDeletedPyxdiaLetter(letter) {
-	return letter?.deleted === true || letter?.deleteMode === "soft";
-}
-
-function activePyxdiaLetters() {
-	return (state.pyxdiaLetters || []).filter(
-		(letter) => !isDeletedPyxdiaLetter(letter),
-	);
 }
 
 function applyTrashStatePayload(payload = {}) {
@@ -9395,443 +8418,6 @@ async function moveArtifactToTrash(artifact, options = {}) {
 	return moveArtifactIdsToTrash(ids, options);
 }
 
-async function deletePyxdiaLetterAction(letterId) {
-	const letter = (state.pyxdiaLetters || []).find(
-		(item) => item.id === letterId,
-	);
-	if (!letter || isDeletedPyxdiaLetter(letter)) {
-		return;
-	}
-	if (!isTrashSignedIn()) {
-		window.alert(trashAuthRequiredMessage());
-		return;
-	}
-	if (!window.confirm("Move this Pen Pal letter to Trash?")) {
-		return;
-	}
-	upsertLocalPyxdiaLetterLifecycle(letterId, localLifecycleFromTrashResult());
-	void finishPyxdiaLetterTrashMove(letterId);
-	setState({
-		pyxdiaLetters: state.pyxdiaLetters,
-		pyxdiaActiveThreadId: selectedPyxdiaThreadLetters().length
-			? state.pyxdiaActiveThreadId
-			: "",
-	});
-}
-
-async function finishPyxdiaLetterTrashMove(letterId) {
-	try {
-		const result = await deleteUserItem(
-			{ itemType: "pyxdia_letter", itemId: letterId },
-			{ getIdToken: getCloudIdToken },
-		);
-		if (result.mode === "hard") {
-			removeLocalPyxdiaLetter(letterId);
-		} else {
-			upsertLocalPyxdiaLetterLifecycle(
-				letterId,
-				localLifecycleFromTrashResult(result),
-			);
-		}
-		if (state.active === "Trash") {
-			await refreshTrashState().catch(() => {});
-		}
-	} catch (error) {
-		upsertLocalPyxdiaLetterLifecycle(letterId, localRestoreLifecyclePatch());
-		render();
-		window.alert(
-			error instanceof Error
-				? error.message
-				: "Could not move letter to Trash.",
-		);
-	}
-}
-
-async function submitLocalPyxdiaLetter(draft, settings) {
-	const now = nowIso();
-	if (normalizePyxdiaRecipientType(draft.recipientType) === "family") {
-		const selected = pyxdiaSelectedRecipient();
-		const threadId =
-			draft.threadId ||
-			`family-direct-${[pyxdiaActorUid(), selected.recipientUid]
-				.sort()
-				.join("-")}`;
-		const letterId = makeId("pyxdia-letter");
-		const letter = normalizePyxdiaLetter({
-			id: letterId,
-			threadId,
-			owner: state.cloud?.user?.uid || "local-demo",
-			createdBy: pyxdiaActorUid(),
-			authorLabel: pyxdiaActorLabel(),
-			recipientType: "family",
-			recipientUid: selected.recipientUid,
-			recipientLabel: selected.recipientLabel,
-			fromUid: pyxdiaActorUid(),
-			fromLabel: pyxdiaActorLabel(),
-			toUid: selected.recipientUid,
-			toLabel: selected.recipientLabel,
-			participantUids: [pyxdiaActorUid(), selected.recipientUid].filter(Boolean),
-			readBy: { [pyxdiaActorUid()]: now },
-			state: "delivered",
-			inputText: draft.inputText,
-			imageRefs: draft.imageRefs,
-			submittedAt: now,
-			availableAt: now,
-			createdAt: now,
-			updatedAt: now,
-		});
-		const existingThread = state.pyxdiaThreads.find((item) => item.id === threadId);
-		const thread = normalizePyxdiaThread({
-			...(existingThread || {}),
-			id: threadId,
-			owner: state.cloud?.user?.uid || "local-demo",
-			title: existingThread?.title || `Letter with ${selected.recipientLabel}`,
-			status: "active",
-			recipientType: "family",
-			participantUids: letter.participantUids,
-			letterIds: Array.from(new Set([...(existingThread?.letterIds || []), letterId])),
-			latestLetterId: letterId,
-			latestState: "delivered",
-			createdAt: existingThread?.createdAt || now,
-			updatedAt: now,
-		});
-		state.pyxdiaThreads = [
-			thread,
-			...state.pyxdiaThreads.filter((item) => item.id !== threadId),
-		];
-		state.pyxdiaLetters = [letter, ...state.pyxdiaLetters];
-		state.pyxdiaDraft = normalizePyxdiaDraft({
-			...createEmptyPyxdiaDraft(),
-			recipientType: "family",
-			recipientUid: selected.recipientUid,
-			recipientLabel: selected.recipientLabel,
-			toUid: selected.recipientUid,
-			toLabel: selected.recipientLabel,
-			threadId,
-		});
-		savePyxdiaLocalState();
-		setState({
-			pyxdiaThreads: state.pyxdiaThreads,
-			pyxdiaLetters: state.pyxdiaLetters,
-			pyxdiaDraft: state.pyxdiaDraft,
-			pyxdiaActiveThreadId: threadId,
-			pyxdiaView: "thread",
-			pyxdiaStatus: "Letter delivered.",
-			pyxdiaBusy: false,
-			pyxdiaError: "",
-		});
-		return;
-	}
-	const threadId = draft.threadId || makeId("pyxdia-thread");
-	const letterId = makeId("pyxdia-letter");
-	const delayHours = settings.delayEnabled
-		? Math.max(0, Number(settings.delayMinHours) || 0)
-		: 0;
-	const availableAt = new Date(
-		Date.now() +
-			(state.cloud?.isLocalDemo ? Math.min(delayHours, 0.01) : delayHours) *
-				3600000,
-	).toISOString();
-	const letter = normalizePyxdiaLetter({
-		id: letterId,
-		threadId,
-		owner: state.cloud?.user?.uid || "local-demo",
-		createdBy: pyxdiaActorUid(),
-		authorLabel: pyxdiaActorLabel(),
-		recipientType: "pyxdia",
-		recipientUid: "pyxdia",
-		recipientLabel: "PYXIDA",
-		fromUid: pyxdiaActorUid(),
-		fromLabel: pyxdiaActorLabel(),
-		toUid: "pyxdia",
-		toLabel: "PYXIDA",
-		participantUids: [pyxdiaActorUid()],
-		readBy: { [pyxdiaActorUid()]: now },
-		state: "queued",
-		inputText: draft.inputText,
-		imageRefs: draft.imageRefs,
-		includedNoteRefs: draft.includedNoteRefs,
-		userIncludedContext: draft.userIncludedContext,
-		userSelectedContext: draft.userSelectedContext,
-		contextSelections: draft.contextSelections,
-		dynamicRetrievalMemory: createLocalPyxdiaDynamicRetrievalMemory(threadId),
-		submittedAt: now,
-		queuedAt: now,
-		availableAt,
-		createdAt: now,
-		updatedAt: now,
-	});
-	const existingThread = state.pyxdiaThreads.find(
-		(item) => item.id === threadId,
-	);
-	const thread = normalizePyxdiaThread({
-		...(existingThread || {}),
-		id: threadId,
-		owner: state.cloud?.user?.uid || "local-demo",
-		title: existingThread?.title || pyxdiaThreadTitleFromText(draft.inputText),
-		status: "active",
-		letterIds: Array.from(
-			new Set([...(existingThread?.letterIds || []), letterId]),
-		),
-		latestLetterId: letterId,
-		latestState: "queued",
-		createdAt: existingThread?.createdAt || now,
-		updatedAt: now,
-	});
-	state.pyxdiaThreads = [
-		thread,
-		...state.pyxdiaThreads.filter((item) => item.id !== threadId),
-	];
-	state.pyxdiaLetters = [letter, ...state.pyxdiaLetters];
-	state.pyxdiaDraft = createEmptyPyxdiaDraft();
-	state.pyxdiaDraft.threadId = threadId;
-	savePyxdiaLocalState();
-	setState({
-		pyxdiaThreads: state.pyxdiaThreads,
-		pyxdiaLetters: state.pyxdiaLetters,
-		pyxdiaDraft: state.pyxdiaDraft,
-		pyxdiaActiveThreadId: threadId,
-		pyxdiaView: "output",
-		pyxdiaStatus: settings.delayEnabled
-			? "Reply pending."
-			: "Pen Pal is preparing a reply.",
-		pyxdiaBusy: false,
-		pyxdiaError: "",
-	});
-	if (!settings.delayEnabled) {
-		await completeLocalPyxdiaLetter(letterId);
-	}
-}
-
-function processDueLocalPyxdiaJobs(options = {}) {
-	if (!state.pyxdiaLetters?.length) {
-		return;
-	}
-	const now = Date.now();
-	const due = state.pyxdiaLetters.find((letter) => {
-		if (!["queued", "submitted"].includes(letter.state)) {
-			return false;
-		}
-		if (options.force === true) {
-			return true;
-		}
-		const availableAt = Date.parse(letter.availableAt || "");
-		return Number.isFinite(availableAt) && availableAt <= now;
-	});
-	if (due && !state.pyxdiaSettings?.delayEnabled) {
-		void completeLocalPyxdiaLetter(due.id);
-	}
-}
-
-async function completeLocalPyxdiaLetter(letterId) {
-	const letter = state.pyxdiaLetters.find((item) => item.id === letterId);
-	if (!letter) {
-		return;
-	}
-	const processingAt = nowIso();
-	state.pyxdiaLetters = state.pyxdiaLetters.map((item) =>
-		item.id === letterId
-			? { ...item, state: "processing", processingAt, updatedAt: processingAt }
-			: item,
-	);
-	state.pyxdiaThreads = state.pyxdiaThreads.map((thread) =>
-		thread.id === letter.threadId
-			? { ...thread, latestState: "processing", updatedAt: processingAt }
-			: thread,
-	);
-	savePyxdiaLocalState();
-	setState({
-		pyxdiaLetters: state.pyxdiaLetters,
-		pyxdiaThreads: state.pyxdiaThreads,
-		pyxdiaStatus: "Pen Pal is writing back.",
-		pyxdiaError: "",
-	});
-	await new Promise((resolve) => window.setTimeout(resolve, 650));
-	const completedAt = nowIso();
-	const outputText = buildLocalPyxdiaReply(letter, state.pyxdiaSettings);
-	state.pyxdiaLetters = state.pyxdiaLetters.map((item) =>
-		item.id === letterId
-			? {
-					...item,
-					state: "completed",
-					outputText,
-					completedAt,
-					updatedAt: completedAt,
-				}
-			: item,
-	);
-	state.pyxdiaThreads = state.pyxdiaThreads.map((thread) =>
-		thread.id === letter.threadId
-			? { ...thread, latestState: "completed", updatedAt: completedAt }
-			: thread,
-	);
-	state.pyxdiaMemory = updateLocalPyxdiaMemory(letter, outputText);
-	savePyxdiaLocalState();
-	setState({
-		pyxdiaLetters: state.pyxdiaLetters,
-		pyxdiaThreads: state.pyxdiaThreads,
-		pyxdiaMemory: state.pyxdiaMemory,
-		pyxdiaStatus: "Reply ready.",
-		pyxdiaError: "",
-	});
-}
-
-function buildLocalPyxdiaReply(letter, _settings) {
-	const cleanLetter = String(letter.inputText || "")
-		.replace(/\s+/g, " ")
-		.trim();
-	const firstLine =
-		String(letter.inputText || "")
-			.split(/\n+/)
-			.map((line) => line.trim())
-			.find(Boolean) || "your letter";
-	const noteCount = Array.isArray(letter.includedNoteRefs)
-		? letter.includedNoteRefs.length
-		: 0;
-	const familySignal = /\bfamily|wife|husband|kids?|children|home\b/i.test(
-		cleanLetter,
-	);
-	const workSignal = /\bcode|coding|work|app|project|build|computer\b/i.test(
-		cleanLetter,
-	);
-	const balanceLine =
-		familySignal && workSignal
-			? "The early signal is not that your work is wrong; it is that your attention may be leaning so hard toward building that the people closest to you are getting the leftovers."
-			: "The early signal is a small imbalance in attention: something valuable is asking to be noticed before it becomes a louder problem.";
-	const contextLine = noteCount
-		? `I also see ${noteCount} note metadata reference${noteCount === 1 ? "" : "s"} attached, so I am treating this as part of a wider pattern rather than a one-off mood.`
-		: "I am only using the letter itself here, so I will keep the guidance close to what you actually wrote.";
-	return [
-		"Dear friend,",
-		"",
-		`I read this as a real check-in, not as a problem to label: ${firstLine.slice(0, 180)}${firstLine.length > 180 ? "..." : ""}`,
-		"",
-		`${balanceLine} ${contextLine}`,
-		"",
-		"Here is the smallest repair I would choose for the next day: name one protected family moment, keep it small enough to actually happen, and put the coding work around it instead of asking family time to survive around the coding work.",
-		"",
-		"Afterward, notice what resisted it. That resistance is useful information. It may point to pressure, excitement, avoidance, or simply a rhythm that needs a better boundary.",
-		"",
-		"Pen Pal",
-	].join("\n");
-}
-
-function createLocalPyxdiaDynamicRetrievalMemory(threadId) {
-	const items = pyxdiaLettersByNewest()
-		.filter(
-			(letter) => letter.threadId === threadId && letter.state === "completed",
-		)
-		.slice(0, 3)
-		.map((letter, index) => ({
-			id: `local-letter-${letter.id}`,
-			type: "prior_letter_summary",
-			summary: String(
-				letter.inputText || letter.outputText || "Prior Pen Pal letter",
-			)
-				.replace(/\s+/g, " ")
-				.slice(0, 220),
-			reason: "Same local Pen Pal conversation as the current letter.",
-			sourceLetterId: letter.id,
-			sourceType: "pyxdia_letter",
-			score: Math.max(0.2, 0.8 - index * 0.1),
-			authority: "automatic_retrieval",
-			piiSafe: true,
-		}));
-	return normalizePyxdiaDynamicRetrievalMemory({
-		memoryId: `pyxdia-dynamic-${threadId || "local"}`,
-		status: "active",
-		retrievedAt: nowIso(),
-		query: "same_thread_recent_letters",
-		items,
-		piiSafe: true,
-	});
-}
-
-function updateLocalPyxdiaMemory(letter, outputText) {
-	const now = nowIso();
-	const firstSentence = localPyxdiaMemoryCandidate(letter);
-	const entry = {
-		id: makeId("pyxdia-memory"),
-		type: "stable_pattern",
-		text:
-			firstSentence.length > 180
-				? `${firstSentence.slice(0, 177)}...`
-				: firstSentence,
-		summary:
-			firstSentence.length > 180
-				? `${firstSentence.slice(0, 177)}...`
-				: firstSentence,
-		confidence: 0.62,
-		status: "active",
-		piiSafe: true,
-		reasonRemembered: "Captured as a compact theme from a completed letter.",
-		sourceLetterIds: [letter.id],
-		sensitivity: "private_minimized",
-		createdAt: now,
-		updatedAt: now,
-	};
-	const memory = normalizePyxdiaMemory(state.pyxdiaMemory);
-	const entries = [...(memory.staticMemory.entries || []), entry].slice(-50);
-	const summary = entries
-		.slice(-5)
-		.map((item) => item.text || item.summary)
-		.join(" ");
-	return normalizePyxdiaMemory({
-		...memory,
-		summary,
-		entries,
-		staticMemory: {
-			...memory.staticMemory,
-			summary,
-			confidence: entries.length ? 0.65 : 0,
-			piiSafe: true,
-			entries,
-			lastConfirmedAt: memory.staticMemory.lastConfirmedAt || now,
-			updatedAt: now,
-		},
-		dynamicRetrievalMemory:
-			letter.dynamicRetrievalMemory || memory.dynamicRetrievalMemory,
-		priorLetterContext: [
-			...(memory.priorLetterContext || []),
-			{
-				letterId: letter.id,
-				state: "completed",
-				rememberedAt: now,
-				outputLength: String(outputText || "").length,
-			},
-		].slice(-10),
-		lastCompactedAt: now,
-		updatedAt: now,
-	});
-}
-
-function localPyxdiaMemoryCandidate(letter = {}) {
-	const source =
-		String(letter.inputText || "")
-			.replace(/\s+/g, " ")
-			.split(/[.!?]/)
-			.map((item) => item.trim())
-			.find(Boolean) || "User continued a Pen Pal letter thread.";
-	const clean = source
-		.replace(/^dear\s+pyx(?:ida|dia),?\s*/i, "")
-		.replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "a private email")
-		.replace(
-			/\b(?:\+?1[ .-]?)?(?:\(?\d{3}\)?[ .-]?)\d{3}[ .-]?\d{4}\b/g,
-			"a private phone number",
-		)
-		.replace(/^i am\b/i, "User is")
-		.replace(/^i'm\b/i, "User is")
-		.replace(/^i\b/i, "User")
-		.trim();
-	const looksDurable =
-		/\b(often|usually|prefer|goal|value|trying to|working on|routine|pattern|recurring|want to|keep coming back)\b/i.test(
-			clean,
-		);
-	return looksDurable
-		? clean
-		: "User continued a Pen Pal letter; keep future replies grounded in practical reflection and small next steps.";
-}
-
 function trackerPageKey(dashboard, editable = false, kind = "thought") {
 	return `${trackerKind(kind)}:${dashboard}:${editable ? "settings" : "quick"}`;
 }
@@ -10096,31 +8682,44 @@ function setLifeTool(tool) {
 	});
 }
 
-async function exportArtifacts() {
-	if (!state.artifactStore) {
-		return;
+async function exportArtifacts({ includeHostedLetters = false } = {}) {
+	if (!state.artifactStore) return;
+	const spaceId = activeSpaceId();
+	const account = mapsUser();
+	const scope = includeHostedLetters ? mapsSpaceReference() : undefined;
+	if (includeHostedLetters && (!account || !scope)) {
+		throw new Error("Sign in and open the Space whose legacy letters you want to export.");
 	}
-	const dateKey = todayDateKey();
-	const payload = JSON.stringify(
-		{
-			...state.artifactStore,
-			appState: await exportAppState(),
-		},
-		null,
-		2,
-	);
+	const isCurrent = () => {
+		if (spaceId !== activeSpaceId() || account !== mapsUser() || !isSpaceUnlocked(spaceId)) return false;
+		if (!scope) return true;
+		const current = mapsSpaceReference();
+		return current?.ownerUid === scope.ownerUid && current.appId === scope.appId;
+	};
+	const artifacts = state.artifactStore;
+	const appState = await exportAppState({ requireLocalFiles: true });
+	const deviceBackup = await exportDeviceBackup(spaceId, scope && {
+		...scope, account, tokenFor: getCloudIdToken, isCurrent,
+	});
+	if (!isCurrent()) throw new Error("The account or Space changed. Export again.");
+	const payload = JSON.stringify({ ...artifacts, appState, deviceBackup }, null, 2);
 	const blob = new Blob([payload], { type: "application/json" });
 	const url = URL.createObjectURL(blob);
 	const link = document.createElement("a");
 	link.href = url;
-	link.download = `ourstuff-${activeSpaceId()}-artifacts-${dateKey}.json`;
+	link.download = `ourstuff-${spaceId}-backup-${todayDateKey()}.json`;
 	document.body.appendChild(link);
 	link.click();
 	link.remove();
 	URL.revokeObjectURL(url);
+	if (includeHostedLetters && deviceBackup.legacyAi.missingAttachments.length) {
+		window.alert("The backup includes your legacy letters. Some attachments could not be read and are listed in the backup.");
+	}
 }
 
 function importArtifacts() {
+	const spaceId = activeSpaceId();
+	const account = mapsUser();
 	const input = document.createElement("input");
 	input.type = "file";
 	input.accept = "application/json,.json";
@@ -10137,6 +8736,10 @@ function importArtifacts() {
 			) {
 				throw new Error("Import file must be an Ourstuff artifact export.");
 			}
+			if (spaceId !== activeSpaceId() || account !== mapsUser() || !isSpaceUnlocked(spaceId)) {
+				throw new Error("The account or Space changed. Import again.");
+			}
+			if (parsed.deviceBackup) validateDeviceBackup(parsed.deviceBackup, spaceId);
 			const replaceCloud = cloudHasSyncAccess();
 			const confirmed = window.confirm(
 				replaceCloud
@@ -10147,6 +8750,13 @@ function importArtifacts() {
 				return;
 			}
 			await importAppStateJson(parsed, { replaceCloud });
+			if (parsed.deviceBackup) {
+				await restoreDeviceBackup(parsed.deviceBackup, spaceId);
+				void spaceLocations.refresh();
+				void spaceHistory.refresh();
+			} else {
+				restoreLegacyAppState(parsed.appState, spaceId);
+			}
 		} catch (error) {
 			window.alert(
 				error instanceof Error ? error.message : "Could not import data.",
@@ -10206,17 +8816,10 @@ async function clearAppData(options = {}) {
 		state.timerOpen = false;
 		state.localAppUpdatedAt = "";
 		state.appearanceUpdatedAt = "";
-		state.pyxdiaSettings = normalizePyxdiaSettings(DEFAULT_PYXIDA_SETTINGS);
 		state.pyxdiaThreads = [];
 		state.pyxdiaLetters = [];
 		state.pyxdiaDraft = createEmptyPyxdiaDraft();
 		state.pyxdiaMemory = createEmptyPyxdiaMemory();
-		state.pyxdiaExpanded = false;
-		state.pyxdiaView = "input";
-		state.pyxdiaActiveThreadId = "";
-		state.pyxdiaStatus = "";
-		state.pyxdiaError = "";
-		state.pyxdiaBusy = false;
 		state.trashSettings = normalizeTrashSettings();
 		state.trashItems = [];
 		state.trashCursor = "";
@@ -10299,18 +8902,11 @@ async function restoreFactoryDefaults() {
 	state.timerState = normalizeTimerState();
 	state.timerSettings = normalizeTimerSettings();
 	state.timerOpen = false;
-	state.pyxdiaSettings = normalizePyxdiaSettings(DEFAULT_PYXIDA_SETTINGS);
 	state.pyxdiaThreads = [];
 	state.pyxdiaLetters = [];
 	state.pyxdiaDraft = createEmptyPyxdiaDraft();
 	state.pyxdiaMemory = createEmptyPyxdiaMemory();
 	stopTimerInterval();
-	state.pyxdiaExpanded = false;
-	state.pyxdiaView = "input";
-	state.pyxdiaActiveThreadId = "";
-	state.pyxdiaStatus = "";
-	state.pyxdiaError = "";
-	state.pyxdiaBusy = false;
 	state.trashSettings = normalizeTrashSettings();
 	state.trashItems = [];
 	state.trashCursor = "";
@@ -12181,7 +10777,6 @@ function render() {
 	bindGuidedTips();
 	bindThoughtToastControls();
 	bindIconPickerControls();
-	bindPyxdiaControls();
 	bindTrackerOrbSorting();
 	bindSidebarResize();
 	bindSidebarHorizontalScroll();
@@ -12196,7 +10791,6 @@ function render() {
 	bindGalleryControls();
 	bindEditorMedia();
 	bindLocalAssetImages();
-	bindPyxdiaImages();
 	bindReaderImagePanning();
 	bindDonationFlow(document, { onOpen: closeMobileMenu });
 	updateBodyTimerDom();
@@ -12769,68 +11363,6 @@ function focusThoughtEditor() {
 	});
 }
 
-function pyxdiaSidebarHtml() {
-	const expanded = state.pyxdiaExpanded;
-	const activeThreadIds = new Set(
-		activePyxdiaLetters()
-			.filter(pyxdiaLetterMatchesRecipient)
-			.map((letter) => letter.threadId),
-	);
-	const latestByThread = new Map();
-	pyxdiaLettersByNewest().forEach((letter) => {
-		if (!latestByThread.has(letter.threadId)) {
-			latestByThread.set(letter.threadId, letter);
-		}
-	});
-	const threads = [...(state.pyxdiaThreads || [])]
-		.sort((a, b) => {
-			const bTime = Date.parse(b.updatedAt || b.createdAt || "") || 0;
-			const aTime = Date.parse(a.updatedAt || a.createdAt || "") || 0;
-			return bTime - aTime;
-		})
-		.filter((thread) => activeThreadIds.has(thread.id));
-	const actionItems = [
-		["pyxdia-open-input", "Write A Letter", "tabler:pencil", "Current draft"],
-	];
-	return `
-    <section class="sidebar-group sidebar-group--pyxdia${expanded ? " is-expanded" : " is-collapsed"}">
-      <button class="sidebar-group-toggle pyxdia-sidebar-toggle" data-action="toggle-pyxdia-menu" type="button" aria-expanded="${expanded ? "true" : "false"}">
-        <span class="pyxdia-sidebar-title">${iconHtml("tabler:sparkles")}<span>Pen Pal</span></span>
-        <span class="sidebar-group-chevron" aria-hidden="true">${expanded ? "-" : "+"}</span>
-      </button>
-      <div class="sidebar-group-items pyxdia-sidebar-items"${expanded ? "" : " hidden"}>
-        ${actionItems
-					.map(
-						([action, label, icon, detail]) => `
-          <button class="sidebar-item sidebar-item--pyxdia sidebar-item--no-number${state.active === "PYXIDA" && ((action === "pyxdia-open-input" && state.pyxdiaView === "input") || (action === "pyxdia-open-output" && state.pyxdiaView === "output")) ? " is-active" : ""}" data-action="${action}" type="button">
-            <span class="sidebar-item-label"><strong>${buttonContent(icon, label)}</strong><small>${escapeHtml(detail)}</small></span>
-          </button>
-        `,
-					)
-					.join("")}
-        <div class="pyxdia-sidebar-conversations" aria-label="Pen Pal conversations">
-          <span>Letter Chain</span>
-          ${
-						threads.length
-							? threads
-									.slice(0, 5)
-									.map(
-										(thread, index) => `
-              <button class="sidebar-item sidebar-item--pyxdia-thread${state.pyxdiaActiveThreadId === thread.id ? " is-active" : ""}" data-action="pyxdia-open-thread" data-id="${escapeHtml(thread.id)}" type="button">
-                <span class="sidebar-item-number">${String(index + 1).padStart(2, "0")}</span>
-                <span class="sidebar-item-label"><strong>${escapeHtml(thread.title)}</strong><small>${escapeHtml([pyxdiaLetterRoute(latestByThread.get(thread.id)), thread.latestState || "active", formatActivityTimestamp(thread.updatedAt || thread.createdAt)].filter(Boolean).join(" / "))}</small></span>
-              </button>
-            `,
-									)
-									.join("")
-							: `<div class="pyxdia-sidebar-empty">No Pen Pal letters yet.</div>`
-					}
-        </div>
-      </div>
-    </section>
-  `;
-}
-
 function sidebarHtml(_compendium) {
 	const sectionLabels = DASHBOARD_LABELS;
 	const expandedCount = sectionLabels.filter(
@@ -12859,7 +11391,6 @@ function sidebarHtml(_compendium) {
 					submenu
 						? sidebarSettingsSubmenuHtml()
 						: `<div class="sidebar-groups">
-          ${pyxdiaSidebarHtml()}
           ${sectionLabels
 						.map((label) => {
 							const expanded = state.sidebarExpanded[label];
@@ -12959,7 +11490,7 @@ function sidebarSettingsSubmenuHtml() {
         </button>
         <div>
           <h2 id="sidebar-settings-title">Settings</h2>
-          <p>Setup, orbs, interface, Pen Pal, and data.</p>
+          <p>Setup, orbs, interface, and data.</p>
         </div>
       </header>
       <div class="settings-page settings-page--menu">
@@ -13167,14 +11698,6 @@ function pathBarExtraCrumbs(spiritBook) {
 	if (state.active === "Spirit") {
 		return spiritPathCrumbs(spiritBook);
 	}
-	if (state.active === "PYXIDA") {
-		const labels = {
-			input: "Write A Letter",
-			output: "Latest Reply",
-			thread: selectedPyxdiaThread()?.title || "Letter Chain",
-		};
-		return [pathCrumbText(labels[state.pyxdiaView] || "Write A Letter")];
-	}
 	return [];
 }
 
@@ -13185,8 +11708,6 @@ function pathBarCrumbsHtml(crumbs) {
 function pathBarHtml(compendium, section, spiritBook) {
 	const activeLabel = DASHBOARD_LABELS.includes(state.active)
 		? dashboardDisplayLabel(state.active)
-		: state.active === "PYXIDA"
-			? "Pen Pal"
 		: state.active === "Gallery"
 			? "Gallery"
 		: state.active;
@@ -13220,9 +11741,6 @@ function contentHtml(compendium, section) {
 	}
 	if (state.active === "Trash") {
 		return trashHtml();
-	}
-	if (state.active === "PYXIDA") {
-		return pyxdiaHtml();
 	}
 	if (state.active === "Mind") {
 		return mindHtml(compendium, section);
@@ -13508,455 +12026,6 @@ function dashboardAnalyticsHtml() {
   `;
 }
 
-function pyxdiaHtml() {
-	const mode = ["input", "output", "thread"].includes(state.pyxdiaView)
-		? state.pyxdiaView
-		: "input";
-	const signedIn = isPyxdiaSignedIn();
-	const settings = normalizePyxdiaSettings(state.pyxdiaSettings);
-	const subtitle = signedIn
-		? "Reflective letter exchange with private, user-scoped processing."
-		: "Draft locally. Sign in before sending letters.";
-	const body =
-		mode === "output"
-			? pyxdiaOutputHtml()
-			: mode === "thread"
-				? pyxdiaThreadHtml()
-				: pyxdiaInputHtml();
-	return panelHtml(`
-    ${headerHtml(
-			"Pen Pal",
-			subtitle,
-			`
-        <div class="action-row">
-          <button class="secondary-button" data-action="pyxdia-refresh" type="button"${state.pyxdiaBusy ? " disabled" : ""}>${buttonContent("tabler:refresh", "Refresh")}</button>
-          <button class="secondary-button" data-action="pyxdia-open-settings" type="button">${buttonContent("tabler:settings", "Settings")}</button>
-        </div>
-      `,
-		)}
-    <div class="pyxdia-page">
-      ${pyxdiaStatusHtml(settings)}
-      ${body}
-    </div>
-  `);
-}
-
-function pyxdiaFamilyLetterPeerUid(letter = {}) {
-	if (normalizePyxdiaRecipientType(letter.recipientType) !== "family") {
-		return "";
-	}
-	const actor = pyxdiaActorUid();
-	return String(letter.fromUid || "") === actor
-		? String(letter.toUid || letter.recipientUid || "")
-		: String(letter.fromUid || letter.createdBy || "");
-}
-
-function pyxdiaStatusHtml(settings) {
-	const signedIn = isPyxdiaSignedIn();
-	const latest = latestPyxdiaLetter();
-	const pieces = [
-		settings.enabled ? "Enabled" : "Off in Settings",
-		settings.delayEnabled ? "Delay on" : "Delay off",
-		signedIn ? "Signed in" : "Signed out",
-		latest ? pyxdiaStatusText(latest) : "No letters yet",
-	];
-	return `
-    <div class="pyxdia-status-strip${state.pyxdiaError ? " has-error" : ""}" role="status">
-      <div>
-        ${pieces.map((piece) => `<span>${escapeHtml(piece)}</span>`).join("")}
-      </div>
-      ${state.pyxdiaStatus ? `<p>${escapeHtml(state.pyxdiaStatus)}</p>` : ""}
-      ${state.pyxdiaError ? `<p class="pyxdia-error">${escapeHtml(state.pyxdiaError)}</p>` : ""}
-    </div>
-  `;
-}
-
-function pyxdiaInputHtml() {
-	const draft = normalizePyxdiaDraft(state.pyxdiaDraft);
-	const settings = normalizePyxdiaSettings(state.pyxdiaSettings);
-	const editorMode =
-		state.pyxdiaEditorMode === "preview" ? "preview" : "markdown";
-	const size = estimatePyxdiaLetterSize(draft.inputText);
-	const overLimit =
-		size.words > settings.letterMaxWords ||
-		size.chars > settings.letterMaxChars;
-	const metadataBudget = pyxdiaNoteMetadataBudget(draft);
-	const metadataError = pyxdiaNoteMetadataBudgetError(metadataBudget);
-	const readOnly = isShareableSpace(activeSpaceId()) && state.cloud?.spaceRole === "reader";
-	const sendDisabled = state.pyxdiaBusy || Boolean(metadataError) || readOnly;
-	return `
-    <section class="pyxdia-letter-editor">
-      <div class="pyxdia-letter-main">
-        <div class="body-card-heading">
-          <div>
-            <h3>Write A Letter</h3>
-            <p>Markdown writing with a simple read-only Live View.</p>
-          </div>
-          <div class="pyxdia-editor-toggle" role="tablist" aria-label="Letter editor mode">
-            <button class="body-mode-button${editorMode === "markdown" ? " is-active" : ""}" data-action="set-pyxdia-editor-mode" data-mode="markdown" type="button" role="tab" aria-selected="${editorMode === "markdown" ? "true" : "false"}">${buttonContent("tabler:markdown", "Markdown", "body-mode-label")}</button>
-            <button class="body-mode-button${editorMode === "preview" ? " is-active" : ""}" data-action="set-pyxdia-editor-mode" data-mode="preview" type="button" role="tab" aria-selected="${editorMode === "preview" ? "true" : "false"}">${buttonContent("tabler:eye", "Live View", "body-mode-label")}</button>
-          </div>
-        </div>
-        ${pyxdiaRecipientSelectorHtml(draft)}
-        ${
-					editorMode === "preview"
-						? `<div class="pyxdia-letter-preview markdown-body" aria-label="Write A Letter Live View">${renderPyxdiaLetterMarkdown(draft.inputText, draft.imageRefs)}</div>`
-						: `<label class="body-field body-field--full pyxdia-letter-field">
-          <span class="sr-only">Write A Letter</span>
-          <textarea id="pyxdia-letter-input" aria-label="Write A Letter" placeholder="Write the letter you want Pen Pal to answer later. Paste images here to upload them into this letter.">${escapeHtml(draft.inputText)}</textarea>
-        </label>`
-				}
-        <div class="pyxdia-letter-counter${overLimit ? " is-over-limit" : ""}" data-pyxdia-counter>
-          <span>${escapeHtml(`${size.words} / ${settings.letterMaxWords} words`)}</span>
-          <span>${escapeHtml(`${size.chars} / ${settings.letterMaxChars} chars`)}</span>
-        </div>
-      </div>
-      <section class="pyxdia-letter-side">
-        <div class="body-card-heading">
-          <div>
-            <h3>Note Metadata Selector</h3>
-            <p>Metadata only. No note bodies are included automatically.</p>
-          </div>
-        </div>
-        ${pyxdiaNoteSelectionHtml(draft)}
-      </section>
-      <section class="pyxdia-context-card">
-        <div class="body-card-heading">
-          <div>
-            <h3>Optional Context</h3>
-            <p>Choose anything you want Pen Pal to consider with this letter.</p>
-          </div>
-        </div>
-        <label class="body-field body-field--full">
-          <span class="sr-only">Optional Context</span>
-          <textarea id="pyxdia-context-input" aria-label="Optional Context" placeholder="Paste only the note, chat, quicknote, memory card, project, or other text you want Pen Pal to use for this letter.">${escapeHtml(draft.userIncludedContext)}</textarea>
-        </label>
-      </section>
-      <div class="editor-footer-actions pyxdia-letter-actions">
-        <button class="secondary-button" data-action="pyxdia-save-draft" type="button"${state.pyxdiaBusy || readOnly ? " disabled" : ""}>${buttonContent("tabler:device-floppy", "Save Draft")}</button>
-        <button class="primary-button" data-action="pyxdia-send-letter" type="button"${sendDisabled ? " disabled" : ""}>${buttonContent("tabler:send-2", "Send Letter")}</button>
-      </div>
-    </section>
-    ${pyxdiaLastLetterHtml({ embedded: true })}
-  `;
-}
-
-function pyxdiaRecipientSelectorHtml(draft) {
-	const selected = pyxdiaSelectedRecipient();
-	const family = familyPenPalCorrespondents();
-	const hasFamilyRecipients = isFamilyPenPalAvailable() && family.length > 0;
-	if (!hasFamilyRecipients) {
-		return `
-    <fieldset class="pyxdia-recipient-selector pyxdia-recipient-selector--single">
-      <legend>Send to</legend>
-      <span class="pyxdia-recipient-static">${escapeHtml(selected.recipientLabel || "PYXIDA")}</span>
-    </fieldset>
-  `;
-	}
-	return `
-    <fieldset class="pyxdia-recipient-selector">
-      <legend>Send to</legend>
-      <label class="dashboard-identity-toggle">
-        <input data-pyxdia-recipient-control name="pyxdia-recipient-type" value="pyxdia" type="radio"${selected.recipientType !== "family" ? " checked" : ""}>
-        <span>PYXIDA</span>
-      </label>
-      <label class="dashboard-identity-toggle">
-        <input data-pyxdia-recipient-control name="pyxdia-recipient-type" value="family" type="radio"${selected.recipientType === "family" ? " checked" : ""}>
-        <span>Family</span>
-      </label>
-      <label class="body-field pyxdia-family-recipient">
-        <span>Family member</span>
-        <select id="pyxdia-family-recipient" data-pyxdia-recipient-control${selected.recipientType === "family" ? "" : " disabled"}>
-          ${family
-						.map(
-							(member) =>
-								`<option value="${escapeHtml(member.uid)}"${member.uid === selected.recipientUid || member.uid === draft.recipientUid ? " selected" : ""}>${escapeHtml(member.label)}</option>`,
-						)
-						.join("")}
-        </select>
-      </label>
-    </fieldset>
-  `;
-}
-
-function renderPyxdiaLetterMarkdown(text, _imageRefs = []) {
-	const html = renderMarkdown(text || "");
-	return html || `<p>${escapeHtml("Nothing written yet.")}</p>`;
-}
-
-function pyxdiaNoteSelectionHtml(draft) {
-	const refs = pyxdiaAllNoteRefs();
-	const selected = pyxdiaEffectiveSelectedNoteIds(draft, refs);
-	const budget = pyxdiaNoteMetadataBudget(draft, refs);
-	const budgetError = pyxdiaNoteMetadataBudgetError(budget);
-	const filters = normalizePyxdiaNoteFilters(state.pyxdiaNoteFilters);
-	const dashboards = Array.from(
-		new Set(refs.map((ref) => ref.dashboard || "Note").filter(Boolean)),
-	).sort((a, b) => a.localeCompare(b));
-	const roles = Array.from(
-		new Set(refs.map((ref) => ref.role || "note").filter(Boolean)),
-	).sort((a, b) => a.localeCompare(b));
-	if (!refs.length) {
-		return emptyStateHtml("No note metadata", "Create notes first.");
-	}
-	const optionHtml = (value, label, current) =>
-		`<option value="${escapeHtml(value)}"${current === value ? " selected" : ""}>${escapeHtml(label)}</option>`;
-	return `
-    <div class="pyxdia-note-selector">
-      <div class="pyxdia-note-filter-grid">
-        <label class="body-field">Search<input id="pyxdia-note-filter-search" data-pyxdia-note-filter="search" type="search" value="${escapeHtml(filters.search)}" placeholder="Title, area, role"></label>
-        <label class="body-field">Area<select id="pyxdia-note-filter-dashboard" data-pyxdia-note-filter="dashboard">
-          ${optionHtml("", "All areas", filters.dashboard)}
-          ${dashboards.map((dashboard) => optionHtml(dashboard, dashboard, filters.dashboard)).join("")}
-        </select></label>
-        <label class="body-field">Role<select id="pyxdia-note-filter-role" data-pyxdia-note-filter="role">
-          ${optionHtml("", "All roles", filters.role)}
-          ${roles.map((role) => optionHtml(role, role, filters.role)).join("")}
-        </select></label>
-      </div>
-      <div class="pyxdia-note-filter-toggles">
-        <label class="dashboard-identity-toggle">
-          <input id="pyxdia-note-filter-selected" data-pyxdia-note-filter="selectedOnly" type="checkbox"${filters.selectedOnly ? " checked" : ""}>
-          <span>Selected</span>
-        </label>
-        <label class="dashboard-identity-toggle">
-          <input id="pyxdia-note-filter-recent" data-pyxdia-note-filter="recentOnly" type="checkbox"${filters.recentOnly ? " checked" : ""}>
-          <span>Recent ${PYXIDA_RECENT_NOTE_DAYS}d</span>
-        </label>
-      </div>
-      <div class="action-row pyxdia-note-bulk-actions">
-        <button class="secondary-button" data-action="pyxdia-note-select-visible" type="button">${buttonContent("tabler:checks", "Select Visible")}</button>
-        <button class="secondary-button" data-action="pyxdia-note-clear-visible" type="button">${buttonContent("tabler:square", "Clear Visible")}</button>
-        <button class="secondary-button" data-action="pyxdia-note-reset-all" type="button">${buttonContent("tabler:refresh", "Reset All")}</button>
-      </div>
-      <p class="pyxdia-note-summary${budgetError ? " is-over-limit" : ""}" data-pyxdia-note-summary>
-        ${escapeHtml(`${budget.refs} of ${refs.length} metadata refs selected / ${budget.chars} chars. No note bodies are included.`)}
-      </p>
-      ${budgetError ? `<p class="pyxdia-context-warning">${escapeHtml(budgetError)}</p>` : ""}
-      <div class="pyxdia-note-ref-list">
-        ${refs
-					.map((ref) => {
-						const checked = selected.has(ref.id);
-						const meta = `${ref.dashboard || "Note"} / ${ref.role} / ${ref.wordCount} words / ${ref.edited ? formatActivityTimestamp(ref.edited) : "No date"}`;
-						const searchText = [
-							ref.title,
-							ref.dashboard || "Note",
-							ref.role || "note",
-						]
-							.join(" ")
-							.toLowerCase();
-						return `
-        <label class="pyxdia-note-ref" data-pyxdia-note-ref-row data-dashboard="${escapeHtml(ref.dashboard || "Note")}" data-role="${escapeHtml(ref.role || "note")}" data-search="${escapeHtml(searchText)}" data-recent="${isPyxdiaRecentNoteRef(ref) ? "true" : "false"}" data-selected="${checked ? "true" : "false"}">
-          <input data-pyxdia-note-ref type="checkbox" value="${escapeHtml(ref.id)}"${checked ? " checked" : ""}>
-          <span>
-            <strong>${escapeHtml(ref.title)}</strong>
-            <small>${escapeHtml(meta)}</small>
-          </span>
-        </label>
-      `;
-					})
-					.join("")}
-      </div>
-      <div class="pyxdia-note-filter-empty" data-pyxdia-note-empty hidden>No matching note metadata.</div>
-    </div>
-  `;
-}
-
-function pyxdiaNoteFiltersFromDom() {
-	return normalizePyxdiaNoteFilters({
-		search:
-			app.querySelector("[data-pyxdia-note-filter='search']")?.value || "",
-		dashboard:
-			app.querySelector("[data-pyxdia-note-filter='dashboard']")?.value || "",
-		role: app.querySelector("[data-pyxdia-note-filter='role']")?.value || "",
-		selectedOnly:
-			app.querySelector("[data-pyxdia-note-filter='selectedOnly']")?.checked ===
-			true,
-		recentOnly:
-			app.querySelector("[data-pyxdia-note-filter='recentOnly']")?.checked ===
-			true,
-	});
-}
-
-function pyxdiaVisibleNoteCheckboxes() {
-	return Array.from(app.querySelectorAll("[data-pyxdia-note-ref-row]"))
-		.filter((row) => row.hidden !== true)
-		.map((row) => row.querySelector("[data-pyxdia-note-ref]"))
-		.filter(Boolean);
-}
-
-function updatePyxdiaNoteSummaryDom() {
-	const refs = pyxdiaAllNoteRefs();
-	const draft = pyxdiaDraftFromDom({ noteSelectionMode: "custom" });
-	const budget = pyxdiaNoteMetadataBudget(draft, refs);
-	const budgetError = pyxdiaNoteMetadataBudgetError(budget);
-	const summary = app.querySelector("[data-pyxdia-note-summary]");
-	if (summary) {
-		summary.classList.toggle("is-over-limit", Boolean(budgetError));
-		summary.textContent = `${budget.refs} of ${refs.length} metadata refs selected / ${budget.chars} chars. No note bodies are included.`;
-	}
-	const sendButton = app.querySelector("[data-action='pyxdia-send-letter']");
-	if (sendButton) {
-		sendButton.disabled = state.pyxdiaBusy || Boolean(budgetError);
-	}
-}
-
-function applyPyxdiaNoteFiltersDom() {
-	const filters = normalizePyxdiaNoteFilters(state.pyxdiaNoteFilters);
-	const rows = Array.from(app.querySelectorAll("[data-pyxdia-note-ref-row]"));
-	const search = filters.search.toLowerCase();
-	let visible = 0;
-	rows.forEach((row) => {
-		const checkbox = row.querySelector("[data-pyxdia-note-ref]");
-		const checked = checkbox?.checked === true;
-		row.dataset.selected = checked ? "true" : "false";
-		const matchesSearch =
-			!search || String(row.dataset.search || "").includes(search);
-		const matchesDashboard =
-			!filters.dashboard || row.dataset.dashboard === filters.dashboard;
-		const matchesRole = !filters.role || row.dataset.role === filters.role;
-		const matchesSelected = !filters.selectedOnly || checked;
-		const matchesRecent = !filters.recentOnly || row.dataset.recent === "true";
-		const matches =
-			matchesSearch &&
-			matchesDashboard &&
-			matchesRole &&
-			matchesSelected &&
-			matchesRecent;
-		row.hidden = !matches;
-		if (matches) {
-			visible += 1;
-		}
-	});
-	const empty = app.querySelector("[data-pyxdia-note-empty]");
-	if (empty) {
-		empty.hidden = visible > 0;
-	}
-	updatePyxdiaNoteSummaryDom();
-}
-
-function savePyxdiaNoteSelectionFromDom(noteSelectionMode = "custom") {
-	const draft = savePyxdiaDraftLocal(
-		pyxdiaDraftFromDom({ noteSelectionMode }),
-		{ render: false },
-	);
-	setState({ pyxdiaDraft: draft, pyxdiaError: "" });
-}
-
-function pyxdiaOutputHtml() {
-	return pyxdiaLastLetterHtml();
-}
-
-function pyxdiaLastLetterHtml(options = {}) {
-	const latest = latestCompletedPyxdiaLetter() || latestPyxdiaLetter();
-	if (!latest) {
-		return `
-    <section class="pyxdia-output${options.embedded ? " pyxdia-output--embedded" : ""}">
-      <div class="body-card-heading">
-        <div>
-          <h3>Letter Chain</h3>
-          <p>No latest reply yet.</p>
-        </div>
-      </div>
-      <div class="pyxdia-pending-card">
-        <strong>No reply yet</strong>
-        <span>Write a letter to start the first chain.</span>
-      </div>
-    </section>
-  `;
-	}
-	const familyLetter = normalizePyxdiaRecipientType(latest.recipientType) === "family";
-	const pending = !familyLetter && latest.state !== "completed";
-	const templateReply = !pending && isTemplatePyxdiaReply(latest);
-	const actions = `
-    <div class="action-row">
-      ${
-				latest.state === "failed"
-					? `<button class="secondary-button" data-action="pyxdia-retry-letter" data-id="${escapeHtml(latest.id)}" type="button">${buttonContent("tabler:refresh", "Retry")}</button>`
-					: ""
-			}
-      ${
-				templateReply
-					? `<button class="secondary-button" data-action="pyxdia-retry-letter" data-id="${escapeHtml(latest.id)}" type="button">${buttonContent("tabler:refresh", "Regenerate Reply")}</button>`
-					: ""
-			}
-      <button class="secondary-button danger-button" data-action="pyxdia-delete-letter" data-id="${escapeHtml(latest.id)}" type="button">${buttonContent("tabler:trash", "Move to Trash")}</button>
-    </div>
-  `;
-	return `
-    <section class="pyxdia-output${options.embedded ? " pyxdia-output--embedded" : ""}">
-      <div class="body-card-heading">
-        <div>
-          <h3>${escapeHtml(familyLetter ? "Latest Letter" : pending ? "Reply Pending" : "Latest Reply")}</h3>
-          <p>${escapeHtml([pyxdiaLetterRoute(latest), pyxdiaStatusText(latest)].filter(Boolean).join(" / "))}</p>
-        </div>
-        ${actions}
-      </div>
-      ${
-				pending
-					? `<div class="pyxdia-pending-card">
-            <strong>${escapeHtml(latest.state)}</strong>
-            <span>${escapeHtml(latest.availableAt ? `Available after ${new Date(latest.availableAt).toLocaleString()}` : "Waiting for processing.")}</span>
-          </div>`
-					: `<article class="pyxdia-output-text">${familyLetter ? renderPyxdiaLetterMarkdown(latest.inputText, latest.imageRefs) : escapeHtml(latest.outputText)}</article>`
-			}
-    </section>
-  `;
-}
-
-function pyxdiaThreadHtml() {
-	const thread = selectedPyxdiaThread();
-	const letters = selectedPyxdiaThreadLetters();
-	const readOnly = isShareableSpace(activeSpaceId()) && state.cloud?.spaceRole === "reader";
-	if (!thread) {
-		return emptyStateHtml(
-			"No Pen Pal conversations yet",
-			"Draft and send a letter to start one.",
-		);
-	}
-	return `
-    <section class="pyxdia-thread">
-      <div class="body-card-heading">
-        <div>
-          <h3>${escapeHtml(thread.title)}</h3>
-          <p>${escapeHtml(`${letters.length} letter${letters.length === 1 ? "" : "s"} / ${thread.latestState}`)}</p>
-        </div>
-						<div class="action-row">
-          <button class="secondary-button" data-action="pyxdia-reply-thread" data-id="${escapeHtml(thread.id)}" type="button"${readOnly ? " disabled" : ""}>${buttonContent("tabler:message-reply", "Reply")}</button>
-        </div>
-      </div>
-      <div class="pyxdia-thread-list">
-        ${letters
-					.map(
-						(letter) => `
-          <article class="pyxdia-thread-letter">
-            <header>
-              <strong>${escapeHtml(formatActivityTimestamp(letter.submittedAt || letter.createdAt))}</strong>
-              <span>${escapeHtml(pyxdiaLetterRoute(letter))}</span>
-              <span>${escapeHtml(pyxdiaStatusText(letter))}</span>
-              ${
-								normalizePyxdiaRecipientType(letter.recipientType) !== "family" &&
-								isTemplatePyxdiaReply(letter)
-									? `<button class="secondary-button" data-action="pyxdia-retry-letter" data-id="${escapeHtml(letter.id)}" type="button"${readOnly ? " disabled" : ""}>${buttonContent("tabler:refresh", "Regenerate Reply")}</button>`
-									: ""
-							}
-              <button class="secondary-button danger-button" data-action="pyxdia-delete-letter" data-id="${escapeHtml(letter.id)}" type="button"${readOnly ? " disabled" : ""}>${buttonContent("tabler:trash", "Move to Trash")}</button>
-            </header>
-            <div class="pyxdia-thread-input markdown-body">${renderPyxdiaLetterMarkdown(letter.inputText, letter.imageRefs)}</div>
-            ${
-							letter.outputText
-								? `<div class="pyxdia-thread-output">${escapeHtml(letter.outputText)}</div>`
-								: ""
-						}
-          </article>
-        `,
-					)
-					.join("")}
-      </div>
-    </section>
-  `;
-}
-
 function trashHtml() {
 	const settings = normalizeTrashSettings(state.trashSettings);
 	const signedIn = isTrashSignedIn();
@@ -14050,7 +12119,7 @@ function trashItemHtml(item) {
 function settingsHtml() {
 	const tab = activeSettingsTab();
 	return panelHtml(`
-    ${headerHtml("Settings", "Getting started, Thoughts, Goals, Interface, Spaces, Pen Pal, and data controls.")}
+    ${headerHtml("Settings", "Getting started, Thoughts, Goals, Interface, Spaces, and data controls.")}
     <div class="settings-page">
       ${settingsTabsHtml(tab)}
       ${settingsPanelHtml(tab)}
@@ -14065,7 +12134,6 @@ function settingsTabOptions() {
 		["goals", "Goals", "tabler:target-arrow"],
 		["interface", "Interface", "tabler:layout-dashboard"],
 		["spaces", "Spaces", "tabler:layout-grid-add"],
-		["pyxdia", "Pen Pal", "tabler:sparkles"],
 		["cloud", "Data Controls", "tabler:database-cog"],
 	];
 }
@@ -14085,8 +12153,7 @@ function settingsPanelHtml(tab = activeSettingsTab()) {
 		goals: settingsGoalsHtml,
 		interface: settingsInterfaceHtml,
 		spaces: settingsSpacesHtml,
-		pyxdia: settingsPyxdiaHtml,
-		cloud: settingsCloudHtml,
+		cloud: standalone ? settingsDeviceDataHtml : settingsCloudHtml,
 	};
 	const renderPanel = panels[tab] || panels["getting-started"];
 	return renderPanel();
@@ -14370,146 +12437,23 @@ function settingsSpacesHtml() {
   `;
 }
 
-function settingsPyxdiaHtml() {
-	const settings = normalizePyxdiaSettings(state.pyxdiaSettings);
-	const memory = normalizePyxdiaMemory(state.pyxdiaMemory);
-	const statsLevel = pyxdiaBalanceStatsLevel(settings);
-	const aiBrain = state.pyxdiaAiBrain || {};
-	const aiBrainStatus = aiBrain.configured
-		? "AI Brain memory is configured on the server."
-		: "AI Brain memory is not configured on the server yet.";
-	const statsLabel =
-		statsLevel === 0
-			? "Off"
-			: statsLevel === 25
-				? "Light"
-				: statsLevel === 50
-					? "Standard"
-					: "Full";
-	const staticMemory = normalizePyxdiaStaticMemory(memory.staticMemory);
-	const dynamicRetrievalMemory = normalizePyxdiaDynamicRetrievalMemory(
-		memory.dynamicRetrievalMemory,
-	);
-	const memorySummary =
-		staticMemory.summary ||
-		memory.summary ||
-		(staticMemory.entries?.length
-			? staticMemory.entries.map((entry) => entry.text).join(" ")
-			: "No Pen Pal memory has been saved yet.");
+function settingsDeviceDataHtml() {
 	return `
-    <div class="settings-tab-panel pyxdia-settings">
-      <section class="interface-settings-section">
+    <div class="settings-tab-panel">
+      <section class="interface-settings-section data-controls-section">
         <div class="body-card-heading">
           <div>
-            <h3>Pen Pal</h3>
-            <p>Letter exchange, delay, personality, and memory controls.</p>
+            <h3>Data Controls</h3>
+            <p>This device’s browser profile stores the ${escapeHtml(activeSpaceLabel())} Space.</p>
           </div>
-          <button class="secondary-button" data-action="pyxdia-refresh" type="button"${state.pyxdiaBusy ? " disabled" : ""}>${buttonContent("tabler:refresh", "Refresh")}</button>
+          ${activeSpacePillHtml()}
         </div>
-        <div class="pyxdia-settings-toggles">
-          <label class="dashboard-identity-toggle">
-            <input id="pyxdia-setting-enabled" type="checkbox"${settings.enabled ? " checked" : ""}>
-            <span>Enable Pen Pal</span>
-          </label>
-          <label class="dashboard-identity-toggle">
-            <input id="pyxdia-setting-delay" data-action="pyxdia-toggle-delay" type="checkbox"${settings.delayEnabled ? " checked" : ""}>
-            <span>Delay replies</span>
-          </label>
-          <label class="dashboard-identity-toggle">
-            <input id="pyxdia-setting-memory" type="checkbox"${settings.memoryEnabled ? " checked" : ""}>
-            <span>Memory</span>
-          </label>
-          <label class="dashboard-identity-toggle">
-            <input id="pyxdia-setting-ai-brain" type="checkbox"${settings.aiBrainMemoryEnabled ? " checked" : ""}>
-            <span>AI Brain</span>
-          </label>
+        ${spacePinControlsHtml()}
+        <div class="action-row data-controls-actions">
+          <button class="secondary-button" data-action="export-artifacts" type="button">${buttonContent("tabler:file-export", "Export")}</button>
+          <button class="secondary-button" data-action="import-artifacts" type="button">${buttonContent("tabler:file-import", "Import")}</button>
         </div>
-        <div class="body-form-grid pyxdia-delay-grid">
-          <label class="body-field">Delay min hours<input id="pyxdia-delay-min" type="number" min="0" max="168" step="1" value="${escapeHtml(settings.delayMinHours)}"></label>
-          <label class="body-field">Delay max hours<input id="pyxdia-delay-max" type="number" min="0" max="336" step="1" value="${escapeHtml(settings.delayMaxHours)}"></label>
-          <label class="body-field body-field--full pyxdia-range-field">Balance statistics
-            <input id="pyxdia-balance-stats-level" type="range" min="0" max="100" step="25" value="${escapeHtml(statsLevel)}">
-            <small>${escapeHtml(statsLabel)} context. Sends counts and percentages only, never note bodies.</small>
-          </label>
-        </div>
-        <label class="body-field body-field--full">Instructions / personality
-          <textarea id="pyxdia-general-instructions" rows="4">${escapeHtml(settings.generalInstructions)}</textarea>
-        </label>
-        <label class="body-field body-field--full">What Pen Pal should know
-          <textarea id="pyxdia-know" rows="4">${escapeHtml(settings.userWantsPyxdiaToKnow)}</textarea>
-        </label>
-        <div class="editor-footer-actions">
-          <button class="secondary-button" data-action="pyxdia-save-settings" type="button"${state.pyxdiaBusy ? " disabled" : ""}>${buttonContent("tabler:device-floppy", "Save Settings")}</button>
-          <button class="secondary-button danger-button" data-action="pyxdia-reset-memory" type="button"${state.pyxdiaBusy ? " disabled" : ""}>${buttonContent("tabler:restore", "Reset Memory")}</button>
-        </div>
-      </section>
-      <section class="interface-settings-section">
-        <div class="body-card-heading">
-          <div>
-            <h3>AI Brain</h3>
-            <p>Server-side read/write memory connection for approved Pen Pal context.</p>
-          </div>
-        </div>
-        <article class="pyxdia-memory-card">
-          <p>${escapeHtml(aiBrainStatus)}</p>
-          <small>${escapeHtml(aiBrain.consumer ? `Consumer: ${aiBrain.consumer}` : "Writes stay draft-first when configured.")}</small>
-        </article>
-      </section>
-      <section class="interface-settings-section">
-        <div class="body-card-heading">
-          <div>
-            <h3>Pen Pal Static Memory</h3>
-            <p>Stable PII-safe profile. Full letters, notes, and chats are not copied here.</p>
-          </div>
-        </div>
-        <article class="pyxdia-memory-card">
-          <p>${escapeHtml(memorySummary)}</p>
-          ${
-						staticMemory.entries?.length
-							? `<div class="pyxdia-memory-entry-list">
-              ${staticMemory.entries
-								.slice(-6)
-								.reverse()
-								.map(
-									(entry) => `
-                <div class="pyxdia-memory-entry">
-                  <strong>${escapeHtml(entry.text || entry.summary)}</strong>
-                  <small>${escapeHtml(entry.reasonRemembered || "Remembered from a completed letter.")}</small>
-                </div>
-              `,
-								)
-								.join("")}
-            </div>`
-							: ""
-					}
-        </article>
-      </section>
-      <section class="interface-settings-section">
-        <div class="body-card-heading">
-          <div>
-            <h3>Pen Pal Dynamic Retrieval</h3>
-            <p>Recent automatic context used below user-selected context.</p>
-          </div>
-        </div>
-        <article class="pyxdia-memory-card">
-          ${
-						dynamicRetrievalMemory.items.length
-							? `<div class="pyxdia-memory-entry-list">
-              ${dynamicRetrievalMemory.items
-								.slice(0, 6)
-								.map(
-									(item) => `
-                <div class="pyxdia-memory-entry">
-                  <strong>${escapeHtml(item.summary)}</strong>
-                  <small>${escapeHtml(item.reason)}</small>
-                </div>
-              `,
-								)
-								.join("")}
-            </div>`
-							: `<p>No dynamic retrieval has been used yet.</p>`
-					}
-        </article>
+        <p>Download one backup per Space. Keep the files somewhere you can find them again.</p>
       </section>
     </div>
   `;
@@ -14587,6 +12531,7 @@ function settingsCloudHtml() {
 						}
             <button class="secondary-button" data-action="import-artifacts" type="button"${signedIn && !canWriteSpace ? " disabled" : ""}>${buttonContent("tabler:file-import", "Import")}</button>
             <button class="secondary-button" data-action="export-artifacts" type="button">${buttonContent("tabler:file-export", "Export")}</button>
+            ${mapsSpaceReference() ? `<button class="secondary-button" data-action="export-legacy-letters" type="button">${buttonContent("tabler:archive", "Export with legacy letters")}</button>` : ""}
           </nav>
           ${
 						signedIn
@@ -15366,11 +13311,11 @@ function spaceVisibilitySettingsHtml() {
         ${Object.values(DATA_SPACES)
 				.map(
 					(space) => {
-						const unread = pyxdiaUnreadSpaceCount(space.id);
+
 						return `
           <button class="dashboard-space-button${current === space.id ? " is-active" : ""}" data-action="switch-space" data-space="${escapeHtml(space.id)}" type="button" aria-pressed="${current === space.id ? "true" : "false"}">
             <span>${escapeHtml(space.label)}</span>
-            ${unread ? `<i class="dashboard-space-unread" aria-label="${escapeHtml(`${unread} unread letter${unread === 1 ? "" : "s"}`)}">${escapeHtml(unread > 9 ? "9+" : String(unread))}</i>` : ""}
+
           </button>
         `;
 					},
@@ -15390,11 +13335,11 @@ function dashboardSpaceSwitcherHtml() {
       ${spaces
 				.map(
 					(space) => {
-						const unread = pyxdiaUnreadSpaceCount(space.id);
+
 						return `
           <button class="dashboard-space-button${current === space.id ? " is-active" : ""}" data-action="switch-space" data-space="${escapeHtml(space.id)}" type="button" aria-pressed="${current === space.id ? "true" : "false"}">
             <span>${escapeHtml(space.label)}</span>
-            ${unread ? `<i class="dashboard-space-unread" aria-label="${escapeHtml(`${unread} unread letter${unread === 1 ? "" : "s"}`)}">${escapeHtml(unread > 9 ? "9+" : String(unread))}</i>` : ""}
+
           </button>
         `;
 					},
@@ -18969,19 +16914,6 @@ async function applyCameraCapture(file) {
 		}
 		return {};
 	}
-	if (target.kind === "pyxdia") {
-		const draft = await uploadPyxdiaImagesAndInsert([file], { render: false });
-		if (!draft) {
-			throw new Error(state.pyxdiaError || "Could not add camera photo.");
-		}
-		return {
-			active: "PYXIDA",
-			pyxdiaView: "input",
-			pyxdiaDraft: draft,
-			pyxdiaStatus: "Photo added.",
-			pyxdiaError: "",
-		};
-	}
 	return await createCameraDashboardNote([file], target.dashboard);
 }
 
@@ -19002,19 +16934,6 @@ async function applyCameraUpload(files) {
 			throw new Error("Could not add image.");
 		}
 		return {};
-	}
-	if (target.kind === "pyxdia") {
-		const draft = await uploadPyxdiaImagesAndInsert(images, { render: false });
-		if (!draft) {
-			throw new Error(state.pyxdiaError || "Could not add image.");
-		}
-		return {
-			active: "PYXIDA",
-			pyxdiaView: "input",
-			pyxdiaDraft: draft,
-			pyxdiaStatus: "Image added.",
-			pyxdiaError: "",
-		};
 	}
 	return await createCameraDashboardNote(images, target.dashboard);
 }
@@ -19117,120 +17036,6 @@ function bindActions() {
 	});
 }
 
-function bindPyxdiaControls() {
-	const input = app.querySelector("#pyxdia-letter-input");
-	if (input) {
-		const update = () => {
-			const draft = savePyxdiaDraftLocal(pyxdiaDraftFromDom(), {
-				render: false,
-			});
-			const settings = normalizePyxdiaSettings(state.pyxdiaSettings);
-			const size = estimatePyxdiaLetterSize(draft.inputText);
-			const counter = app.querySelector("[data-pyxdia-counter]");
-			if (counter) {
-				counter.classList.toggle(
-					"is-over-limit",
-					size.words > settings.letterMaxWords ||
-						size.chars > settings.letterMaxChars,
-				);
-				counter.innerHTML = `
-          <span>${escapeHtml(`${size.words} / ${settings.letterMaxWords} words`)}</span>
-          <span>${escapeHtml(`${size.chars} / ${settings.letterMaxChars} chars`)}</span>
-        `;
-			}
-		};
-		input.addEventListener("input", update);
-		input.addEventListener("change", update);
-		input.addEventListener("paste", async (event) => {
-			const files = Array.from(event.clipboardData?.items || [])
-				.filter(
-					(item) => item.kind === "file" && item.type.startsWith("image/"),
-				)
-				.map((item) => item.getAsFile())
-				.filter(Boolean);
-			if (!files.length) {
-				return;
-			}
-			event.preventDefault();
-			await insertPyxdiaLetterImages(files);
-		});
-	}
-	const context = app.querySelector("#pyxdia-context-input");
-	if (context) {
-		const update = () =>
-			savePyxdiaDraftLocal(pyxdiaDraftFromDom(), { render: false });
-		context.addEventListener("input", update);
-		context.addEventListener("change", update);
-	}
-	app.querySelectorAll("[data-pyxdia-recipient-control]").forEach((control) => {
-		control.addEventListener("change", () => {
-			const type =
-				app.querySelector("input[name='pyxdia-recipient-type']:checked")?.value ||
-				"pyxdia";
-			const uid = app.querySelector("#pyxdia-family-recipient")?.value || "";
-			selectPyxdiaCorrespondent(type, uid);
-		});
-	});
-	app.querySelectorAll("[data-pyxdia-note-ref]").forEach((checkbox) => {
-		checkbox.addEventListener("change", () => {
-			savePyxdiaDraftLocal(
-				pyxdiaDraftFromDom({ noteSelectionMode: "custom" }),
-				{
-					render: false,
-				},
-			);
-			applyPyxdiaNoteFiltersDom();
-		});
-	});
-	app.querySelectorAll("[data-pyxdia-note-filter]").forEach((control) => {
-		const updateFilters = () => {
-			state.pyxdiaNoteFilters = pyxdiaNoteFiltersFromDom();
-			applyPyxdiaNoteFiltersDom();
-		};
-		control.addEventListener("input", updateFilters);
-		control.addEventListener("change", updateFilters);
-	});
-	if (app.querySelector("[data-pyxdia-note-ref-row]")) {
-		applyPyxdiaNoteFiltersDom();
-	}
-	const settingsPanel = app.querySelector(".pyxdia-settings");
-	if (settingsPanel) {
-		const updateSettings = (event) => {
-			state.pyxdiaSettings = pyxdiaSettingsFromForm();
-			savePyxdiaSettingsLocal(state.pyxdiaSettings);
-			if (event?.target?.id?.startsWith("pyxdia-")) {
-				schedulePyxdiaSettingsPersist({ immediate: event.type === "change" });
-			}
-		};
-		settingsPanel.addEventListener("input", updateSettings, true);
-		settingsPanel.addEventListener("change", updateSettings, true);
-		settingsPanel.addEventListener(
-			"click",
-			(event) => {
-				if (event.target?.matches?.("input[type='checkbox']")) {
-					window.setTimeout(
-						() => updateSettings({ target: event.target, type: "change" }),
-						0,
-					);
-				}
-			},
-			true,
-		);
-		settingsPanel.querySelectorAll("input, textarea").forEach((field) => {
-			field.addEventListener("input", updateSettings);
-			field.addEventListener("change", updateSettings);
-			if (field.type === "checkbox") {
-				field.addEventListener("click", () => {
-					window.setTimeout(
-						() => updateSettings({ target: field, type: "change" }),
-						0,
-					);
-				});
-			}
-		});
-	}
-}
-
 function textWithMarkdownInsert(value, text, start, end) {
 	const source = String(value || "");
 	const from = Math.min(Math.max(Number(start) || 0, 0), source.length);
@@ -19244,162 +17049,6 @@ function textWithMarkdownInsert(value, text, start, end) {
 		value: `${before}${insert}${after}`,
 		cursor: before.length + insert.length,
 	};
-}
-
-async function uploadPyxdiaImagesAndInsert(files, options = {}) {
-	const images = files.filter((file) => file?.type?.startsWith("image/"));
-	if (!images.length) {
-		return null;
-	}
-	const fail = (message) => {
-		state.pyxdiaError = message;
-		if (options.renderOnError) {
-			setState({ pyxdiaError: message });
-		}
-		return null;
-	};
-	if (!isPyxdiaSignedIn() || state.cloud?.isLocalDemo) {
-		return fail("Sign in with Cloud before adding images to Pen Pal letters.");
-	}
-	const input = document.getElementById("pyxdia-letter-input");
-	const uid = state.cloud?.cloudOwnerUid || state.cloud?.user?.uid || "";
-	const letterId = pyxdiaCurrentClientLetterId();
-	const currentDraft = normalizePyxdiaDraft(state.pyxdiaDraft);
-	const currentText = input ? input.value : currentDraft.inputText;
-	const start = options.start ?? input?.selectionStart ?? currentText.length;
-	const end = options.end ?? input?.selectionEnd ?? start;
-	const uploadedRefs = [];
-	try {
-		for (const image of images) {
-			uploadedRefs.push(
-				await uploadPyxdiaLetterImage(image, {
-					uid,
-					letterId,
-				}),
-			);
-		}
-	} catch (error) {
-		return fail(
-			error instanceof Error ? error.message : "Could not upload Pen Pal image.",
-		);
-	}
-	const inserted = textWithMarkdownInsert(
-		currentText,
-		uploadedRefs.map((ref) => pyxdiaImageMarkdown(ref)).join("\n\n"),
-		start,
-		end,
-	);
-	if (input) {
-		input.value = inserted.value;
-		input.focus();
-		input.setSelectionRange(inserted.cursor, inserted.cursor);
-	}
-	const draft = normalizePyxdiaDraft({
-		...pyxdiaDraftFromDom(),
-		clientLetterId: letterId,
-		inputText: inserted.value,
-		imageRefs: [...(state.pyxdiaDraft?.imageRefs || []), ...uploadedRefs],
-		updatedAt: nowIso(),
-	});
-	state.pyxdiaDraft = draft;
-	savePyxdiaLocalState();
-	const settings = normalizePyxdiaSettings(state.pyxdiaSettings);
-	const size = estimatePyxdiaLetterSize(draft.inputText);
-	const counter = app.querySelector("[data-pyxdia-counter]");
-	if (counter) {
-		counter.classList.toggle(
-			"is-over-limit",
-			size.words > settings.letterMaxWords ||
-				size.chars > settings.letterMaxChars,
-		);
-		counter.innerHTML = `
-          <span>${escapeHtml(`${size.words} / ${settings.letterMaxWords} words`)}</span>
-          <span>${escapeHtml(`${size.chars} / ${settings.letterMaxChars} chars`)}</span>
-        `;
-	}
-	return draft;
-}
-
-async function insertPyxdiaLetterImages(files) {
-	await uploadPyxdiaImagesAndInsert(files, { renderOnError: true });
-}
-
-function _insertTextAtPyxdiaCursor(text, start, end) {
-	const input = document.getElementById("pyxdia-letter-input");
-	if (!input) {
-		return;
-	}
-	const inserted = textWithMarkdownInsert(input.value, text, start, end);
-	input.value = inserted.value;
-	input.focus();
-	input.setSelectionRange(inserted.cursor, inserted.cursor);
-}
-
-function schedulePyxdiaSettingsPersist(options = {}) {
-	window.clearTimeout(pyxdiaSettingsPersistTimer);
-	const delay = options.immediate ? 0 : 550;
-	pyxdiaSettingsPersistTimer = window.setTimeout(() => {
-		pyxdiaSettingsPersistTimer = null;
-		void persistPyxdiaSettingsNow();
-	}, delay);
-}
-
-async function persistPyxdiaSettingsNow() {
-	const settings = normalizePyxdiaSettings(state.pyxdiaSettings);
-	state.pyxdiaSettings = settings;
-	savePyxdiaSettingsLocal(settings);
-	if (!settings.delayEnabled) {
-		processDueLocalPyxdiaJobs({ force: true });
-	}
-	if (!isPyxdiaSignedIn() || state.cloud?.isLocalDemo) {
-		return;
-	}
-	try {
-		const payload = await savePyxdiaSettings(settings, {
-			getIdToken: getCloudIdToken,
-		});
-		applyPyxdiaStatePayload(payload);
-		setState({
-			pyxdiaStatus: "Pen Pal settings saved.",
-			pyxdiaError: "",
-		});
-	} catch (error) {
-		setState({
-			pyxdiaError:
-				error instanceof Error
-					? error.message
-					: "Could not save Pen Pal settings.",
-		});
-	}
-}
-
-function bindPyxdiaImages() {
-	const refs = new Map();
-	[
-		...(state.pyxdiaDraft?.imageRefs || []),
-		...(state.pyxdiaLetters || []).flatMap((letter) => letter.imageRefs || []),
-	].forEach((ref) => {
-		if (ref?.id) {
-			refs.set(ref.id, ref);
-		}
-	});
-	app.querySelectorAll("img[data-pyxdia-image]").forEach(async (image) => {
-		const ref = refs.get(image.dataset.pyxdiaImage || "");
-		if (!ref) {
-			image.classList.add("is-missing");
-			return;
-		}
-		try {
-			const url = await resolvePyxdiaImageUrl(ref);
-			if (url) {
-				image.src = url;
-			} else {
-				image.classList.add("is-missing");
-			}
-		} catch {
-			image.classList.add("is-missing");
-		}
-	});
 }
 
 function bindDashboardIdentityAutoSave() {
@@ -21236,8 +18885,7 @@ function handleAction(element) {
 				artifactMode: "grid",
 				selectedArtifactId: null,
 			});
-		} else if (state.active === "PYXIDA") {
-			openPyxdia("input");
+
 		} else {
 			setState({ artifactMode: "grid", selectedArtifactId: null });
 		}
@@ -21254,9 +18902,6 @@ function handleAction(element) {
 	}
 	if (action === "toggle-sidebar-section") {
 		toggleSidebarSection(element.dataset.section);
-	}
-	if (action === "toggle-pyxdia-menu") {
-		setState({ pyxdiaExpanded: !state.pyxdiaExpanded });
 	}
 	if (action === "toggle-all-sidebar-sections") {
 		toggleAllSidebarSections();
@@ -21361,8 +19006,10 @@ function handleAction(element) {
 	if (action === "open-life-activity") {
 		openActivityArtifact(element.dataset.id);
 	}
-	if (action === "export-artifacts") {
-		exportArtifacts();
+	if (action === "export-artifacts" || action === "export-legacy-letters") {
+		void exportArtifacts({ includeHostedLetters: action === "export-legacy-letters" }).catch(error => {
+			window.alert(error instanceof Error ? error.message : "Could not export data.");
+		});
 	}
 	if (action === "import-artifacts") {
 		importArtifacts();
@@ -21491,23 +19138,6 @@ function handleAction(element) {
 			trackerDeleteKey: "",
 		});
 	}
-	if (action === "pyxdia-open-settings") {
-		setState({
-			active: state.active === "Settings" ? "Dashboard" : state.active,
-			settingsTab: "pyxdia",
-			mobileMenuOpen: true,
-			sidebarSubmenu: "settings",
-			flipped: null,
-			artifactMode: "grid",
-			selectedArtifactId: null,
-			selectedCompendiumId: null,
-			selectedSectionId: null,
-			selectedSpiritBookKey: null,
-			trackerAddArea: "",
-			trackerEditKey: "",
-			trackerDeleteKey: "",
-		});
-	}
 	if (action === "close-settings") {
 		setState({ sidebarSubmenu: "", mobileMenuOpen: false });
 	}
@@ -21526,30 +19156,6 @@ function handleAction(element) {
 			trackerDeleteKey: "",
 		});
 	}
-	if (action === "pyxdia-open-input") {
-		openPyxdia("input");
-	}
-	if (action === "pyxdia-open-output") {
-		openPyxdia("output");
-	}
-	if (action === "pyxdia-open-thread") {
-		const threadId = element.dataset.id || "";
-		selectPyxdiaRecipientForThread(threadId);
-		openPyxdia("thread", { pyxdiaActiveThreadId: threadId });
-		void markSelectedPyxdiaThreadRead().catch(() => {});
-	}
-	if (action === "pyxdia-reply-thread") {
-		openPyxdiaReplyToThread(
-			element.dataset.id || state.pyxdiaActiveThreadId || "",
-		);
-	}
-	if (action === "pyxdia-select-correspondent") {
-		selectPyxdiaCorrespondent(
-			element.dataset.recipientType || "pyxdia",
-			element.dataset.recipientUid || "",
-		);
-		void markSelectedPyxdiaThreadRead().catch(() => {});
-	}
 	if (action === "open-family-invites") {
 		setState({
 			active: state.active === "Settings" ? "Dashboard" : state.active,
@@ -21557,76 +19163,6 @@ function handleAction(element) {
 			sidebarSubmenu: "settings",
 			settingsTab: "cloud",
 		});
-	}
-	if (action === "set-pyxdia-view") {
-		openPyxdia(element.dataset.view || "input");
-	}
-	if (action === "set-pyxdia-editor-mode") {
-		if (document.getElementById("pyxdia-letter-input")) {
-			savePyxdiaDraftLocal(pyxdiaDraftFromDom(), { render: false });
-		}
-		setState({
-			pyxdiaEditorMode:
-				element.dataset.mode === "preview" ? "preview" : "markdown",
-		});
-	}
-	if (action === "pyxdia-note-select-visible") {
-		pyxdiaVisibleNoteCheckboxes().forEach((checkbox) => {
-			checkbox.checked = true;
-		});
-		savePyxdiaNoteSelectionFromDom("custom");
-	}
-	if (action === "pyxdia-note-clear-visible") {
-		pyxdiaVisibleNoteCheckboxes().forEach((checkbox) => {
-			checkbox.checked = false;
-		});
-		savePyxdiaNoteSelectionFromDom("custom");
-	}
-	if (action === "pyxdia-note-reset-all") {
-		app.querySelectorAll("[data-pyxdia-note-ref]").forEach((checkbox) => {
-			checkbox.checked = true;
-		});
-		savePyxdiaNoteSelectionFromDom("all");
-	}
-	if (action === "pyxdia-save-draft") {
-		void runPyxdiaAction("Saving draft...", savePyxdiaDraftAction);
-	}
-	if (action === "pyxdia-send-letter") {
-		void runPyxdiaAction("Sending letter...", sendPyxdiaLetterAction);
-	}
-	if (action === "pyxdia-refresh") {
-		void runPyxdiaAction("Refreshing Pen Pal...", refreshPyxdiaState);
-	}
-	if (action === "pyxdia-retry-letter") {
-		const letter = state.pyxdiaLetters.find(
-			(item) => item.id === element.dataset.id,
-		);
-		void runPyxdiaAction(
-			isTemplatePyxdiaReply(letter)
-				? "Regenerating reply..."
-				: "Retrying letter...",
-			() => retryPyxdiaLetterAction(element.dataset.id),
-		);
-	}
-	if (action === "pyxdia-delete-letter") {
-		void deletePyxdiaLetterAction(element.dataset.id);
-	}
-	if (action === "pyxdia-toggle-delay") {
-		window.setTimeout(() => {
-			const settings = pyxdiaSettingsFromForm();
-			state.pyxdiaSettings = settings;
-			savePyxdiaSettingsLocal(settings);
-			schedulePyxdiaSettingsPersist({ immediate: true });
-		}, 0);
-	}
-	if (action === "pyxdia-save-settings") {
-		const settings = pyxdiaSettingsFromForm();
-		void runPyxdiaAction("Saving Pen Pal settings...", () =>
-			savePyxdiaSettingsAction(settings),
-		);
-	}
-	if (action === "pyxdia-reset-memory") {
-		void runPyxdiaAction("Resetting Pen Pal memory...", resetPyxdiaMemoryAction);
 	}
 	if (action === "cloud-sign-in") {
 		rememberCloudAuthView();
@@ -22148,7 +19684,8 @@ if (mapsEntry.get("view") === "gallery") {
 }
 window.addEventListener("focus", () => void followMapsSpace());
 window.addEventListener("pageshow", (event) => { if (event.persisted) void followMapsSpace(); });
-void initCloudAccount((cloud) => {
+if (standalone) void openTargetEntry();
+else void initCloudAccount((cloud) => {
 	const previousSignature = cloudUiSignature(state.cloud);
 	state.cloud = cloud;
 	spaceLocations.refresh();
@@ -22182,9 +19719,6 @@ void initCloudAccount((cloud) => {
 	configureCloudAutoSync();
 	if (state.artifactStore) {
 		void maybePromptCloudImport(cloud);
-	}
-	if (cloud?.mode === "signed-in") {
-		void refreshPyxdiaState({ silent: true });
 	}
 });
 

@@ -126,6 +126,54 @@ function logLocal(transaction, spaceId, record, action, meta) {
 	});
 }
 
+const deviceBackupStores = ["locations", "content", "history", "editReceipts"];
+
+function deviceSpaceRange(spaceId) {
+	return IDBKeyRange.bound([spaceId, ""], [spaceId, []], false, true);
+}
+
+export function exportDeviceRecords(spaceId) {
+	return transact(deviceBackupStores, "readonly", (transaction, result) => {
+		const records = {};
+		for (const name of deviceBackupStores) {
+			const request = transaction.objectStore(name).getAll(deviceSpaceRange(spaceId));
+			request.onsuccess = () => { records[name] = request.result; };
+		}
+		result(records);
+	});
+}
+
+export function validateDeviceRecords(spaceId, records) {
+	if (!records || !deviceBackupStores.every(name => Array.isArray(records[name]))) {
+		throw new Error("This backup has invalid device records.");
+	}
+	for (const name of deviceBackupStores) {
+		const seen = new Set();
+		for (const row of records[name]) {
+			const id = name === "content" || name === "locations" ? row?.record?.id : row?.id;
+			const validDetail = name === "history"
+				? typeof row?.recordId === "string" && Number.isFinite(Date.parse(row.at))
+				: name !== "editReceipts" || typeof row?.mutationId === "string";
+			const key = JSON.stringify([id, name === "editReceipts" ? row?.mutationId : ""]);
+			if (row?.spaceId !== spaceId || typeof id !== "string" || !id || !validDetail || seen.has(key)) {
+				throw new Error("This backup has invalid or mismatched Space records.");
+			}
+			seen.add(key);
+		}
+	}
+}
+
+export function replaceDeviceRecords(spaceId, records) {
+	validateDeviceRecords(spaceId, records);
+	return transact(deviceBackupStores, "readwrite", transaction => {
+		for (const name of deviceBackupStores) {
+			const store = transaction.objectStore(name);
+			store.delete(deviceSpaceRange(spaceId));
+			for (const row of records[name]) store.add(row);
+		}
+	});
+}
+
 export function listDeviceHistory(spaceId) {
 	return transact(["history"], "readonly", (transaction, result) => {
 		const range = IDBKeyRange.bound([spaceId, ""], [spaceId, "\uffff"]);

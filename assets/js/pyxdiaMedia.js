@@ -83,14 +83,15 @@ export async function resolvePyxdiaImageUrl(imageRef) {
 		return imageUrlCache.get(id);
 	}
 	const storagePath = String(imageRef?.storagePath || "");
-	if (!storagePath) {
-		return "";
-	}
-	const modules = await ensureFirebaseStorage();
-	const blob = await modules.getBlob(modules.ref(firebaseStorage, storagePath));
-	const objectUrl = URL.createObjectURL(blob);
+	if (!storagePath) return "";
+	const objectUrl = URL.createObjectURL(await readPyxdiaImageBlob(storagePath));
 	imageUrlCache.set(id, objectUrl);
 	return objectUrl;
+}
+
+export async function readPyxdiaImageBlob(storagePath) {
+	const modules = await ensureFirebaseStorage();
+	return modules.getBlob(modules.ref(firebaseStorage, storagePath));
 }
 
 async function ensureFirebaseStorage() {

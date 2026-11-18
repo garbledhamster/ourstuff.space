@@ -331,7 +331,7 @@ async function pyxdiaRequest(path, options = {}) {
 			: "";
 	const headers = {
 		accept: "application/json",
-		"x-ourstuff-app-id": getActiveCloudAppId(),
+		"x-ourstuff-app-id": options.appId || getActiveCloudAppId(),
 		...(options.body === undefined
 			? {}
 			: { "content-type": "application/json" }),
@@ -341,6 +341,7 @@ async function pyxdiaRequest(path, options = {}) {
 	}
 	const response = await fetch(`${PYXIDA_API_URL}${path}`, {
 		method: options.method || "GET",
+		cache: "no-store",
 		headers,
 		body:
 			options.body === undefined
