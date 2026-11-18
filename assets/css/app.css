@@ -14569,3 +14569,11 @@ button.life-event-row:hover {
 .space-targets-modal > button + button {
 	margin-inline-start: .5rem;
 }
+
+.space-outing-photo {
+	display: block;
+	width: 100%;
+	max-height: 65vh;
+	object-fit: contain;
+	margin-block: .75rem;
+}

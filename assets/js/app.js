@@ -58,6 +58,7 @@ import {
 import { escapeHtml, parseOurstuffLineCommand, renderMarkdown } from "./markdown.js";
 import { createMapsProfile, MAPS_ORIGIN, mapsProfileHtml, mapsProfileUrl, mapsProfileViews } from "./maps-profile.js";
 import { setupSpaceLocations } from "./space-locations.js";
+import { setupSpaceOutings } from "./space-outings.js";
 import { setupSpaceTargets } from "./space-targets.js";
 import {
 	pageContentHtml,
@@ -6014,12 +6015,14 @@ function hasDashboardOrbs(dashboard) {
 }
 
 function dashboardOrbNavHtml(dashboard) {
-	if (!hasDashboardOrbs(dashboard)) {
-		return "";
-	}
+	const outings = mapsUser()
+		? `<button type="button" class="secondary-button" data-action="open-space-outings" data-category="${escapeHtml(dashboard)}">Saved outing records</button>`
+		: "";
+	if (!hasDashboardOrbs(dashboard)) return outings;
 	return `
     <div class="dashboard-orb-nav" aria-label="${escapeHtml(dashboardDisplayLabel(dashboard))} orbs">
       ${trackerStripHtml(dashboard, { combined: true, label: "", icon: "tabler:planet" })}
+      ${outings}
     </div>
   `;
 }
@@ -12935,6 +12938,7 @@ function sidebarHtml(_compendium) {
             <button class="sidebar-text-link${state.active === view ? " is-active" : ""}" data-action="open-maps-profile" data-view="${escapeHtml(view)}" type="button"${state.active === view ? ' aria-current="page"' : ""}>${escapeHtml(view)}</button>
           `).join("")}
           <button class="sidebar-text-link" data-action="open-space-locations" type="button">Space locations</button>
+          <button class="sidebar-text-link" data-action="open-space-outings" type="button">Saved outings</button>
           <button class="sidebar-text-link" data-action="open-space-targets" data-kind="goal" type="button">Goals</button>
           <button class="sidebar-text-link" data-action="open-space-targets" data-kind="habit" type="button">Habit Tracker</button>
         </div>
@@ -15127,6 +15131,11 @@ function openLegacyGoal(goal) {
 		? `[data-tracker-edit-form][data-area="${selectorValue(area)}"][data-id="${selectorValue(goal.id)}"][data-kind="goal"]`
 		: `[data-tracker-add-form][data-area="${selectorValue(area)}"][data-kind="goal"]`);
 }
+
+const spaceOutings = setupSpaceOutings({
+	currentSpace: spaceLocationContext,
+	tokenFor: expectedUid => getCloudIdToken({ expectedUid, optional: true }),
+});
 
 const spaceTargets = setupSpaceTargets({
 	currentSpace: spaceLocationContext,
@@ -21353,6 +21362,11 @@ function handleAction(element) {
 		spaceTargets.open(element.dataset.kind === "habit" ? "habit" : "goal", element);
 		return;
 	}
+	if (action === "open-space-outings") {
+		if (state.mobileMenuOpen || state.sidebarSubmenu) setState({ sidebarSubmenu: "", mobileMenuOpen: false });
+		spaceOutings.open(element, element.dataset.category);
+		return;
+	}
 	if (action === "open-space-locations") {
 		setState({ sidebarSubmenu: "", mobileMenuOpen: false });
 		spaceLocations.open(element);
@@ -22104,6 +22118,7 @@ void initCloudAccount((cloud) => {
 	state.cloud = cloud;
 	spaceLocations.refresh();
 	spaceTargets.refresh();
+	spaceOutings.refresh();
 	const mapsProfileChanged = mapsProfile.sync(state.active, cloud);
 	const uid = mapsUser(cloud);
 	if (mapsAccount !== uid) {
