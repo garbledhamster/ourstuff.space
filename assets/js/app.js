@@ -57,6 +57,7 @@ import {
 } from "./localMedia.js?v=space-20260531a";
 import { escapeHtml, parseOurstuffLineCommand, renderMarkdown } from "./markdown.js";
 import { createMapsProfile, MAPS_ORIGIN, mapsProfileHtml, mapsProfileUrl, mapsProfileViews } from "./maps-profile.js";
+import { setupSpaceLocations } from "./space-locations.js";
 import {
 	pageContentHtml,
 	pageNumberOverlayHtml,
@@ -12932,6 +12933,7 @@ function sidebarHtml(_compendium) {
           ${mapsProfileViews.map((view) => `
             <button class="sidebar-text-link${state.active === view ? " is-active" : ""}" data-action="open-maps-profile" data-view="${escapeHtml(view)}" type="button"${state.active === view ? ' aria-current="page"' : ""}>${escapeHtml(view)}</button>
           `).join("")}
+          <button class="sidebar-text-link" data-action="open-space-locations" type="button">Space locations</button>
         </div>
       </div>
     </aside>
@@ -15077,6 +15079,25 @@ let mapsAccount;
 function mapsUser(cloud = state.cloud) {
 	return cloud?.mode === "signed-in" && !cloud.isLocalDemo ? cloud.user?.uid : undefined;
 }
+
+function spaceLocationContext() {
+	const id = activeSpaceId();
+	if (!isSpaceUnlocked(id)) return null;
+	const account = mapsUser();
+	const space = activeSpace();
+	const reference = account ? mapsSpaceReference() : { appId: space.cloudAppId };
+	const shareable = isShareableSpace(id);
+	return {
+		...reference, id, name: space.label, shareable, account,
+		role: account && shareable ? state.cloud.sharedSpace?.role : "owner",
+		categories: Object.fromEntries(DASHBOARD_LABELS.map(category => [category, dashboardDisplayLabel(category)])),
+	};
+}
+
+const spaceLocations = setupSpaceLocations({
+	currentSpace: spaceLocationContext,
+	tokenFor: expectedUid => getCloudIdToken({ expectedUid, optional: true }),
+});
 
 function mapsSpaceReference() {
 	const uid = mapsUser();
@@ -21278,6 +21299,11 @@ function handleAction(element) {
 	if (action === "dismiss-tip") {
 		dismissTip(element.dataset.tip, element);
 	}
+	if (action === "open-space-locations") {
+		setState({ sidebarSubmenu: "", mobileMenuOpen: false });
+		spaceLocations.open(element);
+		return;
+	}
 	if (action === "open-maps-profile" && mapsProfileViews.includes(element.dataset.view)) {
 		setState({
 			active: element.dataset.view,
@@ -22018,6 +22044,7 @@ window.addEventListener("pageshow", (event) => { if (event.persisted) void follo
 void initCloudAccount((cloud) => {
 	const previousSignature = cloudUiSignature(state.cloud);
 	state.cloud = cloud;
+	spaceLocations.refresh();
 	const mapsProfileChanged = mapsProfile.sync(state.active, cloud);
 	const uid = mapsUser(cloud);
 	if (mapsAccount !== uid) {

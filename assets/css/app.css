@@ -14494,3 +14494,40 @@ button.life-event-row:hover {
 .maps-profile-keyword span {
 	display: block;
 }
+
+.space-locations-modal {
+	width: min(36rem, calc(100% - 2rem));
+	max-height: calc(100dvh - 2rem);
+	overflow: auto;
+	box-sizing: border-box;
+	color: var(--text);
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 16px;
+	padding: 1rem;
+}
+.space-locations-modal::backdrop { background: rgb(0 0 0 / .2); }
+.space-locations-modal h2 { margin: 0 0 .4rem; }
+.space-locations-modal > div { margin-bottom: 1rem; }
+.space-locations-modal > p:empty { display: none; }
+.space-location-entries { display: grid; gap: .65rem; padding-inline-start: 0; }
+.space-location-entries li {
+	display: grid;
+	gap: .3rem;
+	border: 1px solid var(--border);
+	border-radius: 9px;
+	padding: .65rem;
+}
+.space-location-editor { display: grid; gap: .7rem; }
+.space-location-editor label { display: grid; gap: .25rem; }
+.space-location-editor :is(input, select) {
+	width: 100%;
+	box-sizing: border-box;
+	color: var(--text);
+	background: var(--surface-2);
+	border: 1px solid var(--border);
+	border-radius: 7px;
+	padding: .55rem;
+}
+.space-location-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+.space-location-actions button { min-height: 44px; touch-action: manipulation; }
