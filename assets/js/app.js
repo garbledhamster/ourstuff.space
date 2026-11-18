@@ -56,6 +56,7 @@ import {
 	updateLocalFileMetadata,
 } from "./localMedia.js?v=space-20260531a";
 import { escapeHtml, parseOurstuffLineCommand, renderMarkdown } from "./markdown.js";
+import { createMapsProfile, MAPS_ORIGIN, mapsProfileHtml, mapsProfileUrl, mapsProfileViews } from "./maps-profile.js";
 import {
 	pageContentHtml,
 	pageNumberOverlayHtml,
@@ -146,6 +147,7 @@ import {
 } from "./trash.js?v=space-20260531a";
 
 const app = document.getElementById("app");
+const mapsProfile = createMapsProfile({ getIdToken: getCloudIdToken, onChange: render });
 const DATASET_STORAGE_BASE_KEYS = [
 	"ourstuff.artifactStore.v1",
 	"ourstuff.bodyTracker.v1",
@@ -12074,6 +12076,8 @@ function resetTips() {
 }
 
 function render() {
+	mapsProfile.sync(state.active, state.cloud);
+	const restoreMapsFocus = document.activeElement?.id === "maps-profile-heading";
 	applyEnvironmentClasses();
 	if (cameraStream) {
 		stopCameraStream();
@@ -12196,6 +12200,7 @@ function render() {
 	restoreThoughtToastFocus(thoughtToastFocus);
 	restoreActiveEditableFocus(activeEditableFocus);
 	restoreContentScrollPosition(contentScrollRestoreKey);
+	if (restoreMapsFocus) app.querySelector("#maps-profile-heading")?.focus({ preventScroll: true });
 	if (state.sidebarSubmenu === "settings" && state.settingsTab === "cloud") {
 		scheduleCloudStorageUsageRefresh();
 	}
@@ -12923,6 +12928,11 @@ function sidebarHtml(_compendium) {
           <span aria-hidden="true">/</span>
           <a class="sidebar-text-link" href="${escapeHtml(mapsUrl())}">Maps</a>
         </div>
+        <div class="sidebar-footer-links sidebar-maps-links">
+          ${mapsProfileViews.map((view) => `
+            <button class="sidebar-text-link${state.active === view ? " is-active" : ""}" data-action="open-maps-profile" data-view="${escapeHtml(view)}" type="button"${state.active === view ? ' aria-current="page"' : ""}>${escapeHtml(view)}</button>
+          `).join("")}
+        </div>
       </div>
     </aside>
   `;
@@ -13190,6 +13200,9 @@ function contentHtml(compendium, section) {
 	}
 	if (state.active === "Settings") {
 		return dashboardGridHtml();
+	}
+	if (mapsProfileViews.includes(state.active)) {
+		return panelHtml(mapsProfileHtml(state.active, mapsProfile.current, state.cloud, mapsUrl));
 	}
 	if (state.active === "Gallery") {
 		return galleryHtml();
@@ -15055,7 +15068,7 @@ function visibleDataSpaces() {
 	return Object.values(DATA_SPACES).filter((space) => enabled.has(space.id));
 }
 
-const mapsOrigin = "https://maps.ourstuff.space";
+const mapsOrigin = MAPS_ORIGIN;
 const mapsEntry = new URLSearchParams(window.location.search);
 const pendingMapsSpaceKey = "ourstuff.maps-space-selection";
 let mapsSpaceRequest;
@@ -15077,17 +15090,10 @@ function mapsSpaceReference() {
 	}
 }
 
-function mapsUrl() {
+function mapsUrl(options) {
 	const [first] = visibleDataSpaces();
 	const theme = first ? loadTheme(storageKeyForSpace("ourstuff.theme.v1", first.id)) : "default";
-	const url = new URL("/", mapsOrigin);
-	url.searchParams.set("theme", theme);
-	const space = mapsSpaceReference();
-	if (space) {
-		url.searchParams.set("spaceOwner", space.ownerUid);
-		url.searchParams.set("spaceApp", space.appId);
-	}
-	return url.href;
+	return mapsProfileUrl({ ...options, theme, space: mapsSpaceReference() });
 }
 
 function pendingMapsSpace() {
@@ -21272,6 +21278,34 @@ function handleAction(element) {
 	if (action === "dismiss-tip") {
 		dismissTip(element.dataset.tip, element);
 	}
+	if (action === "open-maps-profile" && mapsProfileViews.includes(element.dataset.view)) {
+		setState({
+			active: element.dataset.view,
+			sidebarSubmenu: "",
+			mobileMenuOpen: false,
+			flipped: null,
+			artifactMode: "grid",
+			selectedArtifactId: null,
+			selectedCompendiumId: null,
+			selectedSectionId: null,
+			selectedSpiritBookKey: null,
+		});
+		app.querySelector("#maps-profile-heading")?.focus({ preventScroll: true });
+		return;
+	}
+	if (action === "maps-profile-retry") {
+		app.querySelector("#maps-profile-heading")?.focus({ preventScroll: true });
+		mapsProfile.retry();
+		return;
+	}
+	if (action === "maps-profile-sign-in") {
+		void runCloudAction("Opening Google sign-in...", () => signInWithGoogle());
+		return;
+	}
+	if (action === "maps-profile-account") {
+		setState({ sidebarSubmenu: "settings", mobileMenuOpen: true, settingsTab: "cloud" });
+		return;
+	}
 	if (action === "open-gallery") {
 		openGallery();
 	}
@@ -21984,6 +22018,7 @@ window.addEventListener("pageshow", (event) => { if (event.persisted) void follo
 void initCloudAccount((cloud) => {
 	const previousSignature = cloudUiSignature(state.cloud);
 	state.cloud = cloud;
+	const mapsProfileChanged = mapsProfile.sync(state.active, cloud);
 	const uid = mapsUser(cloud);
 	if (mapsAccount !== uid) {
 		mapsAccount = uid;
@@ -22001,7 +22036,7 @@ void initCloudAccount((cloud) => {
 		state.settingsTab = "cloud";
 	}
 	const nextSignature = cloudUiSignature(cloud);
-	if (showAuthView || (previousSignature !== nextSignature && !isUserEditingInterface())) {
+	if (mapsProfileChanged || showAuthView || (previousSignature !== nextSignature && !isUserEditingInterface())) {
 		render();
 	} else {
 		patchVisibleCloudStatus();
