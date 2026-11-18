@@ -58,6 +58,7 @@ import {
 import { escapeHtml, parseOurstuffLineCommand, renderMarkdown } from "./markdown.js";
 import { createMapsProfile, MAPS_ORIGIN, mapsProfileHtml, mapsProfileUrl, mapsProfileViews } from "./maps-profile.js";
 import { setupSpaceLocations } from "./space-locations.js";
+import { setupSpaceTargets } from "./space-targets.js";
 import {
 	pageContentHtml,
 	pageNumberOverlayHtml,
@@ -12934,6 +12935,8 @@ function sidebarHtml(_compendium) {
             <button class="sidebar-text-link${state.active === view ? " is-active" : ""}" data-action="open-maps-profile" data-view="${escapeHtml(view)}" type="button"${state.active === view ? ' aria-current="page"' : ""}>${escapeHtml(view)}</button>
           `).join("")}
           <button class="sidebar-text-link" data-action="open-space-locations" type="button">Space locations</button>
+          <button class="sidebar-text-link" data-action="open-space-targets" data-kind="goal" type="button">Goals</button>
+          <button class="sidebar-text-link" data-action="open-space-targets" data-kind="habit" type="button">Habit Tracker</button>
         </div>
       </div>
     </aside>
@@ -14229,6 +14232,7 @@ function settingsGoalsHtml() {
       <section class="thoughts-settings-intro">
         <div>
           <h3>Goal Orbs</h3>
+          <button class="secondary-button" data-action="open-space-targets" data-kind="goal" type="button">Open Space goals</button>
           <p>Enable or edit a goal orb in ${escapeHtml(dashboardDisplayNameList())} before it can log progress.</p>
         </div>
       </section>
@@ -15105,6 +15109,44 @@ const spaceLocations = setupSpaceLocations({
 	currentSpace: spaceLocationContext,
 	tokenFor: expectedUid => getCloudIdToken({ expectedUid, optional: true }),
 });
+
+function nativeGoalRows() {
+	return DASHBOARD_LABELS.flatMap(categoryId => (state.goalSettings?.[categoryId] || []).map(goal => ({
+		id: goal.id, name: goal.label, categoryId, enabled: goal.enabled,
+	})));
+}
+
+function openLegacyGoal(goal) {
+	const area = goal?.categoryId ?? DASHBOARD_LABELS[0];
+	setState({
+		mobileMenuOpen: true, sidebarSubmenu: "settings", settingsTab: "goals",
+		trackerEditKey: goal ? trackerEditKey(area, goal.id, "goal") : "",
+		trackerAddArea: goal ? "" : trackerAddKey(area, "goal"), trackerDeleteKey: "",
+	});
+	scrollTrackerEditorIntoView(goal
+		? `[data-tracker-edit-form][data-area="${selectorValue(area)}"][data-id="${selectorValue(goal.id)}"][data-kind="goal"]`
+		: `[data-tracker-add-form][data-area="${selectorValue(area)}"][data-kind="goal"]`);
+}
+
+const spaceTargets = setupSpaceTargets({
+	currentSpace: spaceLocationContext,
+	localGoals: nativeGoalRows,
+	openLegacy: openLegacyGoal,
+	tokenFor: expectedUid => getCloudIdToken({ expectedUid, optional: true }),
+});
+
+const targetEntryView = mapsEntry.get("view");
+const targetEntryKind = targetEntryView === "space-goals" ? "goal" : targetEntryView === "space-habits" ? "habit" : undefined;
+const targetEntryScope = mapsEntry.has("spaceOwner") || mapsEntry.has("spaceApp")
+	? { ownerUid: mapsEntry.get("spaceOwner"), appId: mapsEntry.get("spaceApp") } : undefined;
+let openingTargetEntry = false;
+
+async function openTargetEntry() {
+	if (!targetEntryKind || openingTargetEntry) return;
+	openingTargetEntry = true;
+	await followMapsSpace();
+	spaceTargets.open(targetEntryKind, undefined, { fromMaps: mapsEntry.get("from") === "maps", scope: targetEntryScope });
+}
 
 function mapsSpaceReference() {
 	const uid = mapsUser();
@@ -21306,6 +21348,11 @@ function handleAction(element) {
 	if (action === "dismiss-tip") {
 		dismissTip(element.dataset.tip, element);
 	}
+	if (action === "open-space-targets") {
+		setState({ sidebarSubmenu: "", mobileMenuOpen: false });
+		spaceTargets.open(element.dataset.kind === "habit" ? "habit" : "goal", element);
+		return;
+	}
 	if (action === "open-space-locations") {
 		setState({ sidebarSubmenu: "", mobileMenuOpen: false });
 		spaceLocations.open(element);
@@ -21650,6 +21697,10 @@ function handleAction(element) {
 		const area = element.dataset.area || "";
 		const id = element.dataset.id || "";
 		const kind = trackerKind(element.dataset.kind || "thought");
+		if (kind === "goal") {
+			void spaceTargets.openExistingGoal(id, element, () => openLegacyGoal({ id, categoryId: area }));
+			return;
+		}
 		setState({
 			trackerEditKey: trackerEditKey(area, id, kind),
 			trackerDeleteKey: "",
@@ -22052,14 +22103,16 @@ void initCloudAccount((cloud) => {
 	const previousSignature = cloudUiSignature(state.cloud);
 	state.cloud = cloud;
 	spaceLocations.refresh();
+	spaceTargets.refresh();
 	const mapsProfileChanged = mapsProfile.sync(state.active, cloud);
 	const uid = mapsUser(cloud);
 	if (mapsAccount !== uid) {
 		mapsAccount = uid;
 		mapsSpaceRequest?.abort();
 		mapsSpaceRequest = undefined;
-		void followMapsSpace();
+		if (!targetEntryKind || openingTargetEntry) void followMapsSpace();
 	}
+	if (cloud?.ready) void openTargetEntry();
 	configureMediaCloudContext(cloud);
 	const showAuthView =
 		cloud?.mode === "signed-in" && cloud?.user && consumeCloudAuthView();
