@@ -20,11 +20,15 @@ function action(text, run, className = "secondary-button") {
 
 function database() {
 	opening ??= new Promise((resolve, reject) => {
-		const request = indexedDB.open(dbName, 2);
+		const request = indexedDB.open(dbName, 3);
 		request.onupgradeneeded = ({ oldVersion }) => {
 			if (oldVersion < 1) request.result.createObjectStore("locations", { keyPath: ["spaceId", "record.id"] });
-			request.result.createObjectStore("content", { keyPath: ["spaceId", "record.id"] });
-			request.result.createObjectStore("editReceipts", { keyPath: ["spaceId", "id", "mutationId"] });
+			if (oldVersion < 2) {
+				request.result.createObjectStore("content", { keyPath: ["spaceId", "record.id"] });
+				request.result.createObjectStore("editReceipts", { keyPath: ["spaceId", "id", "mutationId"] });
+			}
+			request.result.createObjectStore("history", { keyPath: ["spaceId", "id"] });
+
 		};
 		request.onsuccess = () => resolve(request.result);
 		request.onerror = () => reject(request.error);
@@ -51,7 +55,7 @@ function localList(spaceId, collection, locationId) {
 		const range = IDBKeyRange.bound([spaceId, ""], [spaceId, "\uffff"]);
 		const request = transaction.objectStore(collection).getAll(range);
 		request.onsuccess = () => {
-			const records = request.result.map(row => row.record);
+			const records = request.result.map(row => row.record).filter(row => !row.deleted);
 			result({ role: "owner", records: locationId ? records.filter(row => row.locationId === locationId) : records });
 		};
 	});
@@ -63,13 +67,13 @@ async function localWrite(space, changes, previous, mutationId) {
 	const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(payload));
 	const fingerprint = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
 	const collection = (changes.kind || previous?.kind) ? "content" : "locations";
-	return transact(["locations", "content", "editReceipts"], "readwrite", (transaction, result, reject) => {
+	return transact(["locations", "content", "editReceipts", "history"], "readwrite", (transaction, result, reject) => {
 		const store = transaction.objectStore(collection);
 		const key = [space.id, changes.id];
 		const request = store.get(key);
 		request.onsuccess = () => {
 			const current = request.result?.record;
-			if (previous && !current) return reject(new Error("This record is unavailable."));
+			if (current?.deleted || (previous && !current)) return reject(new Error("This record is unavailable."));
 			if (previous) {
 				const receipts = transaction.objectStore("editReceipts");
 				const retry = receipts.get([...key, mutationId]);
@@ -80,8 +84,12 @@ async function localWrite(space, changes, previous, mutationId) {
 						return reject(Object.assign(new Error("The record changed. Review it again."), { record: current }));
 					}
 					const modified = { actorUid: "local", app: "our-stuff", at: new Date().toISOString() };
-					const record = { ...current, ...changes, revision: current.revision + 1, modified };
-					store.put({ spaceId: space.id, record, createKey: request.result.createKey });
+					const changed = Object.keys(changes).filter(key => changes[key] !== current[key]);
+					const record = changed.length ? { ...current, ...changes, revision: current.revision + 1, modified } : current;
+					if (changed.length) {
+						store.put({ spaceId: space.id, record, createKey: request.result.createKey });
+						logLocal(transaction, space.id, record, changed.length === 1 && changed[0] === "categoryId" ? "retagged" : "edited", modified);
+					}
 					receipts.add({ spaceId: space.id, id: changes.id, mutationId, fingerprint, ...modified, revision: record.revision });
 					result(record);
 				};
@@ -97,14 +105,70 @@ async function localWrite(space, changes, previous, mutationId) {
 				const created = { actorUid: "local", app: "our-stuff", at: new Date().toISOString() };
 				const record = { ...changes, appId: space.appId, authorUid: "local", authorName: "On this device", revision: 1, created };
 				store.add({ spaceId: space.id, record, createKey: fingerprint });
+				logLocal(transaction, space.id, record, "created", created);
 				result(record);
 			}
 			if (!changes.locationId) return create();
 			const linked = transaction.objectStore("locations").get([space.id, changes.locationId]);
 			linked.onsuccess = () => {
-				if (!linked.result) return reject(new Error("This location is unavailable in this Space."));
+				if (!linked.result || linked.result.record.deleted) return reject(new Error("This location is unavailable in this Space."));
 				create();
 			};
+		};
+	});
+}
+
+function logLocal(transaction, spaceId, record, action, meta) {
+	const { id: recordId, categoryId, revision } = record;
+	transaction.objectStore("history").add({
+		spaceId, id: recordId + ":" + revision, recordId, categoryId, revision,
+		kind: record.kind ?? "location", action, sourceApp: "our-stuff", ...meta,
+	});
+}
+
+export function listDeviceHistory(spaceId) {
+	return transact(["history"], "readonly", (transaction, result) => {
+		const range = IDBKeyRange.bound([spaceId, ""], [spaceId, "\uffff"]);
+		const request = transaction.objectStore("history").getAll(range);
+		request.onsuccess = () => result(request.result.sort((a, b) => b.at.localeCompare(a.at)));
+	});
+}
+
+export function openDeviceRecord(spaceId, kind, id) {
+	const collection = kind === "location" ? "locations" : "content";
+	return transact(["locations", "content"], "readonly", (transaction, result) => {
+		const request = transaction.objectStore(collection).get([spaceId, id]);
+		request.onsuccess = () => {
+			const record = request.result?.record;
+			if (!record || record.deleted || (record.kind ?? "location") !== kind) return result(undefined);
+			if (!record.locationId) return result({ record, role: "owner" });
+			const linked = transaction.objectStore("locations").get([spaceId, record.locationId]);
+			linked.onsuccess = () => {
+				const place = linked.result?.record;
+				return result({ record, role: "owner", location: place && !place.deleted ? place : undefined });
+			};
+		};
+	});
+}
+
+function localRemove(space, record, mutationId) {
+	const collection = record.kind ? "content" : "locations";
+	return transact([collection, "history"], "readwrite", (transaction, result, reject) => {
+		const store = transaction.objectStore(collection);
+		const key = [space.id, record.id];
+		const request = store.get(key);
+		request.onsuccess = () => {
+			const found = request.result?.record;
+			if (found?.deleted && found.removalId === mutationId) return result(true);
+			if (!found || found.deleted || found.revision !== record.revision) {
+				return reject(new Error("This record changed. Reopen it before removing it."));
+			}
+			const meta = { actorUid: "local", app: "our-stuff", at: new Date().toISOString() };
+			const removed = { id: found.id, kind: found.kind, categoryId: found.categoryId, revision: found.revision + 1,
+				deleted: true, removalId: mutationId };
+			store.put({ spaceId: space.id, record: removed });
+			logLocal(transaction, space.id, removed, "removed", meta);
+			result(true);
 		};
 	});
 }
@@ -192,7 +256,7 @@ function safeSource(value) {
 	if (link && ["http:", "https:"].includes(link.protocol) && !link.username && !link.password) return link.href;
 }
 
-export function setupSpaceLocations({ currentSpace, tokenFor }) {
+export function setupSpaceLocations({ currentSpace, tokenFor, onChange }) {
 	const dialog = node("dialog", "", "space-locations-modal");
 	dialog.setAttribute("aria-labelledby", "space-locations-heading");
 	const heading = node("h2", "Space locations");
@@ -207,6 +271,7 @@ export function setupSpaceLocations({ currentSpace, tokenFor }) {
 	document.body.append(dialog);
 
 	let current;
+	let exact;
 	let editor;
 	let linkedId;
 	let detail;
@@ -372,7 +437,8 @@ export function setupSpaceLocations({ currentSpace, tokenFor }) {
 		const save = node("button", "Save " + (kind ?? (typeOnly ? "type" : "location")), "primary-button");
 		save.type = "submit";
 		const cancel = action("Cancel", () => {
-			if (scopeKey(space) === scopeKey(currentSpace())) void load();
+			if (exact) dialog.close();
+			else if (scopeKey(space) === scopeKey(currentSpace())) void load();
 			else resetView();
 		});
 		const actions = node("div", "", "space-location-actions");
@@ -380,6 +446,29 @@ export function setupSpaceLocations({ currentSpace, tokenFor }) {
 		const id = record?.id ?? (kind ?? "loc") + "-" + crypto.randomUUID();
 		const authorLine = node("p", "Author · " + author(space, record), "space-location-destination");
 		let lastAttempt;
+		const removalId = crypto.randomUUID();
+		if (record) {
+			const remove = action("Remove " + (kind ?? "location"), async () => {
+				if (saving || !window.confirm("Remove this " + (kind ?? "location") + " from the Space?")) return;
+				saving = true;
+				remove.disabled = cancel.disabled = close.disabled = save.disabled = true;
+				try {
+					if (space.account) await hostedRequest(space, tokenFor, (kind ? "/content/" : "/locations/") + id, {
+						method: "DELETE", body: JSON.stringify({ ownerUid: space.ownerUid, appId: space.appId,
+							expectedRevision: editor.record.revision, mutationId: removalId }),
+					});
+					else await localRemove(space, editor.record, removalId);
+					if (exact) dialog.close();
+					else resetView();
+					onChange?.();
+				} catch (error) { feedback.textContent = error.message; }
+				finally {
+					saving = false;
+					remove.disabled = cancel.disabled = close.disabled = save.disabled = false;
+				}
+			});
+			actions.append(remove);
+		}
 		feedback.textContent = "";
 		destination.textContent = space.name + " · " + visibility(space);
 		if (kind) {
@@ -402,7 +491,7 @@ export function setupSpaceLocations({ currentSpace, tokenFor }) {
 				feedback.textContent = "You have read-only access to this Space.";
 				return;
 			}
-			if (space.account !== currentSpace()?.account) return refresh();
+			if ((space.account || !exact) && space.account !== currentSpace()?.account) return refresh();
 			if (!record && scopeKey(space) !== scopeKey(currentSpace())) {
 				resetView();
 				return;
@@ -429,8 +518,10 @@ export function setupSpaceLocations({ currentSpace, tokenFor }) {
 			try {
 				await writeRecord(space, tokenFor, changes, original.record, lastAttempt.id);
 				if (editor === original) {
-					if (scopeKey(space) !== scopeKey(currentSpace())) resetView();
+					if (exact) dialog.close();
+					else if (scopeKey(space) !== scopeKey(currentSpace())) resetView();
 					else await load();
+					onChange?.();
 				}
 			} catch (error) {
 				if (editor !== original) return;
@@ -456,6 +547,27 @@ export function setupSpaceLocations({ currentSpace, tokenFor }) {
 
 	function refresh() {
 		if (!dialog.open) return;
+		if (exact) {
+			if (exact.account && exact.account !== currentSpace()?.account) {
+				dialog.close();
+				return;
+			}
+			const original = editor;
+			if (exact.account && original?.record && !saving) {
+				const query = new URLSearchParams({ ownerUid: exact.ownerUid, appId: exact.appId,
+					mode: "hosted", kind: original.record.kind ?? "location", record: original.record.id });
+				content.hidden = true;
+				const verification = ++sequence;
+				void hostedRequest(exact, tokenFor, "/space-record?" + query).then(result => {
+					if (sequence === verification && result.role === "reader") dialog.close();
+				}).catch(() => {
+					if (sequence === verification && dialog.open) dialog.close();
+				}).finally(() => {
+					if (sequence === verification) content.hidden = false;
+				});
+			}
+			return;
+		}
 		const space = currentSpace();
 		if (current?.account !== space?.account) {
 			dialog.close();
@@ -469,7 +581,8 @@ export function setupSpaceLocations({ currentSpace, tokenFor }) {
 	dialog.addEventListener("cancel", event => { if (saving) event.preventDefault(); });
 	dialog.addEventListener("close", () => {
 		sequence++;
-		editor = current = linkedId = detail = undefined;
+		content.hidden = false;
+		editor = current = linkedId = detail = exact = undefined;
 		content.replaceChildren();
 		(retrigger?.getClientRects().length ? retrigger : document.querySelector(".mobile-menu-toggle"))?.focus();
 	});
@@ -481,6 +594,12 @@ export function setupSpaceLocations({ currentSpace, tokenFor }) {
 			dialog.showModal();
 			heading.focus({ preventScroll: true });
 			void load();
+		},
+		openExact(space, record, linked) {
+			if (dialog.open) return;
+			exact = current = space;
+			dialog.showModal();
+			openEditor(space, record, { linked });
 		},
 		refresh,
 	};

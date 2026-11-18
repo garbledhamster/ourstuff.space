@@ -59,6 +59,7 @@ import { escapeHtml, parseOurstuffLineCommand, renderMarkdown } from "./markdown
 import { createMapsProfile, MAPS_ORIGIN, mapsProfileHtml, mapsProfileUrl, mapsProfileViews } from "./maps-profile.js";
 import { setupSpaceLocations } from "./space-locations.js";
 import { setupSpaceOutings } from "./space-outings.js";
+import { readHistoryReference, setupSpaceHistory } from "./space-history.js";
 import { setupSpaceTargets } from "./space-targets.js";
 import {
 	pageContentHtml,
@@ -12939,6 +12940,7 @@ function sidebarHtml(_compendium) {
           `).join("")}
           <button class="sidebar-text-link" data-action="open-space-locations" type="button">Space locations</button>
           <button class="sidebar-text-link" data-action="open-space-outings" type="button">Saved outings</button>
+          <button class="sidebar-text-link" data-action="open-space-history" type="button">Space history</button>
           <button class="sidebar-text-link" data-action="open-space-targets" data-kind="goal" type="button">Goals</button>
           <button class="sidebar-text-link" data-action="open-space-targets" data-kind="habit" type="button">Habit Tracker</button>
         </div>
@@ -15112,6 +15114,31 @@ function spaceLocationContext() {
 const spaceLocations = setupSpaceLocations({
 	currentSpace: spaceLocationContext,
 	tokenFor: expectedUid => getCloudIdToken({ expectedUid, optional: true }),
+	onChange: () => void spaceHistory.refresh(),
+});
+
+function historySpace(reference, mode) {
+	const current = spaceLocationContext();
+	if (mode === "local") {
+		const space = DATA_SPACES[reference.spaceId];
+		if (!space || !isSpaceUnlocked(space.id)) return;
+		if (current?.id === space.id) return { ...current, account: undefined, ownerUid: undefined };
+		return { id: space.id, name: space.label, appId: space.cloudAppId,
+			categories: Object.fromEntries(DASHBOARD_LABELS.map(id => [id, { label: space.dashboardLabels[id] }])) };
+	}
+	const account = mapsUser();
+	if (!account || !reference.ownerUid) return;
+	const space = Object.values(DATA_SPACES).find(space => space.cloudAppId === reference.appId);
+	if (!space || !isSpaceUnlocked(space.id)) return;
+	if (current?.ownerUid === reference.ownerUid && current.appId === reference.appId) return current;
+	return { id: space.id, name: space.label, account, ownerUid: reference.ownerUid, appId: reference.appId,
+		categories: Object.fromEntries(DASHBOARD_LABELS.map(id => [id, { label: space.dashboardLabels[id] }])) };
+}
+
+const spaceHistory = setupSpaceHistory({
+	currentSpace: spaceLocationContext, resolveSpace: historySpace,
+	tokenFor: expectedUid => getCloudIdToken({ expectedUid, optional: true }),
+	edit: (space, record, linked) => spaceLocations.openExact(space, record, linked),
 });
 
 function nativeGoalRows() {
@@ -15194,6 +15221,7 @@ function markMapsSpaceSelection(slot) {
 }
 
 async function followMapsSpace() {
+	if (["space-history", "space-record"].includes(mapsEntry.get("view"))) return;
 	const uid = mapsUser();
 	if (!uid || mapsSpaceRequest) return;
 	const slot = activeSpaceId();
@@ -21362,6 +21390,11 @@ function handleAction(element) {
 		spaceTargets.open(element.dataset.kind === "habit" ? "habit" : "goal", element);
 		return;
 	}
+	if (action === "open-space-history") {
+		setState({ sidebarSubmenu: "", mobileMenuOpen: false });
+		spaceHistory.open(element);
+		return;
+	}
 	if (action === "open-space-outings") {
 		if (state.mobileMenuOpen || state.sidebarSubmenu) setState({ sidebarSubmenu: "", mobileMenuOpen: false });
 		spaceOutings.open(element, element.dataset.category);
@@ -22106,6 +22139,8 @@ if (state.timerState?.running) {
 	startTimerInterval();
 }
 render();
+const historyReference = readHistoryReference(mapsEntry);
+if (historyReference || mapsEntry.get("view") === "space-history") spaceHistory.open(undefined, historyReference);
 if (mapsEntry.get("view") === "gallery") {
 	openGallery();
 } else if (mapsEntry.get("view") === "settings") {
@@ -22119,6 +22154,7 @@ void initCloudAccount((cloud) => {
 	spaceLocations.refresh();
 	spaceTargets.refresh();
 	spaceOutings.refresh();
+	void spaceHistory.refresh();
 	const mapsProfileChanged = mapsProfile.sync(state.active, cloud);
 	const uid = mapsUser(cloud);
 	if (mapsAccount !== uid) {
