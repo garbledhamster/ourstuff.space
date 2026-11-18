@@ -34,7 +34,7 @@ import {
 	signOutCloud,
 	startCloudSubscription,
 	updateFamilyMember,
-} from "./cloud.js?v=space-isolation-20260605b";
+} from "./cloud.js?v=maps-space-pairing-20261118";
 import { CLOUD_STORAGE_LIMIT_BYTES } from "./config.js?v=storage-quota-20260523a";
 import { today } from "./data.js";
 import { bindDonationFlow, donationModalHtml } from "./donations.js";
@@ -15055,12 +15055,113 @@ function visibleDataSpaces() {
 	return Object.values(DATA_SPACES).filter((space) => enabled.has(space.id));
 }
 
+const mapsOrigin = "https://maps.ourstuff.space";
+const mapsEntry = new URLSearchParams(window.location.search);
+const pendingMapsSpaceKey = "ourstuff.maps-space-selection";
+let mapsSpaceRequest;
+let mapsAccount;
+
+function mapsUser(cloud = state.cloud) {
+	return cloud?.mode === "signed-in" && !cloud.isLocalDemo ? cloud.user?.uid : undefined;
+}
+
+function mapsSpaceReference() {
+	const uid = mapsUser();
+	if (!uid || !isSpaceUnlocked(activeSpaceId())) return;
+	if (!isShareableSpace(activeSpaceId())) {
+		return { ownerUid: uid, appId: activeSpace().cloudAppId };
+	}
+	const shared = state.cloud.sharedSpace;
+	if (shared?.ownerUid && shared.appId && ["owner", "editor", "reader"].includes(shared.role)) {
+		return { ownerUid: shared.ownerUid, appId: shared.appId };
+	}
+}
+
 function mapsUrl() {
 	const [first] = visibleDataSpaces();
 	const theme = first ? loadTheme(storageKeyForSpace("ourstuff.theme.v1", first.id)) : "default";
-	const url = new URL("https://maps.ourstuff.space/");
+	const url = new URL("/", mapsOrigin);
 	url.searchParams.set("theme", theme);
+	const space = mapsSpaceReference();
+	if (space) {
+		url.searchParams.set("spaceOwner", space.ownerUid);
+		url.searchParams.set("spaceApp", space.appId);
+	}
 	return url.href;
+}
+
+function pendingMapsSpace() {
+	try {
+		return JSON.parse(window.sessionStorage.getItem(pendingMapsSpaceKey));
+	} catch {
+		return null;
+	}
+}
+
+function markMapsSpaceSelection(slot) {
+	const uid = mapsUser();
+	if (!uid) return;
+	try {
+		window.sessionStorage.setItem(pendingMapsSpaceKey, JSON.stringify({ uid, slot }));
+	} catch {
+		// The Maps link still carries the approved Space.
+	}
+}
+
+async function followMapsSpace() {
+	const uid = mapsUser();
+	if (!uid || mapsSpaceRequest) return;
+	const slot = activeSpaceId();
+	const request = new AbortController();
+	mapsSpaceRequest = request;
+	const current = () => mapsSpaceRequest === request && mapsUser() === uid && activeSpaceId() === slot;
+	try {
+		const token = await getCloudIdToken({ expectedUid: uid, optional: true });
+		if (!token || !current()) return;
+		const headers = { authorization: "Bearer " + token };
+		const url = mapsOrigin + "/api/profile/active-space";
+		const selection = await fetch(url, { headers, signal: request.signal, cache: "no-store" });
+		if (!selection.ok || !current()) return;
+		const { space } = await selection.json();
+		if (!current()) return;
+
+		const pending = pendingMapsSpace();
+		if (pending?.uid === uid && pending.slot === slot) {
+			const reference = mapsSpaceReference();
+			if (space && !reference) return;
+			if (space && (space.ownerUid !== reference.ownerUid || space.appId !== reference.appId)) {
+				const saved = await fetch(url, {
+					method: "PUT", signal: request.signal,
+					headers: { ...headers, "content-type": "application/json" },
+					body: JSON.stringify(reference),
+				});
+				if (!saved.ok || !current()) return;
+			}
+			window.sessionStorage.removeItem(pendingMapsSpaceKey);
+			return;
+		}
+
+		const expectedOwner = mapsEntry.get("spaceOwner");
+		const expectedApp = mapsEntry.get("spaceApp");
+		if (expectedOwner || expectedApp) {
+			const here = new URL(window.location.href);
+			for (const key of ["spaceOwner", "spaceApp"]) {
+				here.searchParams.delete(key);
+				mapsEntry.delete(key);
+			}
+			window.history.replaceState(window.history.state, "", here);
+			if (space?.ownerUid !== expectedOwner || space?.appId !== expectedApp) return;
+		}
+		const target = space?.localId;
+		if (target && target !== slot && Object.hasOwn(DATA_SPACES, target)) {
+			enableSpaceOnDashboard(target);
+			switchSpace(target);
+		}
+	} catch {
+		// Our Stuff remains usable while the paired app is unavailable.
+	} finally {
+		if (mapsSpaceRequest === request) mapsSpaceRequest = undefined;
+	}
 }
 
 function activeSpacePillHtml() {
@@ -20933,6 +21034,7 @@ function handleAction(element) {
 	if (action === "switch-space") {
 		const target = element.dataset.space || PERSONAL_SPACE_ID;
 		if (target !== activeSpaceId() && DATA_SPACES[target]) {
+			markMapsSpaceSelection(target);
 			enableSpaceOnDashboard(target);
 			switchSpace(target);
 		}
@@ -21872,9 +21974,23 @@ if (state.timerState?.running) {
 	startTimerInterval();
 }
 render();
+if (mapsEntry.get("view") === "gallery") {
+	openGallery();
+} else if (mapsEntry.get("view") === "settings") {
+	setState({ mobileMenuOpen: true, sidebarSubmenu: "settings" });
+}
+window.addEventListener("focus", () => void followMapsSpace());
+window.addEventListener("pageshow", (event) => { if (event.persisted) void followMapsSpace(); });
 void initCloudAccount((cloud) => {
 	const previousSignature = cloudUiSignature(state.cloud);
 	state.cloud = cloud;
+	const uid = mapsUser(cloud);
+	if (mapsAccount !== uid) {
+		mapsAccount = uid;
+		mapsSpaceRequest?.abort();
+		mapsSpaceRequest = undefined;
+		void followMapsSpace();
+	}
 	configureMediaCloudContext(cloud);
 	const showAuthView =
 		cloud?.mode === "signed-in" && cloud?.user && consumeCloudAuthView();

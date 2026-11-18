@@ -141,13 +141,17 @@ export function getCloudAccountState() {
 }
 
 export async function getCloudIdToken(options = {}) {
-	if (!currentFirebaseUser) {
+	const user = currentFirebaseUser;
+	if (!user || (options.expectedUid && user.uid !== options.expectedUid)) {
 		if (options.optional === true) {
 			return null;
 		}
 		throw new Error("Sign in before using PYXIDA.");
 	}
-	return currentFirebaseUser.getIdToken(options.forceRefresh === true);
+	const token = await user.getIdToken(options.forceRefresh === true);
+	if (user === currentFirebaseUser) return token;
+	if (options.optional === true) return null;
+	throw new Error("Your account changed. Try again.");
 }
 
 export function subscribeCloudAccount(listener) {
