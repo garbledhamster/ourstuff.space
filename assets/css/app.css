@@ -14531,3 +14531,31 @@ button.life-event-row:hover {
 }
 .space-location-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
 .space-location-actions button { min-height: 44px; touch-action: manipulation; }
+
+.space-location-editor textarea {
+	min-height: 7rem;
+	resize: vertical;
+}
+
+.space-location-category-icon {
+	display: inline-flex;
+	margin-inline-end: .4em;
+	vertical-align: middle;
+}
+
+.space-location-preview {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+	overflow: hidden;
+}
+
+.space-location-writing,
+.space-location-preview {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.space-location-linked {
+	width: 100%;
+}

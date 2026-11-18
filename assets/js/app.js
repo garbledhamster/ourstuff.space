@@ -15089,8 +15089,15 @@ function spaceLocationContext() {
 	const shareable = isShareableSpace(id);
 	return {
 		...reference, id, name: space.label, shareable, account,
+		author: state.cloud.user?.displayName,
 		role: account && shareable ? state.cloud.sharedSpace?.role : "owner",
-		categories: Object.fromEntries(DASHBOARD_LABELS.map(category => [category, dashboardDisplayLabel(category)])),
+		categories: Object.fromEntries(DASHBOARD_LABELS.map(category => {
+			const icon = document.createElement("span");
+			icon.setAttribute("aria-hidden", "true");
+			icon.className = "space-location-category-icon";
+			icon.innerHTML = iconHtml(dashboardDisplayIcon(category));
+			return [category, { label: dashboardDisplayLabel(category), icon }];
+		})),
 	};
 }
 
