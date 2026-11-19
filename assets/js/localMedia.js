@@ -9,7 +9,7 @@ const DB_NAME = scopedIndexedDbName("ourstuff.localMedia.v1");
 const DB_VERSION = 1;
 const STORE_NAME = "files";
 const ASSET_PREFIX = "ourstuff-asset:";
-const MAX_IMAGE_EDGE = 1080;
+const MAX_IMAGE_EDGE = 2160;
 const JPEG_QUALITY = 0.84;
 const REMOTE_STORAGE_NAME = "cloud-media-encrypted";
 const LEGACY_REMOTE_STORAGE_NAMES = new Set([
@@ -575,6 +575,7 @@ export async function storeLocalImage(file, options = {}) {
 	canvas.width = width;
 	canvas.height = height;
 	const context = canvas.getContext("2d", { alpha: false });
+	context.imageSmoothingQuality = "high";
 	context.fillStyle = "#ffffff";
 	context.fillRect(0, 0, width, height);
 	context.drawImage(image, 0, 0, width, height);

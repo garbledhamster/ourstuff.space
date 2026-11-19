@@ -54,7 +54,7 @@ import {
 	storeLocalImage,
 	storeLocalImageFromDataUrl,
 	updateLocalFileMetadata,
-} from "./localMedia.js?v=space-20260531a";
+} from "./localMedia.js?v=retina-media-20261118";
 import { escapeHtml, parseOurstuffLineCommand, renderMarkdown } from "./markdown.js";
 import { createMapsProfile, MAPS_ORIGIN, mapsProfileHtml, mapsProfileUrl, mapsProfileViews } from "./maps-profile.js";
 import { setupSpaceLocations } from "./space-locations.js";
